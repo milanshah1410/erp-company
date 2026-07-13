@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HasDocumentNumber;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
@@ -10,12 +11,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Invoice extends Model
 {
-    use HasDocumentNumber, LogsAuditActivity;
+    use BelongsToTenant, HasDocumentNumber, LogsAuditActivity;
 
     protected static string $numberSettingKey = 'invoice_number_prefix';
 
     protected $fillable = [
-        'invoice_number', 'sales_order_id', 'customer_id',
+        'invoice_number', 'sales_order_id', 'customer_id', 'broker_id',
         'invoice_date', 'due_date', 'total', 'paid_amount', 'credited_amount', 'status',
     ];
 
@@ -45,6 +46,11 @@ class Invoice extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function broker(): BelongsTo
+    {
+        return $this->belongsTo(Broker::class);
     }
 
     public function payments(): HasMany

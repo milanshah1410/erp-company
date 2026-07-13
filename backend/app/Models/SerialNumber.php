@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class SerialNumber extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'product_id', 'variant_id', 'warehouse_id',
         'serial', 'status', 'reference_type', 'reference_id',

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\SalesReturn;
+use App\Services\BrokerCommissionService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,10 @@ use RuntimeException;
  */
 class SalesReturnController extends Controller
 {
-    public function __construct(private readonly StockService $stock) {}
+    public function __construct(
+        private readonly StockService $stock,
+        private readonly BrokerCommissionService $brokerCommissions,
+    ) {}
 
     public function index(Request $request)
     {
@@ -140,6 +144,9 @@ class SalesReturnController extends Controller
                 $invoice = $salesReturn->invoice;
                 $invoice->credited_amount = round((float) $invoice->credited_amount + (float) $salesReturn->total, 2);
                 $invoice->refreshStatus();
+
+                // Reverse the broker's commission for the returned value.
+                $this->brokerCommissions->reverseForReturn($salesReturn);
 
                 $salesReturn->update([
                     'status' => 'approved',

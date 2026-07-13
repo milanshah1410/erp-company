@@ -12,7 +12,7 @@ class WarehouseController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Warehouse::query();
+        $query = Warehouse::query()->with(['company:id,name', 'branch:id,name']);
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -21,6 +21,12 @@ class WarehouseController extends Controller
             });
         }
 
+        if ($request->filled('company_id')) {
+            $query->where('company_id', $request->query('company_id'));
+        }
+        if ($request->filled('branch_id')) {
+            $query->where('branch_id', $request->query('branch_id'));
+        }
         if ($request->filled('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
         }
@@ -40,21 +46,21 @@ class WarehouseController extends Controller
     {
         $warehouse = Warehouse::create($request->validated());
 
-        return (new WarehouseResource($warehouse))
+        return (new WarehouseResource($warehouse->load(['company:id,name', 'branch:id,name'])))
             ->response()
             ->setStatusCode(201);
     }
 
     public function show(Warehouse $warehouse)
     {
-        return new WarehouseResource($warehouse);
+        return new WarehouseResource($warehouse->load(['company:id,name', 'branch:id,name']));
     }
 
     public function update(WarehouseRequest $request, Warehouse $warehouse)
     {
         $warehouse->update($request->validated());
 
-        return new WarehouseResource($warehouse);
+        return new WarehouseResource($warehouse->load(['company:id,name', 'branch:id,name']));
     }
 
     public function destroy(Warehouse $warehouse)

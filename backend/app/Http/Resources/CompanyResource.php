@@ -28,6 +28,9 @@ class CompanyResource extends JsonResource
             'currency_symbol' => $this->currency_symbol,
             'is_active' => (bool) $this->is_active,
             'branches_count' => $this->whenCounted('branches'),
+            'warehouses_count' => $this->whenCounted('warehouses'),
+            'financial_years_count' => $this->whenCounted('financialYears'),
+            'gst_registrations_count' => $this->whenCounted('gstRegistrations'),
             'created_at' => $this->created_at,
         ];
     }

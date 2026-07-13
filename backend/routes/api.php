@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/plans', [PlanController::class, 'index']);
 
 // Self-serve tenant registration + email verification + provisioning status.
-Route::get('/check-subdomain', [RegistrationController::class, 'checkSubdomain']);
+Route::get('/check-email', [RegistrationController::class, 'checkEmail']);
 Route::post('/register', [RegistrationController::class, 'register']);
 Route::post('/verify-email', [RegistrationController::class, 'verifyEmail']);
 Route::post('/resend-verification', [RegistrationController::class, 'resendVerification']);

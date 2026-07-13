@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StockReturnItem extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'stock_return_id', 'product_id', 'variant_id', 'quantity', 'unit_cost', 'reason',
         'batch_number', 'expiry_date', 'serials', 'batch_allocations',

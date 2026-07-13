@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BackupController;
@@ -9,13 +10,23 @@ use App\Http\Controllers\Api\BarcodeController;
 use App\Http\Controllers\Api\BatchController;
 use App\Http\Controllers\Api\BrandController;
 use App\Http\Controllers\Api\BranchController;
+use App\Http\Controllers\Api\BrokerController;
+use App\Http\Controllers\Api\BrokerReportController;
+use App\Http\Controllers\Api\BrokerSettlementController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\ContextController;
+use App\Http\Controllers\Api\CustomerAddressController;
+use App\Http\Controllers\Api\CustomerCategoryController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\CustomerPriceListController;
 use App\Http\Controllers\Api\CycleCountController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\FinancialYearController;
 use App\Http\Controllers\Api\GateEntryController;
+use App\Http\Controllers\Api\GstRegistrationController;
 use App\Http\Controllers\Api\GoodsReceiptController;
 use App\Http\Controllers\Api\InventoryAlertController;
 use App\Http\Controllers\Api\InventoryReportController;
@@ -31,6 +42,7 @@ use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\PurchaseReportController;
 use App\Http\Controllers\Api\ReorderController;
 use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\SalaryController;
 use App\Http\Controllers\Api\SalesOrderController;
 use App\Http\Controllers\Api\SalesQuotationController;
 use App\Http\Controllers\Api\SalesReportController;
@@ -49,35 +61,28 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WarehouseController;
 use App\Http\Controllers\Api\WarehouseLocationController;
 use Illuminate\Support\Facades\Route;
-use Stancl\Tenancy\Middleware\InitializeTenancyBySubdomain;
-use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
 
 /*
 |--------------------------------------------------------------------------
-| Tenant API routes  ({tenant}.<APP_TENANT_DOMAIN>/api/...)
+| Tenant (business) API routes  —  <APP_URL>/api/...
 |--------------------------------------------------------------------------
 |
-| Every route here runs inside a resolved tenant: the subdomain is mapped to
-| a tenant, the DB connection is switched to that tenant's database, and only
-| then does auth:sanctum / route-model binding run (the TenancyServiceProvider
-| gives the identification middleware highest priority so binding queries hit
-| the tenant DB, not the central one).
+| Shared-database, single-domain multi-tenancy: the tenant is resolved from
+| the authenticated user (ResolveTenant middleware, which runs after
+| auth:sanctum), which activates the row-level tenant scope so every query is
+| constrained to that tenant. Central-only routes (registration, plans,
+| provisioning status, billing webhooks) live in routes/api.php on disjoint
+| URIs so the two route files never collide.
 |
-| Registered by App\Providers\TenancyServiceProvider::mapRoutes(). Central-only
-| routes (registration, plans, provisioning status, billing webhooks) live in
-| routes/api.php and use disjoint URIs so the two route files never collide.
+| Loaded by bootstrap/app.php via the withRouting `then` callback.
 |
 */
 
-Route::middleware([
-    'api',
-    InitializeTenancyBySubdomain::class,
-    PreventAccessFromCentralDomains::class,
-])->prefix('api')->group(function () {
-    // Public (within a tenant): login.
+Route::middleware('api')->prefix('api')->group(function () {
+    // Public: login (runs before any tenant context exists).
     Route::post('/login', [AuthController::class, 'login']);
 
-    Route::middleware(['auth:sanctum', 'tenant.active'])->group(function () {
+    Route::middleware(['auth:sanctum', 'resolve.tenant', 'tenant.active'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
 
@@ -122,9 +127,31 @@ Route::middleware([
         Route::get('warehouses/{warehouse}/location-stock', [WarehouseLocationController::class, 'stock'])->middleware('permission:stock.view');
         $crud('suppliers', SupplierController::class, 'suppliers', 'supplier');
         Route::get('suppliers/{supplier}/purchase-history', [SupplierController::class, 'purchaseHistory'])->middleware('permission:suppliers.view');
+        $crud('customer-categories', CustomerCategoryController::class, 'customer-categories', 'customerCategory');
         $crud('customers', CustomerController::class, 'customers', 'customer');
         Route::get('customers/{customer}/purchase-history', [CustomerController::class, 'purchaseHistory'])->middleware('permission:customers.view');
+        Route::get('customers/{customer}/ledger', [CustomerController::class, 'ledger'])->middleware('permission:customers.view');
+        Route::get('customers/{customer}/payments', [CustomerController::class, 'paymentHistory'])->middleware('permission:customers.view');
+
+        // Customer billing / shipping addresses (nested)
+        Route::get('customers/{customer}/addresses', [CustomerAddressController::class, 'index'])->middleware('permission:customers.view');
+        Route::post('customers/{customer}/addresses', [CustomerAddressController::class, 'store'])->middleware('permission:customers.edit');
+        Route::match(['put', 'patch'], 'customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'update'])->middleware('permission:customers.edit');
+        Route::delete('customers/{customer}/addresses/{address}', [CustomerAddressController::class, 'destroy'])->middleware('permission:customers.edit');
+
+        // Customer-specific price overrides (nested) + price resolver
+        Route::get('customers/{customer}/price-list', [CustomerPriceListController::class, 'index'])->middleware('permission:customers.view');
+        Route::get('customers/{customer}/price-for', [CustomerPriceListController::class, 'resolve'])->middleware('permission:customers.view');
+        Route::post('customers/{customer}/price-list', [CustomerPriceListController::class, 'store'])->middleware('permission:customers.edit');
+        Route::match(['put', 'patch'], 'customers/{customer}/price-list/{priceList}', [CustomerPriceListController::class, 'update'])->middleware('permission:customers.edit');
+        Route::delete('customers/{customer}/price-list/{priceList}', [CustomerPriceListController::class, 'destroy'])->middleware('permission:customers.edit');
         $crud('price-lists', PriceListController::class, 'price-lists', 'priceList');
+
+        // Brokers (Dalal): master + commission ledger + settlements
+        $crud('brokers', BrokerController::class, 'brokers', 'broker');
+        Route::get('brokers/{broker}/ledger', [BrokerController::class, 'ledger'])->middleware('permission:brokers.view');
+        Route::get('brokers/{broker}/settlements', [BrokerController::class, 'settlements'])->middleware('permission:brokers.view');
+        Route::post('brokers/{broker}/settlements', [BrokerSettlementController::class, 'store'])->middleware('permission:brokers.create');
 
         /*
         |----------------------------------------------------------------------
@@ -273,6 +300,8 @@ Route::middleware([
         Route::get('reports/sales', [SalesReportController::class, 'summary'])->middleware('permission:reports.view');
         Route::get('reports/profitability', [SalesReportController::class, 'profitability'])->middleware('permission:reports.view');
         Route::get('reports/gst-output', [SalesReportController::class, 'gstOutput'])->middleware('permission:reports.view');
+        Route::get('reports/broker-commissions', [BrokerReportController::class, 'commissions'])->middleware('permission:reports.view');
+        Route::get('reports/broker-wise-sales', [BrokerReportController::class, 'brokerWiseSales'])->middleware('permission:reports.view');
 
         Route::get('dashboard/kpis', [DashboardController::class, 'kpis']);
 
@@ -312,6 +341,16 @@ Route::middleware([
 
         /*
         |----------------------------------------------------------------------
+        | Human Resources: departments, employees, attendance, salary
+        |----------------------------------------------------------------------
+        */
+        $crud('departments', DepartmentController::class, 'departments', 'department');
+        $crud('employees', EmployeeController::class, 'employees', 'employee');
+        $crud('attendance', AttendanceController::class, 'attendance', 'attendance');
+        $crud('salaries', SalaryController::class, 'salaries', 'salary');
+
+        /*
+        |----------------------------------------------------------------------
         | System administration
         |----------------------------------------------------------------------
         */
@@ -335,6 +374,16 @@ Route::middleware([
         */
         $crud('companies', CompanyController::class, 'companies', 'company');
         $crud('branches', BranchController::class, 'branches', 'branch');
+
+        // Financial years: accounting periods per company + open/close + current-year switch
+        Route::post('financial-years/{financialYear}/close', [FinancialYearController::class, 'close'])->middleware('permission:financial-years.edit');
+        Route::post('financial-years/{financialYear}/reopen', [FinancialYearController::class, 'reopen'])->middleware('permission:financial-years.edit');
+        Route::post('financial-years/{financialYear}/set-current', [FinancialYearController::class, 'setCurrent'])->middleware('permission:financial-years.edit');
+        $crud('financial-years', FinancialYearController::class, 'financial-years', 'financialYear');
+
+        // GST registrations: multiple state-wise GSTINs per company/branch
+        $crud('gst-registrations', GstRegistrationController::class, 'gst-registrations', 'gstRegistration');
+
         Route::post('context/switch', [ContextController::class, 'switch']);
 
         /*

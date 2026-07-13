@@ -11,6 +11,10 @@ class WarehouseResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'company_id' => $this->company_id,
+            'company_name' => $this->whenLoaded('company', fn () => $this->company?->name),
+            'branch_id' => $this->branch_id,
+            'branch_name' => $this->whenLoaded('branch', fn () => $this->branch?->name),
             'code' => $this->code,
             'name' => $this->name,
             'type' => $this->type,

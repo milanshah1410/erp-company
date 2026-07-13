@@ -138,6 +138,12 @@ function fieldError(key: string): string | null {
   return errors.value[key]?.[0] ?? null
 }
 
+function formatDate(value: unknown): string {
+  if (!value) return ''
+  const d = new Date(value as string)
+  return isNaN(d.getTime()) ? String(value) : d.toLocaleDateString()
+}
+
 function optionsFor(field: FieldConfig) {
   return selectOptions.value[field.key] || []
 }
@@ -186,6 +192,7 @@ onMounted(reinit)
         <template #body="{ data }">
           <Tag v-if="col.type === 'boolean'" :severity="data[col.key] ? 'success' : 'danger'" :value="data[col.key] ? 'Yes' : 'No'" />
           <span v-else-if="col.type === 'currency'">{{ formatCurrency(data[col.key]) }}</span>
+          <span v-else-if="col.type === 'date'">{{ formatDate(data[col.key]) }}</span>
           <span v-else>{{ data[col.key] }}</span>
         </template>
       </Column>
@@ -204,6 +211,8 @@ onMounted(reinit)
           <label>{{ field.label }} <span v-if="field.required" class="req">*</span></label>
 
           <InputText v-if="field.type === 'text'" v-model="form[field.key]" :class="{ invalid: fieldError(field.key) }" />
+          <InputText v-else-if="field.type === 'date' || field.type === 'month'" type="date" v-model="form[field.key]" :class="{ invalid: fieldError(field.key) }" />
+          <InputText v-else-if="field.type === 'time'" type="time" v-model="form[field.key]" :class="{ invalid: fieldError(field.key) }" />
           <Textarea v-else-if="field.type === 'textarea'" v-model="form[field.key]" rows="3" :class="{ invalid: fieldError(field.key) }" />
           <InputNumber v-else-if="field.type === 'number'" v-model="form[field.key]" :minFractionDigits="0" :maxFractionDigits="6" class="w-full" :class="{ invalid: fieldError(field.key) }" />
           <Select

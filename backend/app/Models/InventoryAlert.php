@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class InventoryAlert extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'type', 'severity', 'product_id', 'variant_id', 'warehouse_id', 'batch_id',
         'message', 'status', 'acknowledged_by', 'acknowledged_at', 'resolved_at',

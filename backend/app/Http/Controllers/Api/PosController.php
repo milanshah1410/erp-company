@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\SalesOrder;
 use App\Models\WarehouseStock;
+use App\Services\BrokerCommissionService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,10 @@ use RuntimeException;
  */
 class PosController extends Controller
 {
-    public function __construct(private readonly StockService $stock) {}
+    public function __construct(
+        private readonly StockService $stock,
+        private readonly BrokerCommissionService $brokerCommissions,
+    ) {}
 
     /** Product list for the POS grid, with on-hand availability for the chosen warehouse. */
     public function products(Request $request)
@@ -67,6 +71,7 @@ class PosController extends Controller
         $data = $request->validate([
             'warehouse_id' => ['required', 'exists:warehouses,id'],
             'customer_id' => ['nullable', 'exists:customers,id'],
+            'broker_id' => ['nullable', 'exists:brokers,id'],
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
@@ -110,6 +115,7 @@ class PosController extends Controller
                 $salesOrder = SalesOrder::create([
                     'so_number' => SalesOrder::nextNumber(),
                     'customer_id' => $customer->id,
+                    'broker_id' => $data['broker_id'] ?? null,
                     'warehouse_id' => $data['warehouse_id'],
                     'status' => 'delivered',
                     'channel' => 'pos',
@@ -142,11 +148,14 @@ class PosController extends Controller
                     'invoice_number' => Invoice::nextNumber(),
                     'sales_order_id' => $salesOrder->id,
                     'customer_id' => $customer->id,
+                    'broker_id' => $salesOrder->broker_id,
                     'invoice_date' => now()->toDateString(),
                     'total' => $total,
                     'paid_amount' => 0,
                     'status' => 'unpaid',
                 ]);
+
+                $this->brokerCommissions->accrueForInvoice($invoice);
 
                 foreach ($data['payments'] as $payment) {
                     $invoice->payments()->create([

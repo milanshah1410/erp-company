@@ -14,11 +14,12 @@ class RolePermissionSeeder extends Seeder
      */
     private array $modules = [
         'products', 'categories', 'brands', 'units', 'warehouses',
-        'suppliers', 'customers', 'price-lists',
+        'suppliers', 'customers', 'customer-categories', 'brokers', 'price-lists',
         'stock', 'stock-ledger', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
         'gate-entries', 'advanced-inventory', 'barcodes',
         'purchases', 'purchase-invoices', 'sales', 'sales-returns', 'reports', 'users', 'roles', 'settings',
-        'companies', 'branches', 'backups',
+        'companies', 'branches', 'financial-years', 'gst-registrations', 'backups',
+        'departments', 'employees', 'attendance', 'salaries',
     ];
 
     /**
@@ -88,6 +89,8 @@ class RolePermissionSeeder extends Seeder
             'sales-manager' => [
                 'products.view', 'categories.view', 'brands.view', 'units.view',
                 'customers.view', 'customers.create', 'customers.edit',
+                'customer-categories.view', 'customer-categories.create', 'customer-categories.edit',
+                'brokers.view', 'brokers.create', 'brokers.edit',
                 'price-lists.view',
                 'sales.view', 'sales.create', 'sales.edit', 'sales.approve',
                 'stock.view', 'reports.view', 'barcodes.view', 'notifications.view',
@@ -95,7 +98,8 @@ class RolePermissionSeeder extends Seeder
                 'sales-returns.view', 'sales-returns.create', 'sales-returns.edit', 'sales-returns.approve',
             ],
             'accountant' => [
-                'suppliers.view', 'customers.view',
+                'suppliers.view', 'customers.view', 'customer-categories.view',
+                'brokers.view', 'brokers.create', 'brokers.edit',
                 'purchases.view', 'sales.view',
                 'stock-returns.view',
                 'purchase-invoices.view', 'purchase-invoices.approve',

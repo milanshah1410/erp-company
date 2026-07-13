@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HasDocumentNumber;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
@@ -11,12 +12,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SalesOrder extends Model
 {
-    use HasDocumentNumber, LogsAuditActivity;
+    use BelongsToTenant, HasDocumentNumber, LogsAuditActivity;
 
     protected static string $numberSettingKey = 'so_number_prefix';
 
     protected $fillable = [
-        'so_number', 'customer_id', 'warehouse_id', 'status', 'channel',
+        'so_number', 'customer_id', 'broker_id', 'warehouse_id', 'status', 'channel',
         'order_date', 'subtotal', 'tax_amount', 'total',
         'notes', 'created_by', 'delivered_at',
         'fulfillment_stage', 'picked_at', 'packed_at', 'shipped_at', 'picked_by', 'packed_by', 'shipped_by',
@@ -36,6 +37,11 @@ class SalesOrder extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function broker(): BelongsTo
+    {
+        return $this->belongsTo(Broker::class);
     }
 
     public function warehouse(): BelongsTo

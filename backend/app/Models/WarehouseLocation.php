@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WarehouseLocation extends Model
 {
-    use LogsAuditActivity;
+    use BelongsToTenant, LogsAuditActivity;
 
     protected $fillable = [
         'warehouse_id', 'parent_id', 'code', 'name', 'type', 'is_active',

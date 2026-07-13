@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GoodsReceiptItem extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'goods_receipt_id', 'purchase_item_id', 'product_id', 'variant_id',
         'location_id', 'quantity', 'unit_cost', 'base_unit_cost', 'landed_cost_per_unit',

@@ -14,7 +14,6 @@ class TenantReadyEmail extends Notification
 
     public function __construct(
         public string $companyName,
-        public string $subdomain,
     ) {}
 
     public function via(object $notifiable): array
@@ -24,16 +23,13 @@ class TenantReadyEmail extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $host = $this->subdomain.'.'.config('saas.tenant_domain');
-        $scheme = str_starts_with((string) config('app.url'), 'https') ? 'https' : 'http';
-        $url = "{$scheme}://{$host}";
+        $url = (string) config('app.frontend_url', config('app.url'));
 
         return (new MailMessage)
             ->subject('Your '.config('app.name').' account is ready 🎉')
             ->greeting('You’re all set!')
             ->line($this->companyName.' is provisioned and ready to use.')
-            ->action('Open your dashboard', $url)
-            ->line('Bookmark this URL — it’s your private workspace: '.$host)
+            ->action('Log in', $url)
             ->line('You’re on a '.config('saas.trial_days', 14).'-day free trial. No card required.');
     }
 }

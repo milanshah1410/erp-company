@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Batch extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'product_id', 'variant_id', 'warehouse_id',
         'batch_number', 'expiry_date', 'quantity', 'unit_cost',

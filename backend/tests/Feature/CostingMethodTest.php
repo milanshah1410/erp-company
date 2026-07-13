@@ -5,13 +5,16 @@ namespace Tests\Feature;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\StockCostLayer;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Services\StockService;
+use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class CostingMethodTest extends TestCase
@@ -20,6 +23,8 @@ class CostingMethodTest extends TestCase
 
     private StockService $stock;
 
+    private Tenant $tenant;
+
     private Warehouse $warehouse;
 
     private Product $product;
@@ -27,6 +32,12 @@ class CostingMethodTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Shared-DB tenancy: establish a tenant so tenant-scoped models resolve
+        // and new rows are auto-stamped with the tenant id.
+        $this->tenant = Tenant::create(['company_name' => 'Test Co', 'status' => 'active']);
+        app(TenantContext::class)->set($this->tenant->id);
+        app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
 
         $this->stock = app(StockService::class);
         $this->warehouse = Warehouse::forceCreate(['code' => 'WH1', 'name' => 'Main', 'type' => 'main']);

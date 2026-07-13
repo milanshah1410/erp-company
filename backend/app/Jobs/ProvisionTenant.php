@@ -13,6 +13,8 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\TenantReadyEmail;
+use App\Support\TenantContext;
+use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantDatabaseSeeder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -21,13 +23,18 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Throwable;
 
 /**
- * Provisions a tenant end-to-end from a verified PendingRegistration:
- * tenant record + subdomain, database (created + migrated via stancl events),
- * baseline seed data, the tenant's first admin user, and a trialing
- * subscription. Runs on the central queue.
+ * Provisions a tenant end-to-end from a verified PendingRegistration in the
+ * shared database: a tenants row, baseline data + the first admin user (all
+ * scoped to the new tenant_id), and a trialing subscription.
+ *
+ * Roles/permissions are global (tenant_id = NULL, shared across tenants); this
+ * job only assigns the admin's role — it ensures the global set exists first so
+ * the very first signup on a fresh deploy still works.
  */
 class ProvisionTenant implements ShouldQueue
 {
@@ -48,8 +55,9 @@ class ProvisionTenant implements ShouldQueue
 
         $plan = Plan::where('slug', $registration->plan_slug)->firstOrFail();
 
-        // 1. Central tenant record. Creating it fires TenantCreated, whose job
-        //    pipeline (CreateDatabase + MigrateDatabase) runs synchronously.
+        $this->ensureGlobalRolesExist();
+
+        // 1. Central tenant record (landlord-owned, no tenant scope).
         $tenant = Tenant::create([
             'company_name' => $registration->company_name,
             'email' => $registration->email,
@@ -57,11 +65,10 @@ class ProvisionTenant implements ShouldQueue
             'status' => 'trial',
         ]);
 
-        // 2. Subdomain → tenant mapping.
-        $tenant->domains()->create(['domain' => $registration->subdomain]);
+        // 2. Seed baseline + create the first admin, all scoped to the tenant.
+        app(TenantContext::class)->runWith($tenant->id, function () use ($registration, $tenant) {
+            app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
 
-        // 3. Seed baseline data + create the first admin, inside the tenant DB.
-        $tenant->run(function () use ($registration) {
             (new TenantDatabaseSeeder)->run();
 
             $admin = new User();
@@ -89,7 +96,7 @@ class ProvisionTenant implements ShouldQueue
             }
         });
 
-        // 4. Trialing subscription (central DB).
+        // 3. Trialing subscription (landlord, explicit tenant_id).
         $trialDays = (int) config('saas.trial_days', 14);
         Subscription::create([
             'tenant_id' => $tenant->id,
@@ -99,21 +106,40 @@ class ProvisionTenant implements ShouldQueue
             'current_period_start' => now(),
         ]);
 
-        // 5. Onboarding tracker (central DB).
+        // 4. Onboarding tracker (landlord).
         OnboardingProgress::create([
             'tenant_id' => $tenant->id,
             'steps' => [],
         ]);
 
-        // 6. Mark the registration active + wire it to the tenant.
+        // 5. Mark the registration active + wire it to the tenant.
         $registration->update([
             'status' => 'active',
             'tenant_id' => $tenant->id,
         ]);
 
-        // 7. "Your account is ready" email with the tenant login URL.
+        // 6. "Your account is ready" email.
         Notification::route('mail', $registration->email)
-            ->notify(new TenantReadyEmail($registration->company_name, $registration->subdomain));
+            ->notify(new TenantReadyEmail($registration->company_name));
+    }
+
+    /**
+     * Ensure the shared (global) role/permission set exists. Idempotent — safe
+     * to call on every provision; seeds only when the set is absent.
+     */
+    private function ensureGlobalRolesExist(): void
+    {
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->setPermissionsTeamId(null);
+
+        $exists = Role::query()
+            ->whereNull(config('permission.column_names.team_foreign_key'))
+            ->where('name', 'super-admin')
+            ->exists();
+
+        if (! $exists) {
+            (new RolePermissionSeeder)->run();
+        }
     }
 
     public function failed(Throwable $e): void
@@ -128,10 +154,10 @@ class ProvisionTenant implements ShouldQueue
             return;
         }
 
-        // Roll back a half-created tenant so its subdomain frees up and no
-        // orphan database lingers.
+        // Roll back a half-created tenant; the tenant_id FKs cascade-delete all
+        // of its scoped rows.
         if ($registration->tenant_id && ($tenant = Tenant::find($registration->tenant_id))) {
-            $tenant->delete(); // TenantDeleted → DeleteDatabase
+            $tenant->delete();
         }
 
         $registration->update([

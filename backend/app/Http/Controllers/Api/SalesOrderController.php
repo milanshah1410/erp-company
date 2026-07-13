@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\SalesItem;
 use App\Models\SalesOrder;
 use App\Models\WarehouseStock;
+use App\Services\BrokerCommissionService;
 use App\Services\InventoryTrackingService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class SalesOrderController extends Controller
     public function __construct(
         private readonly StockService $stock,
         private readonly InventoryTrackingService $tracking,
+        private readonly BrokerCommissionService $brokerCommissions,
     ) {}
 
     public function index(Request $request)
@@ -51,6 +53,7 @@ class SalesOrderController extends Controller
             $so = SalesOrder::create([
                 'so_number' => SalesOrder::nextNumber(),
                 'customer_id' => $data['customer_id'],
+                'broker_id' => $data['broker_id'] ?? null,
                 'warehouse_id' => $data['warehouse_id'],
                 'status' => 'draft',
                 'order_date' => $data['order_date'],
@@ -84,6 +87,7 @@ class SalesOrderController extends Controller
             $data = $request->validated();
             $salesOrder->update([
                 'customer_id' => $data['customer_id'],
+                'broker_id' => $data['broker_id'] ?? null,
                 'warehouse_id' => $data['warehouse_id'],
                 'order_date' => $data['order_date'],
                 'notes' => $data['notes'] ?? null,
@@ -312,15 +316,20 @@ class SalesOrderController extends Controller
 
                 $salesOrder->update(['status' => 'delivered', 'delivered_at' => now()]);
 
-                return Invoice::create([
+                $invoice = Invoice::create([
                     'invoice_number' => Invoice::nextNumber(),
                     'sales_order_id' => $salesOrder->id,
                     'customer_id' => $salesOrder->customer_id,
+                    'broker_id' => $salesOrder->broker_id,
                     'invoice_date' => now()->toDateString(),
                     'total' => $salesOrder->total,
                     'paid_amount' => 0,
                     'status' => 'unpaid',
                 ]);
+
+                $this->brokerCommissions->accrueForInvoice($invoice);
+
+                return $invoice;
             });
         } catch (RuntimeException $e) {
             // StockService refuses to drive stock negative.

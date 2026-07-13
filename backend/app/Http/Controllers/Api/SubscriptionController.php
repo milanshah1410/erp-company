@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Services\RazorpayService;
+use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class SubscriptionController extends Controller
     private function current(): ?Subscription
     {
         return Subscription::with('plan')
-            ->where('tenant_id', tenant()->getTenantKey())
+            ->where('tenant_id', app(TenantContext::class)->id())
             ->latest('id')
             ->first();
     }

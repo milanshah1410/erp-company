@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\OnboardingProgress;
 use App\Models\User;
+use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -23,7 +24,7 @@ class OnboardingController extends Controller
     private function progress(): OnboardingProgress
     {
         return OnboardingProgress::firstOrCreate(
-            ['tenant_id' => tenant()->getTenantKey()],
+            ['tenant_id' => app(TenantContext::class)->id()],
             ['steps' => []],
         );
     }

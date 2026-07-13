@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsAuditActivity;
+use App\Models\Scopes\TenantScope;
+use App\Support\TenantContext;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -14,12 +16,37 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'phone', 'is_active', 'current_company_id', 'current_branch_id'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'is_active', 'tenant_id', 'current_company_id', 'current_branch_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasRoles, LogsAuditActivity, Notifiable;
+
+    /**
+     * Users are tenant-owned, but the tenant scope is NOT fail-closed here:
+     * Sanctum resolves the user from the bearer token (and login looks users up
+     * by email) before any tenant context exists, so the scope must no-op when
+     * unset. Once ResolveTenant sets the context, user listings are scoped.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new TenantScope(failClosed: false));
+
+        static::creating(function (User $user): void {
+            if ($user->tenant_id === null) {
+                $context = app(TenantContext::class);
+                if ($context->has()) {
+                    $user->tenant_id = $context->id();
+                }
+            }
+        });
+    }
+
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class);
+    }
 
     /**
      * Get the attributes that should be cast.

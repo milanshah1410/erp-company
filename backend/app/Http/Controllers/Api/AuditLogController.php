@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AuditLogResource;
+use App\Models\ActivityLog as Activity;
 use Illuminate\Http\Request;
-use Spatie\Activitylog\Models\Activity;
 
 /**
  * Read-only view over the immutable activity_log table (SRS §4.10).

@@ -15,6 +15,7 @@ class SalesOrderRequest extends FormRequest
     {
         return [
             'customer_id' => ['required', 'exists:customers,id'],
+            'broker_id' => ['nullable', 'exists:brokers,id'],
             'warehouse_id' => ['required', 'exists:warehouses,id'],
             'order_date' => ['required', 'date'],
             'notes' => ['nullable', 'string'],

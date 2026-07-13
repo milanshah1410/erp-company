@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,7 +10,7 @@ use Illuminate\Support\Str;
 
 class Brand extends Model
 {
-    use LogsAuditActivity;
+    use BelongsToTenant, LogsAuditActivity;
 
     protected $fillable = [
         'name', 'slug', 'logo', 'description', 'is_active',

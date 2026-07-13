@@ -2,7 +2,7 @@
 // the table columns, and the form fields. A single generic CrudView renders
 // all of them, so adding a master screen is just adding an entry here.
 
-export type FieldType = 'text' | 'textarea' | 'number' | 'select' | 'checkbox'
+export type FieldType = 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | 'date' | 'time' | 'month'
 
 export interface FieldConfig {
   key: string
@@ -19,7 +19,7 @@ export interface FieldConfig {
 export interface ColumnConfig {
   key: string
   label: string
-  type?: 'text' | 'boolean' | 'currency'
+  type?: 'text' | 'boolean' | 'currency' | 'date'
 }
 
 export interface ResourceConfig {
@@ -213,6 +213,30 @@ export const resources: Record<string, ResourceConfig> = {
       { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
     ],
   },
+  brokers: {
+    key: 'brokers',
+    title: 'Brokers',
+    endpoint: '/brokers',
+    permission: 'brokers',
+    columns: [
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Name' },
+      { key: 'mobile', label: 'Mobile' },
+      { key: 'commission_percent', label: 'Commission %' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'code', label: 'Code', type: 'text', required: true },
+      { key: 'name', label: 'Name', type: 'text', required: true },
+      { key: 'mobile', label: 'Mobile', type: 'text' },
+      { key: 'gst_number', label: 'GST Number', type: 'text' },
+      { key: 'commission_percent', label: 'Commission %', type: 'number', step: '0.01', default: 0 },
+      { key: 'fixed_commission', label: 'Fixed Commission', type: 'number', step: '0.01', default: 0 },
+      { key: 'opening_balance', label: 'Opening Balance', type: 'number', step: '0.01', default: 0 },
+      { key: 'address', label: 'Address', type: 'textarea' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
   companies: {
     key: 'companies',
     title: 'Companies',
@@ -280,6 +304,142 @@ export const resources: Record<string, ResourceConfig> = {
       { key: 'phone', label: 'Phone', type: 'text' },
       { key: 'email', label: 'Email', type: 'text' },
       { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  departments: {
+    key: 'departments',
+    title: 'Departments',
+    endpoint: '/departments',
+    permission: 'departments',
+    columns: [
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Name' },
+      { key: 'employees_count', label: 'Employees' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'code', label: 'Code', type: 'text', required: true },
+      { key: 'name', label: 'Name', type: 'text', required: true },
+      { key: 'description', label: 'Description', type: 'textarea' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  employees: {
+    key: 'employees',
+    title: 'Employees',
+    endpoint: '/employees',
+    permission: 'employees',
+    columns: [
+      { key: 'employee_code', label: 'Code' },
+      { key: 'full_name', label: 'Name' },
+      { key: 'designation', label: 'Designation' },
+      { key: 'department_name', label: 'Department' },
+      { key: 'employment_type', label: 'Type' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'employee_code', label: 'Employee Code', type: 'text', required: true },
+      { key: 'first_name', label: 'First Name', type: 'text', required: true },
+      { key: 'last_name', label: 'Last Name', type: 'text' },
+      { key: 'department_id', label: 'Department', type: 'select', optionsFrom: '/departments', optionLabel: 'name' },
+      { key: 'user_id', label: 'Login Account', type: 'select', optionsFrom: '/users', optionLabel: 'name' },
+      { key: 'designation', label: 'Designation', type: 'text' },
+      {
+        key: 'employment_type',
+        label: 'Employment Type',
+        type: 'select',
+        default: 'full-time',
+        options: [
+          { label: 'Full-time', value: 'full-time' },
+          { label: 'Part-time', value: 'part-time' },
+          { label: 'Contract', value: 'contract' },
+          { label: 'Intern', value: 'intern' },
+        ],
+      },
+      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'date_of_joining', label: 'Date of Joining', type: 'date' },
+      { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+      {
+        key: 'gender',
+        label: 'Gender',
+        type: 'select',
+        options: [
+          { label: 'Male', value: 'male' },
+          { label: 'Female', value: 'female' },
+          { label: 'Other', value: 'other' },
+        ],
+      },
+      { key: 'address', label: 'Address', type: 'textarea' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  attendance: {
+    key: 'attendance',
+    title: 'Attendance',
+    endpoint: '/attendance',
+    permission: 'attendance',
+    columns: [
+      { key: 'date', label: 'Date', type: 'date' },
+      { key: 'employee_name', label: 'Employee' },
+      { key: 'status', label: 'Status' },
+      { key: 'check_in', label: 'Check In' },
+      { key: 'check_out', label: 'Check Out' },
+    ],
+    fields: [
+      { key: 'employee_id', label: 'Employee', type: 'select', required: true, optionsFrom: '/employees', optionLabel: 'name' },
+      { key: 'date', label: 'Date', type: 'date', required: true },
+      {
+        key: 'status',
+        label: 'Status',
+        type: 'select',
+        default: 'present',
+        options: [
+          { label: 'Present', value: 'present' },
+          { label: 'Absent', value: 'absent' },
+          { label: 'Half Day', value: 'half-day' },
+          { label: 'Leave', value: 'leave' },
+          { label: 'Holiday', value: 'holiday' },
+          { label: 'Week Off', value: 'week-off' },
+        ],
+      },
+      { key: 'check_in', label: 'Check In', type: 'time' },
+      { key: 'check_out', label: 'Check Out', type: 'time' },
+      { key: 'remarks', label: 'Remarks', type: 'text' },
+    ],
+  },
+  salaries: {
+    key: 'salaries',
+    title: 'Salaries',
+    endpoint: '/salaries',
+    permission: 'salaries',
+    columns: [
+      { key: 'month', label: 'Month', type: 'date' },
+      { key: 'employee_name', label: 'Employee' },
+      { key: 'basic', label: 'Basic', type: 'currency' },
+      { key: 'allowances', label: 'Allowances', type: 'currency' },
+      { key: 'deductions', label: 'Deductions', type: 'currency' },
+      { key: 'net_salary', label: 'Net', type: 'currency' },
+      { key: 'status', label: 'Status' },
+    ],
+    fields: [
+      { key: 'employee_id', label: 'Employee', type: 'select', required: true, optionsFrom: '/employees', optionLabel: 'name' },
+      { key: 'month', label: 'Month', type: 'month', required: true },
+      { key: 'basic', label: 'Basic', type: 'number', step: '0.01', default: 0 },
+      { key: 'allowances', label: 'Allowances', type: 'number', step: '0.01', default: 0 },
+      { key: 'deductions', label: 'Deductions', type: 'number', step: '0.01', default: 0 },
+      {
+        key: 'status',
+        label: 'Status',
+        type: 'select',
+        default: 'draft',
+        options: [
+          { label: 'Draft', value: 'draft' },
+          { label: 'Paid', value: 'paid' },
+        ],
+      },
+      { key: 'paid_on', label: 'Paid On', type: 'date' },
+      { key: 'remarks', label: 'Remarks', type: 'text' },
     ],
   },
 }

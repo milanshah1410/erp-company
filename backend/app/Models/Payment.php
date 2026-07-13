@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Payment extends Model
 {
-    use LogsAuditActivity;
+    use BelongsToTenant, LogsAuditActivity;
 
     protected $fillable = [
         'invoice_id', 'amount', 'mode', 'payment_date', 'notes', 'created_by',

@@ -25,7 +25,8 @@ class EnsureTenantActive
 
     public function handle(Request $request, Closure $next): Response
     {
-        $tenant = function_exists('tenant') ? tenant() : null;
+        // Set by the ResolveTenant middleware, which must run before this one.
+        $tenant = $request->attributes->get('tenant');
 
         if ($tenant && $tenant->status === 'suspended' && ! $this->isReadOnlyRequest($request)) {
             return response()->json([

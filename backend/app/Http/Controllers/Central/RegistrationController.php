@@ -8,25 +8,30 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ProvisionTenant;
 use App\Models\PendingRegistration;
 use App\Models\Plan;
+use App\Models\Scopes\TenantScope;
+use App\Models\User;
 use App\Notifications\VerifyTenantEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Stancl\Tenancy\Database\Models\Domain;
 
 class RegistrationController extends Controller
 {
     /**
-     * Live subdomain-availability check for the signup form.
-     * GET /api/check-subdomain?subdomain=acme
+     * Live email-availability check for the signup form.
+     * GET /api/check-email?email=owner@acme.com
      */
-    public function checkSubdomain(Request $request): JsonResponse
+    public function checkEmail(Request $request): JsonResponse
     {
-        $subdomain = strtolower(trim((string) $request->query('subdomain', '')));
+        $email = strtolower(trim((string) $request->query('email', '')));
 
-        if ($reason = $this->subdomainError($subdomain)) {
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return response()->json(['available' => false, 'reason' => 'Enter a valid email address.']);
+        }
+
+        if ($reason = $this->emailError($email)) {
             return response()->json(['available' => false, 'reason' => $reason]);
         }
 
@@ -46,15 +51,14 @@ class RegistrationController extends Controller
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'password' => ['required', 'string', 'min:8'],
-            'subdomain' => ['required', 'string'],
             'plan_slug' => ['nullable', 'string', Rule::in(Plan::query()->pluck('slug')->all())],
         ]);
 
-        $subdomain = strtolower(trim($data['subdomain']));
-        if ($reason = $this->subdomainError($subdomain)) {
+        $email = strtolower(trim($data['email']));
+        if ($reason = $this->emailError($email)) {
             return response()->json([
-                'message' => 'That subdomain is not available.',
-                'errors' => ['subdomain' => [$reason]],
+                'message' => 'That email address is not available.',
+                'errors' => ['email' => [$reason]],
             ], 422);
         }
 
@@ -63,10 +67,9 @@ class RegistrationController extends Controller
         $registration = PendingRegistration::create([
             'company_name' => $data['company_name'],
             'admin_name' => $data['admin_name'],
-            'email' => $data['email'],
+            'email' => $email,
             'phone' => $data['phone'] ?? null,
             'password' => $data['password'], // hashed via cast
-            'subdomain' => $subdomain,
             'plan_slug' => $data['plan_slug'] ?? 'starter',
             'verification_code' => $code,
             'verification_token' => Str::random(48),
@@ -150,50 +153,38 @@ class RegistrationController extends Controller
 
     private function statusPayload(PendingRegistration $registration): JsonResponse
     {
-        $scheme = request()->getScheme();
-        $port = request()->getPort();
-        $portSuffix = in_array($port, [80, 443, null], true) ? '' : ':'.$port;
-        $host = $registration->subdomain.'.'.config('saas.tenant_domain');
-
         return response()->json([
             'status' => $registration->status,
             'error' => $registration->error,
             'tenant_id' => $registration->tenant_id,
-            'subdomain' => $registration->subdomain,
             'login_url' => $registration->status === 'active'
-                ? "{$scheme}://{$host}{$portSuffix}"
+                ? (string) config('app.frontend_url', config('app.url'))
                 : null,
         ]);
     }
 
     /**
-     * Returns a human-readable reason the subdomain can't be used, or null if
-     * it's available. Enforces format, reserved list, and uniqueness.
+     * Returns a human-readable reason the email can't be used, or null if it's
+     * available. Email is globally unique across all tenants (login is by email
+     * alone), so it must not already belong to a user or a live registration.
      */
-    private function subdomainError(string $subdomain): ?string
+    private function emailError(string $email): ?string
     {
-        if ($subdomain === '') {
-            return 'Please choose a subdomain.';
+        $takenByUser = User::query()
+            ->withoutGlobalScope(TenantScope::class)
+            ->where('email', $email)
+            ->exists();
+
+        if ($takenByUser) {
+            return 'An account with that email already exists.';
         }
 
-        if (! preg_match(config('saas.subdomain_regex'), $subdomain)) {
-            return 'Use 3-30 lowercase letters, numbers or hyphens (not starting or ending with a hyphen).';
-        }
-
-        if (in_array($subdomain, config('saas.reserved_subdomains'), true)) {
-            return 'That subdomain is reserved.';
-        }
-
-        if (Domain::where('domain', $subdomain)->exists()) {
-            return 'That subdomain is already taken.';
-        }
-
-        $takenByPending = PendingRegistration::where('subdomain', $subdomain)
+        $takenByPending = PendingRegistration::where('email', $email)
             ->where('status', '!=', 'failed')
             ->exists();
 
         if ($takenByPending) {
-            return 'That subdomain is already taken.';
+            return 'A signup with that email is already in progress.';
         }
 
         return null;

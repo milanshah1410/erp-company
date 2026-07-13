@@ -17,6 +17,11 @@ class WarehouseRequest extends FormRequest
         $warehouseId = $this->route('warehouse')?->id;
 
         return [
+            'company_id' => ['nullable', 'integer', 'exists:companies,id'],
+            'branch_id' => [
+                'nullable', 'integer',
+                Rule::exists('branches', 'id')->where('company_id', $this->input('company_id')),
+            ],
             'code' => ['required', 'string', 'max:255', Rule::unique('warehouses', 'code')->ignore($warehouseId)],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', Rule::in(['main', 'branch', 'transit', 'damaged'])],

@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { isCentral } from '../utils/tenancy'
 import AppLayout from '../layouts/AppLayout.vue'
 import LoginView from '../views/LoginView.vue'
 import CentralRegisterView from '../views/central/CentralRegisterView.vue'
@@ -25,6 +24,8 @@ import SettingsView from '../views/SettingsView.vue'
 import WarehousesView from '../views/WarehousesView.vue'
 import SuppliersView from '../views/SuppliersView.vue'
 import CustomersView from '../views/CustomersView.vue'
+import BrokerLedgerView from '../views/BrokerLedgerView.vue'
+import CustomerCategoriesView from '../views/CustomerCategoriesView.vue'
 import SalesOrdersView from '../views/SalesOrdersView.vue'
 import SalesQuotationsView from '../views/SalesQuotationsView.vue'
 import PosView from '../views/PosView.vue'
@@ -43,19 +44,14 @@ import AuditLogsView from '../views/AuditLogsView.vue'
 import BackupView from '../views/BackupView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 
-// Central (landlord) app: served on the bare central domain — signup,
-// email verification, and provisioning status. No tenant, no auth.
-const centralRoutes: RouteRecordRaw[] = [
-  { path: '/', name: 'central-register', component: CentralRegisterView, meta: { public: true } },
-  { path: '/register', redirect: '/' },
+// Single-domain app. Public routes (login + self-serve signup / verification /
+// provisioning status) sit alongside the authenticated tenant application; the
+// tenant is resolved server-side from the logged-in user, not from the host.
+const routes: RouteRecordRaw[] = [
+  { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
+  { path: '/register', name: 'register', component: CentralRegisterView, meta: { public: true } },
   { path: '/verify', name: 'central-verify', component: CentralVerifyView, meta: { public: true } },
   { path: '/provisioning', name: 'central-provisioning', component: CentralProvisioningView, meta: { public: true } },
-  { path: '/:pathMatch(.*)*', redirect: '/' },
-]
-
-// Tenant app: served on {tenant}.<domain> — the full inventory system.
-const tenantRoutes: RouteRecordRaw[] = [
-  { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
   {
     path: '/',
     component: AppLayout,
@@ -71,7 +67,10 @@ const tenantRoutes: RouteRecordRaw[] = [
       { path: 'warehouses', component: WarehousesView, meta: { permission: 'warehouses.view' } },
       { path: 'suppliers', component: SuppliersView, meta: { permission: 'suppliers.view' } },
       { path: 'customers', component: CustomersView, meta: { permission: 'customers.view' } },
+      { path: 'customer-categories', component: CustomerCategoriesView, meta: { permission: 'customer-categories.view' } },
       { path: 'price-lists', component: PriceListsView, meta: { permission: 'price-lists.view' } },
+      { path: 'brokers/ledger', component: BrokerLedgerView, meta: { permission: 'brokers.view' } },
+      { path: 'brokers', component: CrudView, meta: { resource: 'brokers', permission: 'brokers.view' } },
       { path: 'purchase-orders', component: PurchaseOrdersView, meta: { permission: 'purchases.view' } },
       { path: 'purchase-invoices', component: PurchaseInvoicesView, meta: { permission: 'purchase-invoices.view' } },
       { path: 'sales-quotations', component: SalesQuotationsView, meta: { permission: 'sales.view' } },
@@ -93,6 +92,10 @@ const tenantRoutes: RouteRecordRaw[] = [
       { path: 'reports/:tab?', component: ReportsView, meta: { permission: 'reports.view' } },
       { path: 'barcode-scan', component: BarcodeScanView, meta: { permission: 'barcodes.view' } },
       { path: 'label-printing', component: LabelPrintingView, meta: { permission: 'barcodes.view' } },
+      { path: 'departments', component: CrudView, meta: { resource: 'departments', permission: 'departments.view' } },
+      { path: 'employees', component: CrudView, meta: { resource: 'employees', permission: 'employees.view' } },
+      { path: 'attendance', component: CrudView, meta: { resource: 'attendance', permission: 'attendance.view' } },
+      { path: 'salaries', component: CrudView, meta: { resource: 'salaries', permission: 'salaries.view' } },
       { path: 'users', component: UsersView, meta: { permission: 'users.view' } },
       { path: 'roles', component: RolesView, meta: { permission: 'roles.view' } },
       { path: 'settings', component: SettingsView, meta: { permission: 'settings.view' } },
@@ -107,7 +110,7 @@ const tenantRoutes: RouteRecordRaw[] = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes: isCentral() ? centralRoutes : tenantRoutes,
+  routes,
 })
 
 router.beforeEach(async (to) => {

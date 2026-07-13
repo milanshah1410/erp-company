@@ -20,14 +20,13 @@ return new class extends Migration
             $table->string('email');
             $table->string('phone')->nullable();
             $table->string('password'); // hashed
-            $table->string('subdomain')->unique();
             $table->string('plan_slug')->default('starter');
             $table->string('verification_code', 6)->nullable();
             $table->string('verification_token')->nullable();
             $table->timestamp('verified_at')->nullable();
             // pending_verification | provisioning | active | failed
             $table->string('status')->default('pending_verification')->index();
-            $table->string('tenant_id')->nullable();
+            $table->foreignId('tenant_id')->nullable()->constrained()->nullOnDelete();
             $table->text('error')->nullable();
             $table->timestamps();
         });

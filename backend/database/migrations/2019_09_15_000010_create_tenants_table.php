@@ -16,9 +16,8 @@ class CreateTenantsTable extends Migration
     public function up(): void
     {
         Schema::create('tenants', function (Blueprint $table) {
-            $table->string('id')->primary();
+            $table->id();
 
-            // First-class tenant columns (declared in App\Models\Tenant::getCustomColumns()).
             $table->string('company_name');
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
@@ -26,7 +25,6 @@ class CreateTenantsTable extends Migration
             $table->string('status')->default('trial')->index();
 
             $table->timestamps();
-            $table->json('data')->nullable();
         });
     }
 

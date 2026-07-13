@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HasDocumentNumber;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class GoodsReceipt extends Model
 {
-    use HasDocumentNumber, LogsAuditActivity;
+    use BelongsToTenant, HasDocumentNumber, LogsAuditActivity;
 
     protected static string $numberSettingKey = 'grn_number_prefix';
 

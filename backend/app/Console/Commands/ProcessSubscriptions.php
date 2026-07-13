@@ -60,13 +60,13 @@ class ProcessSubscriptions extends Command
 
                         public function toMail($n): MailMessage
                         {
-                            $host = $this->tenant->primaryDomain().'.'.config('saas.tenant_domain');
+                            $billingUrl = rtrim((string) config('app.frontend_url', config('app.url')), '/').'/billing';
 
                             return (new MailMessage)
                                 ->subject('Your trial ends in '.$this->days.' day'.($this->days === 1 ? '' : 's'))
                                 ->greeting('Heads up!')
                                 ->line('Your '.config('app.name').' free trial for '.$this->tenant->company_name.' ends in '.$this->days.' day'.($this->days === 1 ? '' : 's').'.')
-                                ->action('Choose a plan', 'http://'.$host.'/billing')
+                                ->action('Choose a plan', $billingUrl)
                                 ->line('Add a plan now to keep uninterrupted access to your inventory.');
                         }
                     }

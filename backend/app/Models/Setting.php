@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Setting extends Model
 {
-    use LogsAuditActivity;
+    use BelongsToTenant, LogsAuditActivity;
 
     public const COSTING_FIFO = 'fifo';
     public const COSTING_LIFO = 'lifo';
@@ -35,6 +36,7 @@ class Setting extends Model
         'adjustment_number_prefix' => 'ADJ',
         'cycle_count_number_prefix' => 'CC',
         'gate_entry_number_prefix' => 'GTE',
+        'broker_settlement_number_prefix' => 'BST',
     ];
 
     public const OTHER_DEFAULTS = [

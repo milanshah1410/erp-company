@@ -16,6 +16,7 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import CustomerDetailDialog from '../components/CustomerDetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -45,8 +46,39 @@ const typeOptions = [
   { label: 'Distributor', value: 'distributor' },
 ]
 
+const gstTypeOptions = [
+  { label: 'Regular', value: 'regular' },
+  { label: 'Composition', value: 'composition' },
+  { label: 'Unregistered', value: 'unregistered' },
+  { label: 'Consumer', value: 'consumer' },
+  { label: 'Overseas', value: 'overseas' },
+]
+
+const priceLevelOptions = [
+  { label: 'Category default', value: null },
+  { label: 'MRP', value: 'mrp' },
+  { label: 'Wholesale', value: 'wholesale' },
+  { label: 'Retail', value: 'retail' },
+  { label: 'Discount', value: 'discount' },
+]
+
+// Customer categories for the assignment dropdown + filter.
+const categories = ref<any[]>([])
+const categoryFilter = ref<number | null>(null)
+async function loadCategories() {
+  try {
+    const { data } = await http.get('/customer-categories', { params: { per_page: 100, is_active: true } })
+    categories.value = (data.data ?? []).map((c: any) => ({ label: c.name, value: c.id }))
+  } catch {
+    /* non-blocking */
+  }
+}
+
 function reload() {
-  crud.value.fetch(search.value ? { search: search.value } : {})
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (categoryFilter.value) params.customer_category_id = categoryFilter.value
+  crud.value.fetch(params)
 }
 
 function onPage(e: any) {
@@ -68,11 +100,16 @@ function blankForm() {
     name: '',
     company_name: '',
     type: 'retail',
+    customer_category_id: null,
     email: '',
     phone: '',
     gst_number: '',
+    gst_registration_type: 'unregistered',
+    pan: '',
+    place_of_supply: '',
     credit_limit: 0,
     opening_balance: 0,
+    default_price_level: null,
     address: '',
     city: '',
     state: '',
@@ -95,11 +132,16 @@ function openEdit(row: any) {
     name: row.name,
     company_name: row.company_name || '',
     type: row.type || 'retail',
+    customer_category_id: row.customer_category_id ?? null,
     email: row.email || '',
     phone: row.phone || '',
     gst_number: row.gst_number || '',
+    gst_registration_type: row.gst_registration_type || 'unregistered',
+    pan: row.pan || '',
+    place_of_supply: row.place_of_supply || '',
     credit_limit: Number(row.credit_limit ?? 0),
     opening_balance: Number(row.opening_balance ?? 0),
+    default_price_level: row.default_price_level ?? null,
     address: row.address || '',
     city: row.city || '',
     state: row.state || '',
@@ -241,7 +283,19 @@ function onHistoryStatusChange() {
   loadHistory()
 }
 
-onMounted(reload)
+// --- Account detail dialog (ledger / payments / addresses / price list) ---
+const detailVisible = ref(false)
+const detailCustomer = ref<any>(null)
+
+function openDetail(row: any) {
+  detailCustomer.value = row
+  detailVisible.value = true
+}
+
+onMounted(() => {
+  loadCategories()
+  reload()
+})
 </script>
 
 <template>
@@ -256,6 +310,16 @@ onMounted(reload)
         <i class="pi pi-search" />
         <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
       </span>
+      <Select
+        v-model="categoryFilter"
+        :options="categories"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="All categories"
+        showClear
+        class="cat-filter"
+        @change="reload"
+      />
       <Button label="Search" outlined @click="reload" />
     </div>
 
@@ -281,19 +345,28 @@ onMounted(reload)
       <Column header="Type">
         <template #body="{ data }">
           <Tag :severity="typeColors[data.type]" :value="data.type" />
+          <span v-if="data.category" class="muted-sub">{{ data.category.name }}</span>
         </template>
       </Column>
       <Column field="phone" header="Phone" />
-      <Column header="Credit Limit">
-        <template #body="{ data }">{{ money(data.credit_limit) }}</template>
+      <Column header="Outstanding">
+        <template #body="{ data }">
+          <span :class="Number(data.outstanding_balance) > 0 ? 'amount-due' : 'amount-clear'">
+            {{ money(data.outstanding_balance) }}
+          </span>
+          <span v-if="data.available_credit != null" class="muted-sub">
+            {{ money(data.available_credit) }} avail.
+          </span>
+        </template>
       </Column>
       <Column field="is_active" header="Active">
         <template #body="{ data }">
           <Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? 'Yes' : 'No'" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 10rem">
+      <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button v-if="canView" icon="pi pi-wallet" text rounded size="small" title="Account (ledger / payments / addresses / prices)" @click="openDetail(data)" />
           <Button v-if="canView" icon="pi pi-history" text rounded size="small" title="Purchase History" @click="openHistory(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
@@ -336,6 +409,20 @@ onMounted(reload)
         </div>
 
         <div class="fld">
+          <label>Category</label>
+          <Select
+            v-model="form.customer_category_id"
+            :options="categories"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="None"
+            showClear
+            :class="{ invalid: fieldError('customer_category_id') }"
+          />
+          <small v-if="fieldError('customer_category_id')" class="error-text">{{ fieldError('customer_category_id') }}</small>
+        </div>
+
+        <div class="fld">
           <label>Email</label>
           <InputText v-model="form.email" :class="{ invalid: fieldError('email') }" />
           <small v-if="fieldError('email')" class="error-text">{{ fieldError('email') }}</small>
@@ -351,6 +438,42 @@ onMounted(reload)
           <label>GST Number</label>
           <InputText v-model="form.gst_number" :class="{ invalid: fieldError('gst_number') }" />
           <small v-if="fieldError('gst_number')" class="error-text">{{ fieldError('gst_number') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>GST Registration Type</label>
+          <Select
+            v-model="form.gst_registration_type"
+            :options="gstTypeOptions"
+            optionLabel="label"
+            optionValue="value"
+            :class="{ invalid: fieldError('gst_registration_type') }"
+          />
+          <small v-if="fieldError('gst_registration_type')" class="error-text">{{ fieldError('gst_registration_type') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>PAN</label>
+          <InputText v-model="form.pan" :class="{ invalid: fieldError('pan') }" />
+          <small v-if="fieldError('pan')" class="error-text">{{ fieldError('pan') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Place of Supply</label>
+          <InputText v-model="form.place_of_supply" placeholder="e.g. Maharashtra (27)" :class="{ invalid: fieldError('place_of_supply') }" />
+          <small v-if="fieldError('place_of_supply')" class="error-text">{{ fieldError('place_of_supply') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Default Price Level</label>
+          <Select
+            v-model="form.default_price_level"
+            :options="priceLevelOptions"
+            optionLabel="label"
+            optionValue="value"
+            :class="{ invalid: fieldError('default_price_level') }"
+          />
+          <small v-if="fieldError('default_price_level')" class="error-text">{{ fieldError('default_price_level') }}</small>
         </div>
 
         <div class="fld">
@@ -487,6 +610,9 @@ onMounted(reload)
         <template #empty>No sales orders for this customer yet.</template>
       </DataTable>
     </Dialog>
+
+    <!-- Account detail: ledger / payments / addresses / price list -->
+    <CustomerDetailDialog v-model:visible="detailVisible" :customer="detailCustomer" :can-edit="canEdit" />
   </div>
 </template>
 
@@ -524,6 +650,16 @@ onMounted(reload)
   display: block;
   color: #6b7280;
   font-size: 0.78rem;
+}
+.cat-filter {
+  min-width: 180px;
+}
+.amount-due {
+  color: #dc2626;
+  font-weight: 600;
+}
+.amount-clear {
+  color: #16a34a;
 }
 .form-grid {
   display: grid;

@@ -14,13 +14,11 @@ return new class extends Migration
     {
         Schema::create('onboarding_progress', function (Blueprint $table) {
             $table->id();
-            $table->string('tenant_id')->unique();
+            $table->foreignId('tenant_id')->unique()->constrained()->cascadeOnDelete();
             // { welcome: true, warehouse: false, products: false, invites: false, ... }
             $table->json('steps')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
-
-            $table->foreign('tenant_id')->references('id')->on('tenants')->cascadeOnDelete();
         });
     }
 

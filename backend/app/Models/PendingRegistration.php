@@ -11,7 +11,7 @@ class PendingRegistration extends Model
     protected $connection = 'central';
 
     protected $fillable = [
-        'company_name', 'admin_name', 'email', 'phone', 'password', 'subdomain',
+        'company_name', 'admin_name', 'email', 'phone', 'password',
         'plan_slug', 'verification_code', 'verification_token', 'verified_at',
         'status', 'tenant_id', 'error',
     ];

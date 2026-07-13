@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SalesQuotationItem extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'sales_quotation_id', 'product_id', 'variant_id',
         'quantity', 'unit_price', 'tax_percent', 'tax_amount', 'line_total',

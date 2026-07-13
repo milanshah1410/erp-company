@@ -22,11 +22,10 @@ const form = ref({
   email: '',
   phone: '',
   password: '',
-  subdomain: '',
 })
 
-const subdomainState = ref<'idle' | 'checking' | 'available' | 'taken'>('idle')
-const subdomainReason = ref('')
+const emailState = ref<'idle' | 'checking' | 'available' | 'taken'>('idle')
+const emailReason = ref('')
 const submitting = ref(false)
 const errors = ref<Record<string, string[]>>({})
 const serverError = ref('')
@@ -37,7 +36,7 @@ const canSubmit = computed(
     form.value.admin_name &&
     form.value.email &&
     form.value.password.length >= 8 &&
-    subdomainState.value === 'available',
+    emailState.value === 'available',
 )
 
 onMounted(async () => {
@@ -49,44 +48,26 @@ onMounted(async () => {
   }
 })
 
-// Auto-suggest a subdomain from the company name until the user edits it.
-let subdomainTouched = false
-watch(
-  () => form.value.company_name,
-  (name) => {
-    if (!subdomainTouched) {
-      form.value.subdomain = name
-        .toLowerCase()
-        .replace(/[^a-z0-9-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 30)
-    }
-  },
-)
-
+// Live email-availability check (email is the tenant owner's unique login).
 let checkTimer: ReturnType<typeof setTimeout>
 watch(
-  () => form.value.subdomain,
-  (sub) => {
-    subdomainState.value = 'idle'
+  () => form.value.email,
+  (email) => {
+    emailState.value = 'idle'
     clearTimeout(checkTimer)
-    if (!sub) return
-    subdomainState.value = 'checking'
+    if (!email) return
+    emailState.value = 'checking'
     checkTimer = setTimeout(async () => {
       try {
-        const { data } = await http.get('/check-subdomain', { params: { subdomain: sub } })
-        subdomainState.value = data.available ? 'available' : 'taken'
-        subdomainReason.value = data.reason || ''
+        const { data } = await http.get('/check-email', { params: { email } })
+        emailState.value = data.available ? 'available' : 'taken'
+        emailReason.value = data.reason || ''
       } catch {
-        subdomainState.value = 'idle'
+        emailState.value = 'idle'
       }
     }, 400)
   },
 )
-
-function onSubdomainInput() {
-  subdomainTouched = true
-}
 
 async function submit() {
   submitting.value = true
@@ -143,26 +124,16 @@ async function submit() {
         <label>Company name</label>
         <input v-model="form.company_name" type="text" placeholder="Acme Traders" />
 
-        <div class="subdomain-row">
-          <div class="grow">
-            <label>Your workspace URL</label>
-            <div class="subdomain-input" :class="subdomainState">
-              <input v-model="form.subdomain" type="text" @input="onSubdomainInput" placeholder="acme" />
-              <span class="suffix">.localhost</span>
-            </div>
-            <p class="hint" :class="subdomainState">
-              <template v-if="subdomainState === 'checking'">Checking availability…</template>
-              <template v-else-if="subdomainState === 'available'">✓ Available</template>
-              <template v-else-if="subdomainState === 'taken'">{{ subdomainReason }}</template>
-            </p>
-          </div>
-        </div>
-
         <label>Your name</label>
         <input v-model="form.admin_name" type="text" placeholder="Jane Doe" />
 
         <label>Work email</label>
         <input v-model="form.email" type="email" placeholder="you@company.com" />
+        <p class="hint" :class="emailState">
+          <template v-if="emailState === 'checking'">Checking availability…</template>
+          <template v-else-if="emailState === 'available'">✓ Available</template>
+          <template v-else-if="emailState === 'taken'">{{ emailReason }}</template>
+        </p>
         <p v-if="errors.email" class="err">{{ errors.email[0] }}</p>
 
         <label>Phone <span class="opt">(optional)</span></label>

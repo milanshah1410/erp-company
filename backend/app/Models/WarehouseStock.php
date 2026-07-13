@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WarehouseStock extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'warehouse_id', 'product_id', 'variant_id',
         'quantity', 'reserved_quantity', 'average_cost',

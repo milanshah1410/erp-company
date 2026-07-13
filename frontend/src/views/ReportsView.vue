@@ -10,6 +10,8 @@ import VendorPerformanceReport from '../components/reports/VendorPerformanceRepo
 import SalesReport from '../components/reports/SalesReport.vue'
 import ProfitabilityReport from '../components/reports/ProfitabilityReport.vue'
 import GstReport from '../components/reports/GstReport.vue'
+import BrokerCommissionReport from '../components/reports/BrokerCommissionReport.vue'
+import BrokerWiseSalesReport from '../components/reports/BrokerWiseSalesReport.vue'
 
 interface ReportItem {
   key: string
@@ -25,6 +27,8 @@ const reports: ReportItem[] = [
   { key: 'purchases', label: 'Purchases', component: PurchaseReport },
   { key: 'vendor-performance', label: 'Vendor Performance', component: VendorPerformanceReport },
   { key: 'sales', label: 'Sales', component: SalesReport },
+  { key: 'broker-commissions', label: 'Broker Commissions', component: BrokerCommissionReport },
+  { key: 'broker-wise-sales', label: 'Broker-wise Sales', component: BrokerWiseSalesReport },
   { key: 'profitability', label: 'Profitability', component: ProfitabilityReport },
   { key: 'valuation', label: 'Inventory Valuation', component: ValuationReport },
   { key: 'gst', label: 'GST / Tax', component: GstReport },

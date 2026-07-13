@@ -22,8 +22,14 @@ class CustomerRequest extends FormRequest
             'company_name' => ['nullable', 'string'],
             'email' => ['nullable', 'email'],
             'phone' => ['nullable', 'string'],
-            'gst_number' => ['nullable', 'string', 'max:20'],
             'type' => ['required', Rule::in(['retail', 'wholesale', 'distributor'])],
+            'customer_category_id' => ['nullable', 'integer', 'exists:customer_categories,id'],
+            'gst_number' => ['nullable', 'string', 'max:20'],
+            'gst_registration_type' => ['nullable', Rule::in([
+                'regular', 'composition', 'unregistered', 'consumer', 'overseas',
+            ])],
+            'pan' => ['nullable', 'string', 'max:10'],
+            'place_of_supply' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string'],
             'city' => ['nullable', 'string'],
             'state' => ['nullable', 'string'],
@@ -31,6 +37,7 @@ class CustomerRequest extends FormRequest
             'pincode' => ['nullable', 'string', 'max:20'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'opening_balance' => ['nullable', 'numeric'],
+            'default_price_level' => ['nullable', Rule::in(['mrp', 'wholesale', 'retail', 'discount'])],
             'is_active' => ['boolean'],
         ];
     }

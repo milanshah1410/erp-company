@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Scopes\TenantScope;
+use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\PermissionRegistrar;
 
 class AuthController extends Controller
 {
@@ -20,7 +23,12 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = \App\Models\User::where('email', $credentials['email'])->first();
+        // Login runs before any tenant context exists, so look the user up
+        // across all tenants (email is globally unique — exactly one match).
+        $user = \App\Models\User::query()
+            ->withoutGlobalScope(TenantScope::class)
+            ->where('email', $credentials['email'])
+            ->first();
 
         if (! $user || ! Auth::getProvider()->validateCredentials($user, $credentials)) {
             activity('auth')->withProperties(['ip' => request()->ip(), 'email' => $request->input('email')])->event('login_failed')->log('Failed login attempt');
@@ -35,6 +43,11 @@ class AuthController extends Controller
                 'email' => ['This account is disabled.'],
             ]);
         }
+
+        // Establish the tenant so the session payload (roles/permissions,
+        // companies/branches — all tenant-scoped) resolves correctly.
+        app(TenantContext::class)->set($user->tenant_id);
+        app(PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
 
         $token = $user->createToken('api')->plainTextToken;
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use LogsAuditActivity, SoftDeletes;
+    use BelongsToTenant, LogsAuditActivity, SoftDeletes;
 
     protected $fillable = [
         'sku', 'barcode', 'name', 'description',

@@ -1,0 +1,31 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Per-tenant configuration as key/value pairs. Baseline defaults (e.g.
+     * costing_method) are seeded per tenant by TenantDatabaseSeeder — not here,
+     * since migrations run once for the shared schema with no tenant context.
+     */
+    public function up(): void
+    {
+        Schema::create('settings', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
+            $table->string('key');
+            $table->text('value')->nullable();
+            $table->timestamps();
+
+            $table->unique(['tenant_id', 'key']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('settings');
+    }
+};

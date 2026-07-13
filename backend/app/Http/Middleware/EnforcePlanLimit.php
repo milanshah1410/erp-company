@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Support\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,7 +31,8 @@ class EnforcePlanLimit
     public function handle(Request $request, Closure $next, string $resource): Response
     {
         // Outside a tenant context there is nothing to meter.
-        if (! function_exists('tenant') || ! tenant()) {
+        $tenantId = app(TenantContext::class)->id();
+        if (! $tenantId) {
             return $next($request);
         }
 
@@ -41,7 +43,7 @@ class EnforcePlanLimit
         [$model, $limitKey, $label] = self::RESOURCES[$resource];
 
         $subscription = Subscription::with('plan')
-            ->where('tenant_id', tenant()->getTenantKey())
+            ->where('tenant_id', $tenantId)
             ->latest('id')
             ->first();
 

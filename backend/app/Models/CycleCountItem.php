@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CycleCountItem extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'cycle_count_id', 'product_id', 'variant_id',
         'system_quantity', 'counted_quantity', 'variance', 'unit_cost', 'notes',

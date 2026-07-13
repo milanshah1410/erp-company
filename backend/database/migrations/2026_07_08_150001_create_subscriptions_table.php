@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('subscriptions', function (Blueprint $table) {
             $table->id();
-            $table->string('tenant_id');
+            $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
             $table->foreignId('plan_id')->constrained('plans');
             // trialing | active | past_due | cancelled | suspended
             $table->string('status')->default('trialing')->index();
@@ -25,8 +25,6 @@ return new class extends Migration
             $table->string('razorpay_subscription_id')->nullable()->index();
             $table->string('razorpay_customer_id')->nullable();
             $table->timestamps();
-
-            $table->foreign('tenant_id')->references('id')->on('tenants')->cascadeOnDelete();
         });
     }
 

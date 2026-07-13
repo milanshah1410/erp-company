@@ -8,24 +8,25 @@ use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\Setting;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use Illuminate\Database\Seeder;
 
 /**
- * Seeds a freshly-provisioned tenant database with baseline data. Unlike the
- * central DatabaseSeeder it does NOT create the hardcoded admin@sims.test user
- * — the tenant's first admin is created by App\Jobs\ProvisionTenant from the
- * signup credentials.
+ * Seeds baseline data for a freshly-provisioned tenant. MUST run inside a
+ * TenantContext (ProvisionTenant wraps it in runWith), so every row created
+ * here is auto-stamped with the tenant's id.
+ *
+ * Roles & permissions are NOT seeded here — they are global (shared across all
+ * tenants, tenant_id = NULL) and seeded once by RolePermissionSeeder. Nor is
+ * the admin user, which ProvisionTenant creates from the signup credentials.
  */
 class TenantDatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Roles & permissions (per-tenant).
-        $this->call(RolePermissionSeeder::class);
-
-        // 2. Baseline units of measure.
+        // 1. Baseline units of measure.
         $units = [
             ['name' => 'Pieces', 'short_name' => 'pcs'],
             ['name' => 'Kilogram', 'short_name' => 'kg'],
@@ -56,5 +57,8 @@ class TenantDatabaseSeeder extends Seeder
             ['company_id' => $company->id, 'code' => 'HO'],
             ['name' => 'Head Office', 'is_active' => true]
         );
+
+        // 6. Baseline settings.
+        Setting::updateOrCreate(['key' => 'costing_method'], ['value' => 'weighted_average']);
     }
 }
