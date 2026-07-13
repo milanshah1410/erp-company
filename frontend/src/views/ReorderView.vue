@@ -1,0 +1,107 @@
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import Button from 'primevue/button'
+import Tag from 'primevue/tag'
+import { useToast } from 'primevue/usetoast'
+import { RouterLink } from 'vue-router'
+import http from '../api/http'
+import { useAuthStore } from '../stores/auth'
+import { formatCurrency } from '../utils/currency'
+
+const toast = useToast()
+const auth = useAuthStore()
+
+const rows = ref<any[]>([])
+const loading = ref(false)
+const generating = ref(false)
+const createdOrders = ref<any[]>([])
+
+const canGenerate = computed(() => auth.can('advanced-inventory.create'))
+const needsSupplierCount = computed(() => rows.value.filter((r) => !r.supplier).length)
+
+async function load() {
+  loading.value = true
+  createdOrders.value = []
+  try {
+    const { data } = await http.get('/reorder/suggestions')
+    rows.value = data.data
+  } finally {
+    loading.value = false
+  }
+}
+
+async function generate() {
+  generating.value = true
+  try {
+    const { data } = await http.post('/reorder/generate')
+    createdOrders.value = data.created ?? []
+    toast.add({
+      severity: 'success',
+      summary: 'Purchase orders generated',
+      detail: `${createdOrders.value.length} draft PO(s) created. ${data.skipped_needs_supplier?.length ?? 0} item(s) skipped (no preferred supplier).`,
+      life: 5000,
+    })
+    load()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Generation failed', life: 4000 })
+  } finally {
+    generating.value = false
+  }
+}
+
+onMounted(load)
+</script>
+
+<template>
+  <div>
+    <div class="header">
+      <h1>Reorder Suggestions</h1>
+      <Button v-if="canGenerate" label="Generate Purchase Orders" icon="pi pi-file-plus" :loading="generating"
+        :disabled="!rows.length" @click="generate" />
+    </div>
+    <p class="subtitle">Products at or below their reorder level, grouped by preferred supplier</p>
+    <p v-if="needsSupplierCount" class="warning-note">
+      <i class="pi pi-exclamation-triangle" /> {{ needsSupplierCount }} item(s) have no preferred supplier set on the product and will be skipped.
+    </p>
+
+    <DataTable :value="rows" :loading="loading" dataKey="product.id" class="p-datatable-sm">
+      <Column header="Product">
+        <template #body="{ data }"><strong>{{ data.product?.name }}</strong><br /><small style="color: #6b7280">{{ data.product?.sku }}</small></template>
+      </Column>
+      <Column header="Warehouse"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
+      <Column header="On Hand"><template #body="{ data }">{{ data.on_hand }}</template></Column>
+      <Column header="Reorder Level"><template #body="{ data }">{{ data.reorder_level }}</template></Column>
+      <Column header="Suggested Qty"><template #body="{ data }">{{ data.suggested_quantity }}</template></Column>
+      <Column header="Supplier">
+        <template #body="{ data }">
+          <span v-if="data.supplier">{{ data.supplier.name }}</span>
+          <Tag v-else severity="warning" value="No supplier" />
+        </template>
+      </Column>
+      <template #empty>No products are currently at or below their reorder level.</template>
+    </DataTable>
+
+    <div v-if="createdOrders.length" class="created-section">
+      <h2>Purchase Orders Created</h2>
+      <ul>
+        <li v-for="po in createdOrders" :key="po.id">
+          <RouterLink to="/purchase-orders">{{ po.po_number }}</RouterLink>
+          — {{ po.supplier?.name }} / {{ po.warehouse?.name }} — {{ formatCurrency(po.total) }}
+        </li>
+      </ul>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.header { display: flex; justify-content: space-between; align-items: center; }
+h1 { font-size: 1.5rem; font-weight: 600; }
+.subtitle { color: #6b7280; margin-bottom: 0.5rem; }
+.warning-note { color: #b45309; font-size: 0.85rem; margin-bottom: 1rem; }
+.created-section { margin-top: 1.5rem; }
+.created-section h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
+.created-section ul { padding-left: 1.25rem; }
+.created-section li { margin-bottom: 0.25rem; }
+</style>

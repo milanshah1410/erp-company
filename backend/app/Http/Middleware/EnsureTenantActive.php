@@ -1,0 +1,55 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Grace-period enforcement: when a tenant is suspended (trial lapsed with no
+ * paid plan, or billing halted), the workspace goes read-only. GET/HEAD still
+ * work so the user can see their data and the upgrade screen; any write is
+ * rejected with an upgrade-required response. Billing/subscription and
+ * onboarding endpoints stay writable so they can recover.
+ */
+class EnsureTenantActive
+{
+    private const WRITABLE_WHILE_SUSPENDED = [
+        'api/subscription',
+        'api/subscription/change-plan',
+        'api/logout',
+    ];
+
+    public function handle(Request $request, Closure $next): Response
+    {
+        $tenant = function_exists('tenant') ? tenant() : null;
+
+        if ($tenant && $tenant->status === 'suspended' && ! $this->isReadOnlyRequest($request)) {
+            return response()->json([
+                'message' => 'Your subscription has lapsed. The workspace is read-only until you choose a plan.',
+                'error' => 'tenant_suspended',
+                'upgrade_url' => '/billing',
+            ], 402);
+        }
+
+        return $next($request);
+    }
+
+    private function isReadOnlyRequest(Request $request): bool
+    {
+        if (in_array($request->method(), ['GET', 'HEAD', 'OPTIONS'], true)) {
+            return true;
+        }
+
+        foreach (self::WRITABLE_WHILE_SUSPENDED as $path) {
+            if ($request->is($path)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

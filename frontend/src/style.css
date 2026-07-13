@@ -1,0 +1,73 @@
+:root {
+  /* Warehouse Ledger palette */
+  --graphite: #1e2328;
+  --graphite-light: #2a3138;
+  --paper: #f7f5f0;
+  --safety-amber: #e8a33d;
+  --safety-amber-light: #f2c274;
+  --ink-blue: #2c4a5e;
+  --ink-blue-light: #3d637c;
+  --stock-green: #4c8b6c;
+  --alert-rust: #c1502e;
+
+  font-family: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--graphite);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+body {
+  background: var(--paper);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  color: var(--graphite);
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+/* Utility for SKU / batch / serial / invoice codes */
+.mono,
+code {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* Barcode-stripe divider — signature motif for section breaks */
+.barcode-divider {
+  height: 18px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--graphite) 0px,
+    var(--graphite) 2px,
+    transparent 2px,
+    transparent 5px,
+    var(--graphite) 5px,
+    var(--graphite) 7px,
+    transparent 7px,
+    transparent 9px,
+    var(--graphite) 9px,
+    var(--graphite) 13px,
+    transparent 13px,
+    transparent 16px
+  );
+  opacity: 0.08;
+  border-radius: 2px;
+}

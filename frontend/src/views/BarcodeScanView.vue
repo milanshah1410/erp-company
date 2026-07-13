@@ -1,0 +1,259 @@
+<script setup lang="ts">
+import { ref, nextTick, onBeforeUnmount } from 'vue'
+import InputText from 'primevue/inputtext'
+import Button from 'primevue/button'
+import InputNumber from 'primevue/inputnumber'
+import Dialog from 'primevue/dialog'
+import Select from 'primevue/select'
+import { useToast } from 'primevue/usetoast'
+import http from '../api/http'
+import { openPdfBlob } from '../utils/blob'
+import { formatCurrency } from '../utils/currency'
+
+const toast = useToast()
+const scanValue = ref('')
+const scanInput = ref<any>(null)
+const loading = ref(false)
+const result = ref<any>(null)
+const notFound = ref(false)
+
+async function lookup(code: string) {
+  const value = code.trim()
+  if (!value) return
+  loading.value = true
+  notFound.value = false
+  result.value = null
+  try {
+    const { data } = await http.get('/barcode/lookup', { params: { code: value } })
+    result.value = data
+  } catch (e: any) {
+    if (e.response?.status === 404) {
+      notFound.value = true
+    } else {
+      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Lookup failed', life: 4000 })
+    }
+  } finally {
+    loading.value = false
+    scanValue.value = ''
+    await nextTick()
+    scanInput.value?.$el?.focus()
+  }
+}
+
+function onEnter() {
+  lookup(scanValue.value)
+}
+
+// --- Camera scanning (webcam / phone browser) ---
+const cameraVisible = ref(false)
+let scanner: any = null
+
+async function openCamera() {
+  cameraVisible.value = true
+  await nextTick()
+  const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
+  scanner = new Html5Qrcode('camera-reader')
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 150 },
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.CODE_39,
+        ],
+      },
+      (decodedText: string) => {
+        closeCamera()
+        lookup(decodedText)
+      },
+      () => {
+        // ignore per-frame decode misses
+      },
+    )
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Camera error', detail: e?.message || 'Could not start camera', life: 4000 })
+    cameraVisible.value = false
+  }
+}
+
+async function closeCamera() {
+  if (scanner) {
+    try {
+      await scanner.stop()
+      scanner.clear()
+    } catch {
+      // scanner may already be stopped
+    }
+    scanner = null
+  }
+  cameraVisible.value = false
+}
+
+onBeforeUnmount(() => {
+  if (scanner) closeCamera()
+})
+
+// --- Quick print for the matched item ---
+const printQty = ref(1)
+const printLabelType = ref('code128')
+const printing = ref(false)
+
+async function printLabel() {
+  if (!result.value) return
+  const item = result.value.type === 'variant'
+    ? { type: 'variant', id: result.value.variant.id, quantity: printQty.value }
+    : { type: 'product', id: result.value.product.id, quantity: printQty.value }
+
+  printing.value = true
+  try {
+    const { data } = await http.post(
+      '/barcode/print-labels',
+      { label_type: printLabelType.value, items: [item] },
+      { responseType: 'blob' },
+    )
+    openPdfBlob(data)
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Could not generate labels', life: 4000 })
+  } finally {
+    printing.value = false
+  }
+}
+
+function money(v: any) {
+  return v === null || v === undefined ? '—' : formatCurrency(v)
+}
+</script>
+
+<template>
+  <div>
+    <h1>Barcode Scan</h1>
+    <p class="subtitle">Scan with a handheld/USB scanner (types into the field below) or use your device camera.</p>
+
+    <div class="scan-box">
+      <span class="scan-input">
+        <i class="pi pi-search" />
+        <InputText ref="scanInput" v-model="scanValue" placeholder="Scan or type a barcode / SKU, then press Enter"
+          autofocus @keyup.enter="onEnter" />
+      </span>
+      <Button label="Lookup" icon="pi pi-search" :loading="loading" @click="onEnter" />
+      <Button label="Use Camera" icon="pi pi-camera" outlined @click="openCamera" />
+    </div>
+
+    <div v-if="notFound" class="not-found">
+      <i class="pi pi-exclamation-triangle" /> No product or variant matches that code.
+    </div>
+
+    <div v-if="result" class="result-card">
+      <div class="result-header">
+        <h2 v-if="result.type === 'variant'">{{ result.product.name }} — {{ result.variant.name || result.variant.sku }}</h2>
+        <h2 v-else>{{ result.product.name }}</h2>
+      </div>
+      <div class="result-grid">
+        <div><label>SKU</label><span>{{ result.type === 'variant' ? result.variant.sku : result.product.sku }}</span></div>
+        <div><label>Barcode</label><span>{{ result.type === 'variant' ? result.variant.barcode : result.product.barcode }}</span></div>
+        <div><label>Category</label><span>{{ result.product.category || '—' }}</span></div>
+        <div><label>Brand</label><span>{{ result.product.brand || '—' }}</span></div>
+        <div>
+          <label>Selling Price</label>
+          <span>{{ money(result.type === 'variant' ? result.variant.selling_price : result.product.selling_price) }}</span>
+        </div>
+        <div v-if="result.type === 'product'"><label>Total Stock</label><span>{{ result.product.total_stock ?? '—' }}</span></div>
+      </div>
+
+      <div class="print-row">
+        <Select v-model="printLabelType" :options="[{ label: 'CODE128 Barcode', value: 'code128' }, { label: 'QR Code', value: 'qr' }]"
+          optionLabel="label" optionValue="value" />
+        <InputNumber v-model="printQty" :min="1" :max="500" showButtons />
+        <Button label="Print Label" icon="pi pi-print" :loading="printing" @click="printLabel" />
+      </div>
+    </div>
+
+    <!-- Camera scan modal -->
+    <Dialog v-model:visible="cameraVisible" modal header="Scan with Camera" :style="{ width: '420px' }" @hide="closeCamera">
+      <div id="camera-reader"></div>
+      <template #footer>
+        <Button label="Cancel" text @click="closeCamera" />
+      </template>
+    </Dialog>
+  </div>
+</template>
+
+<style scoped>
+h1 { font-size: 1.5rem; font-weight: 600; }
+.subtitle { color: #6b7280; margin-bottom: 1rem; }
+.scan-box {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+.scan-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 460px;
+}
+.scan-input i {
+  position: absolute;
+  left: 0.75rem;
+  color: #9ca3af;
+}
+.scan-input :deep(input) {
+  width: 100%;
+  padding-left: 2.25rem;
+}
+.not-found {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+.result-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.25rem;
+  max-width: 640px;
+}
+.result-header h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.result-grid label {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+.result-grid span {
+  font-size: 0.95rem;
+  color: #111827;
+}
+.print-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 1rem;
+}
+#camera-reader {
+  width: 100%;
+}
+</style>

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat -ano)",
+      "Bash(tasklist)",
+      "Bash(sc query *)",
+      "Bash(\"/d/wamp64/bin/mysql/mysql9.1.0/bin/mysqld.exe\" --defaults-file=\"/d/wamp64/bin/mysql/mysql9.1.0/my.ini\")",
+      "PowerShell(Set-Location \"d:\\\\wamp64\\\\www\\\\claude-ai\\\\stock-inventory-management-system\\\\frontend\"; npx vue-tsc --noEmit 2>$null; echo \"exit: $LASTEXITCODE\")",
+      "Bash(php \"C:\\\\Users\\\\milan\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--wamp64-www-claude-ai-stock-inventory-management-system\\\\eebf049a-47a0-4b0e-a917-ad83c004909e\\\\scratchpad\\\\verify_advanced_inventory.php\")",
+      "Bash(node /c/Users/milan/AppData/Local/Temp/claude/d--wamp64-www-claude-ai-stock-inventory-management-system/69e6b5bc-c60a-4c03-a386-7c7126393e71/scratchpad/verify-barcode.js)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npm init *)",
+      "Bash(npx playwright *)",
+      "Bash(composer require *)"
+    ]
+  }
+}
