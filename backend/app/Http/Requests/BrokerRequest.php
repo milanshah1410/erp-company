@@ -22,8 +22,10 @@ class BrokerRequest extends FormRequest
             'mobile' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string'],
             'gst_number' => ['nullable', 'string', 'max:20'],
+            'pan_number' => ['nullable', 'string', 'max:20'],
             'commission_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'fixed_commission' => ['nullable', 'numeric', 'min:0'],
+            'tds_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'opening_balance' => ['nullable', 'numeric'],
             'is_active' => ['boolean'],
         ];

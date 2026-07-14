@@ -13,6 +13,7 @@ class ProductResource extends JsonResource
             'id' => $this->id,
             'sku' => $this->sku,
             'barcode' => $this->barcode,
+            'rfid_tag' => $this->rfid_tag,
             'name' => $this->name,
             'description' => $this->description,
             'category_id' => $this->category_id,

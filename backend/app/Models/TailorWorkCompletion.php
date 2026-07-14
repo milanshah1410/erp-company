@@ -11,12 +11,13 @@ class TailorWorkCompletion extends Model
     use BelongsToTenant;
 
     protected $fillable = [
-        'tailor_work_id', 'tailor_id', 'qty', 'rate', 'amount',
-        'completed_at', 'received_to_stock', 'warehouse_id', 'notes', 'created_by',
+        'tailor_work_id', 'tailor_id', 'qty', 'rejected_qty', 'reject_action', 'rejection_reason',
+        'rate', 'amount', 'completed_at', 'received_to_stock', 'warehouse_id', 'notes', 'created_by',
     ];
 
     protected $casts = [
         'qty' => 'decimal:2',
+        'rejected_qty' => 'decimal:2',
         'rate' => 'decimal:2',
         'amount' => 'decimal:2',
         'completed_at' => 'date',

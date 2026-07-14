@@ -27,7 +27,24 @@ return Application::configure(basePath: dirname(__DIR__))
             'resolve.tenant' => \App\Http\Middleware\ResolveTenant::class,
             'plan.limit' => \App\Http\Middleware\EnforcePlanLimit::class,
             'tenant.active' => \App\Http\Middleware\EnsureTenantActive::class,
+            // B2B customer portal (SRS §14): the tokenable must be a Customer.
+            'portal' => \App\Http\Middleware\EnsurePortalCustomer::class,
         ]);
+
+        // Tenant context must be established BEFORE SubstituteBindings resolves
+        // route-model bindings — otherwise the implicit-binding query for a
+        // tenant-scoped model (e.g. {bom}, {product}) runs with no tenant set
+        // and TenantScope fails closed. Priority-order our tenant middleware
+        // ahead of binding substitution (ResolveTenant first, then the active
+        // check which reads the tenant it stashes).
+        $middleware->prependToPriorityList(
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\ResolveTenant::class,
+        );
+        $middleware->prependToPriorityList(
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\EnsureTenantActive::class,
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

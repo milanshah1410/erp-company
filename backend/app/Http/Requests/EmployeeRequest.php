@@ -29,6 +29,7 @@ class EmployeeRequest extends FormRequest
             'last_name' => ['nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
+            'biometric_user_id' => ['nullable', 'string', 'max:50'],
             'designation' => ['nullable', 'string', 'max:255'],
             'employment_type' => ['sometimes', Rule::in(['full-time', 'part-time', 'contract', 'intern'])],
             'date_of_joining' => ['nullable', 'date'],

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ManufacturingOrderRequest;
 use App\Http\Resources\ManufacturingOrderResource;
@@ -26,6 +27,8 @@ use RuntimeException;
  */
 class ManufacturingOrderController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function __construct(private readonly StockService $stock) {}
 
     public function index(Request $request)
@@ -57,6 +60,7 @@ class ManufacturingOrderController extends Controller
                 'mo_number' => ManufacturingOrder::nextNumber(),
                 'product_id' => $data['product_id'],
                 'variant_id' => $data['variant_id'] ?? null,
+                'bom_id' => $data['bom_id'] ?? null,
                 'warehouse_id' => $data['warehouse_id'],
                 'quantity_to_produce' => $data['quantity_to_produce'],
                 'status' => 'draft',
@@ -64,6 +68,7 @@ class ManufacturingOrderController extends Controller
                 'expected_completion_date' => $data['expected_completion_date'] ?? null,
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $request->user()?->id,
+                ...$this->costBuckets($data),
             ]);
 
             $this->syncMaterials($order, $data['materials'] ?? []);
@@ -84,6 +89,23 @@ class ManufacturingOrderController extends Controller
         );
     }
 
+    /** Stream the manufacturing order as a printable shop-floor slip. */
+    public function pdf(Request $request, ManufacturingOrder $manufacturingOrder)
+    {
+        $manufacturingOrder->load([
+            'product:id,name,sku', 'warehouse:id,name',
+            'materials.product:id,name,sku',
+            'stages.employee:id,name',
+        ]);
+
+        return $this->renderDocument(
+            $request,
+            'documents.manufacturing-slip',
+            ['manufacturingOrder' => $manufacturingOrder],
+            "manufacturing-slip-{$manufacturingOrder->mo_number}.pdf",
+        );
+    }
+
     public function update(ManufacturingOrderRequest $request, ManufacturingOrder $manufacturingOrder)
     {
         if ($manufacturingOrder->status !== 'draft') {
@@ -95,11 +117,13 @@ class ManufacturingOrderController extends Controller
             $manufacturingOrder->update([
                 'product_id' => $data['product_id'],
                 'variant_id' => $data['variant_id'] ?? null,
+                'bom_id' => $data['bom_id'] ?? null,
                 'warehouse_id' => $data['warehouse_id'],
                 'quantity_to_produce' => $data['quantity_to_produce'],
                 'order_date' => $data['order_date'],
                 'expected_completion_date' => $data['expected_completion_date'] ?? null,
                 'notes' => $data['notes'] ?? null,
+                ...$this->costBuckets($data),
             ]);
 
             $manufacturingOrder->materials()->delete();
@@ -271,20 +295,19 @@ class ManufacturingOrderController extends Controller
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'status' => ['required', Rule::in(['pending', 'in_progress', 'completed', 'skipped'])],
-            'cost' => ['nullable', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string'],
         ]);
 
+        // Stages are workflow tracking only; production cost lives on the order
+        // as named buckets (see ManufacturingOrder::COST_BUCKETS), so nothing
+        // here feeds the finished-product cost.
         $stage->update([
             'assigned_employee_id' => $data['assigned_employee_id'] ?? null,
             'start_date' => $data['start_date'] ?? null,
             'end_date' => $data['end_date'] ?? null,
             'status' => $data['status'],
-            'cost' => $data['cost'] ?? 0,
             'remarks' => $data['remarks'] ?? null,
         ]);
-
-        $manufacturingOrder->recalcCosts();
 
         return new ManufacturingOrderResource(
             $manufacturingOrder->fresh()->load(['product', 'warehouse', 'materials.product', 'stages.employee'])
@@ -315,6 +338,17 @@ class ManufacturingOrderController extends Controller
         if ($stage->manufacturing_order_id !== $order->id) {
             abort(404);
         }
+    }
+
+    /** Pull the production-cost buckets out of validated data, each defaulting to 0. */
+    private function costBuckets(array $data): array
+    {
+        $buckets = [];
+        foreach (array_keys(ManufacturingOrder::COST_BUCKETS) as $column) {
+            $buckets[$column] = round((float) ($data[$column] ?? 0), 2);
+        }
+
+        return $buckets;
     }
 
     /** Create material lines; defaults unit cost to the product's cost price. */

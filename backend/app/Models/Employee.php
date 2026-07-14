@@ -13,7 +13,7 @@ class Employee extends Model
 
     protected $fillable = [
         'user_id', 'department_id', 'employee_code', 'first_name', 'last_name',
-        'email', 'phone', 'designation', 'employment_type',
+        'email', 'phone', 'biometric_user_id', 'designation', 'employment_type',
         'date_of_joining', 'date_of_birth', 'gender', 'address', 'is_active',
     ];
 
@@ -41,6 +41,45 @@ class Employee extends Model
     public function salaries(): HasMany
     {
         return $this->hasMany(Salary::class);
+    }
+
+    public function salaryStructures(): HasMany
+    {
+        return $this->hasMany(SalaryStructure::class);
+    }
+
+    /** The current pay structure (most recent active one). */
+    public function activeStructure(): ?SalaryStructure
+    {
+        return $this->salaryStructures()
+            ->where('is_active', true)
+            ->orderByDesc('effective_from')
+            ->first();
+    }
+
+    public function leaveApplications(): HasMany
+    {
+        return $this->hasMany(LeaveApplication::class);
+    }
+
+    public function overtimeRecords(): HasMany
+    {
+        return $this->hasMany(OvertimeRecord::class);
+    }
+
+    public function bonuses(): HasMany
+    {
+        return $this->hasMany(EmployeeBonus::class);
+    }
+
+    public function advances(): HasMany
+    {
+        return $this->hasMany(SalaryAdvance::class);
+    }
+
+    public function loans(): HasMany
+    {
+        return $this->hasMany(EmployeeLoan::class);
     }
 
     /** "EMP001 — Jane Doe" for pickers and dropdowns. */

@@ -44,6 +44,9 @@ class CustomerResource extends JsonResource
             'outstanding_balance' => $outstanding,
             'available_credit' => $availableCredit,
             'is_active' => $this->is_active,
+            'portal_enabled' => (bool) $this->portal_enabled,
+            'has_portal_password' => ! empty($this->portal_password),
+            'portal_last_login_at' => $this->portal_last_login_at,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

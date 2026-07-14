@@ -4,27 +4,59 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\LogsAuditActivity;
+use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-class Customer extends Model
+/**
+ * A customer is also a B2B portal account (SRS §14): with `portal_enabled` and
+ * a `portal_password` set by staff, they authenticate against the /portal API
+ * as a Sanctum tokenable and place their own orders.
+ */
+class Customer extends Model implements AuthenticatableContract
 {
-    use BelongsToTenant, LogsAuditActivity;
+    use AuthenticatableTrait, BelongsToTenant, HasApiTokens, LogsAuditActivity, Notifiable;
 
     protected $fillable = [
         'code', 'name', 'company_name', 'email', 'phone', 'type', 'customer_category_id',
+        'date_of_birth', 'anniversary_date', 'referred_by_customer_id',
         'gst_number', 'gst_registration_type', 'pan', 'place_of_supply',
         'address', 'city', 'state', 'country', 'pincode',
         'credit_limit', 'opening_balance', 'default_price_level', 'is_active',
+        'portal_enabled',
+    ];
+
+    protected $hidden = [
+        'portal_password',
     ];
 
     protected $casts = [
         'credit_limit' => 'decimal:2',
         'opening_balance' => 'decimal:2',
+        'date_of_birth' => 'date',
+        'anniversary_date' => 'date',
         'is_active' => 'boolean',
+        'portal_enabled' => 'boolean',
+        'portal_last_login_at' => 'datetime',
     ];
+
+    /** Portal login authenticates against the dedicated portal password column. */
+    public function getAuthPassword(): string
+    {
+        return (string) $this->portal_password;
+    }
+
+    /** Whether this customer can currently sign in to the B2B portal. */
+    public function canUsePortal(): bool
+    {
+        return $this->is_active && $this->portal_enabled && ! empty($this->portal_password);
+    }
 
     public function category(): BelongsTo
     {
@@ -54,6 +86,39 @@ class Customer extends Model
     public function priceListItems(): HasMany
     {
         return $this->hasMany(CustomerPriceList::class);
+    }
+
+    public function loyaltyTransactions(): HasMany
+    {
+        return $this->hasMany(LoyaltyTransaction::class);
+    }
+
+    public function followUps(): MorphMany
+    {
+        return $this->morphMany(FollowUp::class, 'followupable');
+    }
+
+    public function visits(): HasMany
+    {
+        return $this->hasMany(CustomerVisit::class);
+    }
+
+    /** The customer who referred this one (if any). */
+    public function referredBy(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'referred_by_customer_id');
+    }
+
+    /** Referrals this customer has made. */
+    public function referralsMade(): HasMany
+    {
+        return $this->hasMany(Referral::class, 'referrer_customer_id');
+    }
+
+    /** Current redeemable loyalty-point balance (signed ledger sum). */
+    public function loyaltyPoints(): int
+    {
+        return (int) $this->loyaltyTransactions()->sum('points');
     }
 
     /** Every payment ever recorded against this customer's invoices. */

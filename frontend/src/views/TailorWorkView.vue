@@ -53,7 +53,12 @@ const completeVisible = ref(false)
 const savingComplete = ref(false)
 const completeErrors = ref<Record<string, string[]>>({})
 const completeTarget = ref<any>(null)
-const completeForm = ref<any>({ qty: null, completed_at: new Date(), received_to_stock: false, warehouse_id: null, notes: '' })
+const completeForm = ref<any>({ qty: null, rejected_qty: 0, reject_action: 'rework', rejection_reason: '', completed_at: new Date(), received_to_stock: false, warehouse_id: null, notes: '' })
+
+const rejectActionOptions = [
+  { label: 'Rework (redo, stays pending)', value: 'rework' },
+  { label: 'Scrap (write off)', value: 'scrap' },
+]
 
 function money(v: any) {
   return formatCurrency(v)
@@ -160,6 +165,9 @@ function openComplete(row: any) {
   completeTarget.value = row
   completeForm.value = {
     qty: Number(row.remaining_qty),
+    rejected_qty: 0,
+    reject_action: 'rework',
+    rejection_reason: '',
     completed_at: new Date(),
     received_to_stock: false,
     warehouse_id: null,
@@ -174,8 +182,12 @@ async function saveComplete() {
   savingComplete.value = true
   completeErrors.value = {}
   try {
+    const rejected = Number(completeForm.value.rejected_qty) || 0
     const payload = {
       qty: completeForm.value.qty,
+      rejected_qty: rejected || undefined,
+      reject_action: rejected > 0 ? completeForm.value.reject_action : undefined,
+      rejection_reason: rejected > 0 ? (completeForm.value.rejection_reason || undefined) : undefined,
       completed_at: toDateString(completeForm.value.completed_at),
       received_to_stock: completeForm.value.received_to_stock,
       warehouse_id: completeForm.value.received_to_stock ? completeForm.value.warehouse_id : undefined,
@@ -263,6 +275,11 @@ onMounted(async () => {
       <Column header="Completed">
         <template #body="{ data }">{{ Number(data.completed_qty) }}</template>
       </Column>
+      <Column header="Rejected">
+        <template #body="{ data }">
+          <span :class="{ bad: Number(data.rejected_qty) > 0 }">{{ Number(data.rejected_qty) }}</span>
+        </template>
+      </Column>
       <Column v-if="isPending" header="Remaining">
         <template #body="{ data }">{{ Number(data.remaining_qty) }}</template>
       </Column>
@@ -336,11 +353,29 @@ onMounted(async () => {
           <br /><small>Remaining: {{ Number(completeTarget.remaining_qty) }} @ {{ money(completeTarget.rate) }}/pc</small>
         </p>
         <div class="field">
-          <label>Completed Qty <span class="req">*</span></label>
+          <label>Accepted Qty <span class="req">*</span></label>
           <InputNumber v-model="completeForm.qty" :min="0" :max="Number(completeTarget.remaining_qty)"
             :class="{ invalid: fieldError(completeErrors, 'qty') }" />
           <small v-if="fieldError(completeErrors, 'qty')" class="error-text">{{ fieldError(completeErrors, 'qty') }}</small>
+          <small v-else class="hint">Good pieces that pass QC — only these are paid.</small>
         </div>
+        <div class="field">
+          <label>Rejected Qty (QC fail)</label>
+          <InputNumber v-model="completeForm.rejected_qty" :min="0"
+            :class="{ invalid: fieldError(completeErrors, 'rejected_qty') }" />
+          <small v-if="fieldError(completeErrors, 'rejected_qty')" class="error-text">{{ fieldError(completeErrors, 'rejected_qty') }}</small>
+        </div>
+        <template v-if="Number(completeForm.rejected_qty) > 0">
+          <div class="field">
+            <label>Reject Action <span class="req">*</span></label>
+            <Select v-model="completeForm.reject_action" :options="rejectActionOptions" optionLabel="label" optionValue="value" />
+            <small class="hint">Rework returns the pieces to pending; scrap writes them off.</small>
+          </div>
+          <div class="field">
+            <label>Rejection Reason</label>
+            <InputText v-model="completeForm.rejection_reason" placeholder="e.g. stitching defect" />
+          </div>
+        </template>
         <div class="field">
           <label>Completion Date</label>
           <DatePicker v-model="completeForm.completed_at" dateFormat="yy-mm-dd" showIcon iconDisplay="input" />
@@ -447,6 +482,10 @@ onMounted(async () => {
 }
 .muted {
   color: #9ca3af;
+}
+.bad {
+  color: #dc2626;
+  font-weight: 600;
 }
 .error-text {
   color: #dc2626;

@@ -17,13 +17,15 @@ class TailorWork extends Model
 
     protected $fillable = [
         'work_number', 'tailor_id', 'product_id', 'product_variant_id', 'rate_card_id',
-        'issued_qty', 'completed_qty', 'rate', 'status',
+        'issued_qty', 'completed_qty', 'rejected_qty', 'scrapped_qty', 'rate', 'status',
         'issue_date', 'due_date', 'notes', 'created_by',
     ];
 
     protected $casts = [
         'issued_qty' => 'decimal:2',
         'completed_qty' => 'decimal:2',
+        'rejected_qty' => 'decimal:2',
+        'scrapped_qty' => 'decimal:2',
         'rate' => 'decimal:2',
         'issue_date' => 'date',
         'due_date' => 'date',
@@ -54,28 +56,40 @@ class TailorWork extends Model
         return $this->hasMany(TailorWorkCompletion::class);
     }
 
+    public function alterations(): HasMany
+    {
+        return $this->hasMany(TailorAlteration::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    /** Pieces still to be completed on this work order. */
+    /**
+     * Pieces still to be produced: issued minus the accepted (completed) and the
+     * scrapped pieces. Reworkable rejects are intentionally NOT subtracted — they
+     * stay in this pool for the tailor to redo (and get paid on acceptance).
+     */
     public function remainingQty(): float
     {
-        return round((float) $this->issued_qty - (float) $this->completed_qty, 2);
+        return round((float) $this->issued_qty - (float) $this->completed_qty - (float) $this->scrapped_qty, 2);
     }
 
-    /** Recompute pending/partial/completed from completed vs issued qty. */
+    /**
+     * Recompute pending/partial/completed. The order is complete once every
+     * issued piece is resolved — accepted or scrapped.
+     */
     public function refreshStatus(): void
     {
         if ($this->status === 'cancelled') {
             return;
         }
 
-        $completed = (float) $this->completed_qty;
-        $this->status = $completed <= 0
+        $resolved = (float) $this->completed_qty + (float) $this->scrapped_qty;
+        $this->status = $resolved <= 0
             ? 'pending'
-            : ($completed + 0.005 >= (float) $this->issued_qty ? 'completed' : 'partial');
+            : ($resolved + 0.005 >= (float) $this->issued_qty ? 'completed' : 'partial');
         $this->save();
     }
 }

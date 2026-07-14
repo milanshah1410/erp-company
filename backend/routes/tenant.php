@@ -2,28 +2,67 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\AccountBookController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\B2bOrderController;
+use App\Http\Controllers\Api\Portal\PortalAuthController;
+use App\Http\Controllers\Api\Portal\PortalCatalogueController;
+use App\Http\Controllers\Api\Portal\PortalOrderController;
+use App\Http\Controllers\Api\BankAccountController;
+use App\Http\Controllers\Api\FinancialStatementController;
+use App\Http\Controllers\Api\GstReportController;
+use App\Http\Controllers\Api\TaxRegisterController;
+use App\Http\Controllers\Api\TdsTcsRateController;
+use App\Http\Controllers\Api\VoucherController;
 use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\BarcodeController;
 use App\Http\Controllers\Api\BatchController;
+use App\Http\Controllers\Api\BomController;
 use App\Http\Controllers\Api\BrandController;
 use App\Http\Controllers\Api\BranchController;
+use App\Http\Controllers\Api\BrokerCommissionRateController;
 use App\Http\Controllers\Api\BrokerController;
 use App\Http\Controllers\Api\BrokerReportController;
 use App\Http\Controllers\Api\BrokerSettlementController;
+use App\Http\Controllers\Api\BrokerWalletController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\ContextController;
+use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\CustomerAddressController;
 use App\Http\Controllers\Api\CustomerCategoryController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\CustomerPriceListController;
+use App\Http\Controllers\Api\CustomerVisitController;
+use App\Http\Controllers\Api\FollowUpController;
+use App\Http\Controllers\Api\LeadController;
+use App\Http\Controllers\Api\LoyaltyController;
+use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\WhatsappController;
 use App\Http\Controllers\Api\CycleCountController;
+use App\Http\Controllers\Api\EmbroideryPaymentController;
+use App\Http\Controllers\Api\EmbroideryVendorController;
+use App\Http\Controllers\Api\EmbroideryWorkController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\ExpenseCategoryController;
+use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\VehicleController;
+use App\Http\Controllers\Api\AssetController;
+use App\Http\Controllers\Api\EmployeeClaimController;
+use App\Http\Controllers\Api\VehicleExpenseController;
+use App\Http\Controllers\Api\FuelExpenseController;
+use App\Http\Controllers\Api\ElectricityBillController;
+use App\Http\Controllers\Api\FactoryMaintenanceController;
+use App\Http\Controllers\Api\AssetMaintenanceController;
+use App\Http\Controllers\Api\DriverController;
+use App\Http\Controllers\Api\DeliveryRouteController;
+use App\Http\Controllers\Api\DispatchPlanController;
+use App\Http\Controllers\Api\ProofOfDeliveryController;
+use App\Http\Controllers\Api\TransportChargeController;
 use App\Http\Controllers\Api\FinancialYearController;
 use App\Http\Controllers\Api\GateEntryController;
 use App\Http\Controllers\Api\GstRegistrationController;
@@ -31,19 +70,33 @@ use App\Http\Controllers\Api\GoodsReceiptController;
 use App\Http\Controllers\Api\InventoryAlertController;
 use App\Http\Controllers\Api\InventoryReportController;
 use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\JobWorkReportController;
+use App\Http\Controllers\Api\LedgerReportController;
 use App\Http\Controllers\Api\ManufacturingOrderController;
+use App\Http\Controllers\Api\ManufacturingReportController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\PaymentVoucherController;
 use App\Http\Controllers\Api\PosController;
 use App\Http\Controllers\Api\PriceListController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProductVariantController;
+use App\Http\Controllers\Api\PurchaseIndentController;
 use App\Http\Controllers\Api\PurchaseInvoiceController;
 use App\Http\Controllers\Api\PurchaseOrderController;
 use App\Http\Controllers\Api\PurchaseReportController;
+use App\Http\Controllers\Api\RfqController;
 use App\Http\Controllers\Api\ReorderController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SalaryController;
+use App\Http\Controllers\Api\SalesmanCollectionController;
+use App\Http\Controllers\Api\SalesmanController;
+use App\Http\Controllers\Api\SalesmanExpenseController;
+use App\Http\Controllers\Api\SalesmanLocationController;
+use App\Http\Controllers\Api\SalesmanReportController;
+use App\Http\Controllers\Api\SalesmanTargetController;
+use App\Http\Controllers\Api\SalesmanVisitController;
+use App\Http\Controllers\Api\BeatController;
 use App\Http\Controllers\Api\SalesOrderController;
 use App\Http\Controllers\Api\SalesQuotationController;
 use App\Http\Controllers\Api\SalesReportController;
@@ -54,18 +107,39 @@ use App\Http\Controllers\Api\StockAdjustmentController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\StockLedgerController;
 use App\Http\Controllers\Api\StockReturnController;
+use App\Http\Controllers\Api\JobWorkController;
 use App\Http\Controllers\Api\StockTransferController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SupplierController;
+use App\Http\Controllers\Api\ContractorController;
 use App\Http\Controllers\Api\TailorController;
+use App\Http\Controllers\Api\TailorAlterationController;
+use App\Http\Controllers\Api\TailorBonusController;
 use App\Http\Controllers\Api\TailorPaymentController;
+use App\Http\Controllers\Api\TailorPerformanceController;
 use App\Http\Controllers\Api\TailorWorkController;
 use App\Http\Controllers\Api\PieceRateController;
 use App\Http\Controllers\Api\RateCardController;
+use App\Http\Controllers\Api\ColourPrintingController;
+use App\Http\Controllers\Api\FabricRollController;
+use App\Http\Controllers\Api\FabricInspectionController;
+use App\Http\Controllers\Api\ShrinkageRecordController;
+use App\Http\Controllers\Api\FabricCuttingController;
 use App\Http\Controllers\Api\UnitController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\VendorRatingController;
 use App\Http\Controllers\Api\WarehouseController;
 use App\Http\Controllers\Api\WarehouseLocationController;
+use App\Http\Controllers\Api\LeaveTypeController;
+use App\Http\Controllers\Api\LeaveApplicationController;
+use App\Http\Controllers\Api\OvertimeRecordController;
+use App\Http\Controllers\Api\EmployeeBonusController;
+use App\Http\Controllers\Api\SalaryAdvanceController;
+use App\Http\Controllers\Api\EmployeeLoanController;
+use App\Http\Controllers\Api\BiometricDeviceController;
+use App\Http\Controllers\Api\BiometricPunchController;
+use App\Http\Controllers\Api\SalaryStructureController;
+use App\Http\Controllers\Api\PayrollController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -136,6 +210,8 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('suppliers/{supplier}/ledger', [SupplierController::class, 'ledger'])->middleware('permission:suppliers.view');
         Route::get('suppliers/{supplier}/payments', [SupplierController::class, 'paymentHistory'])->middleware('permission:suppliers.view');
         $crud('customer-categories', CustomerCategoryController::class, 'customer-categories', 'customerCategory');
+        // Upcoming birthdays/anniversaries — must precede the /{customer} wildcard.
+        Route::get('customers/occasions', [CustomerController::class, 'occasions'])->middleware('permission:customers.view');
         $crud('customers', CustomerController::class, 'customers', 'customer');
         Route::get('customers/{customer}/purchase-history', [CustomerController::class, 'purchaseHistory'])->middleware('permission:customers.view');
         Route::get('customers/{customer}/ledger', [CustomerController::class, 'ledger'])->middleware('permission:customers.view');
@@ -153,13 +229,61 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('customers/{customer}/price-list', [CustomerPriceListController::class, 'store'])->middleware('permission:customers.edit');
         Route::match(['put', 'patch'], 'customers/{customer}/price-list/{priceList}', [CustomerPriceListController::class, 'update'])->middleware('permission:customers.edit');
         Route::delete('customers/{customer}/price-list/{priceList}', [CustomerPriceListController::class, 'destroy'])->middleware('permission:customers.edit');
+
+        // Customer loyalty points: per-customer ledger + earn/redeem/adjust entries
+        Route::get('customers/{customer}/loyalty', [LoyaltyController::class, 'index'])->middleware('permission:loyalty.view');
+        Route::post('customers/{customer}/loyalty', [LoyaltyController::class, 'store'])->middleware('permission:loyalty.create');
+
+        // Customer visit history (nested)
+        Route::get('customers/{customer}/visits', [CustomerVisitController::class, 'index'])->middleware('permission:customers.view');
+        Route::post('customers/{customer}/visits', [CustomerVisitController::class, 'store'])->middleware('permission:customers.edit');
+        Route::match(['put', 'patch'], 'customers/{customer}/visits/{visit}', [CustomerVisitController::class, 'update'])->middleware('permission:customers.edit');
+        Route::delete('customers/{customer}/visits/{visit}', [CustomerVisitController::class, 'destroy'])->middleware('permission:customers.edit');
         $crud('price-lists', PriceListController::class, 'price-lists', 'priceList');
 
         // Brokers (Dalal): master + commission ledger + settlements
         $crud('brokers', BrokerController::class, 'brokers', 'broker');
         Route::get('brokers/{broker}/ledger', [BrokerController::class, 'ledger'])->middleware('permission:brokers.view');
+        Route::get('brokers/{broker}/statement', [BrokerReportController::class, 'monthlyStatement'])->middleware('permission:brokers.view');
         Route::get('brokers/{broker}/settlements', [BrokerController::class, 'settlements'])->middleware('permission:brokers.view');
         Route::post('brokers/{broker}/settlements', [BrokerSettlementController::class, 'store'])->middleware('permission:brokers.create');
+
+        // Per-broker commission rate overrides (by product / customer)
+        Route::get('brokers/{broker}/rates', [BrokerCommissionRateController::class, 'index'])->middleware('permission:brokers.view');
+        Route::post('brokers/{broker}/rates', [BrokerCommissionRateController::class, 'store'])->middleware('permission:brokers.edit');
+        Route::match(['put', 'patch'], 'brokers/{broker}/rates/{rate}', [BrokerCommissionRateController::class, 'update'])->middleware('permission:brokers.edit');
+        Route::delete('brokers/{broker}/rates/{rate}', [BrokerCommissionRateController::class, 'destroy'])->middleware('permission:brokers.edit');
+
+        // Broker wallet: running balance + manual top-up / advance / adjustment
+        Route::get('brokers/{broker}/wallet', [BrokerWalletController::class, 'index'])->middleware('permission:brokers.view');
+        Route::post('brokers/{broker}/wallet', [BrokerWalletController::class, 'store'])->middleware('permission:brokers.create');
+
+        /*
+        |----------------------------------------------------------------------
+        | Sales & CRM: leads pipeline (with convert-to-customer), follow-up
+        | reminders on leads/customers, and discount coupons.
+        |----------------------------------------------------------------------
+        */
+        $crud('leads', LeadController::class, 'leads', 'lead');
+        Route::post('leads/{lead}/convert', [LeadController::class, 'convert'])->middleware('permission:leads.edit');
+
+        $crud('follow-ups', FollowUpController::class, 'follow-ups', 'followUp');
+        Route::post('follow-ups/{followUp}/complete', [FollowUpController::class, 'complete'])->middleware('permission:follow-ups.edit');
+
+        // Coupons: validate previews the discount; redeem consumes a use.
+        Route::get('coupons/validate', [CouponController::class, 'validateCoupon'])->middleware('permission:coupons.view');
+        $crud('coupons', CouponController::class, 'coupons', 'coupon');
+        Route::post('coupons/{coupon}/redeem', [CouponController::class, 'redeem'])->middleware('permission:coupons.edit');
+
+        // Referrals: referrer → referred person, convert on join, reward via loyalty points.
+        $crud('referrals', ReferralController::class, 'referrals', 'referral');
+        Route::post('referrals/{referral}/joined', [ReferralController::class, 'markJoined'])->middleware('permission:referrals.edit');
+        Route::post('referrals/{referral}/reward', [ReferralController::class, 'reward'])->middleware('permission:referrals.edit');
+
+        // WhatsApp: click-to-chat link builder + outbound message log.
+        Route::get('whatsapp/messages', [WhatsappController::class, 'index'])->middleware('permission:whatsapp.view');
+        Route::post('whatsapp/messages', [WhatsappController::class, 'store'])->middleware('permission:whatsapp.create');
+        Route::delete('whatsapp/messages/{whatsappMessage}', [WhatsappController::class, 'destroy'])->middleware('permission:whatsapp.delete');
 
         /*
         |----------------------------------------------------------------------
@@ -176,18 +300,135 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         $crud('tailor-works', TailorWorkController::class, 'tailor-works', 'tailorWork');
         Route::post('tailor-works/{tailorWork}/complete', [TailorWorkController::class, 'complete'])->middleware('permission:tailor-works.edit');
+        Route::get('tailor-works/{tailorWork}/pdf', [TailorWorkController::class, 'pdf'])->middleware('permission:tailor-works.view');
 
         Route::get('tailor-payments', [TailorPaymentController::class, 'index'])->middleware('permission:tailor-payments.view');
         Route::post('tailor-payments', [TailorPaymentController::class, 'store'])->middleware('permission:tailor-payments.create');
+
+        // Contractors: subcontractors that group tailors, with a rolled-up position.
+        $crud('contractors', ContractorController::class, 'contractors', 'contractor');
+        Route::get('contractors/{contractor}/performance', [ContractorController::class, 'performance'])->middleware('permission:contractors.view');
+        Route::get('contractors/{contractor}/tailors', [ContractorController::class, 'tailors'])->middleware('permission:contractors.view');
+
+        // Alteration tracking: pieces returned for adjustment after delivery.
+        $crud('tailor-alterations', TailorAlterationController::class, 'tailor-alterations', 'tailorAlteration');
+        Route::post('tailor-alterations/{tailorAlteration}/complete', [TailorAlterationController::class, 'complete'])->middleware('permission:tailor-alterations.edit');
+
+        // Bonuses: rule-assisted or manual performance payouts (credit on approve).
+        Route::get('tailor-bonuses/calculate', [TailorBonusController::class, 'calculate'])->middleware('permission:tailor-bonuses.view');
+        $crud('tailor-bonuses', TailorBonusController::class, 'tailor-bonuses', 'tailorBonus');
+        Route::post('tailor-bonuses/{tailorBonus}/approve', [TailorBonusController::class, 'approve'])->middleware('permission:tailor-bonuses.edit');
+
+        /*
+        |----------------------------------------------------------------------
+        | Salesman (field-sales) module: salesman master, monthly targets +
+        | incentive, beat/route plans, daily visit plans with GPS check-in,
+        | live-location tracking, field collections, daily expenses and reports.
+        |----------------------------------------------------------------------
+        */
+        $crud('salesmen', SalesmanController::class, 'salesmen', 'salesman');
+        Route::get('salesmen/{salesman}/performance', [SalesmanController::class, 'performance'])->middleware('permission:salesmen.view');
+        Route::get('salesmen/{salesman}/live-location', [SalesmanController::class, 'liveLocation'])->middleware('permission:salesmen.view');
+        Route::get('salesmen/{salesman}/collections', [SalesmanController::class, 'collections'])->middleware('permission:salesman-collections.view');
+
+        $crud('salesman-targets', SalesmanTargetController::class, 'salesman-targets', 'salesmanTarget');
+
+        // Beat plan + route stops (managed inline with the beat).
+        $crud('beats', BeatController::class, 'beats', 'beat');
+
+        // Daily visit plan + GPS check-in / check-out.
+        Route::post('salesman-visits/generate-plan', [SalesmanVisitController::class, 'generatePlan'])->middleware('permission:salesman-visits.create');
+        Route::post('salesman-visits/{salesmanVisit}/check-in', [SalesmanVisitController::class, 'checkIn'])->middleware('permission:salesman-visits.edit');
+        Route::post('salesman-visits/{salesmanVisit}/check-out', [SalesmanVisitController::class, 'checkOut'])->middleware('permission:salesman-visits.edit');
+        $crud('salesman-visits', SalesmanVisitController::class, 'salesman-visits', 'salesmanVisit');
+
+        // GPS tracking: ping ingest, per-salesman track, fleet live map.
+        Route::get('salesman-locations/live', [SalesmanLocationController::class, 'live'])->middleware('permission:salesman-locations.view');
+        Route::get('salesman-locations', [SalesmanLocationController::class, 'index'])->middleware('permission:salesman-locations.view');
+        Route::post('salesman-locations', [SalesmanLocationController::class, 'store'])->middleware('permission:salesman-locations.create');
+
+        // Field collections: create, deposit, bounce.
+        Route::post('salesman-collections/{salesmanCollection}/deposit', [SalesmanCollectionController::class, 'deposit'])->middleware('permission:salesman-collections.edit');
+        Route::post('salesman-collections/{salesmanCollection}/bounce', [SalesmanCollectionController::class, 'bounce'])->middleware('permission:salesman-collections.edit');
+        $crud('salesman-collections', SalesmanCollectionController::class, 'salesman-collections', 'salesmanCollection');
+
+        // Daily field expenses with approval workflow.
+        Route::post('salesman-expenses/{salesmanExpense}/approve', [SalesmanExpenseController::class, 'approve'])->middleware('permission:salesman-expenses.edit');
+        Route::post('salesman-expenses/{salesmanExpense}/reject', [SalesmanExpenseController::class, 'reject'])->middleware('permission:salesman-expenses.edit');
+        $crud('salesman-expenses', SalesmanExpenseController::class, 'salesman-expenses', 'salesmanExpense');
+
+        // Reports: team incentive/achievement and visit compliance.
+        Route::get('salesman-reports/incentive', [SalesmanReportController::class, 'incentive'])->middleware('permission:salesmen.view');
+        Route::get('salesman-reports/visit-compliance', [SalesmanReportController::class, 'visitCompliance'])->middleware('permission:salesmen.view');
+
+        /*
+        |----------------------------------------------------------------------
+        | Embroidery (job-work) module: vendor master, dispatch/receive job
+        | cards, payouts and per-vendor ledger.
+        |----------------------------------------------------------------------
+        */
+        $crud('embroidery-vendors', EmbroideryVendorController::class, 'embroidery-vendors', 'embroideryVendor');
+        Route::get('embroidery-vendors/{embroideryVendor}/ledger', [EmbroideryVendorController::class, 'ledger'])->middleware('permission:embroidery-vendors.view');
+        Route::get('embroidery-vendors/{embroideryVendor}/payments', [EmbroideryVendorController::class, 'payments'])->middleware('permission:embroidery-vendors.view');
+
+        $crud('embroidery-works', EmbroideryWorkController::class, 'embroidery-works', 'embroideryWork');
+        Route::post('embroidery-works/{embroideryWork}/receive', [EmbroideryWorkController::class, 'receive'])->middleware('permission:embroidery-works.edit');
+
+        Route::get('embroidery-payments', [EmbroideryPaymentController::class, 'index'])->middleware('permission:embroidery-payments.view');
+        Route::post('embroidery-payments', [EmbroideryPaymentController::class, 'store'])->middleware('permission:embroidery-payments.create');
+
+        // Colour Printing: printing jobs sent to external printers (vendors).
+        $crud('colour-printings', ColourPrintingController::class, 'colour-printing', 'colourPrinting');
+
+        /*
+        |----------------------------------------------------------------------
+        | Unified payments: customer receipts (inbound) and supplier/vendor/
+        | expense payouts (outbound), in any mode, optionally allocated across
+        | open invoices. Advances stay unallocated as a party ledger credit and
+        | are applied later via the /allocations endpoint.
+        |----------------------------------------------------------------------
+        */
+        Route::get('payment-vouchers', [PaymentVoucherController::class, 'index'])->middleware('permission:payments.view');
+        Route::post('payment-vouchers', [PaymentVoucherController::class, 'store'])->middleware('permission:payments.create');
+        Route::get('payment-vouchers/{paymentVoucher}', [PaymentVoucherController::class, 'show'])->middleware('permission:payments.view');
+        Route::post('payment-vouchers/{paymentVoucher}/allocations', [PaymentVoucherController::class, 'allocate'])->middleware('permission:payments.edit');
+        Route::delete('payment-vouchers/{paymentVoucher}', [PaymentVoucherController::class, 'destroy'])->middleware('permission:payments.delete');
 
         /*
         |----------------------------------------------------------------------
         | Purchase module
         |----------------------------------------------------------------------
         */
+        // Purchase Indents: internal requisitions with an approval gate, then
+        // convertible into an RFQ or straight into a purchase order.
+        Route::get('purchase-indents', [PurchaseIndentController::class, 'index'])->middleware('permission:purchase-indents.view');
+        Route::post('purchase-indents', [PurchaseIndentController::class, 'store'])->middleware('permission:purchase-indents.create');
+        Route::get('purchase-indents/{purchaseIndent}', [PurchaseIndentController::class, 'show'])->middleware('permission:purchase-indents.view');
+        Route::match(['put', 'patch'], 'purchase-indents/{purchaseIndent}', [PurchaseIndentController::class, 'update'])->middleware('permission:purchase-indents.edit');
+        Route::delete('purchase-indents/{purchaseIndent}', [PurchaseIndentController::class, 'destroy'])->middleware('permission:purchase-indents.delete');
+        Route::post('purchase-indents/{purchaseIndent}/submit', [PurchaseIndentController::class, 'submit'])->middleware('permission:purchase-indents.edit');
+        Route::post('purchase-indents/{purchaseIndent}/approve', [PurchaseIndentController::class, 'approve'])->middleware('permission:purchase-indents.approve');
+        Route::post('purchase-indents/{purchaseIndent}/reject', [PurchaseIndentController::class, 'reject'])->middleware('permission:purchase-indents.approve');
+        Route::post('purchase-indents/{purchaseIndent}/convert-to-rfq', [PurchaseIndentController::class, 'convertToRfq'])->middleware('permission:rfqs.create');
+        Route::post('purchase-indents/{purchaseIndent}/convert-to-po', [PurchaseIndentController::class, 'convertToPo'])->middleware('permission:purchases.create');
+
+        // RFQ (Request for Quotation): invite vendors, capture per-line quotes,
+        // compare side-by-side, then award to a vendor to raise the PO.
+        Route::get('rfqs', [RfqController::class, 'index'])->middleware('permission:rfqs.view');
+        Route::post('rfqs', [RfqController::class, 'store'])->middleware('permission:rfqs.create');
+        Route::get('rfqs/{rfq}', [RfqController::class, 'show'])->middleware('permission:rfqs.view');
+        Route::get('rfqs/{rfq}/comparison', [RfqController::class, 'comparison'])->middleware('permission:rfqs.view');
+        Route::match(['put', 'patch'], 'rfqs/{rfq}', [RfqController::class, 'update'])->middleware('permission:rfqs.edit');
+        Route::delete('rfqs/{rfq}', [RfqController::class, 'destroy'])->middleware('permission:rfqs.delete');
+        Route::post('rfqs/{rfq}/send', [RfqController::class, 'send'])->middleware('permission:rfqs.edit');
+        Route::post('rfqs/{rfq}/suppliers/{rfqSupplier}/quotes', [RfqController::class, 'recordQuote'])->middleware('permission:rfqs.edit');
+        Route::post('rfqs/{rfq}/award', [RfqController::class, 'award'])->middleware('permission:purchases.create');
+        Route::post('rfqs/{rfq}/close', [RfqController::class, 'close'])->middleware('permission:rfqs.edit');
+
         Route::get('purchase-orders', [PurchaseOrderController::class, 'index'])->middleware('permission:purchases.view');
         Route::post('purchase-orders', [PurchaseOrderController::class, 'store'])->middleware('permission:purchases.create');
         Route::get('purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->middleware('permission:purchases.view');
+        Route::get('purchase-orders/{purchaseOrder}/pdf', [PurchaseOrderController::class, 'pdf'])->middleware('permission:purchases.view');
         Route::match(['put', 'patch'], 'purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->middleware('permission:purchases.edit');
         Route::delete('purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->middleware('permission:purchases.delete');
         Route::post('purchase-orders/{purchaseOrder}/submit', [PurchaseOrderController::class, 'submit'])->middleware('permission:purchases.edit');
@@ -199,10 +440,19 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('goods-receipts', [GoodsReceiptController::class, 'store'])->middleware('permission:purchases.create');
         Route::get('goods-receipts/{goodsReceipt}', [GoodsReceiptController::class, 'show'])->middleware('permission:purchases.view');
 
+        // Vendor Rating: manual quality/delivery/pricing/service scorecards, plus
+        // an aggregated per-vendor leaderboard (summary must precede the wildcard).
+        Route::get('vendor-ratings/summary', [VendorRatingController::class, 'summary'])->middleware('permission:vendor-ratings.view');
+        Route::get('vendor-ratings', [VendorRatingController::class, 'index'])->middleware('permission:vendor-ratings.view');
+        Route::post('vendor-ratings', [VendorRatingController::class, 'store'])->middleware('permission:vendor-ratings.create');
+        Route::get('vendor-ratings/{vendorRating}', [VendorRatingController::class, 'show'])->middleware('permission:vendor-ratings.view');
+        Route::delete('vendor-ratings/{vendorRating}', [VendorRatingController::class, 'destroy'])->middleware('permission:vendor-ratings.delete');
+
         // Vendor invoices: 3-way match against PO + GRN, soft warning on exception
         Route::get('purchase-invoices', [PurchaseInvoiceController::class, 'index'])->middleware('permission:purchase-invoices.view');
         Route::post('purchase-invoices', [PurchaseInvoiceController::class, 'store'])->middleware('permission:purchase-invoices.create');
         Route::get('purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show'])->middleware('permission:purchase-invoices.view');
+        Route::get('purchase-invoices/{purchaseInvoice}/pdf', [PurchaseInvoiceController::class, 'pdf'])->middleware('permission:purchase-invoices.view');
         Route::match(['put', 'patch'], 'purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'update'])->middleware('permission:purchase-invoices.edit');
         Route::delete('purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])->middleware('permission:purchase-invoices.delete');
         Route::post('purchase-invoices/{purchaseInvoice}/approve', [PurchaseInvoiceController::class, 'approve'])->middleware('permission:purchase-invoices.approve');
@@ -217,6 +467,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('sales-orders', [SalesOrderController::class, 'index'])->middleware('permission:sales.view');
         Route::post('sales-orders', [SalesOrderController::class, 'store'])->middleware('permission:sales.create');
         Route::get('sales-orders/{salesOrder}', [SalesOrderController::class, 'show'])->middleware('permission:sales.view');
+        Route::get('sales-orders/{salesOrder}/delivery-challan', [SalesOrderController::class, 'pdf'])->middleware('permission:sales.view');
         Route::match(['put', 'patch'], 'sales-orders/{salesOrder}', [SalesOrderController::class, 'update'])->middleware('permission:sales.edit');
         Route::delete('sales-orders/{salesOrder}', [SalesOrderController::class, 'destroy'])->middleware('permission:sales.delete');
         Route::post('sales-orders/{salesOrder}/confirm', [SalesOrderController::class, 'confirm'])->middleware('permission:sales.approve');
@@ -229,6 +480,7 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         Route::get('invoices', [InvoiceController::class, 'index'])->middleware('permission:sales.view');
         Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->middleware('permission:sales.view');
+        Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->middleware('permission:sales.view');
         Route::post('invoices/{invoice}/payments', [InvoiceController::class, 'recordPayment'])->middleware('permission:sales.create');
 
         // Sales quotations: pre-order stage, converts into a Sales Order once accepted
@@ -244,7 +496,13 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         // POS: one-shot retail counter checkout (creates SO + Invoice + Payments atomically)
         Route::get('pos/products', [PosController::class, 'products'])->middleware('permission:sales.view');
+        Route::get('pos/lookup', [PosController::class, 'lookup'])->middleware('permission:sales.view');
         Route::post('pos/checkout', [PosController::class, 'checkout'])->middleware('permission:sales.create');
+        // POS invoice lookup + counter return / exchange flows
+        Route::get('pos/invoices', [PosController::class, 'invoices'])->middleware('permission:sales.view');
+        Route::get('pos/invoices/{invoice}', [PosController::class, 'invoice'])->middleware('permission:sales.view');
+        Route::post('pos/return', [PosController::class, 'processReturn'])->middleware('permission:sales-returns.create');
+        Route::post('pos/exchange', [PosController::class, 'exchange'])->middleware('permission:sales.create');
 
         // Sales returns / credit notes: tied to a specific invoice, restocks + credits the customer
         Route::get('sales-returns', [SalesReturnController::class, 'index'])->middleware('permission:sales-returns.view');
@@ -261,9 +519,18 @@ Route::middleware('api')->prefix('api')->group(function () {
         | produce finished goods, tracked through a chain of stages.
         |----------------------------------------------------------------------
         */
+        // Bills of Materials — reusable component recipes for finished products.
+        Route::get('boms', [BomController::class, 'index'])->middleware('permission:boms.view');
+        Route::post('boms', [BomController::class, 'store'])->middleware('permission:boms.create');
+        Route::get('boms/{bom}', [BomController::class, 'show'])->middleware('permission:boms.view');
+        Route::get('boms/{bom}/explode', [BomController::class, 'explode'])->middleware('permission:boms.view');
+        Route::match(['put', 'patch'], 'boms/{bom}', [BomController::class, 'update'])->middleware('permission:boms.edit');
+        Route::delete('boms/{bom}', [BomController::class, 'destroy'])->middleware('permission:boms.delete');
+
         Route::get('manufacturing-orders', [ManufacturingOrderController::class, 'index'])->middleware('permission:manufacturing-orders.view');
         Route::post('manufacturing-orders', [ManufacturingOrderController::class, 'store'])->middleware('permission:manufacturing-orders.create');
         Route::get('manufacturing-orders/{manufacturingOrder}', [ManufacturingOrderController::class, 'show'])->middleware('permission:manufacturing-orders.view');
+        Route::get('manufacturing-orders/{manufacturingOrder}/pdf', [ManufacturingOrderController::class, 'pdf'])->middleware('permission:manufacturing-orders.view');
         Route::match(['put', 'patch'], 'manufacturing-orders/{manufacturingOrder}', [ManufacturingOrderController::class, 'update'])->middleware('permission:manufacturing-orders.edit');
         Route::delete('manufacturing-orders/{manufacturingOrder}', [ManufacturingOrderController::class, 'destroy'])->middleware('permission:manufacturing-orders.delete');
         Route::post('manufacturing-orders/{manufacturingOrder}/start', [ManufacturingOrderController::class, 'start'])->middleware('permission:manufacturing-orders.edit');
@@ -319,6 +586,190 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         /*
         |----------------------------------------------------------------------
+        | Job Work (outside-vendor subcontracting)
+        |----------------------------------------------------------------------
+        */
+        Route::get('job-works/report/pending', [JobWorkController::class, 'pendingReport'])->middleware('permission:job-works.view');
+        Route::get('job-works/report/damage', [JobWorkController::class, 'damageReport'])->middleware('permission:job-works.view');
+        Route::get('job-works/report/shortage', [JobWorkController::class, 'shortageReport'])->middleware('permission:job-works.view');
+        Route::get('job-works', [JobWorkController::class, 'index'])->middleware('permission:job-works.view');
+        Route::post('job-works', [JobWorkController::class, 'store'])->middleware('permission:job-works.create');
+        Route::get('job-works/{jobWork}', [JobWorkController::class, 'show'])->middleware('permission:job-works.view');
+        Route::get('job-works/{jobWork}/pdf', [JobWorkController::class, 'pdf'])->middleware('permission:job-works.view');
+        Route::match(['put', 'patch'], 'job-works/{jobWork}', [JobWorkController::class, 'update'])->middleware('permission:job-works.edit');
+        Route::delete('job-works/{jobWork}', [JobWorkController::class, 'destroy'])->middleware('permission:job-works.delete');
+        Route::post('job-works/{jobWork}/issue', [JobWorkController::class, 'issue'])->middleware('permission:job-works.approve');
+        Route::post('job-works/{jobWork}/receive', [JobWorkController::class, 'receive'])->middleware('permission:job-works.edit');
+        Route::post('job-works/{jobWork}/close', [JobWorkController::class, 'close'])->middleware('permission:job-works.approve');
+        Route::post('job-works/{jobWork}/cancel', [JobWorkController::class, 'cancel'])->middleware('permission:job-works.edit');
+
+        /*
+        |----------------------------------------------------------------------
+        | Textile-specific (SRS §5): fabric roll ("than") management, 4-point
+        | fabric inspection, shrinkage records, and cutting (cutting-loss +
+        | leftover-fabric management). All guarded by the single "textile" module.
+        |----------------------------------------------------------------------
+        */
+        // Reports + summaries must precede the /{fabricRoll} wildcard.
+        Route::get('fabric-rolls/stock-summary', [FabricRollController::class, 'stockSummary'])->middleware('permission:textile.view');
+        Route::get('fabric-rolls', [FabricRollController::class, 'index'])->middleware('permission:textile.view');
+        Route::post('fabric-rolls', [FabricRollController::class, 'store'])->middleware('permission:textile.create');
+        Route::get('fabric-rolls/{fabricRoll}', [FabricRollController::class, 'show'])->middleware('permission:textile.view');
+        Route::match(['put', 'patch'], 'fabric-rolls/{fabricRoll}', [FabricRollController::class, 'update'])->middleware('permission:textile.edit');
+        Route::delete('fabric-rolls/{fabricRoll}', [FabricRollController::class, 'destroy'])->middleware('permission:textile.delete');
+        Route::post('fabric-rolls/{fabricRoll}/status', [FabricRollController::class, 'setStatus'])->middleware('permission:textile.edit');
+
+        Route::get('fabric-inspections', [FabricInspectionController::class, 'index'])->middleware('permission:textile.view');
+        Route::post('fabric-inspections', [FabricInspectionController::class, 'store'])->middleware('permission:textile.create');
+        Route::get('fabric-inspections/{fabricInspection}', [FabricInspectionController::class, 'show'])->middleware('permission:textile.view');
+        Route::match(['put', 'patch'], 'fabric-inspections/{fabricInspection}', [FabricInspectionController::class, 'update'])->middleware('permission:textile.edit');
+        Route::delete('fabric-inspections/{fabricInspection}', [FabricInspectionController::class, 'destroy'])->middleware('permission:textile.delete');
+
+        Route::get('shrinkage-records', [ShrinkageRecordController::class, 'index'])->middleware('permission:textile.view');
+        Route::post('shrinkage-records', [ShrinkageRecordController::class, 'store'])->middleware('permission:textile.create');
+        Route::get('shrinkage-records/{shrinkageRecord}', [ShrinkageRecordController::class, 'show'])->middleware('permission:textile.view');
+        Route::match(['put', 'patch'], 'shrinkage-records/{shrinkageRecord}', [ShrinkageRecordController::class, 'update'])->middleware('permission:textile.edit');
+        Route::delete('shrinkage-records/{shrinkageRecord}', [ShrinkageRecordController::class, 'destroy'])->middleware('permission:textile.delete');
+
+        Route::get('fabric-cuttings/loss-report', [FabricCuttingController::class, 'lossReport'])->middleware('permission:textile.view');
+        Route::get('fabric-cuttings', [FabricCuttingController::class, 'index'])->middleware('permission:textile.view');
+        Route::post('fabric-cuttings', [FabricCuttingController::class, 'store'])->middleware('permission:textile.create');
+        Route::get('fabric-cuttings/{fabricCutting}', [FabricCuttingController::class, 'show'])->middleware('permission:textile.view');
+        Route::delete('fabric-cuttings/{fabricCutting}', [FabricCuttingController::class, 'destroy'])->middleware('permission:textile.delete');
+
+        /*
+        |----------------------------------------------------------------------
+        | Company Expenses: operating spend with approval workflow, bill
+        | attachments and month / branch / category-wise reporting.
+        |----------------------------------------------------------------------
+        */
+        $crud('expense-categories', ExpenseCategoryController::class, 'expense-categories', 'expenseCategory');
+
+        // Report endpoints must precede the /{expense} wildcard.
+        Route::get('expenses/report/monthly', [ExpenseController::class, 'monthlyReport'])->middleware('permission:expenses.view');
+        Route::get('expenses/report/branch', [ExpenseController::class, 'branchReport'])->middleware('permission:expenses.view');
+        Route::get('expenses/report/category', [ExpenseController::class, 'categoryReport'])->middleware('permission:expenses.view');
+        Route::get('expenses/ledger', [ExpenseController::class, 'ledger'])->middleware('permission:expenses.view');
+        Route::get('expenses', [ExpenseController::class, 'index'])->middleware('permission:expenses.view');
+        Route::post('expenses', [ExpenseController::class, 'store'])->middleware('permission:expenses.create');
+        Route::get('expenses/{expense}', [ExpenseController::class, 'show'])->middleware('permission:expenses.view');
+        Route::match(['put', 'patch'], 'expenses/{expense}', [ExpenseController::class, 'update'])->middleware('permission:expenses.edit');
+        Route::delete('expenses/{expense}', [ExpenseController::class, 'destroy'])->middleware('permission:expenses.delete');
+        Route::post('expenses/{expense}/attachment', [ExpenseController::class, 'uploadAttachment'])->middleware('permission:expenses.edit');
+        Route::post('expenses/{expense}/submit', [ExpenseController::class, 'submit'])->middleware('permission:expenses.edit');
+        Route::post('expenses/{expense}/approve', [ExpenseController::class, 'approve'])->middleware('permission:expenses.approve');
+        Route::post('expenses/{expense}/reject', [ExpenseController::class, 'reject'])->middleware('permission:expenses.approve');
+        Route::post('expenses/{expense}/mark-paid', [ExpenseController::class, 'markPaid'])->middleware('permission:expenses.edit');
+
+        /*
+        |----------------------------------------------------------------------
+        | Expense sub-modules (SRS §10): employee claims, vehicle & fuel
+        | expenses, electricity bills, factory & asset maintenance — each on
+        | the shared approval workflow. Plus the Vehicle & Asset masters they
+        | reference. Report routes precede the /{id} wildcard.
+        |----------------------------------------------------------------------
+        */
+        $expenseWorkflow = function (string $uri, string $controller, string $module, string $param) {
+            Route::post("{$uri}/{{$param}}/submit", [$controller, 'submit'])->middleware("permission:{$module}.edit");
+            Route::post("{$uri}/{{$param}}/approve", [$controller, 'approve'])->middleware("permission:{$module}.approve");
+            Route::post("{$uri}/{{$param}}/reject", [$controller, 'reject'])->middleware("permission:{$module}.approve");
+            Route::post("{$uri}/{{$param}}/mark-paid", [$controller, 'markPaid'])->middleware("permission:{$module}.edit");
+            Route::post("{$uri}/{{$param}}/attachment", [$controller, 'uploadAttachment'])->middleware("permission:{$module}.edit");
+        };
+
+        // Masters
+        $crud('vehicles', VehicleController::class, 'vehicles', 'vehicle');
+        $crud('assets', AssetController::class, 'assets', 'asset');
+
+        // Employee expense claims (header + line items)
+        $crud('employee-claims', EmployeeClaimController::class, 'employee-claims', 'employeeClaim');
+        $expenseWorkflow('employee-claims', EmployeeClaimController::class, 'employee-claims', 'employeeClaim');
+
+        // Vehicle expenses
+        Route::get('vehicle-expenses/report', [VehicleExpenseController::class, 'report'])->middleware('permission:vehicle-expenses.view');
+        $crud('vehicle-expenses', VehicleExpenseController::class, 'vehicle-expenses', 'vehicleExpense');
+        $expenseWorkflow('vehicle-expenses', VehicleExpenseController::class, 'vehicle-expenses', 'vehicleExpense');
+
+        // Fuel expenses (+ mileage report)
+        Route::get('fuel-expenses/report', [FuelExpenseController::class, 'report'])->middleware('permission:fuel-expenses.view');
+        $crud('fuel-expenses', FuelExpenseController::class, 'fuel-expenses', 'fuelExpense');
+        $expenseWorkflow('fuel-expenses', FuelExpenseController::class, 'fuel-expenses', 'fuelExpense');
+
+        // Electricity bills
+        Route::get('electricity-bills/report', [ElectricityBillController::class, 'report'])->middleware('permission:electricity-bills.view');
+        $crud('electricity-bills', ElectricityBillController::class, 'electricity-bills', 'electricityBill');
+        $expenseWorkflow('electricity-bills', ElectricityBillController::class, 'electricity-bills', 'electricityBill');
+
+        // Factory maintenance
+        Route::get('factory-maintenances/report', [FactoryMaintenanceController::class, 'report'])->middleware('permission:factory-maintenances.view');
+        $crud('factory-maintenances', FactoryMaintenanceController::class, 'factory-maintenances', 'factoryMaintenance');
+        $expenseWorkflow('factory-maintenances', FactoryMaintenanceController::class, 'factory-maintenances', 'factoryMaintenance');
+
+        // Asset maintenance (+ upcoming-service-due & cost report)
+        Route::get('asset-maintenances/report', [AssetMaintenanceController::class, 'report'])->middleware('permission:asset-maintenances.view');
+        Route::get('asset-maintenances/upcoming', [AssetMaintenanceController::class, 'upcoming'])->middleware('permission:asset-maintenances.view');
+        $crud('asset-maintenances', AssetMaintenanceController::class, 'asset-maintenances', 'assetMaintenance');
+        $expenseWorkflow('asset-maintenances', AssetMaintenanceController::class, 'asset-maintenances', 'assetMaintenance');
+
+        /*
+        |----------------------------------------------------------------------
+        | Transport & Logistics (SRS §12): driver & delivery-route masters,
+        | dispatch planning (header + consignments) with a dispatch → deliver
+        | lifecycle, per-consignment Proof of Delivery, and freight / transport
+        | charges. Vehicle management reuses the shared `vehicles` master.
+        |----------------------------------------------------------------------
+        */
+        $crud('drivers', DriverController::class, 'drivers', 'driver');
+        $crud('delivery-routes', DeliveryRouteController::class, 'delivery-routes', 'deliveryRoute');
+
+        // Dispatch planning (draft → dispatched → delivered / cancelled).
+        $crud('dispatch-plans', DispatchPlanController::class, 'dispatch-plans', 'dispatchPlan');
+        Route::post('dispatch-plans/{dispatchPlan}/dispatch', [DispatchPlanController::class, 'dispatchPlan'])->middleware('permission:dispatch-plans.edit');
+        Route::post('dispatch-plans/{dispatchPlan}/deliver', [DispatchPlanController::class, 'deliver'])->middleware('permission:dispatch-plans.edit');
+        Route::post('dispatch-plans/{dispatchPlan}/cancel', [DispatchPlanController::class, 'cancel'])->middleware('permission:dispatch-plans.edit');
+
+        // Proof of Delivery — operates on individual consignments.
+        Route::get('dispatch-pods', [ProofOfDeliveryController::class, 'index'])->middleware('permission:dispatch-pods.view');
+        Route::post('dispatch-pods/{dispatchItem}', [ProofOfDeliveryController::class, 'record'])->middleware('permission:dispatch-pods.edit');
+        Route::post('dispatch-pods/{dispatchItem}/photo', [ProofOfDeliveryController::class, 'uploadPhoto'])->middleware('permission:dispatch-pods.edit');
+
+        // Transport charges (freight / loading / toll / detention).
+        $crud('transport-charges', TransportChargeController::class, 'transport-charges', 'transportCharge');
+
+        /*
+        |----------------------------------------------------------------------
+        | Accounts: cash/bank account master, manual vouchers (receipt /
+        | payment / contra / journal) and the derived account books
+        | (Cash Book, Bank Book, Journal, Day Book).
+        |----------------------------------------------------------------------
+        */
+        $crud('bank-accounts', BankAccountController::class, 'bank-accounts', 'bankAccount');
+
+        // Read-only derived books.
+        Route::get('accounts/cash-book', [AccountBookController::class, 'cashBook'])->middleware('permission:accounts.view');
+        Route::get('accounts/bank-book', [AccountBookController::class, 'bankBook'])->middleware('permission:accounts.view');
+        Route::get('accounts/day-book', [AccountBookController::class, 'dayBook'])->middleware('permission:accounts.view');
+        Route::get('accounts/journal', [AccountBookController::class, 'journal'])->middleware('permission:accounts.view');
+        Route::get('accounts/petty-cash', [AccountBookController::class, 'pettyCash'])->middleware('permission:accounts.view');
+
+        // Derived financial statements (read-only).
+        Route::get('accounts/trial-balance', [FinancialStatementController::class, 'trialBalance'])->middleware('permission:accounts.view');
+        Route::get('accounts/profit-loss', [FinancialStatementController::class, 'profitAndLoss'])->middleware('permission:accounts.view');
+        Route::get('accounts/balance-sheet', [FinancialStatementController::class, 'balanceSheet'])->middleware('permission:accounts.view');
+
+        // TDS / TCS section-rate master.
+        $crud('tds-tcs-rates', TdsTcsRateController::class, 'tds-tcs-rates', 'tdsTcsRate');
+
+        // Manual vouchers.
+        Route::get('vouchers', [VoucherController::class, 'index'])->middleware('permission:vouchers.view');
+        Route::post('vouchers', [VoucherController::class, 'store'])->middleware('permission:vouchers.create');
+        Route::get('vouchers/{voucher}', [VoucherController::class, 'show'])->middleware('permission:vouchers.view');
+        Route::match(['put', 'patch'], 'vouchers/{voucher}', [VoucherController::class, 'update'])->middleware('permission:vouchers.edit');
+        Route::delete('vouchers/{voucher}', [VoucherController::class, 'destroy'])->middleware('permission:vouchers.delete');
+        Route::post('vouchers/{voucher}/cancel', [VoucherController::class, 'cancel'])->middleware('permission:vouchers.edit');
+
+        /*
+        |----------------------------------------------------------------------
         | Advanced inventory
         |----------------------------------------------------------------------
         */
@@ -346,8 +797,26 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('reports/sales', [SalesReportController::class, 'summary'])->middleware('permission:reports.view');
         Route::get('reports/profitability', [SalesReportController::class, 'profitability'])->middleware('permission:reports.view');
         Route::get('reports/gst-output', [SalesReportController::class, 'gstOutput'])->middleware('permission:reports.view');
+        // Consolidated GST (GSTR-3B summary + GSTR-1) and TDS/TCS registers.
+        Route::get('reports/gst-summary', [GstReportController::class, 'summary'])->middleware('permission:reports.view');
+        Route::get('reports/gstr1', [GstReportController::class, 'gstr1'])->middleware('permission:reports.view');
+        Route::get('reports/tds-register', [TaxRegisterController::class, 'tds'])->middleware('permission:reports.view');
+        Route::get('reports/tcs-register', [TaxRegisterController::class, 'tcs'])->middleware('permission:reports.view');
         Route::get('reports/broker-commissions', [BrokerReportController::class, 'commissions'])->middleware('permission:reports.view');
         Route::get('reports/broker-wise-sales', [BrokerReportController::class, 'brokerWiseSales'])->middleware('permission:reports.view');
+        Route::get('reports/stock-ageing', [InventoryReportController::class, 'stockAgeing'])->middleware('permission:reports.view');
+        Route::get('reports/slow-moving', [InventoryReportController::class, 'slowMoving'])->middleware('permission:reports.view');
+        Route::get('reports/fast-moving', [InventoryReportController::class, 'fastMoving'])->middleware('permission:reports.view');
+        Route::get('reports/manufacturing', [ManufacturingReportController::class, 'summary'])->middleware('permission:reports.view');
+        Route::get('reports/production-cost', [ManufacturingReportController::class, 'productionCost'])->middleware('permission:reports.view');
+        Route::get('reports/tailor', [JobWorkReportController::class, 'tailor'])->middleware('permission:reports.view');
+        Route::get('reports/tailor-performance', [TailorPerformanceController::class, 'index'])->middleware('permission:reports.view');
+        Route::get('reports/tailor-rejections', [TailorPerformanceController::class, 'rejections'])->middleware('permission:reports.view');
+        Route::get('reports/embroidery', [JobWorkReportController::class, 'embroidery'])->middleware('permission:reports.view');
+        Route::get('reports/printing', [JobWorkReportController::class, 'printing'])->middleware('permission:reports.view');
+        Route::get('reports/expenses', [ExpenseController::class, 'report'])->middleware('permission:reports.view');
+        Route::get('reports/customer-ledger', [LedgerReportController::class, 'customer'])->middleware('permission:reports.view');
+        Route::get('reports/supplier-ledger', [LedgerReportController::class, 'supplier'])->middleware('permission:reports.view');
 
         Route::get('dashboard/kpis', [DashboardController::class, 'kpis']);
 
@@ -382,6 +851,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('barcode/render', [BarcodeController::class, 'render'])->middleware('permission:barcodes.view');
         Route::get('barcode/lookup', [BarcodeController::class, 'lookup'])->middleware('permission:barcodes.view');
         Route::post('barcode/print-labels', [BarcodeController::class, 'printLabels'])->middleware('permission:barcodes.view');
+        Route::post('rfid/assign', [BarcodeController::class, 'assignRfid'])->middleware('permission:products.edit');
         Route::get('products/{product}/barcode-image', [BarcodeController::class, 'productImage'])->middleware('permission:products.view');
         Route::get('products/{product}/variants/{variant}/barcode-image', [BarcodeController::class, 'variantImage'])->middleware('permission:products.view');
 
@@ -394,6 +864,42 @@ Route::middleware('api')->prefix('api')->group(function () {
         $crud('employees', EmployeeController::class, 'employees', 'employee');
         $crud('attendance', AttendanceController::class, 'attendance', 'attendance');
         $crud('salaries', SalaryController::class, 'salaries', 'salary');
+
+        // Leave: types master + applications with an approve/reject workflow.
+        $crud('leave-types', LeaveTypeController::class, 'leave-types', 'leaveType');
+        Route::post('leave-applications/{leaveApplication}/approve', [LeaveApplicationController::class, 'approve'])->middleware('permission:leave-applications.approve');
+        Route::post('leave-applications/{leaveApplication}/reject', [LeaveApplicationController::class, 'reject'])->middleware('permission:leave-applications.approve');
+        $crud('leave-applications', LeaveApplicationController::class, 'leave-applications', 'leaveApplication');
+
+        // Overtime, bonuses and salary advances — each approved before payroll consumes it.
+        Route::post('overtime/{overtimeRecord}/approve', [OvertimeRecordController::class, 'approve'])->middleware('permission:overtime.approve');
+        $crud('overtime', OvertimeRecordController::class, 'overtime', 'overtimeRecord');
+
+        Route::post('employee-bonuses/{employeeBonus}/approve', [EmployeeBonusController::class, 'approve'])->middleware('permission:employee-bonuses.approve');
+        $crud('employee-bonuses', EmployeeBonusController::class, 'employee-bonuses', 'employeeBonus');
+
+        Route::post('salary-advances/{salaryAdvance}/approve', [SalaryAdvanceController::class, 'approve'])->middleware('permission:salary-advances.approve');
+        $crud('salary-advances', SalaryAdvanceController::class, 'salary-advances', 'salaryAdvance');
+
+        // Employee loans: approve → disburse (builds the EMI schedule) → recovered via payroll.
+        Route::post('employee-loans/{employeeLoan}/approve', [EmployeeLoanController::class, 'approve'])->middleware('permission:employee-loans.approve');
+        Route::post('employee-loans/{employeeLoan}/disburse', [EmployeeLoanController::class, 'disburse'])->middleware('permission:employee-loans.edit');
+        $crud('employee-loans', EmployeeLoanController::class, 'employee-loans', 'employeeLoan');
+
+        // Biometric attendance: device master + punch ingest/sync into attendance.
+        $crud('biometric-devices', BiometricDeviceController::class, 'biometric-devices', 'biometricDevice');
+        Route::get('biometric-punches', [BiometricPunchController::class, 'index'])->middleware('permission:biometric-punches.view');
+        Route::post('biometric-punches/import', [BiometricPunchController::class, 'import'])->middleware('permission:biometric-punches.create');
+        Route::post('biometric-punches/sync', [BiometricPunchController::class, 'sync'])->middleware('permission:attendance.create');
+        Route::delete('biometric-punches/{biometricPunch}', [BiometricPunchController::class, 'destroy'])->middleware('permission:biometric-punches.delete');
+
+        // Payroll: per-employee CTC structures + monthly payslip generation/payout.
+        $crud('salary-structures', SalaryStructureController::class, 'salary-structures', 'salaryStructure');
+        Route::get('payroll', [PayrollController::class, 'index'])->middleware('permission:payroll.view');
+        Route::post('payroll/generate', [PayrollController::class, 'generate'])->middleware('permission:payroll.create');
+        Route::post('payroll/pay-all', [PayrollController::class, 'payAll'])->middleware('permission:payroll.edit');
+        Route::post('payroll/{salary}/pay', [PayrollController::class, 'pay'])->middleware('permission:payroll.edit');
+        Route::delete('payroll/{salary}', [PayrollController::class, 'destroy'])->middleware('permission:payroll.delete');
 
         /*
         |----------------------------------------------------------------------

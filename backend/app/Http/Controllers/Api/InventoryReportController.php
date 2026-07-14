@@ -306,4 +306,117 @@ class InventoryReportController extends Controller
             'grand_total' => round((float) collect($rows)->sum('stock_value'), 2),
         ]);
     }
+
+    /**
+     * Stock ageing: on-hand stock bucketed by how long it has sat since its
+     * last inward movement (0-30 / 31-60 / 61-90 / 90+ days). Stock with no
+     * recorded inward movement falls in the oldest bucket.
+     */
+    public function stockAgeing(Request $request)
+    {
+        $stocks = WarehouseStock::query()
+            ->with(['product:id,sku,name', 'warehouse:id,name'])
+            ->where('quantity', '>', 0)
+            ->when($request->filled('warehouse_id'), fn ($q) => $q->where('warehouse_id', $request->query('warehouse_id')))
+            ->when($request->filled('product_id'), fn ($q) => $q->where('product_id', $request->query('product_id')))
+            ->get();
+
+        if ($stocks->isEmpty()) {
+            return $this->exportResponse($request, [], $this->ageingColumns(), 'stock-ageing');
+        }
+
+        $lastInward = StockLedger::query()
+            ->where('quantity_in', '>', 0)
+            ->whereIn('product_id', $stocks->pluck('product_id')->unique())
+            ->whereIn('warehouse_id', $stocks->pluck('warehouse_id')->unique())
+            ->selectRaw('product_id, warehouse_id, MAX(created_at) as last_in_at')
+            ->groupBy('product_id', 'warehouse_id')
+            ->get()
+            ->keyBy(fn ($r) => "{$r->product_id}-{$r->warehouse_id}");
+
+        $today = now();
+        $rows = $stocks->map(function (WarehouseStock $stock) use ($lastInward, $today) {
+            $last = $lastInward->get("{$stock->product_id}-{$stock->warehouse_id}");
+            $lastAt = $last ? Carbon::parse($last->last_in_at) : null;
+            $days = $lastAt ? (int) $lastAt->diffInDays($today) : null;
+            $bucket = $days === null || $days > 90 ? '90+'
+                : ($days <= 30 ? '0-30' : ($days <= 60 ? '31-60' : '61-90'));
+
+            return [
+                'sku' => $stock->product?->sku,
+                'product_name' => $stock->product?->name,
+                'warehouse' => $stock->warehouse?->name,
+                'quantity' => (float) $stock->quantity,
+                'stock_value' => round((float) $stock->quantity * (float) $stock->average_cost, 2),
+                'last_inward_at' => $lastAt?->toDateString(),
+                'days_in_stock' => $days,
+                'age_bucket' => $bucket,
+            ];
+        })->sortByDesc(fn ($r) => $r['days_in_stock'] ?? PHP_INT_MAX)->values();
+
+        $bucketTotals = ['0-30' => 0.0, '31-60' => 0.0, '61-90' => 0.0, '90+' => 0.0];
+        foreach ($rows as $r) {
+            $bucketTotals[$r['age_bucket']] = round($bucketTotals[$r['age_bucket']] + $r['stock_value'], 2);
+        }
+
+        return $this->exportResponse($request, $rows->all(), $this->ageingColumns(), 'stock-ageing', [
+            'bucket_totals' => $bucketTotals,
+            'grand_total' => round((float) $rows->sum('stock_value'), 2),
+        ]);
+    }
+
+    private function ageingColumns(): array
+    {
+        return [
+            'sku' => 'SKU', 'product_name' => 'Product', 'warehouse' => 'Warehouse',
+            'quantity' => 'Quantity', 'stock_value' => 'Stock Value',
+            'last_inward_at' => 'Last Inward', 'days_in_stock' => 'Days in Stock', 'age_bucket' => 'Age Bucket',
+        ];
+    }
+
+    /** Fastest-moving products by outward quantity over a window. */
+    public function fastMoving(Request $request)
+    {
+        return $this->movingReport($request, 'fast');
+    }
+
+    /** Slowest / non-moving products by outward quantity over a window. */
+    public function slowMoving(Request $request)
+    {
+        return $this->movingReport($request, 'slow');
+    }
+
+    /** Shared ranker for the fast / slow moving reports. */
+    private function movingReport(Request $request, string $mode)
+    {
+        $days = max(1, (int) $request->query('days', 90));
+        $limit = min((int) $request->query('limit', 50), 200);
+        $cutoff = now()->subDays($days);
+
+        $movement = StockLedger::query()
+            ->join('products', 'products.id', '=', 'stock_ledgers.product_id')
+            ->where('stock_ledgers.created_at', '>=', $cutoff)
+            ->selectRaw('stock_ledgers.product_id, products.sku, products.name as product_name, SUM(stock_ledgers.quantity_out) as total_out')
+            ->groupBy('stock_ledgers.product_id', 'products.sku', 'products.name')
+            ->get();
+
+        if ($mode === 'fast') {
+            $rows = $movement->where('total_out', '>', 0)->sortByDesc('total_out')->take($limit)
+                ->map(fn ($r) => ['sku' => $r->sku, 'product_name' => $r->product_name, 'total_out' => (float) $r->total_out])
+                ->values()->all();
+        } else {
+            $movedIds = $movement->where('total_out', '>', 0)->pluck('product_id');
+            $slowMoved = $movement->where('total_out', '>', 0)->sortBy('total_out')
+                ->map(fn ($r) => ['sku' => $r->sku, 'product_name' => $r->product_name, 'total_out' => (float) $r->total_out]);
+            $neverMoved = Product::query()
+                ->whereNotIn('id', $movedIds)->where('is_active', true)
+                ->limit($limit)->get(['sku', 'name'])
+                ->map(fn ($p) => ['sku' => $p->sku, 'product_name' => $p->name, 'total_out' => 0.0]);
+            $rows = $neverMoved->concat($slowMoved)->take($limit)->values()->all();
+        }
+
+        $columns = ['sku' => 'SKU', 'product_name' => 'Product', 'total_out' => 'Qty Sold/Issued'];
+
+        return $this->exportResponse($request, $rows, $columns, "{$mode}-moving", ['days' => $days]);
+    }
 }

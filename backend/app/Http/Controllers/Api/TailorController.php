@@ -13,7 +13,11 @@ class TailorController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Tailor::query();
+        $query = Tailor::query()->with('contractor:id,name');
+
+        if ($request->filled('contractor_id')) {
+            $query->where('contractor_id', $request->query('contractor_id'));
+        }
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -49,7 +53,7 @@ class TailorController extends Controller
 
     public function show(Tailor $tailor)
     {
-        return new TailorResource($tailor);
+        return new TailorResource($tailor->load('contractor:id,name'));
     }
 
     public function update(TailorRequest $request, Tailor $tailor)
@@ -101,10 +105,23 @@ class TailorController extends Controller
                 'debit' => (float) $p->amount,
             ]);
 
+        // Approved / paid bonuses are ledger credits (earnings).
+        $bonuses = $tailor->bonuses()
+            ->whereIn('status', ['approved', 'paid'])
+            ->get()
+            ->map(fn ($b) => [
+                'date' => $b->created_at?->toDateString(),
+                'sort' => $b->created_at?->toDateTimeString(),
+                'type' => 'Bonus ('.$b->basis.')',
+                'reference' => $b->bonus_number,
+                'credit' => (float) $b->amount,
+                'debit' => 0.0,
+            ]);
+
         $opening = (float) $tailor->opening_balance;
         $running = $opening;
 
-        $entries = $completions->concat($payments)
+        $entries = $completions->concat($payments)->concat($bonuses)
             ->sortBy('sort')
             ->values()
             ->map(function ($row) use (&$running) {

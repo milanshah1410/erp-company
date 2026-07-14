@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PurchaseOrderRequest;
 use App\Http\Resources\PurchaseOrderResource;
@@ -16,6 +17,8 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function index(Request $request)
     {
         $query = PurchaseOrder::query()
@@ -67,6 +70,23 @@ class PurchaseOrderController extends Controller
     {
         return new PurchaseOrderResource(
             $purchaseOrder->load(['supplier', 'warehouse', 'items.product', 'goodsReceipts'])
+        );
+    }
+
+    /** Stream the purchase order as a printable PDF to send to the supplier. */
+    public function pdf(Request $request, PurchaseOrder $purchaseOrder)
+    {
+        $purchaseOrder->load([
+            'supplier', 'warehouse:id,name',
+            'items.product:id,name,sku',
+            'items.variant:id,name,sku',
+        ]);
+
+        return $this->renderDocument(
+            $request,
+            'documents.purchase-order',
+            ['purchaseOrder' => $purchaseOrder],
+            "purchase-order-{$purchaseOrder->po_number}.pdf",
         );
     }
 

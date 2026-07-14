@@ -14,8 +14,12 @@ class BrokerSettlementResource extends JsonResource
             'broker_id' => $this->broker_id,
             'settlement_number' => $this->settlement_number,
             'amount' => $this->amount,
+            'tds_percent' => $this->tds_percent,
+            'tds_amount' => $this->tds_amount,
+            'net_paid' => $this->net_paid,
             'mode' => $this->mode,
             'settlement_date' => $this->settlement_date?->toDateString(),
+            'period_month' => $this->period_month,
             'notes' => $this->notes,
             'created_at' => $this->created_at,
         ];

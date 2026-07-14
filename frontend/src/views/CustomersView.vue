@@ -74,6 +74,17 @@ async function loadCategories() {
   }
 }
 
+// Existing customers, for the "referred by" picker.
+const customerOptions = ref<any[]>([])
+async function loadCustomerOptions() {
+  try {
+    const { data } = await http.get('/customers', { params: { per_page: 100 } })
+    customerOptions.value = (data.data ?? []).map((c: any) => ({ label: `${c.name} (${c.code})`, value: c.id }))
+  } catch {
+    /* non-blocking */
+  }
+}
+
 function reload() {
   const params: Record<string, any> = {}
   if (search.value) params.search = search.value
@@ -107,6 +118,9 @@ function blankForm() {
     gst_registration_type: 'unregistered',
     pan: '',
     place_of_supply: '',
+    date_of_birth: '',
+    anniversary_date: '',
+    referred_by_customer_id: null,
     credit_limit: 0,
     opening_balance: 0,
     default_price_level: null,
@@ -139,6 +153,9 @@ function openEdit(row: any) {
     gst_registration_type: row.gst_registration_type || 'unregistered',
     pan: row.pan || '',
     place_of_supply: row.place_of_supply || '',
+    date_of_birth: row.date_of_birth || '',
+    anniversary_date: row.anniversary_date || '',
+    referred_by_customer_id: row.referred_by_customer_id ?? null,
     credit_limit: Number(row.credit_limit ?? 0),
     opening_balance: Number(row.opening_balance ?? 0),
     default_price_level: row.default_price_level ?? null,
@@ -294,6 +311,7 @@ function openDetail(row: any) {
 
 onMounted(() => {
   loadCategories()
+  loadCustomerOptions()
   reload()
 })
 </script>
@@ -474,6 +492,32 @@ onMounted(() => {
             :class="{ invalid: fieldError('default_price_level') }"
           />
           <small v-if="fieldError('default_price_level')" class="error-text">{{ fieldError('default_price_level') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Date of Birth</label>
+          <InputText type="date" v-model="form.date_of_birth" :class="{ invalid: fieldError('date_of_birth') }" />
+          <small v-if="fieldError('date_of_birth')" class="error-text">{{ fieldError('date_of_birth') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Anniversary</label>
+          <InputText type="date" v-model="form.anniversary_date" :class="{ invalid: fieldError('anniversary_date') }" />
+          <small v-if="fieldError('anniversary_date')" class="error-text">{{ fieldError('anniversary_date') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Referred By</label>
+          <Select
+            v-model="form.referred_by_customer_id"
+            :options="customerOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="None"
+            showClear filter
+            :class="{ invalid: fieldError('referred_by_customer_id') }"
+          />
+          <small v-if="fieldError('referred_by_customer_id')" class="error-text">{{ fieldError('referred_by_customer_id') }}</small>
         </div>
 
         <div class="fld">

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Contractor;
 use App\Models\PieceRate;
 use App\Models\Product;
 use App\Models\RateCard;
@@ -140,5 +141,79 @@ class TailorWorkTest extends TestCase
 
         // opening 1500 + earned 1000 - paid 0 = 2500
         $this->assertSame(2500.0, $this->tailor->fresh()->outstandingBalance());
+    }
+
+    public function test_reworkable_rejects_are_unpaid_and_stay_pending(): void
+    {
+        $work = $this->makeWork(rate: 100, qty: 100);
+
+        // Submit 50: 40 accepted, 10 fail QC and go back for rework.
+        $this->service->complete($work, ['qty' => 40, 'rejected_qty' => 10, 'reject_action' => 'rework']);
+        $work->refresh();
+
+        $this->assertSame('partial', $work->status);
+        $this->assertSame(40.0, (float) $work->completed_qty);
+        $this->assertSame(10.0, (float) $work->rejected_qty);
+        $this->assertSame(0.0, (float) $work->scrapped_qty);
+        // Rework does not consume issued: remaining = 100 - 40 accepted - 0 scrapped.
+        $this->assertSame(60.0, $work->remainingQty());
+        // Only the 40 accepted pieces are paid.
+        $this->assertSame(4000.0, $this->tailor->fresh()->totalEarned());
+    }
+
+    public function test_scrapped_rejects_close_the_order_and_are_unpaid(): void
+    {
+        $work = $this->makeWork(rate: 100, qty: 100);
+
+        // 90 accepted, 10 scrapped — every issued piece is now resolved.
+        $this->service->complete($work, ['qty' => 90, 'rejected_qty' => 10, 'reject_action' => 'scrap']);
+        $work->refresh();
+
+        $this->assertSame('completed', $work->status);
+        $this->assertSame(10.0, (float) $work->scrapped_qty);
+        $this->assertSame(0.0, $work->remainingQty());
+        $this->assertSame(9000.0, $this->tailor->fresh()->totalEarned()); // 90 * 100
+    }
+
+    public function test_approved_bonus_credits_the_ledger_but_draft_does_not(): void
+    {
+        $draft = $this->service->awardBonus($this->tailor, ['basis' => 'manual', 'amount' => 500]);
+        $this->assertSame(0.0, $this->tailor->fresh()->totalBonus());
+        $this->assertSame(0.0, $this->tailor->fresh()->outstandingBalance());
+
+        $draft->update(['status' => 'approved']);
+        $this->assertSame(500.0, $this->tailor->fresh()->totalBonus());
+        $this->assertSame(500.0, $this->tailor->fresh()->outstandingBalance());
+    }
+
+    public function test_pieces_bonus_is_computed_above_target(): void
+    {
+        $work = $this->makeWork(rate: 100, qty: 100);
+        $this->service->complete($work, ['qty' => 80]); // 80 accepted pieces
+
+        // basis=pieces: (80 - 50 target) * 5 = 150
+        $amount = $this->service->computeBonus($this->tailor, ['basis' => 'pieces', 'rate' => 5, 'target' => 50]);
+        $this->assertSame(150.0, $amount);
+    }
+
+    public function test_contractor_rolls_up_its_tailors_outstanding(): void
+    {
+        $contractor = Contractor::create(['code' => 'C1', 'name' => 'Acme Tailors', 'opening_balance' => 0, 'is_active' => true]);
+        $this->tailor->update(['contractor_id' => $contractor->id]);
+
+        $second = Tailor::create(['code' => 'T2', 'name' => 'Suresh', 'contractor_id' => $contractor->id, 'opening_balance' => 0, 'is_active' => true]);
+
+        $this->service->complete($this->makeWork(rate: 100, qty: 10), ['qty' => 10]); // Ramesh earns 1000
+        $this->service->complete(TailorWork::create([
+            'work_number' => TailorWork::nextNumber(),
+            'tailor_id' => $second->id,
+            'product_id' => $this->product->id,
+            'issued_qty' => 5,
+            'rate' => 200,
+            'status' => 'pending',
+            'issue_date' => now()->toDateString(),
+        ]), ['qty' => 5]); // Suresh earns 1000
+
+        $this->assertSame(2000.0, $contractor->fresh()->load('tailors')->outstandingBalance());
     }
 }

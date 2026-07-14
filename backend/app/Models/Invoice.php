@@ -53,6 +53,12 @@ class Invoice extends Model
         return $this->belongsTo(Broker::class);
     }
 
+    /** All brokers on this invoice (multi-broker), with rate/share overrides. */
+    public function brokers(): HasMany
+    {
+        return $this->hasMany(InvoiceBroker::class);
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);

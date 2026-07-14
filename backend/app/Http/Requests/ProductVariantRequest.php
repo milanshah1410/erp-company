@@ -19,6 +19,7 @@ class ProductVariantRequest extends FormRequest
         return [
             'sku' => ['required', 'string', 'max:255', Rule::unique('product_variants', 'sku')->ignore($variantId)],
             'barcode' => ['nullable', 'string', 'max:255'],
+            'rfid_tag' => ['nullable', 'string', 'max:255', Rule::unique('product_variants', 'rfid_tag')->ignore($variantId)],
             'name' => ['nullable', 'string', 'max:255'],
             'attributes' => ['nullable', 'array'],
             'cost_price' => ['nullable', 'numeric', 'min:0'],

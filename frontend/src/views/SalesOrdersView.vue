@@ -27,6 +27,7 @@ const crud = useCrud('/sales-orders')
 
 const customers = ref<any[]>([])
 const brokers = ref<any[]>([])
+const salesmen = ref<any[]>([])
 const warehouses = ref<any[]>([])
 const products = ref<any[]>([])
 
@@ -64,14 +65,31 @@ const fulfillmentLabels: Record<string, string> = {
 // --- Create dialog ---
 const createVisible = ref(false)
 const saving = ref(false)
-const form = ref<any>({ customer_id: null, broker_id: null, warehouse_id: null, order_date: today(), notes: '', discount_type: null as DiscountType, discount_value: 0, items: [] })
+const form = ref<any>({ customer_id: null, broker_id: null, salesman_id: null, warehouse_id: null, order_date: today(), notes: '', discount_type: null as DiscountType, discount_value: 0, items: [], brokers: [] })
 const errors = ref<Record<string, string[]>>({})
+
+// Multi-broker per invoice: when enabled, the single broker select is replaced
+// by an editable list (each broker with an optional rate override + deal share).
+const multiBroker = ref(false)
+function addBroker() {
+  form.value.brokers.push({ broker_id: null, commission_percent: null, fixed_commission: null, share_percent: 100 })
+}
+function removeBroker(i: number | string) {
+  form.value.brokers.splice(Number(i), 1)
+}
 
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
 const pricing = computed(() => priceDocument(form.value.items, form.value.discount_type, form.value.discount_value))
+
+const tcsRates = ref<any[]>([])
+const estTcs = computed(() => Math.round((Number(pricing.value.header.total) || 0) * (Number(form.value.tcs_rate) || 0)) / 100)
+
+function onTcsSectionChange() {
+  form.value.tcs_rate = tcsRates.value.find((r) => r.value === form.value.tcs_section)?.rate ?? 0
+}
 
 function addLine() {
   form.value.items.push({ product_id: null, quantity: 1, unit_price: 0, tax_percent: 0, discount_type: null, discount_value: 0 })
@@ -88,7 +106,8 @@ function onProductPick(line: any) {
 }
 
 function openCreate() {
-  form.value = { customer_id: null, broker_id: null, warehouse_id: null, order_date: today(), notes: '', discount_type: null, discount_value: 0, items: [] }
+  form.value = { customer_id: null, broker_id: null, salesman_id: null, warehouse_id: null, order_date: today(), tcs_section: null, tcs_rate: 0, notes: '', discount_type: null, discount_value: 0, items: [], brokers: [] }
+  multiBroker.value = false
   addLine()
   errors.value = {}
   createVisible.value = true
@@ -98,7 +117,13 @@ async function saveOrder() {
   saving.value = true
   errors.value = {}
   try {
-    await http.post('/sales-orders', form.value)
+    // Multi-broker mode sends brokers[] (backend derives the primary broker_id);
+    // single mode sends broker_id and no brokers[].
+    const { brokers, broker_id, ...rest } = form.value
+    const payload = multiBroker.value
+      ? { ...rest, brokers: (brokers ?? []).filter((b: any) => b.broker_id) }
+      : { ...rest, broker_id }
+    await http.post('/sales-orders', payload)
     toast.add({ severity: 'success', summary: 'Sales order created', life: 2500 })
     createVisible.value = false
     reload()
@@ -258,14 +283,18 @@ function money(v: number) {
 }
 
 onMounted(async () => {
-  const [c, w, p, b] = await Promise.all([
+  const [c, w, p, b, sm, t] = await Promise.all([
     http.get('/customers', { params: { per_page: 100 } }),
     http.get('/warehouses', { params: { per_page: 100 } }),
     http.get('/products', { params: { per_page: 100 } }),
     http.get('/brokers', { params: { per_page: 100, is_active: true } }),
+    http.get('/salesmen', { params: { per_page: 100, is_active: true } }),
+    http.get('/tds-tcs-rates', { params: { per_page: 100, nature: 'tcs', is_active: true } }),
   ])
+  tcsRates.value = (t.data.data ?? t.data).map((x: any) => ({ label: `${x.section} (${x.rate}%)`, value: x.section, rate: Number(x.rate) }))
   customers.value = (c.data.data ?? c.data).map((x: any) => ({ label: x.name, value: x.id }))
   brokers.value = (b.data.data ?? b.data).map((x: any) => ({ label: `${x.code} — ${x.name}`, value: x.id }))
+  salesmen.value = (sm.data.data ?? sm.data).map((x: any) => ({ label: `${x.code} — ${x.name}`, value: x.id }))
   warehouses.value = (w.data.data ?? w.data).map((x: any) => ({ label: x.name, value: x.id }))
   products.value = p.data.data ?? p.data
   reload()
@@ -332,9 +361,19 @@ onMounted(async () => {
           <small v-if="errors.customer_id" class="err">{{ errors.customer_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Broker</label>
-          <Select v-model="form.broker_id" :options="brokers" optionLabel="label" optionValue="value" filter showClear placeholder="No broker" />
+          <label>Broker
+            <a class="multi-toggle" @click="multiBroker = !multiBroker">
+              {{ multiBroker ? 'single broker' : 'multiple brokers' }}
+            </a>
+          </label>
+          <Select v-if="!multiBroker" v-model="form.broker_id" :options="brokers" optionLabel="label" optionValue="value" filter showClear placeholder="No broker" />
+          <span v-else class="multi-hint">{{ form.brokers.length }} broker(s) — see below</span>
           <small v-if="errors.broker_id" class="err">{{ errors.broker_id[0] }}</small>
+        </div>
+        <div class="fld">
+          <label>Salesman</label>
+          <Select v-model="form.salesman_id" :options="salesmen" optionLabel="label" optionValue="value" filter showClear placeholder="No salesman" />
+          <small v-if="errors.salesman_id" class="err">{{ errors.salesman_id[0] }}</small>
         </div>
         <div class="fld">
           <label>Warehouse *</label>
@@ -346,6 +385,29 @@ onMounted(async () => {
           <input type="date" v-model="form.order_date" class="date-input" />
           <small v-if="errors.order_date" class="err">{{ errors.order_date[0] }}</small>
         </div>
+      </div>
+
+      <div v-if="multiBroker" class="brokers-block">
+        <h3 class="lines-title">Brokers (Dalal)</h3>
+        <table class="lines">
+          <thead>
+            <tr><th style="width: 40%">Broker</th><th>Commission %</th><th>Fixed</th><th>Share %</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="(b, i) in form.brokers" :key="i">
+              <td>
+                <Select v-model="b.broker_id" :options="brokers" optionLabel="label" optionValue="value" filter placeholder="Broker" class="w-full" />
+              </td>
+              <td><InputNumber v-model="b.commission_percent" :minFractionDigits="0" :maxFractionDigits="2" placeholder="default" class="num" /></td>
+              <td><InputNumber v-model="b.fixed_commission" :minFractionDigits="0" :maxFractionDigits="2" placeholder="default" class="num" /></td>
+              <td><InputNumber v-model="b.share_percent" :minFractionDigits="0" :maxFractionDigits="2" class="num" /></td>
+              <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeBroker(i)" /></td>
+            </tr>
+            <tr v-if="!form.brokers.length"><td colspan="5" class="muted">No brokers added.</td></tr>
+          </tbody>
+        </table>
+        <Button label="Add Broker" icon="pi pi-plus" text size="small" @click="addBroker" />
+        <small class="hint block">Leave Commission %/Fixed blank to use each broker's product/customer rate or default. Share % splits one deal across brokers.</small>
       </div>
 
       <h3 class="lines-title">Line Items</h3>
@@ -388,6 +450,11 @@ onMounted(async () => {
           <div><span>GST</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
           <div v-if="pricing.header.round_off"><span>Round Off</span><span>{{ money(pricing.header.round_off) }}</span></div>
           <div class="grand-row"><span>Grand Total</span><span>{{ money(pricing.header.total) }}</span></div>
+          <div class="tcs-row">
+            <Select v-model="form.tcs_section" :options="tcsRates" optionLabel="label" optionValue="value" showClear placeholder="No TCS" class="tcs-select" @change="onTcsSectionChange" />
+            <span>TCS {{ form.tcs_rate }}%</span><span>+{{ money(estTcs) }}</span>
+          </div>
+          <div v-if="estTcs" class="grand-row"><span>Total Collectible</span><span>{{ money(pricing.header.total + estTcs) }}</span></div>
         </div>
       </div>
 
@@ -486,6 +553,8 @@ onMounted(async () => {
 .totals { min-width: 260px; margin-left: auto; font-size: 0.9rem; }
 .totals > div { display: flex; justify-content: space-between; padding: 0.15rem 0; }
 .totals .grand-row { font-size: 1.05rem; font-weight: 600; border-top: 1px solid #e5e7eb; margin-top: 0.25rem; padding-top: 0.4rem; }
+.totals .tcs-row { align-items: center; gap: 0.5rem; margin-top: 0.35rem; }
+.totals .tcs-select { flex: 1; min-width: 0; }
 .err { color: #dc2626; font-size: 0.78rem; }
 .err.block { display: block; margin-top: 0.5rem; }
 .muted { color: #6b7280; }
@@ -498,4 +567,9 @@ onMounted(async () => {
 .inv-value.due { color: #dc2626; }
 .paid-note { margin-top: 1rem; padding: 0.6rem 0.8rem; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; color: #047857; font-size: 0.9rem; }
 .w-full :deep(input) { width: 100%; }
+.multi-toggle { margin-left: 0.5rem; font-size: 0.75rem; color: #2563eb; cursor: pointer; text-decoration: underline; }
+.multi-hint { font-size: 0.85rem; color: #6b7280; padding: 0.4rem 0; }
+.brokers-block { margin-top: 0.5rem; }
+.hint { color: #6b7280; font-size: 0.78rem; }
+.hint.block { display: block; margin-top: 0.4rem; }
 </style>

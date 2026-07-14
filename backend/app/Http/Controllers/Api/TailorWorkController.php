@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TailorWorkCompletionRequest;
 use App\Http\Requests\TailorWorkRequest;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class TailorWorkController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function __construct(private TailorWorkService $service)
     {
     }
@@ -78,6 +81,23 @@ class TailorWorkController extends Controller
     public function show(TailorWork $tailorWork)
     {
         return new TailorWorkResource($tailorWork->load(['tailor', 'product']));
+    }
+
+    /** Stream the tailor work order as a printable job card. */
+    public function pdf(Request $request, TailorWork $tailorWork)
+    {
+        $tailorWork->load([
+            'tailor', 'product:id,name,sku',
+            'variant:id,name,sku', 'rateCard:id,name',
+            'completions',
+        ]);
+
+        return $this->renderDocument(
+            $request,
+            'documents.tailor-job-card',
+            ['tailorWork' => $tailorWork],
+            "tailor-job-card-{$tailorWork->work_number}.pdf",
+        );
     }
 
     public function update(TailorWorkRequest $request, TailorWork $tailorWork)

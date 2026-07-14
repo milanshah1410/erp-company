@@ -24,6 +24,9 @@ class CustomerRequest extends FormRequest
             'phone' => ['nullable', 'string'],
             'type' => ['required', Rule::in(['retail', 'wholesale', 'distributor'])],
             'customer_category_id' => ['nullable', 'integer', 'exists:customer_categories,id'],
+            'date_of_birth' => ['nullable', 'date'],
+            'anniversary_date' => ['nullable', 'date'],
+            'referred_by_customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'gst_number' => ['nullable', 'string', 'max:20'],
             'gst_registration_type' => ['nullable', Rule::in([
                 'regular', 'composition', 'unregistered', 'consumer', 'overseas',

@@ -2,16 +2,20 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\IteratesTenants;
 use App\Models\Invoice;
 use App\Models\PurchaseInvoice;
 use App\Models\User;
 use App\Notifications\PaymentDueNotification;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Notification;
 
 class NotifyDueInvoices extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'notifications:check-due-invoices {--warning-days=3}';
 
     protected $description = 'Notify relevant roles about purchase bills and sales invoices that are due soon or overdue';
@@ -21,8 +25,13 @@ class NotifyDueInvoices extends Command
         $warningDays = (int) $this->option('warning-days');
         $horizon = now()->addDays($warningDays)->toDateString();
 
-        $purchaseCount = $this->notifyPurchaseInvoices($horizon);
-        $salesCount = $this->notifySalesInvoices($horizon);
+        $purchaseCount = 0;
+        $salesCount = 0;
+
+        $this->eachTenant(function () use ($horizon, &$purchaseCount, &$salesCount): void {
+            $purchaseCount += $this->notifyPurchaseInvoices($horizon);
+            $salesCount += $this->notifySalesInvoices($horizon);
+        });
 
         $this->info("Notified for {$purchaseCount} purchase bill(s) and {$salesCount} sales invoice(s) due.");
 
@@ -42,14 +51,15 @@ class NotifyDueInvoices extends Command
             return 0;
         }
 
-        $recipients = User::role(['admin', 'super-admin', 'purchase-manager', 'accountant'])->get();
+        $recipients = User::role(['admin', 'super-admin', 'purchase-manager', 'accountant'])
+            ->where('is_active', true)->get();
         if ($recipients->isEmpty()) {
             return 0;
         }
 
         $notified = 0;
         foreach ($invoices as $invoice) {
-            if ($this->alreadyNotified('purchase', $invoice->id)) {
+            if ($this->alreadyNotified($recipients, 'purchase', $invoice->id)) {
                 continue;
             }
             Notification::send($recipients, new PaymentDueNotification($invoice, 'purchase'));
@@ -72,14 +82,15 @@ class NotifyDueInvoices extends Command
             return 0;
         }
 
-        $recipients = User::role(['admin', 'super-admin', 'sales-manager', 'accountant'])->get();
+        $recipients = User::role(['admin', 'super-admin', 'sales-manager', 'accountant'])
+            ->where('is_active', true)->get();
         if ($recipients->isEmpty()) {
             return 0;
         }
 
         $notified = 0;
         foreach ($invoices as $invoice) {
-            if ($this->alreadyNotified('sales', $invoice->id)) {
+            if ($this->alreadyNotified($recipients, 'sales', $invoice->id)) {
                 continue;
             }
             Notification::send($recipients, new PaymentDueNotification($invoice, 'sales'));
@@ -89,11 +100,15 @@ class NotifyDueInvoices extends Command
         return $notified;
     }
 
-    /** Avoid re-notifying every day for the same still-due invoice. */
-    private function alreadyNotified(string $kind, int $invoiceId): bool
+    /**
+     * Avoid re-notifying every day for the same still-due invoice. Scoped to the
+     * current tenant's recipients so invoice ids can't collide across tenants.
+     */
+    private function alreadyNotified(Collection $recipients, string $kind, int $invoiceId): bool
     {
         return DatabaseNotification::query()
             ->where('type', PaymentDueNotification::class)
+            ->whereIn('notifiable_id', $recipients->modelKeys())
             ->where('data->invoice_kind', $kind)
             ->where('data->invoice_id', $invoiceId)
             ->exists();

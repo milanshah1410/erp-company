@@ -27,12 +27,14 @@ function money(v: number | string | null | undefined) {
   return formatCurrency(v)
 }
 
-type TabKey = 'ledger' | 'payments' | 'addresses' | 'pricing'
+type TabKey = 'ledger' | 'payments' | 'addresses' | 'pricing' | 'loyalty' | 'visits'
 const tabs: { key: TabKey; label: string; icon: string }[] = [
   { key: 'ledger', label: 'Ledger', icon: 'pi pi-book' },
   { key: 'payments', label: 'Payments', icon: 'pi pi-wallet' },
   { key: 'addresses', label: 'Addresses', icon: 'pi pi-map-marker' },
   { key: 'pricing', label: 'Price List', icon: 'pi pi-tags' },
+  { key: 'loyalty', label: 'Loyalty', icon: 'pi pi-star' },
+  { key: 'visits', label: 'Visits', icon: 'pi pi-map' },
 ]
 const activeTab = ref<TabKey>('ledger')
 const custId = computed(() => props.customer?.id)
@@ -291,12 +293,192 @@ async function deletePrice(row: any) {
   }
 }
 
+// ------------------------------------------------------------- Loyalty
+const loyaltyLoading = ref(false)
+const loyaltyRows = ref<any[]>([])
+const loyaltySummary = ref<any>(null)
+const loyaltyTotal = ref(0)
+const loyaltyPage = ref(1)
+const loyaltyPerPage = ref(20)
+
+const loyaltyTypeColors: Record<string, string> = {
+  earn: 'success', redeem: 'danger', adjust: 'info', expire: 'secondary',
+}
+
+async function loadLoyalty() {
+  if (!custId.value) return
+  loyaltyLoading.value = true
+  try {
+    const { data } = await http.get(`/customers/${custId.value}/loyalty`, {
+      params: { page: loyaltyPage.value, per_page: loyaltyPerPage.value },
+    })
+    loyaltyRows.value = data.data ?? []
+    loyaltyTotal.value = data.meta?.total ?? loyaltyRows.value.length
+    loyaltySummary.value = data.summary ?? null
+  } catch (e: any) {
+    toApiError(e, 'Failed to load loyalty points')
+  } finally {
+    loyaltyLoading.value = false
+  }
+}
+
+function onLoyaltyPage(e: any) {
+  loyaltyPage.value = e.page + 1
+  loyaltyPerPage.value = e.rows
+  loadLoyalty()
+}
+
+const loyaltyDialog = ref(false)
+const loyaltySaving = ref(false)
+const loyaltyForm = ref<any>({})
+const loyaltyErrors = ref<Record<string, string[]>>({})
+
+const loyaltyTypeOptions = [
+  { label: 'Earn (+)', value: 'earn' },
+  { label: 'Redeem (−)', value: 'redeem' },
+  { label: 'Adjust (+)', value: 'adjust' },
+  { label: 'Expire (−)', value: 'expire' },
+]
+
+function openLoyaltyCreate() {
+  loyaltyForm.value = { type: 'earn', points: 0, description: '' }
+  loyaltyErrors.value = {}
+  loyaltyDialog.value = true
+}
+
+async function saveLoyalty() {
+  if (!custId.value) return
+  loyaltySaving.value = true
+  loyaltyErrors.value = {}
+  try {
+    await http.post(`/customers/${custId.value}/loyalty`, loyaltyForm.value)
+    toast.add({ severity: 'success', summary: 'Points recorded', life: 2000 })
+    loyaltyDialog.value = false
+    loyaltyPage.value = 1
+    loadLoyalty()
+  } catch (e: any) {
+    if (e.response?.status === 422) loyaltyErrors.value = e.response.data.errors || {}
+    else toApiError(e, 'Failed to record points')
+  } finally {
+    loyaltySaving.value = false
+  }
+}
+
+// ------------------------------------------------------------- Visits
+const visitLoading = ref(false)
+const visitRows = ref<any[]>([])
+const visitTotal = ref(0)
+const visitPage = ref(1)
+const visitPerPage = ref(15)
+
+async function loadVisits() {
+  if (!custId.value) return
+  visitLoading.value = true
+  try {
+    const { data } = await http.get(`/customers/${custId.value}/visits`, {
+      params: { page: visitPage.value, per_page: visitPerPage.value },
+    })
+    visitRows.value = data.data ?? []
+    visitTotal.value = data.meta?.total ?? visitRows.value.length
+  } catch (e: any) {
+    toApiError(e, 'Failed to load visits')
+  } finally {
+    visitLoading.value = false
+  }
+}
+
+function onVisitPage(e: any) {
+  visitPage.value = e.page + 1
+  visitPerPage.value = e.rows
+  loadVisits()
+}
+
+const visitDialog = ref(false)
+const visitSaving = ref(false)
+const visitForm = ref<any>({})
+const visitErrors = ref<Record<string, string[]>>({})
+
+function openVisitCreate() {
+  visitForm.value = { visited_at: new Date(), purpose: '', location: '', notes: '', outcome: '' }
+  visitErrors.value = {}
+  visitDialog.value = true
+}
+
+function toApiDateTime(d: Date | null): string | null {
+  if (!d) return null
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`
+}
+
+async function saveVisit() {
+  if (!custId.value) return
+  visitSaving.value = true
+  visitErrors.value = {}
+  try {
+    await http.post(`/customers/${custId.value}/visits`, {
+      ...visitForm.value,
+      visited_at: toApiDateTime(visitForm.value.visited_at),
+    })
+    toast.add({ severity: 'success', summary: 'Visit logged', life: 2000 })
+    visitDialog.value = false
+    visitPage.value = 1
+    loadVisits()
+  } catch (e: any) {
+    if (e.response?.status === 422) visitErrors.value = e.response.data.errors || {}
+    else toApiError(e, 'Failed to log visit')
+  } finally {
+    visitSaving.value = false
+  }
+}
+
+async function deleteVisit(row: any) {
+  const res = await Swal.fire({
+    title: 'Delete this visit?', icon: 'warning', showCancelButton: true,
+    confirmButtonColor: '#dc2626', confirmButtonText: 'Delete',
+  })
+  if (!res.isConfirmed) return
+  try {
+    await http.delete(`/customers/${custId.value}/visits/${row.id}`)
+    toast.add({ severity: 'success', summary: 'Deleted', life: 2000 })
+    loadVisits()
+  } catch (e: any) {
+    toApiError(e, 'Failed to delete visit')
+  }
+}
+
+// ------------------------------------------------------------- WhatsApp
+async function whatsappCustomer() {
+  if (!props.customer?.phone) {
+    toast.add({ severity: 'warn', summary: 'No phone number on this customer', life: 3000 })
+    return
+  }
+  const { value: body } = await Swal.fire({
+    title: `WhatsApp ${props.customer.name}`,
+    input: 'textarea',
+    inputValue: `Hello ${props.customer.name},`,
+    showCancelButton: true,
+    confirmButtonText: 'Open WhatsApp',
+    confirmButtonColor: '#16a34a',
+  })
+  if (!body) return
+  try {
+    const { data } = await http.post('/whatsapp/messages', {
+      customer_id: custId.value, template: 'manual', body,
+    })
+    window.open(data.data.link, '_blank')
+  } catch (e: any) {
+    toApiError(e, 'Failed to create WhatsApp link')
+  }
+}
+
 // ----------------------------------------------------------- tab loading
 function loadActiveTab() {
   if (activeTab.value === 'ledger') loadLedger()
   else if (activeTab.value === 'payments') loadPayments()
   else if (activeTab.value === 'addresses') loadAddresses()
   else if (activeTab.value === 'pricing') loadPriceList()
+  else if (activeTab.value === 'loyalty') loadLoyalty()
+  else if (activeTab.value === 'visits') loadVisits()
 }
 
 watch(activeTab, loadActiveTab)
@@ -509,8 +691,142 @@ watch(visible, (v) => {
       </DataTable>
     </section>
 
+    <!-- ============================================ LOYALTY -->
+    <section v-show="activeTab === 'loyalty'">
+      <div class="stat-grid three">
+        <div class="stat-tile">
+          <div class="stat-value">{{ loyaltySummary?.balance ?? 0 }}</div>
+          <div class="stat-label">Current Balance</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value clear">{{ loyaltySummary?.earned ?? 0 }}</div>
+          <div class="stat-label">Total Earned</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value">{{ loyaltySummary?.redeemed ?? 0 }}</div>
+          <div class="stat-label">Total Redeemed</div>
+        </div>
+      </div>
+
+      <div class="filter-row between">
+        <p class="muted small">Points ledger. Earn / adjust add points; redeem / expire deduct them.</p>
+        <Button v-if="canEdit" icon="pi pi-plus" label="Record Points" size="small" @click="openLoyaltyCreate" />
+      </div>
+
+      <DataTable
+        :value="loyaltyRows" :loading="loyaltyLoading" lazy paginator
+        :rows="loyaltyPerPage" :totalRecords="loyaltyTotal" :rowsPerPageOptions="[20, 50, 100]"
+        dataKey="id" class="p-datatable-sm" @page="onLoyaltyPage"
+      >
+        <Column field="created_at" header="Date" style="width: 11rem">
+          <template #body="{ data }">{{ new Date(data.created_at).toLocaleString() }}</template>
+        </Column>
+        <Column header="Type" style="width: 7rem">
+          <template #body="{ data }">
+            <Tag :severity="loyaltyTypeColors[data.type]" :value="data.type" />
+          </template>
+        </Column>
+        <Column header="Points" style="text-align: right">
+          <template #body="{ data }">
+            <strong :class="data.points >= 0 ? 'clear' : 'due'">{{ data.points > 0 ? '+' : '' }}{{ data.points }}</strong>
+          </template>
+        </Column>
+        <Column field="invoice_number" header="Invoice" />
+        <Column field="description" header="Description" />
+        <template #empty>No loyalty transactions.</template>
+      </DataTable>
+    </section>
+
+    <!-- ============================================ VISITS -->
+    <section v-show="activeTab === 'visits'">
+      <div class="filter-row between">
+        <p class="muted small">Field visits logged for this customer.</p>
+        <Button v-if="canEdit" icon="pi pi-plus" label="Log Visit" size="small" @click="openVisitCreate" />
+      </div>
+      <DataTable
+        :value="visitRows" :loading="visitLoading" lazy paginator
+        :rows="visitPerPage" :totalRecords="visitTotal" :rowsPerPageOptions="[15, 30, 50]"
+        dataKey="id" class="p-datatable-sm" @page="onVisitPage"
+      >
+        <Column header="Date" style="width: 11rem">
+          <template #body="{ data }">{{ new Date(data.visited_at).toLocaleString() }}</template>
+        </Column>
+        <Column field="purpose" header="Purpose" />
+        <Column field="location" header="Location" />
+        <Column field="notes" header="Notes" />
+        <Column header="By">
+          <template #body="{ data }">{{ data.user?.name ?? '—' }}</template>
+        </Column>
+        <Column v-if="canEdit" header="" style="width: 4rem">
+          <template #body="{ data }">
+            <Button icon="pi pi-trash" text rounded severity="danger" size="small" @click="deleteVisit(data)" />
+          </template>
+        </Column>
+        <template #empty>No visits logged.</template>
+      </DataTable>
+    </section>
+
     <template #footer>
+      <Button
+        v-if="customer?.phone"
+        label="WhatsApp" icon="pi pi-whatsapp" text severity="success"
+        @click="whatsappCustomer"
+      />
       <Button label="Close" text @click="visible = false" />
+    </template>
+  </Dialog>
+
+  <!-- Visit log entry -->
+  <Dialog v-model:visible="visitDialog" modal header="Log Customer Visit" :style="{ width: '480px' }">
+    <div class="form-grid">
+      <div class="fld">
+        <label>Visited At <span class="req">*</span></label>
+        <DatePicker v-model="visitForm.visited_at" showTime hourFormat="24" dateFormat="yy-mm-dd" :class="{ invalid: visitErrors.visited_at }" />
+        <small v-if="visitErrors.visited_at" class="error-text">{{ visitErrors.visited_at[0] }}</small>
+      </div>
+      <div class="fld">
+        <label>Purpose</label>
+        <InputText v-model="visitForm.purpose" placeholder="e.g. sales / collection" />
+      </div>
+      <div class="fld full">
+        <label>Location</label>
+        <InputText v-model="visitForm.location" />
+      </div>
+      <div class="fld full">
+        <label>Notes</label>
+        <InputText v-model="visitForm.notes" />
+      </div>
+      <div class="fld full">
+        <label>Outcome</label>
+        <InputText v-model="visitForm.outcome" />
+      </div>
+    </div>
+    <template #footer>
+      <Button label="Cancel" text @click="visitDialog = false" />
+      <Button label="Save" :loading="visitSaving" @click="saveVisit" />
+    </template>
+  </Dialog>
+
+  <!-- Loyalty points entry -->
+  <Dialog v-model:visible="loyaltyDialog" modal header="Record Loyalty Points" :style="{ width: '420px' }">
+    <div class="form-grid">
+      <div class="fld">
+        <label>Type</label>
+        <Select v-model="loyaltyForm.type" :options="loyaltyTypeOptions" optionLabel="label" optionValue="value" />
+      </div>
+      <div class="fld">
+        <label>Points <span class="req">*</span></label>
+        <InputNumber v-model="loyaltyForm.points" :min="1" :class="{ invalid: loyaltyErrors.points }" />
+        <small v-if="loyaltyErrors.points" class="error-text">{{ loyaltyErrors.points[0] }}</small>
+      </div>
+      <div class="fld full">
+        <label>Description</label>
+        <InputText v-model="loyaltyForm.description" placeholder="e.g. Festival bonus" />
+      </div>
+    </div>
+    <template #footer>
+      <Button label="Cancel" text @click="loyaltyDialog = false" />
+      <Button label="Record" :loading="loyaltySaving" @click="saveLoyalty" />
     </template>
   </Dialog>
 

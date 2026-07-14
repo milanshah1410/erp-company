@@ -16,7 +16,7 @@ class PurchaseOrder extends Model
     protected static string $numberSettingKey = 'po_number_prefix';
 
     protected $fillable = [
-        'po_number', 'supplier_id', 'warehouse_id', 'status',
+        'po_number', 'supplier_id', 'warehouse_id', 'purchase_indent_id', 'rfq_id', 'status',
         'order_date', 'expected_date', 'subtotal', 'tax_amount', 'total',
         'notes', 'created_by', 'approved_by', 'approved_at',
         'first_approved_by', 'first_approved_at', 'requires_second_approval',
@@ -41,6 +41,16 @@ class PurchaseOrder extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function purchaseIndent(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseIndent::class);
+    }
+
+    public function rfq(): BelongsTo
+    {
+        return $this->belongsTo(Rfq::class);
     }
 
     public function items(): HasMany

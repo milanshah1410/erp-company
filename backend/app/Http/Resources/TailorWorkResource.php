@@ -20,6 +20,8 @@ class TailorWorkResource extends JsonResource
             'rate_card_id' => $this->rate_card_id,
             'issued_qty' => $this->issued_qty,
             'completed_qty' => $this->completed_qty,
+            'rejected_qty' => $this->rejected_qty,
+            'scrapped_qty' => $this->scrapped_qty,
             'remaining_qty' => $this->remainingQty(),
             'rate' => $this->rate,
             'amount' => round((float) $this->rate * (float) $this->issued_qty, 2),

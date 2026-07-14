@@ -11,7 +11,7 @@ class ProductVariant extends Model
     use BelongsToTenant;
 
     protected $fillable = [
-        'product_id', 'sku', 'barcode', 'name', 'attributes',
+        'product_id', 'sku', 'barcode', 'rfid_tag', 'name', 'attributes',
         'cost_price', 'selling_price', 'is_active',
     ];
 

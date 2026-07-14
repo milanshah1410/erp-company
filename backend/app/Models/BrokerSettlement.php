@@ -16,12 +16,15 @@ class BrokerSettlement extends Model
     protected static string $numberSettingKey = 'broker_settlement_number_prefix';
 
     protected $fillable = [
-        'broker_id', 'settlement_number', 'amount', 'mode',
-        'settlement_date', 'notes', 'created_by',
+        'broker_id', 'settlement_number', 'amount', 'tds_percent', 'tds_amount', 'net_paid',
+        'mode', 'settlement_date', 'period_month', 'notes', 'created_by',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'tds_percent' => 'decimal:2',
+        'tds_amount' => 'decimal:2',
+        'net_paid' => 'decimal:2',
         'settlement_date' => 'date',
     ];
 

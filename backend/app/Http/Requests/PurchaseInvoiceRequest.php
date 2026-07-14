@@ -18,6 +18,8 @@ class PurchaseInvoiceRequest extends FormRequest
             'invoice_number' => ['required', 'string', 'max:100'],
             'invoice_date' => ['required', 'date'],
             'due_date' => ['nullable', 'date'],
+            'tds_section' => ['nullable', 'string', 'max:50'],
+            'tds_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.purchase_item_id' => ['required', 'exists:purchase_items,id'],

@@ -26,6 +26,8 @@ class Setting extends Model
     /** Configurable prefixes for each numbered document type — SRS §4.12 "invoice numbering". */
     public const NUMBER_PREFIX_DEFAULTS = [
         'po_number_prefix' => 'PO',
+        'indent_number_prefix' => 'PI',
+        'rfq_number_prefix' => 'RFQ',
         'grn_number_prefix' => 'GRN',
         'invoice_number_prefix' => 'INV',
         'so_number_prefix' => 'SO',
@@ -37,9 +39,34 @@ class Setting extends Model
         'cycle_count_number_prefix' => 'CC',
         'gate_entry_number_prefix' => 'GTE',
         'broker_settlement_number_prefix' => 'BST',
+        'lead_number_prefix' => 'LD',
         'tailor_work_number_prefix' => 'TW',
         'tailor_payment_number_prefix' => 'TPY',
+        'tailor_alteration_number_prefix' => 'ALT',
+        'tailor_bonus_number_prefix' => 'BON',
+        'embroidery_work_number_prefix' => 'EMB',
+        'embroidery_payment_number_prefix' => 'EPY',
+        'bom_number_prefix' => 'BOM',
         'mo_number_prefix' => 'MO',
+        'jobwork_number_prefix' => 'JW',
+        'roll_number_prefix' => 'ROLL',
+        'fabric_inspection_number_prefix' => 'FINS',
+        'shrinkage_number_prefix' => 'SHR',
+        'cutting_number_prefix' => 'CUT',
+        'expense_number_prefix' => 'EXP',
+        'employee_claim_number_prefix' => 'ECL',
+        'vehicle_expense_number_prefix' => 'VEX',
+        'fuel_expense_number_prefix' => 'FUL',
+        'electricity_bill_number_prefix' => 'ELC',
+        'factory_maintenance_number_prefix' => 'FMN',
+        'asset_maintenance_number_prefix' => 'AMN',
+        'dispatch_number_prefix' => 'DSP',
+        'transport_charge_number_prefix' => 'TRC',
+        'payment_number_prefix' => 'PMT',
+        'receipt_voucher_number_prefix' => 'RV',
+        'payment_voucher_number_prefix' => 'PV',
+        'contra_voucher_number_prefix' => 'CV',
+        'journal_voucher_number_prefix' => 'JV',
     ];
 
     public const OTHER_DEFAULTS = [
@@ -49,6 +76,7 @@ class Setting extends Model
         'currency_code' => 'INR',
         'currency_symbol' => '₹',
         'default_tax_percent' => '0',
+        'whatsapp_country_code' => '91',
     ];
 
     protected $fillable = ['key', 'value'];

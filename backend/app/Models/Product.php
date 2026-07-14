@@ -14,7 +14,7 @@ class Product extends Model
     use BelongsToTenant, LogsAuditActivity, SoftDeletes;
 
     protected $fillable = [
-        'sku', 'barcode', 'name', 'description',
+        'sku', 'barcode', 'rfid_tag', 'name', 'description',
         'category_id', 'brand_id', 'unit_id', 'hsn_code',
         'cost_price', 'selling_price', 'tax_percent',
         'min_stock_level', 'max_stock_level', 'reorder_level', 'reorder_quantity', 'preferred_supplier_id',

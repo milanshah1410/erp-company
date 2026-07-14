@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SalesOrderRequest;
 use App\Http\Resources\SalesOrderResource;
 use App\Models\Invoice;
-use App\Models\SalesItem;
 use App\Models\SalesOrder;
-use App\Models\WarehouseStock;
 use App\Services\BrokerCommissionService;
 use App\Services\DocumentPricingService;
 use App\Services\InventoryTrackingService;
+use App\Services\SalesOrderFulfillmentService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,11 +20,14 @@ use RuntimeException;
 
 class SalesOrderController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function __construct(
         private readonly StockService $stock,
         private readonly InventoryTrackingService $tracking,
         private readonly BrokerCommissionService $brokerCommissions,
         private readonly DocumentPricingService $pricing,
+        private readonly SalesOrderFulfillmentService $fulfillment,
     ) {}
 
     public function index(Request $request)
@@ -55,15 +58,18 @@ class SalesOrderController extends Controller
             $so = SalesOrder::create([
                 'so_number' => SalesOrder::nextNumber(),
                 'customer_id' => $data['customer_id'],
-                'broker_id' => $data['broker_id'] ?? null,
+                'broker_id' => $this->primaryBrokerId($data),
                 'warehouse_id' => $data['warehouse_id'],
                 'status' => 'draft',
                 'order_date' => $data['order_date'],
+                'tcs_section' => $data['tcs_section'] ?? null,
+                'tcs_rate' => $data['tcs_rate'] ?? 0,
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $request->user()?->id,
             ]);
 
             $this->syncItems($so, $data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
+            $this->syncBrokers($so, $data['brokers'] ?? []);
 
             return $so;
         });
@@ -79,6 +85,23 @@ class SalesOrderController extends Controller
         );
     }
 
+    /** Stream the sales order as a printable Delivery Challan (quantities only, no pricing). */
+    public function pdf(Request $request, SalesOrder $salesOrder)
+    {
+        $salesOrder->load([
+            'customer', 'warehouse:id,name',
+            'items.product:id,name,sku',
+            'items.variant:id,name,sku',
+        ]);
+
+        return $this->renderDocument(
+            $request,
+            'documents.delivery-challan',
+            ['salesOrder' => $salesOrder],
+            "delivery-challan-{$salesOrder->so_number}.pdf",
+        );
+    }
+
     public function update(SalesOrderRequest $request, SalesOrder $salesOrder)
     {
         if ($salesOrder->status !== 'draft') {
@@ -89,13 +112,16 @@ class SalesOrderController extends Controller
             $data = $request->validated();
             $salesOrder->update([
                 'customer_id' => $data['customer_id'],
-                'broker_id' => $data['broker_id'] ?? null,
+                'broker_id' => $this->primaryBrokerId($data),
                 'warehouse_id' => $data['warehouse_id'],
                 'order_date' => $data['order_date'],
+                'tcs_section' => $data['tcs_section'] ?? null,
+                'tcs_rate' => $data['tcs_rate'] ?? 0,
                 'notes' => $data['notes'] ?? null,
             ]);
             $salesOrder->items()->delete();
             $this->syncItems($salesOrder, $data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
+            $this->syncBrokers($salesOrder, $data['brokers'] ?? []);
         });
 
         return new SalesOrderResource($salesOrder->load(['customer', 'warehouse', 'items.product']));
@@ -122,40 +148,11 @@ class SalesOrderController extends Controller
             return response()->json(['message' => 'Only draft orders can be confirmed.'], 422);
         }
 
-        $customer = $salesOrder->customer;
-        $limit = (float) $customer->credit_limit;
-        if ($limit > 0) {
-            $exposure = $customer->outstandingBalance() + (float) $salesOrder->total;
-            if ($exposure > $limit) {
-                return response()->json([
-                    'message' => sprintf(
-                        'Credit limit exceeded: outstanding ₹%s + this order ₹%s is over the ₹%s limit.',
-                        number_format($customer->outstandingBalance(), 2),
-                        number_format((float) $salesOrder->total, 2),
-                        number_format($limit, 2),
-                    ),
-                ], 422);
-            }
+        if ($error = $this->fulfillment->creditLimitError($salesOrder)) {
+            return response()->json(['message' => $error], 422);
         }
 
-        $salesOrder->load('items.product');
-
-        DB::transaction(function () use ($salesOrder) {
-            $hasBackorder = false;
-
-            foreach ($salesOrder->items as $item) {
-                $reserveQty = $this->reserveAvailable($salesOrder->warehouse_id, $item, (float) $item->quantity);
-                $item->update([
-                    'reserved_quantity' => $reserveQty,
-                    'backorder_quantity' => round((float) $item->quantity - $reserveQty, 3),
-                ]);
-                if ($item->backorder_quantity > 0) {
-                    $hasBackorder = true;
-                }
-            }
-
-            $salesOrder->update(['status' => $hasBackorder ? 'backordered' : 'confirmed']);
-        });
+        $this->fulfillment->reserveAndConfirm($salesOrder);
 
         return new SalesOrderResource($salesOrder->fresh()->load(['customer', 'warehouse', 'items.product']));
     }
@@ -179,7 +176,7 @@ class SalesOrderController extends Controller
             foreach ($salesOrder->items as $item) {
                 $outstanding = (float) $item->backorder_quantity;
                 if ($outstanding > 0) {
-                    $newlyReserved = $this->reserveAvailable($salesOrder->warehouse_id, $item, $outstanding);
+                    $newlyReserved = $this->fulfillment->reserveAvailable($salesOrder->warehouse_id, $item, $outstanding);
                     $item->update([
                         'reserved_quantity' => round((float) $item->reserved_quantity + $newlyReserved, 3),
                         'backorder_quantity' => round($outstanding - $newlyReserved, 3),
@@ -329,6 +326,7 @@ class SalesOrderController extends Controller
                     'status' => 'unpaid',
                 ]);
 
+                $this->brokerCommissions->copyBrokersToInvoice($salesOrder, $invoice);
                 $this->brokerCommissions->accrueForInvoice($invoice);
 
                 return $invoice;
@@ -366,25 +364,35 @@ class SalesOrderController extends Controller
         return new SalesOrderResource($salesOrder->load(['customer', 'warehouse', 'items.product']));
     }
 
-    /** Reserve up to $quantity of a line against available warehouse stock; returns the amount actually reserved. */
-    private function reserveAvailable(int $warehouseId, SalesItem $item, float $quantity): float
+    /** Create line items and recompute order totals (discounts + round-off). */
+    /**
+     * The single broker_id to stamp on the order for back-compat/display: the
+     * first of the multi-broker list when given, else the explicit broker_id.
+     */
+    private function primaryBrokerId(array $data): ?int
     {
-        $available = (float) WarehouseStock::query()
-            ->where('warehouse_id', $warehouseId)
-            ->where('product_id', $item->product_id)
-            ->where('variant_id', $item->variant_id)
-            ->selectRaw('COALESCE(SUM(quantity - reserved_quantity), 0) as available')
-            ->value('available');
-
-        $reserveQty = round(min(max($available, 0), $quantity), 3);
-        if ($reserveQty > 0) {
-            $this->stock->reserve($warehouseId, $item->product_id, $item->variant_id, $reserveQty);
+        if (! empty($data['brokers'])) {
+            return (int) $data['brokers'][0]['broker_id'];
         }
 
-        return $reserveQty;
+        return isset($data['broker_id']) ? (int) $data['broker_id'] : null;
     }
 
-    /** Create line items and recompute order totals (discounts + round-off). */
+    /** Replace the order's multi-broker rows (empty array clears them). */
+    private function syncBrokers(SalesOrder $so, array $brokers): void
+    {
+        $so->brokers()->delete();
+
+        foreach ($brokers as $b) {
+            $so->brokers()->create([
+                'broker_id' => $b['broker_id'],
+                'commission_percent' => $b['commission_percent'] ?? null,
+                'fixed_commission' => $b['fixed_commission'] ?? null,
+                'share_percent' => $b['share_percent'] ?? 100,
+            ]);
+        }
+    }
+
     private function syncItems(SalesOrder $so, array $items, ?string $discountType = null, float $discountValue = 0): void
     {
         $priced = $this->pricing->price($items, $discountType, $discountValue);
@@ -405,6 +413,9 @@ class SalesOrderController extends Controller
         }
 
         $h = $priced['header'];
+        // TCS is collected over and above the invoice value; stored separately
+        // and does not alter the booked order total.
+        $tcsAmount = round((float) $h['total'] * (float) $so->tcs_rate / 100, 2);
         $so->update([
             'subtotal' => $h['subtotal'],
             'item_discount_total' => $h['item_discount_total'],
@@ -412,6 +423,7 @@ class SalesOrderController extends Controller
             'discount_value' => $h['discount_value'],
             'discount_amount' => $h['discount_amount'],
             'tax_amount' => $h['tax_amount'],
+            'tcs_amount' => $tcsAmount,
             'round_off' => $h['round_off'],
             'total' => $h['total'],
         ]);

@@ -22,7 +22,7 @@ return new class extends Migration
             $table->enum('type', [
                 'opening', 'purchase', 'sale', 'transfer_in', 'transfer_out',
                 'return_in', 'return_out', 'adjustment', 'damage', 'sample', 'consumption',
-                'production',
+                'production', 'job_work_out', 'job_work_in',
             ]);
             $table->decimal('quantity_in', 15, 3)->default(0);
             $table->decimal('quantity_out', 15, 3)->default(0);

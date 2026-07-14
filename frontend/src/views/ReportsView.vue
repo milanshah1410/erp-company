@@ -11,8 +11,23 @@ import PayablesReport from '../components/reports/PayablesReport.vue'
 import SalesReport from '../components/reports/SalesReport.vue'
 import ProfitabilityReport from '../components/reports/ProfitabilityReport.vue'
 import GstReport from '../components/reports/GstReport.vue'
+import GstSummaryReport from '../components/reports/GstSummaryReport.vue'
+import Gstr1Report from '../components/reports/Gstr1Report.vue'
+import TdsRegisterReport from '../components/reports/TdsRegisterReport.vue'
+import TcsRegisterReport from '../components/reports/TcsRegisterReport.vue'
 import BrokerCommissionReport from '../components/reports/BrokerCommissionReport.vue'
 import BrokerWiseSalesReport from '../components/reports/BrokerWiseSalesReport.vue'
+import ManufacturingReport from '../components/reports/ManufacturingReport.vue'
+import ProductionCostReport from '../components/reports/ProductionCostReport.vue'
+import TailorReport from '../components/reports/TailorReport.vue'
+import EmbroideryReport from '../components/reports/EmbroideryReport.vue'
+import PrintingReport from '../components/reports/PrintingReport.vue'
+import ExpenseReport from '../components/reports/ExpenseReport.vue'
+import CustomerLedgerReport from '../components/reports/CustomerLedgerReport.vue'
+import SupplierLedgerReport from '../components/reports/SupplierLedgerReport.vue'
+import StockAgeingReport from '../components/reports/StockAgeingReport.vue'
+import SlowMovingReport from '../components/reports/SlowMovingReport.vue'
+import FastMovingReport from '../components/reports/FastMovingReport.vue'
 
 interface ReportItem {
   key: string
@@ -34,6 +49,21 @@ const reports: ReportItem[] = [
   { key: 'profitability', label: 'Profitability', component: ProfitabilityReport },
   { key: 'valuation', label: 'Inventory Valuation', component: ValuationReport },
   { key: 'gst', label: 'GST / Tax', component: GstReport },
+  { key: 'gst-summary', label: 'GST Summary (GSTR-3B)', component: GstSummaryReport },
+  { key: 'gstr1', label: 'GSTR-1 (Outward)', component: Gstr1Report },
+  { key: 'tds-register', label: 'TDS Register', component: TdsRegisterReport },
+  { key: 'tcs-register', label: 'TCS Register', component: TcsRegisterReport },
+  { key: 'stock-ageing', label: 'Stock Ageing', component: StockAgeingReport },
+  { key: 'slow-moving', label: 'Slow Moving Stock', component: SlowMovingReport },
+  { key: 'fast-moving', label: 'Fast Moving Stock', component: FastMovingReport },
+  { key: 'manufacturing', label: 'Manufacturing', component: ManufacturingReport },
+  { key: 'production-cost', label: 'Production Cost', component: ProductionCostReport },
+  { key: 'tailor', label: 'Tailor', component: TailorReport },
+  { key: 'embroidery', label: 'Embroidery', component: EmbroideryReport },
+  { key: 'printing', label: 'Printing', component: PrintingReport },
+  { key: 'expenses', label: 'Expenses', component: ExpenseReport },
+  { key: 'customer-ledger', label: 'Customer Ledger', component: CustomerLedgerReport },
+  { key: 'supplier-ledger', label: 'Supplier Ledger', component: SupplierLedgerReport },
 ]
 
 const route = useRoute()

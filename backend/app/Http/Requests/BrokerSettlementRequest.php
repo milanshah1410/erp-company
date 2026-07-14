@@ -15,9 +15,13 @@ class BrokerSettlementRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount' => ['required', 'numeric', 'gt:0'],
+            // Omit `amount` entirely to settle the broker's full outstanding
+            // balance (see BrokerSettlementController::store).
+            'amount' => ['nullable', 'numeric', 'gt:0'],
             'mode' => ['required', Rule::in(['cash', 'bank', 'upi', 'adjustment'])],
+            'tds_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'settlement_date' => ['nullable', 'date'],
+            'period_month' => ['nullable', 'date_format:Y-m'],
             'notes' => ['nullable', 'string'],
         ];
     }

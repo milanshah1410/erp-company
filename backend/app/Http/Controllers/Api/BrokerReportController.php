@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\ExportsReports;
 use App\Http\Controllers\Controller;
+use App\Models\Broker;
 use App\Models\BrokerCommission;
+use App\Models\BrokerSettlement;
 use App\Models\SalesOrder;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class BrokerReportController extends Controller
@@ -78,6 +81,67 @@ class BrokerReportController extends Controller
         $rows = $query->limit(self::EXPORT_LIMIT)->get()->map($map)->all();
 
         return $this->exportResponse($request, $rows, $columns, 'broker-commissions');
+    }
+
+    /**
+     * Monthly statement for one broker: opening balance carried into the month,
+     * commissions accrued and settlements paid within the month, and the closing
+     * balance. Drives the "Monthly Settlement" view; `?month=YYYY-MM`.
+     */
+    public function monthlyStatement(Request $request, Broker $broker)
+    {
+        $month = $request->query('month', now()->format('Y-m'));
+        $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        $end = (clone $start)->endOfMonth();
+
+        // Opening = broker opening balance + everything before this month.
+        $priorEarned = (float) $broker->commissions()->where('created_at', '<', $start)->sum('commission_amount');
+        $priorSettled = (float) $broker->settlements()->where('settlement_date', '<', $start->toDateString())->sum('amount');
+        $opening = round((float) $broker->opening_balance + $priorEarned - $priorSettled, 2);
+
+        $commissions = $broker->commissions()
+            ->whereBetween('created_at', [$start, $end])
+            ->with('invoice:id,invoice_number')
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($c) => [
+                'date' => $c->created_at?->toDateString(),
+                'type' => $c->type,
+                'invoice_number' => $c->invoice?->invoice_number,
+                'base_amount' => (float) $c->base_amount,
+                'commission_amount' => (float) $c->commission_amount,
+            ])->all();
+
+        $settlements = $broker->settlements()
+            ->whereBetween('settlement_date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('id')
+            ->get()
+            ->map(fn ($s) => [
+                'date' => $s->settlement_date?->toDateString(),
+                'settlement_number' => $s->settlement_number,
+                'mode' => $s->mode,
+                'amount' => (float) $s->amount,
+                'tds_amount' => (float) $s->tds_amount,
+                'net_paid' => (float) ($s->net_paid ?? $s->amount),
+            ])->all();
+
+        $earnedInMonth = round((float) collect($commissions)->sum('commission_amount'), 2);
+        $settledInMonth = round((float) collect($settlements)->sum('amount'), 2);
+        $tdsInMonth = round((float) collect($settlements)->sum('tds_amount'), 2);
+
+        return response()->json([
+            'broker' => ['id' => $broker->id, 'code' => $broker->code, 'name' => $broker->name],
+            'month' => $month,
+            'opening_balance' => $opening,
+            'commissions' => $commissions,
+            'settlements' => $settlements,
+            'summary' => [
+                'commission_earned' => $earnedInMonth,
+                'settled' => $settledInMonth,
+                'tds_withheld' => $tdsInMonth,
+                'closing_balance' => round($opening + $earnedInMonth - $settledInMonth, 2),
+            ],
+        ]);
     }
 
     /** Sales aggregated per broker: order count, sales value, commission earned. */

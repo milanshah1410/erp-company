@@ -62,7 +62,7 @@ class BarcodeController extends Controller
         return response($png, 200)->header('Content-Type', 'image/png');
     }
 
-    /** Resolve a scanned code (product/variant SKU or barcode) to the item it identifies. */
+    /** Resolve a scanned code (product/variant SKU, barcode or RFID tag) to the item it identifies. */
     public function lookup(Request $request)
     {
         $code = trim((string) $request->query('code', ''));
@@ -71,7 +71,8 @@ class BarcodeController extends Controller
         }
 
         $variant = ProductVariant::with('product.category', 'product.brand', 'product.unit')
-            ->where('barcode', $code)->orWhere('sku', $code)->first();
+            ->where(fn ($q) => $q->where('barcode', $code)->orWhere('sku', $code)->orWhere('rfid_tag', $code))
+            ->first();
 
         if ($variant) {
             return response()->json([
@@ -80,6 +81,7 @@ class BarcodeController extends Controller
                     'id' => $variant->id,
                     'sku' => $variant->sku,
                     'barcode' => $variant->barcode,
+                    'rfid_tag' => $variant->rfid_tag,
                     'name' => $variant->name,
                     'selling_price' => $variant->selling_price,
                 ],
@@ -88,7 +90,8 @@ class BarcodeController extends Controller
         }
 
         $product = Product::with('category', 'brand', 'unit', 'stocks')
-            ->where('barcode', $code)->orWhere('sku', $code)->first();
+            ->where(fn ($q) => $q->where('barcode', $code)->orWhere('sku', $code)->orWhere('rfid_tag', $code))
+            ->first();
 
         if ($product) {
             return response()->json([
@@ -106,6 +109,7 @@ class BarcodeController extends Controller
             'id' => $product->id,
             'sku' => $product->sku,
             'barcode' => $product->barcode,
+            'rfid_tag' => $product->rfid_tag,
             'name' => $product->name,
             'category' => $product->category?->name,
             'brand' => $product->brand?->name,
@@ -164,5 +168,57 @@ class BarcodeController extends Controller
         $pdf = Pdf::loadView('labels.print', ['labels' => $labels])->setPaper('a4');
 
         return $pdf->stream('labels.pdf');
+    }
+
+    /**
+     * Bind a scanned RFID tag to a product or variant. Enforces global (per-tenant)
+     * uniqueness across both products and variants so a tag resolves unambiguously
+     * in lookup(). Handy for scan-to-assign workflows with an HID RFID reader.
+     */
+    public function assignRfid(Request $request)
+    {
+        $data = $request->validate([
+            'type' => ['required', Rule::in(['product', 'variant'])],
+            'id' => ['required', 'integer'],
+            'rfid_tag' => ['required', 'string', 'max:255'],
+        ]);
+
+        $tag = trim($data['rfid_tag']);
+
+        // A tag may already sit on another product or variant — reject either collision.
+        $productOwner = Product::where('rfid_tag', $tag)->first();
+        $variantOwner = ProductVariant::where('rfid_tag', $tag)->first();
+
+        if ($data['type'] === 'variant') {
+            $variant = ProductVariant::with('product')->findOrFail($data['id']);
+
+            if ($productOwner || ($variantOwner && $variantOwner->id !== $variant->id)) {
+                throw ValidationException::withMessages(['rfid_tag' => 'This RFID tag is already assigned to another item.']);
+            }
+
+            $variant->update(['rfid_tag' => $tag]);
+
+            return response()->json([
+                'type' => 'variant',
+                'id' => $variant->id,
+                'rfid_tag' => $variant->rfid_tag,
+                'name' => trim($variant->product->name.' — '.($variant->name ?: $variant->sku)),
+            ]);
+        }
+
+        $product = Product::findOrFail($data['id']);
+
+        if ($variantOwner || ($productOwner && $productOwner->id !== $product->id)) {
+            throw ValidationException::withMessages(['rfid_tag' => 'This RFID tag is already assigned to another item.']);
+        }
+
+        $product->update(['rfid_tag' => $tag]);
+
+        return response()->json([
+            'type' => 'product',
+            'id' => $product->id,
+            'rfid_tag' => $product->rfid_tag,
+            'name' => $product->name,
+        ]);
     }
 }

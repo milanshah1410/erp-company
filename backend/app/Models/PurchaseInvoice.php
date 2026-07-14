@@ -15,6 +15,7 @@ class PurchaseInvoice extends Model
     protected $fillable = [
         'invoice_number', 'purchase_order_id', 'supplier_id',
         'invoice_date', 'due_date', 'subtotal', 'tax_amount', 'total',
+        'tds_section', 'tds_rate', 'tds_amount',
         'paid_amount', 'payment_status',
         'status', 'match_status', 'notes', 'created_by', 'approved_by', 'approved_at',
     ];
@@ -26,6 +27,8 @@ class PurchaseInvoice extends Model
         'subtotal' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'total' => 'decimal:2',
+        'tds_rate' => 'decimal:2',
+        'tds_amount' => 'decimal:2',
         'paid_amount' => 'decimal:2',
     ];
 

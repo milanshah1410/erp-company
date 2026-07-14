@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\IteratesTenants;
 use App\Models\Batch;
 use App\Models\InventoryAlert;
 use App\Models\User;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\Notification;
 
 class GenerateInventoryAlerts extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'inventory:generate-alerts {--expiry-warning-days=30}';
 
     protected $description = 'Scan batches for expiry and warehouse stock for low-stock, opening/updating in-app alerts';
@@ -19,8 +22,13 @@ class GenerateInventoryAlerts extends Command
     public function handle(): int
     {
         $warningDays = (int) $this->option('expiry-warning-days');
-        $expiryCount = $this->generateExpiryAlerts($warningDays);
-        $lowStockCount = $this->generateLowStockAlerts();
+        $expiryCount = 0;
+        $lowStockCount = 0;
+
+        $this->eachTenant(function () use ($warningDays, &$expiryCount, &$lowStockCount): void {
+            $expiryCount += $this->generateExpiryAlerts($warningDays);
+            $lowStockCount += $this->generateLowStockAlerts();
+        });
 
         $this->info("Generated/updated {$expiryCount} expiry alert(s) and {$lowStockCount} low-stock alert(s).");
 

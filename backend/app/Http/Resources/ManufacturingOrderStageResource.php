@@ -22,7 +22,6 @@ class ManufacturingOrderStageResource extends JsonResource
             'start_date' => $this->start_date?->toDateString(),
             'end_date' => $this->end_date?->toDateString(),
             'status' => $this->status,
-            'cost' => $this->cost,
             'remarks' => $this->remarks,
             'image' => $this->image,
             'image_url' => $this->image ? asset('storage/'.$this->image) : null,

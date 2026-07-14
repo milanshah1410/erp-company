@@ -123,16 +123,11 @@ class ManufacturingOrderTest extends TestCase
 
     public function test_complete_produces_finished_goods_at_computed_unit_cost(): void
     {
-        $user = $this->authorize();
-        $order = $this->createOrder();
+        $this->authorize();
+        // A labour bucket of 50 on top of 250 raw material -> total cost 300.
+        $order = $this->createOrder(['tailor_cost' => 50]);
+        $this->assertSame('300.00', $order['total_cost']);
         $this->postJson("/api/manufacturing-orders/{$order['id']}/start")->assertOk();
-
-        // Add a labour cost to one stage: total cost becomes 250 + 50 = 300.
-        $cutting = collect($order['stages'])->firstWhere('stage_key', 'cutting');
-        $this->putJson("/api/manufacturing-orders/{$order['id']}/stages/{$cutting['id']}", [
-            'status' => 'completed',
-            'cost' => 50,
-        ])->assertOk()->assertJsonPath('data.total_cost', '300.00');
 
         $this->postJson("/api/manufacturing-orders/{$order['id']}/complete")
             ->assertOk()

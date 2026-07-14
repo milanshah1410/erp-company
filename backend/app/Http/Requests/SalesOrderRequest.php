@@ -16,8 +16,17 @@ class SalesOrderRequest extends FormRequest
         return [
             'customer_id' => ['required', 'exists:customers,id'],
             'broker_id' => ['nullable', 'exists:brokers,id'],
+            // Multi-broker per invoice. When given, the first broker also
+            // becomes the order's primary broker_id (for display/back-compat).
+            'brokers' => ['nullable', 'array'],
+            'brokers.*.broker_id' => ['required', 'exists:brokers,id'],
+            'brokers.*.commission_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'brokers.*.fixed_commission' => ['nullable', 'numeric', 'min:0'],
+            'brokers.*.share_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'warehouse_id' => ['required', 'exists:warehouses,id'],
             'order_date' => ['required', 'date'],
+            'tcs_section' => ['nullable', 'string', 'max:50'],
+            'tcs_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'notes' => ['nullable', 'string'],
             'discount_type' => ['nullable', 'in:percent,flat'],
             'discount_value' => ['nullable', 'numeric', 'min:0'],

@@ -18,11 +18,20 @@ class ManufacturingOrderRequest extends FormRequest
         return [
             'product_id' => ['required', 'exists:products,id'],
             'variant_id' => ['nullable', 'exists:product_variants,id'],
+            'bom_id' => ['nullable', 'exists:boms,id'],
             'warehouse_id' => ['required', 'exists:warehouses,id'],
             'quantity_to_produce' => ['required', 'numeric', 'min:0.001'],
             'order_date' => ['required', 'date'],
             'expected_completion_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
+
+            // Production-cost buckets (raw material is derived from the lines).
+            'tailor_cost' => ['nullable', 'numeric', 'min:0'],
+            'printing_cost' => ['nullable', 'numeric', 'min:0'],
+            'embroidery_cost' => ['nullable', 'numeric', 'min:0'],
+            'packing_cost' => ['nullable', 'numeric', 'min:0'],
+            'transport_cost' => ['nullable', 'numeric', 'min:0'],
+            'other_cost' => ['nullable', 'numeric', 'min:0'],
 
             // Raw materials to consume (per-order bill of materials).
             'materials' => ['nullable', 'array'],

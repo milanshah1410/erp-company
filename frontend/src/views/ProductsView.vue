@@ -74,6 +74,7 @@ function blankForm(): Record<string, any> {
     sku: null,
     name: null,
     barcode: null,
+    rfid_tag: null,
     category_id: null,
     brand_id: null,
     unit_id: null,
@@ -235,7 +236,7 @@ const variantErrors = ref<Record<string, string[]>>({})
 const variantSaving = ref(false)
 
 function blankVariantForm(): Record<string, any> {
-  return { sku: null, name: null, barcode: null, cost_price: 0, selling_price: 0, is_active: true }
+  return { sku: null, name: null, barcode: null, rfid_tag: null, cost_price: 0, selling_price: 0, is_active: true }
 }
 
 async function openVariants(row: any) {
@@ -272,6 +273,7 @@ function openVariantEdit(v: any) {
     sku: v.sku,
     name: v.name,
     barcode: v.barcode,
+    rfid_tag: v.rfid_tag,
     cost_price: v.cost_price === null || v.cost_price === undefined ? null : Number(v.cost_price),
     selling_price: v.selling_price === null || v.selling_price === undefined ? null : Number(v.selling_price),
     is_active: !!v.is_active,
@@ -461,6 +463,11 @@ onMounted(async () => {
           <small v-if="fieldError('barcode')" class="error-text">{{ fieldError('barcode') }}</small>
         </div>
         <div class="form-field">
+          <label>RFID Tag</label>
+          <InputText v-model="form.rfid_tag" placeholder="Scan or type EPC / tag ID" :class="{ invalid: fieldError('rfid_tag') }" />
+          <small v-if="fieldError('rfid_tag')" class="error-text">{{ fieldError('rfid_tag') }}</small>
+        </div>
+        <div class="form-field">
           <label>Category</label>
           <Select v-model="form.category_id" :options="categories" optionLabel="label" optionValue="value"
             placeholder="Select Category" showClear :class="{ invalid: fieldError('category_id') }" />
@@ -635,6 +642,11 @@ onMounted(async () => {
           <label>Barcode</label>
           <InputText v-model="variantForm.barcode" :class="{ invalid: variantError('barcode') }" />
           <small v-if="variantError('barcode')" class="error-text">{{ variantError('barcode') }}</small>
+        </div>
+        <div class="form-field">
+          <label>RFID Tag</label>
+          <InputText v-model="variantForm.rfid_tag" placeholder="Scan or type EPC / tag ID" :class="{ invalid: variantError('rfid_tag') }" />
+          <small v-if="variantError('rfid_tag')" class="error-text">{{ variantError('rfid_tag') }}</small>
         </div>
         <div class="form-field">
           <label>Cost Price</label>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
@@ -10,6 +11,8 @@ use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function index(Request $request)
     {
         $query = Invoice::query()->with(['customer:id,name', 'salesOrder:id,so_number']);
@@ -48,6 +51,23 @@ class InvoiceController extends Controller
         ]);
 
         return response()->json(['data' => $data]);
+    }
+
+    /** Stream the invoice as a printable PDF tax invoice. */
+    public function pdf(Request $request, Invoice $invoice)
+    {
+        $invoice->load([
+            'customer', 'broker:id,name',
+            'salesOrder.items.product:id,name,sku',
+            'salesOrder.items.variant:id,name,sku',
+        ]);
+
+        return $this->renderDocument(
+            $request,
+            'documents.invoice',
+            ['invoice' => $invoice],
+            "invoice-{$invoice->invoice_number}.pdf",
+        );
     }
 
     /** Record a payment against the invoice and roll its status forward. */

@@ -9,7 +9,9 @@ use App\Http\Resources\SalesOrderResource;
 use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\SalesOrder;
+use App\Models\Scopes\TenantScope;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class CustomerController extends Controller
 {
@@ -82,6 +84,52 @@ class CustomerController extends Controller
     }
 
     /**
+     * Enable/disable the customer's B2B portal login and (re)set its password
+     * (SRS §14). Portal-enabled accounts must have a globally-unique email so
+     * they can be resolved at login before any tenant context exists.
+     */
+    public function setPortalAccess(Request $request, Customer $customer)
+    {
+        $data = $request->validate([
+            'portal_enabled' => ['required', 'boolean'],
+            'password' => ['nullable', 'string', 'min:6', 'max:100'],
+        ]);
+
+        if ($data['portal_enabled']) {
+            if (empty($customer->email)) {
+                return response()->json(['message' => 'A customer email is required to enable portal login.'], 422);
+            }
+
+            $emailTaken = Customer::query()
+                ->withoutGlobalScope(TenantScope::class)
+                ->where('email', $customer->email)
+                ->where('portal_enabled', true)
+                ->whereKeyNot($customer->id)
+                ->exists();
+            if ($emailTaken) {
+                return response()->json(['message' => 'Another portal account already uses this email address.'], 422);
+            }
+
+            if (empty($customer->portal_password) && empty($data['password'])) {
+                return response()->json(['message' => 'Set a password to enable portal login.'], 422);
+            }
+        }
+
+        $customer->portal_enabled = $data['portal_enabled'];
+        if (! empty($data['password'])) {
+            $customer->portal_password = Hash::make($data['password']);
+        }
+        $customer->save();
+
+        // Revoke any live portal sessions when access is turned off.
+        if (! $data['portal_enabled']) {
+            $customer->tokens()->delete();
+        }
+
+        return new CustomerResource($customer->fresh());
+    }
+
+    /**
      * Purchase history for a customer: paginated sales orders plus a
      * summary block including the live outstanding balance.
      */
@@ -108,6 +156,55 @@ class CustomerController extends Controller
 
         return SalesOrderResource::collection($query->paginate($perPage))
             ->additional(['summary' => $summary]);
+    }
+
+    /**
+     * Upcoming customer birthdays & anniversaries within ?days (default 30),
+     * ordered by how soon they fall. Powers the "occasions" wish screen and
+     * feeds the daily reminder command. Computed in PHP so it is DB-agnostic.
+     */
+    public function occasions(Request $request)
+    {
+        $days = min(max((int) $request->query('days', 30), 1), 366);
+        $today = now()->startOfDay();
+        $horizon = (clone $today)->addDays($days);
+        $type = $request->query('type'); // optional: birthday | anniversary
+
+        $result = [];
+        Customer::query()
+            ->where('is_active', true)
+            ->where(fn ($q) => $q->whereNotNull('date_of_birth')->orWhereNotNull('anniversary_date'))
+            ->get(['id', 'code', 'name', 'phone', 'date_of_birth', 'anniversary_date'])
+            ->each(function (Customer $c) use ($today, $horizon, $type, &$result) {
+                $occasions = ['birthday' => $c->date_of_birth, 'anniversary' => $c->anniversary_date];
+                foreach ($occasions as $kind => $date) {
+                    if (! $date || ($type && $type !== $kind)) {
+                        continue;
+                    }
+                    $next = $date->copy()->setDate((int) $today->year, (int) $date->month, (int) $date->day);
+                    if ($next->lt($today)) {
+                        $next->addYear();
+                    }
+                    if ($next->gt($horizon)) {
+                        continue;
+                    }
+                    $result[] = [
+                        'customer_id' => $c->id,
+                        'code' => $c->code,
+                        'name' => $c->name,
+                        'phone' => $c->phone,
+                        'type' => $kind,
+                        'date' => $date->toDateString(),
+                        'next_date' => $next->toDateString(),
+                        'days_away' => (int) $today->diffInDays($next),
+                        'years' => (int) ($next->year - $date->year),
+                    ];
+                }
+            });
+
+        usort($result, fn ($a, $b) => $a['days_away'] <=> $b['days_away']);
+
+        return response()->json(['data' => $result]);
     }
 
     /**

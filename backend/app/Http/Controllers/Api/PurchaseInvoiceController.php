@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PurchaseInvoiceRequest;
 use App\Http\Resources\PurchaseInvoiceResource;
@@ -21,6 +22,8 @@ use Illuminate\Validation\ValidationException;
  */
 class PurchaseInvoiceController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function index(Request $request)
     {
         $query = PurchaseInvoice::query()
@@ -61,6 +64,8 @@ class PurchaseInvoiceController extends Controller
                 'supplier_id' => $po->supplier_id,
                 'invoice_date' => $data['invoice_date'],
                 'due_date' => $data['due_date'] ?? null,
+                'tds_section' => $data['tds_section'] ?? null,
+                'tds_rate' => $data['tds_rate'] ?? 0,
                 'status' => 'pending',
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $request->user()?->id,
@@ -79,6 +84,23 @@ class PurchaseInvoiceController extends Controller
     {
         return new PurchaseInvoiceResource(
             $purchaseInvoice->load(['purchaseOrder', 'supplier', 'items.product', 'items.purchaseItem'])
+        );
+    }
+
+    /** Stream the vendor bill as a printable PDF. */
+    public function pdf(Request $request, PurchaseInvoice $purchaseInvoice)
+    {
+        $purchaseInvoice->load([
+            'purchaseOrder:id,po_number', 'supplier',
+            'items.product:id,name,sku',
+            'items.variant:id,name,sku',
+        ]);
+
+        return $this->renderDocument(
+            $request,
+            'documents.purchase-invoice',
+            ['purchaseInvoice' => $purchaseInvoice],
+            "purchase-invoice-{$purchaseInvoice->invoice_number}.pdf",
         );
     }
 
@@ -101,6 +123,8 @@ class PurchaseInvoiceController extends Controller
                 'supplier_id' => $po->supplier_id,
                 'invoice_date' => $data['invoice_date'],
                 'due_date' => $data['due_date'] ?? null,
+                'tds_section' => $data['tds_section'] ?? null,
+                'tds_rate' => $data['tds_rate'] ?? 0,
                 'notes' => $data['notes'] ?? null,
             ]);
             $purchaseInvoice->items()->delete();
@@ -235,10 +259,15 @@ class PurchaseInvoiceController extends Controller
             $taxTotal += $lineTax;
         }
 
+        // TDS is withheld on the taxable value (excl. GST); it reduces the net
+        // payable to the vendor but not the booked invoice total.
+        $tdsAmount = round($subtotal * (float) $invoice->tds_rate / 100, 2);
+
         $invoice->update([
             'subtotal' => round($subtotal, 2),
             'tax_amount' => round($taxTotal, 2),
             'total' => round($subtotal + $taxTotal, 2),
+            'tds_amount' => $tdsAmount,
             'match_status' => $hasException ? 'exception' : 'matched',
         ]);
     }

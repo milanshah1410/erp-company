@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\ExpenseCategory;
 use App\Models\Setting;
 use App\Models\Unit;
 use App\Models\Warehouse;
@@ -58,7 +60,23 @@ class TenantDatabaseSeeder extends Seeder
             ['name' => 'Head Office', 'is_active' => true]
         );
 
-        // 6. Baseline settings.
+        // 6. Default company expense heads.
+        $expenseCategories = [
+            'Office Rent', 'Electricity', 'Internet', 'Petrol', 'Diesel', 'Salary',
+            'Food', 'Courier', 'Transport', 'Machine Repair', 'Maintenance',
+            'Marketing', 'Advertisement', 'GST Payment', 'Bank Charges', 'Miscellaneous',
+        ];
+        foreach ($expenseCategories as $name) {
+            ExpenseCategory::updateOrCreate(['name' => $name], ['is_active' => true]);
+        }
+
+        // 7. Default cash account (feeds the Cash Book out of the box).
+        BankAccount::updateOrCreate(
+            ['name' => 'Cash in Hand'],
+            ['type' => 'cash', 'opening_balance' => 0, 'is_active' => true]
+        );
+
+        // 8. Baseline settings.
         Setting::updateOrCreate(['key' => 'costing_method'], ['value' => 'weighted_average']);
     }
 }

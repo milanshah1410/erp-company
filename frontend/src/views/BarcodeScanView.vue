@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
@@ -9,8 +9,11 @@ import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { openPdfBlob } from '../utils/blob'
 import { formatCurrency } from '../utils/currency'
+import { useAuthStore } from '../stores/auth'
 
 const toast = useToast()
+const auth = useAuthStore()
+const canAssignRfid = computed(() => auth.can('products.edit'))
 const scanValue = ref('')
 const scanInput = ref<any>(null)
 const loading = ref(false)
@@ -26,6 +29,7 @@ async function lookup(code: string) {
   try {
     const { data } = await http.get('/barcode/lookup', { params: { code: value } })
     result.value = data
+    rfidValue.value = ''
   } catch (e: any) {
     if (e.response?.status === 404) {
       notFound.value = true
@@ -125,6 +129,36 @@ async function printLabel() {
   }
 }
 
+// --- Assign an RFID tag to the matched item ---
+const rfidValue = ref('')
+const rfidSaving = ref(false)
+
+const matchedRfid = computed(() =>
+  result.value?.type === 'variant' ? result.value.variant.rfid_tag : result.value?.product?.rfid_tag,
+)
+
+async function assignRfid() {
+  const tag = rfidValue.value.trim()
+  if (!tag || !result.value) return
+  const payload = result.value.type === 'variant'
+    ? { type: 'variant', id: result.value.variant.id, rfid_tag: tag }
+    : { type: 'product', id: result.value.product.id, rfid_tag: tag }
+
+  rfidSaving.value = true
+  try {
+    const { data } = await http.post('/rfid/assign', payload)
+    if (result.value.type === 'variant') result.value.variant.rfid_tag = data.rfid_tag
+    else result.value.product.rfid_tag = data.rfid_tag
+    rfidValue.value = ''
+    toast.add({ severity: 'success', summary: 'RFID assigned', detail: data.rfid_tag, life: 2500 })
+  } catch (e: any) {
+    const msg = e.response?.data?.errors?.rfid_tag?.[0] || e.response?.data?.message || 'Could not assign RFID tag'
+    toast.add({ severity: 'error', summary: 'Error', detail: msg, life: 4000 })
+  } finally {
+    rfidSaving.value = false
+  }
+}
+
 function money(v: any) {
   return v === null || v === undefined ? '—' : formatCurrency(v)
 }
@@ -132,13 +166,13 @@ function money(v: any) {
 
 <template>
   <div>
-    <h1>Barcode Scan</h1>
-    <p class="subtitle">Scan with a handheld/USB scanner (types into the field below) or use your device camera.</p>
+    <h1>Barcode / RFID Scan</h1>
+    <p class="subtitle">Scan with a handheld/USB barcode or RFID reader (both type into the field below) or use your device camera.</p>
 
     <div class="scan-box">
       <span class="scan-input">
         <i class="pi pi-search" />
-        <InputText ref="scanInput" v-model="scanValue" placeholder="Scan or type a barcode / SKU, then press Enter"
+        <InputText ref="scanInput" v-model="scanValue" placeholder="Scan or type a barcode / SKU / RFID tag, then press Enter"
           autofocus @keyup.enter="onEnter" />
       </span>
       <Button label="Lookup" icon="pi pi-search" :loading="loading" @click="onEnter" />
@@ -157,6 +191,7 @@ function money(v: any) {
       <div class="result-grid">
         <div><label>SKU</label><span>{{ result.type === 'variant' ? result.variant.sku : result.product.sku }}</span></div>
         <div><label>Barcode</label><span>{{ result.type === 'variant' ? result.variant.barcode : result.product.barcode }}</span></div>
+        <div><label>RFID Tag</label><span>{{ matchedRfid || '—' }}</span></div>
         <div><label>Category</label><span>{{ result.product.category || '—' }}</span></div>
         <div><label>Brand</label><span>{{ result.product.brand || '—' }}</span></div>
         <div>
@@ -171,6 +206,14 @@ function money(v: any) {
           optionLabel="label" optionValue="value" />
         <InputNumber v-model="printQty" :min="1" :max="500" showButtons />
         <Button label="Print Label" icon="pi pi-print" :loading="printing" @click="printLabel" />
+      </div>
+
+      <div v-if="canAssignRfid" class="rfid-row">
+        <label class="rfid-label">{{ matchedRfid ? 'Reassign RFID Tag' : 'Assign RFID Tag' }}</label>
+        <div class="rfid-controls">
+          <InputText v-model="rfidValue" placeholder="Scan or type RFID tag, then press Enter" @keyup.enter="assignRfid" />
+          <Button label="Assign" icon="pi pi-wifi" :loading="rfidSaving" :disabled="!rfidValue.trim()" @click="assignRfid" />
+        </div>
       </div>
     </div>
 
@@ -252,6 +295,25 @@ h1 { font-size: 1.5rem; font-weight: 600; }
   align-items: center;
   border-top: 1px solid #f3f4f6;
   padding-top: 1rem;
+}
+.rfid-row {
+  border-top: 1px solid #f3f4f6;
+  padding-top: 1rem;
+  margin-top: 1rem;
+}
+.rfid-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.4rem;
+}
+.rfid-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.rfid-controls :deep(input) {
+  flex: 1;
 }
 #camera-reader {
   width: 100%;

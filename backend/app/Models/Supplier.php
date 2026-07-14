@@ -34,6 +34,19 @@ class Supplier extends Model
         return $this->hasMany(PurchaseInvoice::class);
     }
 
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(VendorRating::class);
+    }
+
+    /** Mean overall rating across all recorded ratings, or null if never rated. */
+    public function averageRating(): ?float
+    {
+        $avg = $this->ratings()->avg('overall_score');
+
+        return $avg !== null ? round((float) $avg, 2) : null;
+    }
+
     /** Opening balance plus every unpaid rupee across approved purchase invoices. */
     public function outstandingBalance(): float
     {

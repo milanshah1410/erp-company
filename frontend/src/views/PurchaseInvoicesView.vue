@@ -21,6 +21,18 @@ const auth = useAuthStore()
 const crud = useCrud('/purchase-invoices')
 
 const purchaseOrders = ref<any[]>([])
+const tdsRates = ref<any[]>([])
+
+/** Estimated TDS on the taxable value (server recomputes authoritatively). */
+const estTaxable = computed(() =>
+  form.value.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 0) * (Number(it.unit_cost) || 0), 0),
+)
+const estTds = computed(() => Math.round(estTaxable.value * (Number(form.value.tds_rate) || 0)) / 100)
+const estNetPayable = computed(() => grandTotal.value - estTds.value)
+
+function onTdsSectionChange() {
+  form.value.tds_rate = tdsRates.value.find((r) => r.value === form.value.tds_section)?.rate ?? 0
+}
 
 const canCreate = computed(() => auth.can('purchase-invoices.create'))
 const canApprove = computed(() => auth.can('purchase-invoices.approve'))
@@ -102,7 +114,7 @@ const grandTotal = computed(() =>
 
 function openCreate() {
   editingId.value = null
-  form.value = { purchase_order_id: null, invoice_number: '', invoice_date: today(), due_date: null, notes: '', items: [] }
+  form.value = { purchase_order_id: null, invoice_number: '', invoice_date: today(), due_date: null, tds_section: null, tds_rate: 0, notes: '', items: [] }
   errors.value = {}
   dialogVisible.value = true
 }
@@ -117,6 +129,8 @@ async function openEdit(row: any) {
       invoice_number: inv.invoice_number,
       invoice_date: inv.invoice_date,
       due_date: inv.due_date,
+      tds_section: inv.tds_section ?? null,
+      tds_rate: Number(inv.tds_rate) || 0,
       notes: inv.notes || '',
       items: inv.items.map((i: any) => ({
         purchase_item_id: i.purchase_item_id,
@@ -143,6 +157,8 @@ async function saveInvoice() {
     invoice_number: form.value.invoice_number,
     invoice_date: form.value.invoice_date,
     due_date: form.value.due_date || null,
+    tds_section: form.value.tds_section || null,
+    tds_rate: form.value.tds_rate || 0,
     notes: form.value.notes,
     items: form.value.items.map((l: any) => ({
       purchase_item_id: l.purchase_item_id,
@@ -260,8 +276,12 @@ function money(v: number) {
 }
 
 onMounted(async () => {
-  const { data } = await http.get('/purchase-orders', { params: { per_page: 100 } })
-  purchaseOrders.value = (data.data ?? data).map((p: any) => ({ label: p.po_number, value: p.id }))
+  const [po, t] = await Promise.all([
+    http.get('/purchase-orders', { params: { per_page: 100 } }),
+    http.get('/tds-tcs-rates', { params: { per_page: 100, nature: 'tds', is_active: true } }),
+  ])
+  purchaseOrders.value = (po.data.data ?? po.data).map((p: any) => ({ label: p.po_number, value: p.id }))
+  tdsRates.value = (t.data.data ?? t.data).map((x: any) => ({ label: `${x.section} (${x.rate}%)`, value: x.section, rate: Number(x.rate) }))
   reload()
 })
 </script>
@@ -363,6 +383,17 @@ onMounted(async () => {
 
       <div class="grand">Total: <strong>{{ money(grandTotal) }}</strong></div>
 
+      <div class="form-top" v-if="form.purchase_order_id">
+        <div class="fld">
+          <label>TDS Section</label>
+          <Select v-model="form.tds_section" :options="tdsRates" optionLabel="label" optionValue="value" showClear placeholder="No TDS" @change="onTdsSectionChange" />
+        </div>
+        <div class="fld">
+          <label>TDS ({{ form.tds_rate }}%)</label>
+          <div class="tds-summary">− {{ money(estTds) }} · Net payable <strong>{{ money(estNetPayable) }}</strong></div>
+        </div>
+      </div>
+
       <div class="fld full">
         <label>Notes</label>
         <Textarea v-model="form.notes" rows="2" />
@@ -451,6 +482,7 @@ onMounted(async () => {
 .num :deep(input) { width: 90px; }
 .line-total { font-size: 0.9rem; white-space: nowrap; }
 .grand { text-align: right; margin-top: 0.75rem; font-size: 1.05rem; }
+.tds-summary { padding: 0.5rem 0; color: #374151; font-size: 0.9rem; }
 .err { color: #dc2626; font-size: 0.78rem; }
 .err.block { display: block; margin-top: 0.5rem; }
 .exception { background: #fffbeb; }

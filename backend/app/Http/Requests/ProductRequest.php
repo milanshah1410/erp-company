@@ -19,6 +19,7 @@ class ProductRequest extends FormRequest
         return [
             'sku' => ['required', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($productId)],
             'barcode' => ['nullable', 'string', 'max:255'],
+            'rfid_tag' => ['nullable', 'string', 'max:255', Rule::unique('products', 'rfid_tag')->ignore($productId)],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'category_id' => ['nullable', 'exists:categories,id'],
