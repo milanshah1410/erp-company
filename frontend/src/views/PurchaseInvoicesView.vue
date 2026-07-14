@@ -49,6 +49,23 @@ const poLoading = ref(false)
 const detailVisible = ref(false)
 const detailInvoice = ref<any>(null)
 
+// --- Payment dialog ---
+const payVisible = ref(false)
+const paying = ref(false)
+const payInvoiceRow = ref<any>(null)
+const payForm = ref<{ amount: number | null; mode: string; payment_date: string; notes: string }>({
+  amount: null, mode: 'bank', payment_date: today(), notes: '',
+})
+const payErrors = ref<Record<string, string[]>>({})
+const payModes = [
+  { label: 'Cash', value: 'cash' },
+  { label: 'Bank', value: 'bank' },
+  { label: 'UPI', value: 'upi' },
+  { label: 'Cheque', value: 'cheque' },
+  { label: 'Adjustment', value: 'adjustment' },
+]
+const paymentStatusColors: Record<string, string> = { unpaid: 'danger', partial: 'warn', paid: 'success' }
+
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -201,6 +218,35 @@ async function removeInvoice(row: any) {
   }
 }
 
+function openPay(row: any) {
+  payInvoiceRow.value = row
+  payForm.value = { amount: Number(row.balance_due) || null, mode: 'bank', payment_date: today(), notes: '' }
+  payErrors.value = {}
+  payVisible.value = true
+}
+
+async function savePayment() {
+  if (!payInvoiceRow.value) return
+  paying.value = true
+  payErrors.value = {}
+  try {
+    await http.post(`/purchase-invoices/${payInvoiceRow.value.id}/payments`, {
+      amount: payForm.value.amount,
+      mode: payForm.value.mode,
+      payment_date: payForm.value.payment_date,
+      notes: payForm.value.notes || null,
+    })
+    toast.add({ severity: 'success', summary: 'Payment recorded', life: 2500 })
+    payVisible.value = false
+    reload()
+  } catch (e: any) {
+    if (e.response?.status === 422) payErrors.value = e.response.data.errors || {}
+    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+  } finally {
+    paying.value = false
+  }
+}
+
 function reload() {
   crud.fetch(statusFilter.value ? { status: statusFilter.value } : {})
 }
@@ -246,7 +292,16 @@ onMounted(async () => {
       <Column header="Status">
         <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="data.status" /></template>
       </Column>
-      <Column header="Actions" style="width: 14rem">
+      <Column header="Payment">
+        <template #body="{ data }">
+          <template v-if="data.status === 'approved'">
+            <Tag :severity="paymentStatusColors[data.payment_status]" :value="data.payment_status" />
+            <div v-if="data.payment_status !== 'paid'" class="balance">Due: {{ money(data.balance_due) }}</div>
+          </template>
+          <span v-else class="muted">—</span>
+        </template>
+      </Column>
+      <Column header="Actions" style="width: 16rem">
         <template #body="{ data }">
           <template v-if="data.status === 'pending'">
             <Button v-if="canApprove" label="Approve" size="small" severity="success" outlined @click="approve(data)" />
@@ -254,6 +309,8 @@ onMounted(async () => {
             <Button v-if="canEdit" icon="pi pi-ban" size="small" text severity="warn" title="Cancel" @click="cancelInvoice(data)" />
             <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="removeInvoice(data)" />
           </template>
+          <Button v-if="data.status === 'approved' && data.payment_status !== 'paid' && canCreate"
+            label="Record Payment" icon="pi pi-wallet" size="small" outlined @click="openPay(data)" />
         </template>
       </Column>
       <template #empty>No vendor invoices yet.</template>
@@ -341,6 +398,37 @@ onMounted(async () => {
         <Button label="Close" text @click="detailVisible = false" />
       </template>
     </Dialog>
+
+    <!-- Record payment dialog -->
+    <Dialog v-model:visible="payVisible" modal :header="`Record Payment — ${payInvoiceRow?.invoice_number}`" :style="{ width: '440px' }">
+      <div class="pay-info" v-if="payInvoiceRow">
+        <span>Supplier: <strong>{{ payInvoiceRow.supplier?.name }}</strong></span>
+        <span>Balance Due: <strong>{{ money(payInvoiceRow.balance_due) }}</strong></span>
+      </div>
+      <div class="pay-form">
+        <div class="fld">
+          <label>Amount *</label>
+          <InputNumber v-model="payForm.amount" mode="currency" currency="INR" locale="en-IN" />
+          <small v-if="payErrors.amount" class="err">{{ payErrors.amount[0] }}</small>
+        </div>
+        <div class="fld">
+          <label>Mode *</label>
+          <Select v-model="payForm.mode" :options="payModes" optionLabel="label" optionValue="value" />
+        </div>
+        <div class="fld">
+          <label>Payment Date *</label>
+          <input type="date" v-model="payForm.payment_date" class="date-input" />
+        </div>
+        <div class="fld">
+          <label>Notes</label>
+          <Textarea v-model="payForm.notes" rows="2" />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="payVisible = false" />
+        <Button label="Save Payment" :loading="paying" @click="savePayment" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -366,4 +454,8 @@ onMounted(async () => {
 .err { color: #dc2626; font-size: 0.78rem; }
 .err.block { display: block; margin-top: 0.5rem; }
 .exception { background: #fffbeb; }
+.balance { font-size: 0.75rem; color: #b45309; margin-top: 0.15rem; }
+.muted { color: #9ca3af; }
+.pay-info { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid #e5e7eb; }
+.pay-form { display: flex; flex-direction: column; gap: 0.9rem; }
 </style>

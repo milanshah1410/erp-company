@@ -25,6 +25,9 @@ import WarehousesView from '../views/WarehousesView.vue'
 import SuppliersView from '../views/SuppliersView.vue'
 import CustomersView from '../views/CustomersView.vue'
 import BrokerLedgerView from '../views/BrokerLedgerView.vue'
+import TailorWorkView from '../views/TailorWorkView.vue'
+import TailorPaymentView from '../views/TailorPaymentView.vue'
+import TailorLedgerView from '../views/TailorLedgerView.vue'
 import CustomerCategoriesView from '../views/CustomerCategoriesView.vue'
 import SalesOrdersView from '../views/SalesOrdersView.vue'
 import SalesQuotationsView from '../views/SalesQuotationsView.vue'
@@ -71,6 +74,13 @@ const routes: RouteRecordRaw[] = [
       { path: 'price-lists', component: PriceListsView, meta: { permission: 'price-lists.view' } },
       { path: 'brokers/ledger', component: BrokerLedgerView, meta: { permission: 'brokers.view' } },
       { path: 'brokers', component: CrudView, meta: { resource: 'brokers', permission: 'brokers.view' } },
+      { path: 'tailors', component: CrudView, meta: { resource: 'tailors', permission: 'tailors.view' } },
+      { path: 'rate-cards', component: CrudView, meta: { resource: 'rate-cards', permission: 'rate-cards.view' } },
+      { path: 'piece-rates', component: CrudView, meta: { resource: 'piece-rates', permission: 'piece-rates.view' } },
+      { path: 'tailor-works/pending', component: TailorWorkView, meta: { workMode: 'pending', permission: 'tailor-works.view' } },
+      { path: 'tailor-works/completed', component: TailorWorkView, meta: { workMode: 'completed', permission: 'tailor-works.view' } },
+      { path: 'tailor-payments', component: TailorPaymentView, meta: { permission: 'tailor-payments.view' } },
+      { path: 'tailors/ledger', component: TailorLedgerView, meta: { permission: 'tailors.view' } },
       { path: 'purchase-orders', component: PurchaseOrdersView, meta: { permission: 'purchases.view' } },
       { path: 'purchase-invoices', component: PurchaseInvoicesView, meta: { permission: 'purchase-invoices.view' } },
       { path: 'sales-quotations', component: SalesQuotationsView, meta: { permission: 'sales.view' } },

@@ -10,6 +10,7 @@ use App\Models\PurchaseItem;
 use App\Models\PurchaseOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -142,6 +143,44 @@ class PurchaseInvoiceController extends Controller
         $purchaseInvoice->update(['status' => 'cancelled']);
 
         return new PurchaseInvoiceResource($purchaseInvoice->load(['purchaseOrder', 'supplier', 'items.product', 'items.purchaseItem']));
+    }
+
+    /** Record a payment against an approved vendor invoice (accounts payable). */
+    public function recordPayment(Request $request, PurchaseInvoice $purchaseInvoice)
+    {
+        if ($purchaseInvoice->status !== 'approved') {
+            return response()->json(['message' => 'Only approved invoices can be paid.'], 422);
+        }
+
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'mode' => ['required', Rule::in(['cash', 'bank', 'upi', 'cheque', 'adjustment'])],
+            'payment_date' => ['required', 'date'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        if ((float) $data['amount'] > $purchaseInvoice->balanceDue() + 0.005) {
+            throw ValidationException::withMessages([
+                'amount' => ["Payment exceeds the balance due of {$purchaseInvoice->balanceDue()}."],
+            ]);
+        }
+
+        DB::transaction(function () use ($purchaseInvoice, $data, $request) {
+            $purchaseInvoice->payments()->create([
+                'amount' => $data['amount'],
+                'mode' => $data['mode'],
+                'payment_date' => $data['payment_date'],
+                'notes' => $data['notes'] ?? null,
+                'created_by' => $request->user()?->id,
+            ]);
+
+            $purchaseInvoice->paid_amount = round((float) $purchaseInvoice->paid_amount + (float) $data['amount'], 2);
+            $purchaseInvoice->refreshPaymentStatus();
+        });
+
+        return new PurchaseInvoiceResource(
+            $purchaseInvoice->fresh()->load(['purchaseOrder', 'supplier', 'items.product', 'items.purchaseItem'])
+        );
     }
 
     /** Validate each line's purchase_item_id belongs to the given PO. */

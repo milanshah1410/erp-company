@@ -20,6 +20,8 @@ class RolePermissionSeeder extends Seeder
         'purchases', 'purchase-invoices', 'sales', 'sales-returns', 'reports', 'users', 'roles', 'settings',
         'companies', 'branches', 'financial-years', 'gst-registrations', 'backups',
         'departments', 'employees', 'attendance', 'salaries',
+        'tailors', 'rate-cards', 'piece-rates', 'tailor-works', 'tailor-payments',
+        'manufacturing-orders',
     ];
 
     /**
@@ -75,6 +77,7 @@ class RolePermissionSeeder extends Seeder
                 'gate-entries.view', 'gate-entries.create', 'gate-entries.edit', 'gate-entries.delete',
                 'sales.view', 'sales.edit',
                 'advanced-inventory.view', 'advanced-inventory.create', 'advanced-inventory.edit', 'advanced-inventory.delete',
+                'manufacturing-orders.view', 'manufacturing-orders.create', 'manufacturing-orders.edit', 'manufacturing-orders.delete',
                 'reports.view', 'barcodes.view',
             ],
             'purchase-manager' => [

@@ -28,4 +28,21 @@ class Supplier extends Model
     {
         return $this->hasMany(PurchaseOrder::class);
     }
+
+    public function purchaseInvoices(): HasMany
+    {
+        return $this->hasMany(PurchaseInvoice::class);
+    }
+
+    /** Opening balance plus every unpaid rupee across approved purchase invoices. */
+    public function outstandingBalance(): float
+    {
+        $unpaid = (float) $this->purchaseInvoices()
+            ->where('status', 'approved')
+            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->selectRaw('COALESCE(SUM(total - paid_amount), 0) as due')
+            ->value('due');
+
+        return round((float) $this->opening_balance + $unpaid, 2);
+    }
 }

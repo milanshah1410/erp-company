@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\GoodsReceiptController;
 use App\Http\Controllers\Api\InventoryAlertController;
 use App\Http\Controllers\Api\InventoryReportController;
 use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\ManufacturingOrderController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PosController;
@@ -56,6 +57,11 @@ use App\Http\Controllers\Api\StockReturnController;
 use App\Http\Controllers\Api\StockTransferController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SupplierController;
+use App\Http\Controllers\Api\TailorController;
+use App\Http\Controllers\Api\TailorPaymentController;
+use App\Http\Controllers\Api\TailorWorkController;
+use App\Http\Controllers\Api\PieceRateController;
+use App\Http\Controllers\Api\RateCardController;
 use App\Http\Controllers\Api\UnitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WarehouseController;
@@ -127,6 +133,8 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('warehouses/{warehouse}/location-stock', [WarehouseLocationController::class, 'stock'])->middleware('permission:stock.view');
         $crud('suppliers', SupplierController::class, 'suppliers', 'supplier');
         Route::get('suppliers/{supplier}/purchase-history', [SupplierController::class, 'purchaseHistory'])->middleware('permission:suppliers.view');
+        Route::get('suppliers/{supplier}/ledger', [SupplierController::class, 'ledger'])->middleware('permission:suppliers.view');
+        Route::get('suppliers/{supplier}/payments', [SupplierController::class, 'paymentHistory'])->middleware('permission:suppliers.view');
         $crud('customer-categories', CustomerCategoryController::class, 'customer-categories', 'customerCategory');
         $crud('customers', CustomerController::class, 'customers', 'customer');
         Route::get('customers/{customer}/purchase-history', [CustomerController::class, 'purchaseHistory'])->middleware('permission:customers.view');
@@ -155,6 +163,25 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         /*
         |----------------------------------------------------------------------
+        | Tailor (job-work) module: masters, rate cards, piece-rate operations,
+        | work issue/completion, payouts and per-tailor ledger.
+        |----------------------------------------------------------------------
+        */
+        $crud('tailors', TailorController::class, 'tailors', 'tailor');
+        Route::get('tailors/{tailor}/ledger', [TailorController::class, 'ledger'])->middleware('permission:tailors.view');
+        Route::get('tailors/{tailor}/payments', [TailorController::class, 'payments'])->middleware('permission:tailors.view');
+
+        $crud('rate-cards', RateCardController::class, 'rate-cards', 'rateCard');
+        $crud('piece-rates', PieceRateController::class, 'piece-rates', 'pieceRate');
+
+        $crud('tailor-works', TailorWorkController::class, 'tailor-works', 'tailorWork');
+        Route::post('tailor-works/{tailorWork}/complete', [TailorWorkController::class, 'complete'])->middleware('permission:tailor-works.edit');
+
+        Route::get('tailor-payments', [TailorPaymentController::class, 'index'])->middleware('permission:tailor-payments.view');
+        Route::post('tailor-payments', [TailorPaymentController::class, 'store'])->middleware('permission:tailor-payments.create');
+
+        /*
+        |----------------------------------------------------------------------
         | Purchase module
         |----------------------------------------------------------------------
         */
@@ -180,6 +207,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::delete('purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])->middleware('permission:purchase-invoices.delete');
         Route::post('purchase-invoices/{purchaseInvoice}/approve', [PurchaseInvoiceController::class, 'approve'])->middleware('permission:purchase-invoices.approve');
         Route::post('purchase-invoices/{purchaseInvoice}/cancel', [PurchaseInvoiceController::class, 'cancel'])->middleware('permission:purchase-invoices.edit');
+        Route::post('purchase-invoices/{purchaseInvoice}/payments', [PurchaseInvoiceController::class, 'recordPayment'])->middleware('permission:purchase-invoices.create');
 
         /*
         |----------------------------------------------------------------------
@@ -226,6 +254,23 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::delete('sales-returns/{salesReturn}', [SalesReturnController::class, 'destroy'])->middleware('permission:sales-returns.delete');
         Route::post('sales-returns/{salesReturn}/approve', [SalesReturnController::class, 'approve'])->middleware('permission:sales-returns.approve');
         Route::post('sales-returns/{salesReturn}/cancel', [SalesReturnController::class, 'cancel'])->middleware('permission:sales-returns.edit');
+
+        /*
+        |----------------------------------------------------------------------
+        | Manufacturing: production orders that consume raw materials and
+        | produce finished goods, tracked through a chain of stages.
+        |----------------------------------------------------------------------
+        */
+        Route::get('manufacturing-orders', [ManufacturingOrderController::class, 'index'])->middleware('permission:manufacturing-orders.view');
+        Route::post('manufacturing-orders', [ManufacturingOrderController::class, 'store'])->middleware('permission:manufacturing-orders.create');
+        Route::get('manufacturing-orders/{manufacturingOrder}', [ManufacturingOrderController::class, 'show'])->middleware('permission:manufacturing-orders.view');
+        Route::match(['put', 'patch'], 'manufacturing-orders/{manufacturingOrder}', [ManufacturingOrderController::class, 'update'])->middleware('permission:manufacturing-orders.edit');
+        Route::delete('manufacturing-orders/{manufacturingOrder}', [ManufacturingOrderController::class, 'destroy'])->middleware('permission:manufacturing-orders.delete');
+        Route::post('manufacturing-orders/{manufacturingOrder}/start', [ManufacturingOrderController::class, 'start'])->middleware('permission:manufacturing-orders.edit');
+        Route::post('manufacturing-orders/{manufacturingOrder}/complete', [ManufacturingOrderController::class, 'complete'])->middleware('permission:manufacturing-orders.edit');
+        Route::post('manufacturing-orders/{manufacturingOrder}/cancel', [ManufacturingOrderController::class, 'cancel'])->middleware('permission:manufacturing-orders.edit');
+        Route::match(['put', 'patch'], 'manufacturing-orders/{manufacturingOrder}/stages/{stage}', [ManufacturingOrderController::class, 'updateStage'])->middleware('permission:manufacturing-orders.edit');
+        Route::post('manufacturing-orders/{manufacturingOrder}/stages/{stage}/image', [ManufacturingOrderController::class, 'uploadStageImage'])->middleware('permission:manufacturing-orders.edit');
 
         /*
         |----------------------------------------------------------------------
@@ -297,6 +342,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('reports/purchases', [PurchaseReportController::class, 'summary'])->middleware('permission:reports.view');
         Route::get('reports/vendor-performance', [PurchaseReportController::class, 'vendorPerformance'])->middleware('permission:reports.view');
         Route::get('reports/gst-input', [PurchaseReportController::class, 'gstInput'])->middleware('permission:reports.view');
+        Route::get('reports/payables', [PurchaseReportController::class, 'payables'])->middleware('permission:reports.view');
         Route::get('reports/sales', [SalesReportController::class, 'summary'])->middleware('permission:reports.view');
         Route::get('reports/profitability', [SalesReportController::class, 'profitability'])->middleware('permission:reports.view');
         Route::get('reports/gst-output', [SalesReportController::class, 'gstOutput'])->middleware('permission:reports.view');

@@ -19,11 +19,15 @@ class SalesQuotationRequest extends FormRequest
             'quote_date' => ['required', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:quote_date'],
             'notes' => ['nullable', 'string'],
+            'discount_type' => ['nullable', 'in:percent,flat'],
+            'discount_value' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount_type' => ['nullable', 'in:percent,flat'],
+            'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
             'items.*.tax_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
     }

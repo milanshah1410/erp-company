@@ -37,6 +37,9 @@ class Setting extends Model
         'cycle_count_number_prefix' => 'CC',
         'gate_entry_number_prefix' => 'GTE',
         'broker_settlement_number_prefix' => 'BST',
+        'tailor_work_number_prefix' => 'TW',
+        'tailor_payment_number_prefix' => 'TPY',
+        'mo_number_prefix' => 'MO',
     ];
 
     public const OTHER_DEFAULTS = [

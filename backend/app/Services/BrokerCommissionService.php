@@ -12,7 +12,8 @@ use App\Models\SalesReturn;
  * Broker commission accounting. One place for the money math behind the
  * "One Invoice = One Broker" accrual, sales-return reversals, and broker
  * settlements (payouts). Commission is booked on the sale VALUE excl. tax
- * (the sales order subtotal), snapshotting the broker's rate at accrual time.
+ * (the sales order's net taxable value, after discounts), snapshotting the
+ * broker's rate at accrual time.
  */
 class BrokerCommissionService
 {
@@ -41,7 +42,7 @@ class BrokerCommissionService
             return null;
         }
 
-        $base = (float) ($invoice->salesOrder?->subtotal ?? 0);
+        $base = (float) ($invoice->salesOrder?->taxableValue() ?? 0);
         $percent = (float) $broker->commission_percent;
         $fixed = (float) $broker->fixed_commission;
         $amount = round($fixed + $percent / 100 * $base, 2);
@@ -76,7 +77,7 @@ class BrokerCommissionService
             return null;
         }
 
-        $returnBase = (float) $return->subtotal;
+        $returnBase = $return->taxableValue();
         if ($returnBase <= 0) {
             return null;
         }

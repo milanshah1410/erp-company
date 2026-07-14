@@ -18,7 +18,8 @@ class SalesOrder extends Model
 
     protected $fillable = [
         'so_number', 'customer_id', 'broker_id', 'warehouse_id', 'status', 'channel',
-        'order_date', 'subtotal', 'tax_amount', 'total',
+        'order_date', 'subtotal', 'item_discount_total', 'discount_type', 'discount_value',
+        'discount_amount', 'tax_amount', 'round_off', 'total',
         'notes', 'created_by', 'delivered_at',
         'fulfillment_stage', 'picked_at', 'packed_at', 'shipped_at', 'picked_by', 'packed_by', 'shipped_by',
     ];
@@ -30,9 +31,19 @@ class SalesOrder extends Model
         'packed_at' => 'datetime',
         'shipped_at' => 'datetime',
         'subtotal' => 'decimal:2',
+        'item_discount_total' => 'decimal:2',
+        'discount_value' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
+        'round_off' => 'decimal:2',
         'total' => 'decimal:2',
     ];
+
+    /** Net taxable value (excl. tax), after per-line and overall discounts. */
+    public function taxableValue(): float
+    {
+        return round((float) $this->subtotal - (float) $this->item_discount_total - (float) $this->discount_amount, 2);
+    }
 
     public function customer(): BelongsTo
     {

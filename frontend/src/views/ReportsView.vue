@@ -7,6 +7,7 @@ import FastSlowMovingReport from '../components/reports/FastSlowMovingReport.vue
 import ValuationReport from '../components/reports/ValuationReport.vue'
 import PurchaseReport from '../components/reports/PurchaseReport.vue'
 import VendorPerformanceReport from '../components/reports/VendorPerformanceReport.vue'
+import PayablesReport from '../components/reports/PayablesReport.vue'
 import SalesReport from '../components/reports/SalesReport.vue'
 import ProfitabilityReport from '../components/reports/ProfitabilityReport.vue'
 import GstReport from '../components/reports/GstReport.vue'
@@ -26,6 +27,7 @@ const reports: ReportItem[] = [
   { key: 'fast-slow', label: 'Fast / Slow Moving', component: FastSlowMovingReport },
   { key: 'purchases', label: 'Purchases', component: PurchaseReport },
   { key: 'vendor-performance', label: 'Vendor Performance', component: VendorPerformanceReport },
+  { key: 'payables', label: 'Payables / Pending Payments', component: PayablesReport },
   { key: 'sales', label: 'Sales', component: SalesReport },
   { key: 'broker-commissions', label: 'Broker Commissions', component: BrokerCommissionReport },
   { key: 'broker-wise-sales', label: 'Broker-wise Sales', component: BrokerWiseSalesReport },

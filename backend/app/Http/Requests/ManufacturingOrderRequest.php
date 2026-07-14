@@ -1,0 +1,40 @@
+<?php
+
+namespace App\Http\Requests;
+
+use App\Models\ManufacturingOrder;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class ManufacturingOrderRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        return [
+            'product_id' => ['required', 'exists:products,id'],
+            'variant_id' => ['nullable', 'exists:product_variants,id'],
+            'warehouse_id' => ['required', 'exists:warehouses,id'],
+            'quantity_to_produce' => ['required', 'numeric', 'min:0.001'],
+            'order_date' => ['required', 'date'],
+            'expected_completion_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string'],
+
+            // Raw materials to consume (per-order bill of materials).
+            'materials' => ['nullable', 'array'],
+            'materials.*.product_id' => ['required', 'exists:products,id'],
+            'materials.*.variant_id' => ['nullable', 'exists:product_variants,id'],
+            'materials.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            'materials.*.unit_cost' => ['nullable', 'numeric', 'min:0'],
+            'materials.*.remarks' => ['nullable', 'string'],
+
+            // Which stages apply to this order (subset of the fixed pipeline).
+            'stages' => ['required', 'array', 'min:1'],
+            'stages.*' => [Rule::in(array_keys(ManufacturingOrder::STAGES))],
+        ];
+    }
+}

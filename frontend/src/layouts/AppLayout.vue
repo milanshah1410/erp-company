@@ -108,6 +108,19 @@ const nav: NavEntry[] = [
     ],
   },
   {
+    label: 'Tailoring',
+    icon: 'pi pi-th-large',
+    children: [
+      { label: 'Tailor Master', icon: 'pi pi-user', to: '/tailors', permission: 'tailors.view' },
+      { label: 'Rate Card', icon: 'pi pi-list', to: '/rate-cards', permission: 'rate-cards.view' },
+      { label: 'Piece Rate', icon: 'pi pi-sliders-h', to: '/piece-rates', permission: 'piece-rates.view' },
+      { label: 'Pending Work', icon: 'pi pi-clock', to: '/tailor-works/pending', permission: 'tailor-works.view' },
+      { label: 'Completed Work', icon: 'pi pi-check-circle', to: '/tailor-works/completed', permission: 'tailor-works.view' },
+      { label: 'Payment', icon: 'pi pi-wallet', to: '/tailor-payments', permission: 'tailor-payments.view' },
+      { label: 'Tailor Ledger', icon: 'pi pi-book', to: '/tailors/ledger', permission: 'tailors.view' },
+    ],
+  },
+  {
     label: 'Inventory',
     icon: 'pi pi-warehouse',
     children: [
@@ -142,6 +155,7 @@ const nav: NavEntry[] = [
       { label: 'Fast / Slow Moving', icon: 'pi pi-gauge', to: '/reports/fast-slow', permission: 'reports.view' },
       { label: 'Purchases', icon: 'pi pi-file-edit', to: '/reports/purchases', permission: 'reports.view' },
       { label: 'Vendor Performance', icon: 'pi pi-star', to: '/reports/vendor-performance', permission: 'reports.view' },
+      { label: 'Payables / Pending', icon: 'pi pi-wallet', to: '/reports/payables', permission: 'reports.view' },
       { label: 'Sales', icon: 'pi pi-shopping-cart', to: '/reports/sales', permission: 'reports.view' },
       { label: 'Broker Commissions', icon: 'pi pi-percentage', to: '/reports/broker-commissions', permission: 'reports.view' },
       { label: 'Broker-wise Sales', icon: 'pi pi-users', to: '/reports/broker-wise-sales', permission: 'reports.view' },

@@ -10,6 +10,7 @@ use App\Models\SalesItem;
 use App\Models\SalesOrder;
 use App\Models\WarehouseStock;
 use App\Services\BrokerCommissionService;
+use App\Services\DocumentPricingService;
 use App\Services\InventoryTrackingService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class SalesOrderController extends Controller
         private readonly StockService $stock,
         private readonly InventoryTrackingService $tracking,
         private readonly BrokerCommissionService $brokerCommissions,
+        private readonly DocumentPricingService $pricing,
     ) {}
 
     public function index(Request $request)
@@ -61,7 +63,7 @@ class SalesOrderController extends Controller
                 'created_by' => $request->user()?->id,
             ]);
 
-            $this->syncItems($so, $data['items']);
+            $this->syncItems($so, $data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
 
             return $so;
         });
@@ -93,7 +95,7 @@ class SalesOrderController extends Controller
                 'notes' => $data['notes'] ?? null,
             ]);
             $salesOrder->items()->delete();
-            $this->syncItems($salesOrder, $data['items']);
+            $this->syncItems($salesOrder, $data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
         });
 
         return new SalesOrderResource($salesOrder->load(['customer', 'warehouse', 'items.product']));
@@ -382,37 +384,36 @@ class SalesOrderController extends Controller
         return $reserveQty;
     }
 
-    /** Create line items and recompute order totals. */
-    private function syncItems(SalesOrder $so, array $items): void
+    /** Create line items and recompute order totals (discounts + round-off). */
+    private function syncItems(SalesOrder $so, array $items, ?string $discountType = null, float $discountValue = 0): void
     {
-        $subtotal = 0;
-        $taxTotal = 0;
+        $priced = $this->pricing->price($items, $discountType, $discountValue);
 
-        foreach ($items as $item) {
-            $qty = (float) $item['quantity'];
-            $price = (float) $item['unit_price'];
-            $taxPercent = (float) ($item['tax_percent'] ?? 0);
-            $lineBase = $qty * $price;
-            $lineTax = round($lineBase * $taxPercent / 100, 2);
-
+        foreach ($priced['lines'] as $line) {
             $so->items()->create([
-                'product_id' => $item['product_id'],
-                'variant_id' => $item['variant_id'] ?? null,
-                'quantity' => $qty,
-                'unit_price' => $price,
-                'tax_percent' => $taxPercent,
-                'tax_amount' => $lineTax,
-                'line_total' => round($lineBase + $lineTax, 2),
+                'product_id' => $line['product_id'],
+                'variant_id' => $line['variant_id'],
+                'quantity' => $line['quantity'],
+                'unit_price' => $line['unit_price'],
+                'discount_type' => $line['discount_type'],
+                'discount_value' => $line['discount_value'],
+                'discount_amount' => $line['discount_amount'],
+                'tax_percent' => $line['tax_percent'],
+                'tax_amount' => $line['tax_amount'],
+                'line_total' => $line['line_total'],
             ]);
-
-            $subtotal += $lineBase;
-            $taxTotal += $lineTax;
         }
 
+        $h = $priced['header'];
         $so->update([
-            'subtotal' => round($subtotal, 2),
-            'tax_amount' => round($taxTotal, 2),
-            'total' => round($subtotal + $taxTotal, 2),
+            'subtotal' => $h['subtotal'],
+            'item_discount_total' => $h['item_discount_total'],
+            'discount_type' => $h['discount_type'],
+            'discount_value' => $h['discount_value'],
+            'discount_amount' => $h['discount_amount'],
+            'tax_amount' => $h['tax_amount'],
+            'round_off' => $h['round_off'],
+            'total' => $h['total'],
         ]);
     }
 }

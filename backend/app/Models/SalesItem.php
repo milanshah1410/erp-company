@@ -13,7 +13,8 @@ class SalesItem extends Model
     protected $fillable = [
         'sales_order_id', 'product_id', 'variant_id',
         'quantity', 'reserved_quantity', 'backorder_quantity',
-        'unit_price', 'tax_percent', 'tax_amount', 'line_total',
+        'unit_price', 'discount_type', 'discount_value', 'discount_amount',
+        'tax_percent', 'tax_amount', 'line_total',
         'serials', 'batch_allocations',
     ];
 
@@ -22,6 +23,8 @@ class SalesItem extends Model
         'reserved_quantity' => 'decimal:3',
         'backorder_quantity' => 'decimal:3',
         'unit_price' => 'decimal:2',
+        'discount_value' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'tax_percent' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'line_total' => 'decimal:2',

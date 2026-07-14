@@ -17,7 +17,8 @@ class SalesQuotation extends Model
 
     protected $fillable = [
         'quote_number', 'customer_id', 'warehouse_id', 'status',
-        'quote_date', 'valid_until', 'subtotal', 'tax_amount', 'total',
+        'quote_date', 'valid_until', 'subtotal', 'item_discount_total', 'discount_type',
+        'discount_value', 'discount_amount', 'tax_amount', 'round_off', 'total',
         'notes', 'created_by', 'sales_order_id',
     ];
 
@@ -25,7 +26,11 @@ class SalesQuotation extends Model
         'quote_date' => 'date',
         'valid_until' => 'date',
         'subtotal' => 'decimal:2',
+        'item_discount_total' => 'decimal:2',
+        'discount_value' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
+        'round_off' => 'decimal:2',
         'total' => 'decimal:2',
     ];
 

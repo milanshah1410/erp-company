@@ -14,6 +14,12 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import { priceDocument, type DiscountType } from '../utils/pricing'
+
+const discountTypes = [
+  { label: '%', value: 'percent' },
+  { label: '₹', value: 'flat' },
+]
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -38,22 +44,17 @@ const statusColors: Record<string, string> = {
 // --- Create dialog ---
 const createVisible = ref(false)
 const saving = ref(false)
-const form = ref<any>({ customer_id: null, warehouse_id: null, quote_date: today(), valid_until: '', notes: '', items: [] })
+const form = ref<any>({ customer_id: null, warehouse_id: null, quote_date: today(), valid_until: '', notes: '', discount_type: null as DiscountType, discount_value: 0, items: [] })
 const errors = ref<Record<string, string[]>>({})
 
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-const grandTotal = computed(() =>
-  form.value.items.reduce((sum: number, it: any) => {
-    const base = (Number(it.quantity) || 0) * (Number(it.unit_price) || 0)
-    return sum + base + (base * (Number(it.tax_percent) || 0)) / 100
-  }, 0),
-)
+const pricing = computed(() => priceDocument(form.value.items, form.value.discount_type, form.value.discount_value))
 
 function addLine() {
-  form.value.items.push({ product_id: null, quantity: 1, unit_price: 0, tax_percent: 0 })
+  form.value.items.push({ product_id: null, quantity: 1, unit_price: 0, tax_percent: 0, discount_type: null, discount_value: 0 })
 }
 function removeLine(i: number | string) {
   form.value.items.splice(Number(i), 1)
@@ -67,7 +68,7 @@ function onProductPick(line: any) {
 }
 
 function openCreate() {
-  form.value = { customer_id: null, warehouse_id: null, quote_date: today(), valid_until: '', notes: '', items: [] }
+  form.value = { customer_id: null, warehouse_id: null, quote_date: today(), valid_until: '', notes: '', discount_type: null, discount_value: 0, items: [] }
   addLine()
   errors.value = {}
   createVisible.value = true
@@ -210,7 +211,7 @@ onMounted(async () => {
       <h3 class="lines-title">Line Items</h3>
       <table class="lines">
         <thead>
-          <tr><th style="width: 38%">Product</th><th>Qty</th><th>Unit Price</th><th>Tax %</th><th>Line Total</th><th></th></tr>
+          <tr><th style="width: 30%">Product</th><th>Qty</th><th>Unit Price</th><th>Discount</th><th>Tax %</th><th>Line Total</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="(line, i) in form.items" :key="i">
@@ -220,8 +221,12 @@ onMounted(async () => {
             </td>
             <td><InputNumber v-model="line.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
             <td><InputNumber v-model="line.unit_price" :minFractionDigits="2" :maxFractionDigits="2" class="num" /></td>
+            <td class="disc-cell">
+              <Select v-model="line.discount_type" :options="discountTypes" optionLabel="label" optionValue="value" showClear placeholder="—" class="disc-type" />
+              <InputNumber v-model="line.discount_value" :minFractionDigits="0" :maxFractionDigits="2" class="disc-val" :disabled="!line.discount_type" />
+            </td>
             <td><InputNumber v-model="line.tax_percent" :minFractionDigits="0" :maxFractionDigits="2" class="num" /></td>
-            <td class="line-total">{{ money(((line.quantity || 0) * (line.unit_price || 0)) * (1 + (line.tax_percent || 0) / 100)) }}</td>
+            <td class="line-total">{{ money(pricing.lines[Number(i)]?.line_total ?? 0) }}</td>
             <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeLine(i)" /></td>
           </tr>
         </tbody>
@@ -229,7 +234,22 @@ onMounted(async () => {
       <Button label="Add Line" icon="pi pi-plus" text size="small" @click="addLine" />
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
-      <div class="grand">Total: <strong>{{ money(grandTotal) }}</strong></div>
+      <div class="totals-panel">
+        <div class="overall-disc">
+          <label>Invoice Discount</label>
+          <Select v-model="form.discount_type" :options="discountTypes" optionLabel="label" optionValue="value" showClear placeholder="—" class="disc-type" />
+          <InputNumber v-model="form.discount_value" :minFractionDigits="0" :maxFractionDigits="2" class="disc-val" :disabled="!form.discount_type" />
+        </div>
+        <div class="totals">
+          <div><span>Subtotal</span><span>{{ money(pricing.header.subtotal) }}</span></div>
+          <div v-if="pricing.header.item_discount_total"><span>Item Discount</span><span>−{{ money(pricing.header.item_discount_total) }}</span></div>
+          <div v-if="pricing.header.discount_amount"><span>Invoice Discount</span><span>−{{ money(pricing.header.discount_amount) }}</span></div>
+          <div><span>Taxable</span><span>{{ money(pricing.header.taxable) }}</span></div>
+          <div><span>GST</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
+          <div v-if="pricing.header.round_off"><span>Round Off</span><span>{{ money(pricing.header.round_off) }}</span></div>
+          <div class="grand-row"><span>Grand Total</span><span>{{ money(pricing.header.total) }}</span></div>
+        </div>
+      </div>
 
       <div class="fld full">
         <label>Notes</label>
@@ -260,7 +280,16 @@ onMounted(async () => {
 .lines :deep(.p-select) { width: 100%; }
 .num :deep(input) { width: 90px; }
 .line-total { font-size: 0.9rem; white-space: nowrap; }
-.grand { text-align: right; margin-top: 0.75rem; font-size: 1.05rem; }
+.disc-cell { display: flex; gap: 0.3rem; align-items: center; }
+.disc-type { width: 64px; }
+.disc-type :deep(.p-select) { width: 64px; }
+.disc-val :deep(input) { width: 70px; }
+.totals-panel { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 1rem; gap: 2rem; flex-wrap: wrap; }
+.overall-disc { display: flex; align-items: center; gap: 0.5rem; }
+.overall-disc label { font-size: 0.85rem; font-weight: 500; color: #374151; }
+.totals { min-width: 260px; margin-left: auto; font-size: 0.9rem; }
+.totals > div { display: flex; justify-content: space-between; padding: 0.15rem 0; }
+.totals .grand-row { font-size: 1.05rem; font-weight: 600; border-top: 1px solid #e5e7eb; margin-top: 0.25rem; padding-top: 0.4rem; }
 .err { color: #dc2626; font-size: 0.78rem; }
 .err.block { display: block; margin-top: 0.5rem; }
 .w-full :deep(input) { width: 100%; }

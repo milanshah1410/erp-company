@@ -16,9 +16,18 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import SupplierAccountDialog from '../components/SupplierAccountDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+// --- Account (ledger / payments) dialog ---
+const accountVisible = ref(false)
+const accountSupplier = ref<any>(null)
+function openAccount(row: any) {
+  accountSupplier.value = row
+  accountVisible.value = true
+}
 
 const canView = computed(() => auth.can('suppliers.view'))
 const canCreate = computed(() => auth.can('suppliers.create'))
@@ -278,9 +287,10 @@ onMounted(reload)
           <Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? 'Yes' : 'No'" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 10rem">
+      <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
           <Button v-if="canView" icon="pi pi-history" text rounded size="small" title="Purchase History" @click="openHistory(data)" />
+          <Button v-if="canView" icon="pi pi-wallet" text rounded size="small" title="Account (ledger / payments)" @click="openAccount(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
         </template>
@@ -453,6 +463,9 @@ onMounted(reload)
         <template #empty>No purchase orders for this supplier yet.</template>
       </DataTable>
     </Dialog>
+
+    <!-- Account: ledger / payments -->
+    <SupplierAccountDialog v-model:visible="accountVisible" :supplier="accountSupplier" />
   </div>
 </template>
 

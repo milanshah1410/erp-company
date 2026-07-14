@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\SalesOrder;
 use App\Models\WarehouseStock;
 use App\Services\BrokerCommissionService;
+use App\Services\DocumentPricingService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,7 @@ class PosController extends Controller
     public function __construct(
         private readonly StockService $stock,
         private readonly BrokerCommissionService $brokerCommissions,
+        private readonly DocumentPricingService $pricing,
     ) {}
 
     /** Product list for the POS grid, with on-hand availability for the chosen warehouse. */
@@ -79,6 +81,10 @@ class PosController extends Controller
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
             'items.*.tax_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items.*.discount_type' => ['nullable', Rule::in(['percent', 'flat'])],
+            'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
+            'discount_type' => ['nullable', Rule::in(['percent', 'flat'])],
+            'discount_value' => ['nullable', 'numeric', 'min:0'],
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.mode' => ['required', Rule::in(['cash', 'card', 'upi', 'credit'])],
             'payments.*.amount' => ['required', 'numeric', 'min:0.01'],
@@ -91,8 +97,10 @@ class PosController extends Controller
                 ['name' => 'Walk-in Customer', 'type' => 'retail', 'is_active' => true],
             );
 
-        [$subtotal, $taxTotal, $lines] = $this->priceLines($data['items']);
-        $total = round($subtotal + $taxTotal, 2);
+        $priced = $this->pricing->price($data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
+        $header = $priced['header'];
+        $lines = $priced['lines'];
+        $total = $header['total'];
         $paidTotal = round(array_sum(array_column($data['payments'], 'amount')), 2);
 
         if ($paidTotal > $total + 0.005) {
@@ -111,7 +119,7 @@ class PosController extends Controller
         }
 
         try {
-            $result = DB::transaction(function () use ($request, $data, $customer, $lines, $subtotal, $taxTotal, $total, $paidTotal) {
+            $result = DB::transaction(function () use ($request, $data, $customer, $lines, $header, $total, $paidTotal) {
                 $salesOrder = SalesOrder::create([
                     'so_number' => SalesOrder::nextNumber(),
                     'customer_id' => $customer->id,
@@ -120,8 +128,13 @@ class PosController extends Controller
                     'status' => 'delivered',
                     'channel' => 'pos',
                     'order_date' => now()->toDateString(),
-                    'subtotal' => $subtotal,
-                    'tax_amount' => $taxTotal,
+                    'subtotal' => $header['subtotal'],
+                    'item_discount_total' => $header['item_discount_total'],
+                    'discount_type' => $header['discount_type'],
+                    'discount_value' => $header['discount_value'],
+                    'discount_amount' => $header['discount_amount'],
+                    'tax_amount' => $header['tax_amount'],
+                    'round_off' => $header['round_off'],
                     'total' => $total,
                     'notes' => $data['notes'] ?? null,
                     'created_by' => $request->user()?->id,
@@ -129,7 +142,18 @@ class PosController extends Controller
                 ]);
 
                 foreach ($lines as $line) {
-                    $salesOrder->items()->create($line);
+                    $salesOrder->items()->create([
+                        'product_id' => $line['product_id'],
+                        'variant_id' => $line['variant_id'],
+                        'quantity' => $line['quantity'],
+                        'unit_price' => $line['unit_price'],
+                        'discount_type' => $line['discount_type'],
+                        'discount_value' => $line['discount_value'],
+                        'discount_amount' => $line['discount_amount'],
+                        'tax_percent' => $line['tax_percent'],
+                        'tax_amount' => $line['tax_amount'],
+                        'line_total' => $line['line_total'],
+                    ]);
 
                     $this->stock->outward(
                         warehouseId: $data['warehouse_id'],
@@ -188,36 +212,5 @@ class PosController extends Controller
                     'status' => $invoice->status,
                 ],
             ])->response()->setStatusCode(201);
-    }
-
-    /** Price each cart line and return [subtotal, taxTotal, pricedLines]. */
-    private function priceLines(array $items): array
-    {
-        $subtotal = 0;
-        $taxTotal = 0;
-        $lines = [];
-
-        foreach ($items as $item) {
-            $qty = (float) $item['quantity'];
-            $price = (float) $item['unit_price'];
-            $taxPercent = (float) ($item['tax_percent'] ?? 0);
-            $lineBase = $qty * $price;
-            $lineTax = round($lineBase * $taxPercent / 100, 2);
-
-            $lines[] = [
-                'product_id' => $item['product_id'],
-                'variant_id' => $item['variant_id'] ?? null,
-                'quantity' => $qty,
-                'unit_price' => $price,
-                'tax_percent' => $taxPercent,
-                'tax_amount' => $lineTax,
-                'line_total' => round($lineBase + $lineTax, 2),
-            ];
-
-            $subtotal += $lineBase;
-            $taxTotal += $lineTax;
-        }
-
-        return [round($subtotal, 2), round($taxTotal, 2), $lines];
     }
 }

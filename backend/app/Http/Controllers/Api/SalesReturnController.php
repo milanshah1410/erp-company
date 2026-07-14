@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\SalesReturn;
 use App\Services\BrokerCommissionService;
+use App\Services\DocumentPricingService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ class SalesReturnController extends Controller
     public function __construct(
         private readonly StockService $stock,
         private readonly BrokerCommissionService $brokerCommissions,
+        private readonly DocumentPricingService $pricing,
     ) {}
 
     public function index(Request $request)
@@ -73,7 +75,7 @@ class SalesReturnController extends Controller
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $request->user()?->id,
             ]);
-            $this->syncItems($return, $data['items']);
+            $this->syncItems($return, $data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
 
             return $return;
         });
@@ -99,7 +101,7 @@ class SalesReturnController extends Controller
                 'notes' => $data['notes'] ?? null,
             ]);
             $salesReturn->items()->delete();
-            $this->syncItems($salesReturn, $data['items']);
+            $this->syncItems($salesReturn, $data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
         });
 
         return response()->json(['data' => $this->payload($salesReturn->load('items.product', 'invoice', 'customer', 'warehouse'))]);
@@ -177,48 +179,51 @@ class SalesReturnController extends Controller
             'invoice_id' => ['required', 'exists:invoices,id'],
             'return_date' => ['required', 'date'],
             'notes' => ['nullable', 'string'],
+            'discount_type' => ['nullable', 'in:percent,flat'],
+            'discount_value' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.variant_id' => ['nullable', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'items.*.discount_type' => ['nullable', 'in:percent,flat'],
+            'items.*.discount_value' => ['nullable', 'numeric', 'min:0'],
             'items.*.tax_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.reason' => ['nullable', 'string', 'max:255'],
         ]);
     }
 
-    /** Create line items and recompute credit note totals. */
-    private function syncItems(SalesReturn $return, array $items): void
+    /** Create line items and recompute credit note totals (discounts + round-off). */
+    private function syncItems(SalesReturn $return, array $items, ?string $discountType = null, float $discountValue = 0): void
     {
-        $subtotal = 0;
-        $taxTotal = 0;
+        $priced = $this->pricing->price($items, $discountType, $discountValue);
 
-        foreach ($items as $item) {
-            $qty = (float) $item['quantity'];
-            $price = (float) $item['unit_price'];
-            $taxPercent = (float) ($item['tax_percent'] ?? 0);
-            $lineBase = $qty * $price;
-            $lineTax = round($lineBase * $taxPercent / 100, 2);
-
+        foreach ($priced['lines'] as $line) {
             $return->items()->create([
-                'product_id' => $item['product_id'],
-                'variant_id' => $item['variant_id'] ?? null,
-                'quantity' => $qty,
-                'unit_price' => $price,
-                'tax_percent' => $taxPercent,
-                'tax_amount' => $lineTax,
-                'line_total' => round($lineBase + $lineTax, 2),
-                'reason' => $item['reason'] ?? null,
+                'product_id' => $line['product_id'],
+                'variant_id' => $line['variant_id'],
+                'quantity' => $line['quantity'],
+                'unit_price' => $line['unit_price'],
+                'discount_type' => $line['discount_type'],
+                'discount_value' => $line['discount_value'],
+                'discount_amount' => $line['discount_amount'],
+                'tax_percent' => $line['tax_percent'],
+                'tax_amount' => $line['tax_amount'],
+                'line_total' => $line['line_total'],
+                'reason' => $line['source']['reason'] ?? null,
             ]);
-
-            $subtotal += $lineBase;
-            $taxTotal += $lineTax;
         }
 
+        $h = $priced['header'];
         $return->update([
-            'subtotal' => round($subtotal, 2),
-            'tax_amount' => round($taxTotal, 2),
-            'total' => round($subtotal + $taxTotal, 2),
+            'subtotal' => $h['subtotal'],
+            'item_discount_total' => $h['item_discount_total'],
+            'discount_type' => $h['discount_type'],
+            'discount_value' => $h['discount_value'],
+            'discount_amount' => $h['discount_amount'],
+            'tax_amount' => $h['tax_amount'],
+            'round_off' => $h['round_off'],
+            'total' => $h['total'],
         ]);
     }
 
@@ -239,7 +244,12 @@ class SalesReturnController extends Controller
             'status' => $r->status,
             'return_date' => $r->return_date?->toDateString(),
             'subtotal' => $r->subtotal,
+            'item_discount_total' => $r->item_discount_total,
+            'discount_type' => $r->discount_type,
+            'discount_value' => $r->discount_value,
+            'discount_amount' => $r->discount_amount,
             'tax_amount' => $r->tax_amount,
+            'round_off' => $r->round_off,
             'total' => $r->total,
             'notes' => $r->notes,
             'items_count' => $r->items_count ?? ($r->relationLoaded('items') ? $r->items->count() : null),
@@ -251,6 +261,9 @@ class SalesReturnController extends Controller
                 'variant_id' => $i->variant_id,
                 'quantity' => $i->quantity,
                 'unit_price' => $i->unit_price,
+                'discount_type' => $i->discount_type,
+                'discount_value' => $i->discount_value,
+                'discount_amount' => $i->discount_amount,
                 'tax_percent' => $i->tax_percent,
                 'tax_amount' => $i->tax_amount,
                 'line_total' => $i->line_total,

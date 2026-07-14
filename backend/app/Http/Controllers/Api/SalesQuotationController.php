@@ -8,11 +8,16 @@ use App\Http\Resources\SalesOrderResource;
 use App\Http\Resources\SalesQuotationResource;
 use App\Models\SalesOrder;
 use App\Models\SalesQuotation;
+use App\Services\DocumentPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SalesQuotationController extends Controller
 {
+    public function __construct(
+        private readonly DocumentPricingService $pricing,
+    ) {}
+
     public function index(Request $request)
     {
         $query = SalesQuotation::query()->with(['customer', 'warehouse', 'salesOrder']);
@@ -49,7 +54,7 @@ class SalesQuotationController extends Controller
                 'created_by' => $request->user()?->id,
             ]);
 
-            $this->syncItems($quotation, $data['items']);
+            $this->syncItems($quotation, $data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
 
             return $quotation;
         });
@@ -81,7 +86,7 @@ class SalesQuotationController extends Controller
                 'notes' => $data['notes'] ?? null,
             ]);
             $salesQuotation->items()->delete();
-            $this->syncItems($salesQuotation, $data['items']);
+            $this->syncItems($salesQuotation, $data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
         });
 
         return new SalesQuotationResource($salesQuotation->load(['customer', 'warehouse', 'items.product']));
@@ -145,7 +150,12 @@ class SalesQuotationController extends Controller
                 'channel' => 'standard',
                 'order_date' => now()->toDateString(),
                 'subtotal' => $salesQuotation->subtotal,
+                'item_discount_total' => $salesQuotation->item_discount_total,
+                'discount_type' => $salesQuotation->discount_type,
+                'discount_value' => $salesQuotation->discount_value,
+                'discount_amount' => $salesQuotation->discount_amount,
                 'tax_amount' => $salesQuotation->tax_amount,
+                'round_off' => $salesQuotation->round_off,
                 'total' => $salesQuotation->total,
                 'notes' => $salesQuotation->notes,
                 'created_by' => $request->user()?->id,
@@ -157,6 +167,9 @@ class SalesQuotationController extends Controller
                     'variant_id' => $item->variant_id,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
+                    'discount_type' => $item->discount_type,
+                    'discount_value' => $item->discount_value,
+                    'discount_amount' => $item->discount_amount,
                     'tax_percent' => $item->tax_percent,
                     'tax_amount' => $item->tax_amount,
                     'line_total' => $item->line_total,
@@ -172,37 +185,36 @@ class SalesQuotationController extends Controller
             ->additional(['quote_number' => $salesQuotation->quote_number]);
     }
 
-    /** Create line items and recompute quotation totals. */
-    private function syncItems(SalesQuotation $quotation, array $items): void
+    /** Create line items and recompute quotation totals (discounts + round-off). */
+    private function syncItems(SalesQuotation $quotation, array $items, ?string $discountType = null, float $discountValue = 0): void
     {
-        $subtotal = 0;
-        $taxTotal = 0;
+        $priced = $this->pricing->price($items, $discountType, $discountValue);
 
-        foreach ($items as $item) {
-            $qty = (float) $item['quantity'];
-            $price = (float) $item['unit_price'];
-            $taxPercent = (float) ($item['tax_percent'] ?? 0);
-            $lineBase = $qty * $price;
-            $lineTax = round($lineBase * $taxPercent / 100, 2);
-
+        foreach ($priced['lines'] as $line) {
             $quotation->items()->create([
-                'product_id' => $item['product_id'],
-                'variant_id' => $item['variant_id'] ?? null,
-                'quantity' => $qty,
-                'unit_price' => $price,
-                'tax_percent' => $taxPercent,
-                'tax_amount' => $lineTax,
-                'line_total' => round($lineBase + $lineTax, 2),
+                'product_id' => $line['product_id'],
+                'variant_id' => $line['variant_id'],
+                'quantity' => $line['quantity'],
+                'unit_price' => $line['unit_price'],
+                'discount_type' => $line['discount_type'],
+                'discount_value' => $line['discount_value'],
+                'discount_amount' => $line['discount_amount'],
+                'tax_percent' => $line['tax_percent'],
+                'tax_amount' => $line['tax_amount'],
+                'line_total' => $line['line_total'],
             ]);
-
-            $subtotal += $lineBase;
-            $taxTotal += $lineTax;
         }
 
+        $h = $priced['header'];
         $quotation->update([
-            'subtotal' => round($subtotal, 2),
-            'tax_amount' => round($taxTotal, 2),
-            'total' => round($subtotal + $taxTotal, 2),
+            'subtotal' => $h['subtotal'],
+            'item_discount_total' => $h['item_discount_total'],
+            'discount_type' => $h['discount_type'],
+            'discount_value' => $h['discount_value'],
+            'discount_amount' => $h['discount_amount'],
+            'tax_amount' => $h['tax_amount'],
+            'round_off' => $h['round_off'],
+            'total' => $h['total'],
         ]);
     }
 }

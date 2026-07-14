@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\ExportsReports;
 use App\Http\Controllers\Controller;
+use App\Models\PurchaseInvoice;
 use App\Models\PurchaseInvoiceItem;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
@@ -149,6 +150,63 @@ class PurchaseReportController extends Controller
 
         return $this->exportResponse($request, $rows, $columns, 'gst-input', [
             'total_tax' => round((float) collect($rows)->sum('tax_amount'), 2),
+        ]);
+    }
+
+    /**
+     * Pending payment (accounts payable): supplier-wise outstanding on approved,
+     * unpaid/partial vendor invoices, bucketed by age against the due date
+     * (falling back to the invoice date). Buckets: 0-30, 31-60, 61-90, 90+.
+     */
+    public function payables(Request $request)
+    {
+        $today = now()->startOfDay();
+
+        $invoices = PurchaseInvoice::query()
+            ->with('supplier:id,code,name,gst_number')
+            ->where('status', 'approved')
+            ->whereIn('payment_status', ['unpaid', 'partial'])
+            ->get(['id', 'supplier_id', 'invoice_date', 'due_date', 'total', 'paid_amount']);
+
+        $bySupplier = [];
+        foreach ($invoices as $inv) {
+            $balance = round((float) $inv->total - (float) $inv->paid_amount, 2);
+            if ($balance <= 0) {
+                continue;
+            }
+
+            $ref = $inv->due_date ?? $inv->invoice_date;
+            $ageDays = $ref ? $ref->startOfDay()->diffInDays($today, false) : 0;
+            $bucket = $ageDays <= 30 ? 'bucket_0_30'
+                : ($ageDays <= 60 ? 'bucket_31_60'
+                : ($ageDays <= 90 ? 'bucket_61_90' : 'bucket_90_plus'));
+
+            $sid = $inv->supplier_id;
+            if (! isset($bySupplier[$sid])) {
+                $bySupplier[$sid] = [
+                    'supplier' => $inv->supplier?->name,
+                    'code' => $inv->supplier?->code,
+                    'gst_number' => $inv->supplier?->gst_number,
+                    'bucket_0_30' => 0.0, 'bucket_31_60' => 0.0,
+                    'bucket_61_90' => 0.0, 'bucket_90_plus' => 0.0,
+                    'total_outstanding' => 0.0,
+                ];
+            }
+            $bySupplier[$sid][$bucket] = round($bySupplier[$sid][$bucket] + $balance, 2);
+            $bySupplier[$sid]['total_outstanding'] = round($bySupplier[$sid]['total_outstanding'] + $balance, 2);
+        }
+
+        $rows = collect($bySupplier)->sortByDesc('total_outstanding')->values()->all();
+
+        $columns = [
+            'code' => 'Code', 'supplier' => 'Supplier', 'gst_number' => 'GSTIN',
+            'bucket_0_30' => '0-30 Days', 'bucket_31_60' => '31-60 Days',
+            'bucket_61_90' => '61-90 Days', 'bucket_90_plus' => '90+ Days',
+            'total_outstanding' => 'Total Outstanding',
+        ];
+
+        return $this->exportResponse($request, $rows, $columns, 'payables', [
+            'total_outstanding' => round((float) collect($rows)->sum('total_outstanding'), 2),
         ]);
     }
 }

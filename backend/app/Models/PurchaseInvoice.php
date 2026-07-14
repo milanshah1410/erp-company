@@ -15,6 +15,7 @@ class PurchaseInvoice extends Model
     protected $fillable = [
         'invoice_number', 'purchase_order_id', 'supplier_id',
         'invoice_date', 'due_date', 'subtotal', 'tax_amount', 'total',
+        'paid_amount', 'payment_status',
         'status', 'match_status', 'notes', 'created_by', 'approved_by', 'approved_at',
     ];
 
@@ -25,6 +26,7 @@ class PurchaseInvoice extends Model
         'subtotal' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'total' => 'decimal:2',
+        'paid_amount' => 'decimal:2',
     ];
 
     public function purchaseOrder(): BelongsTo
@@ -40,6 +42,26 @@ class PurchaseInvoice extends Model
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseInvoiceItem::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SupplierPayment::class);
+    }
+
+    public function balanceDue(): float
+    {
+        return round((float) $this->total - (float) $this->paid_amount, 2);
+    }
+
+    /** Recompute unpaid/partial/paid from the paid amount. */
+    public function refreshPaymentStatus(): void
+    {
+        $paid = (float) $this->paid_amount;
+        $this->payment_status = $paid <= 0
+            ? 'unpaid'
+            : ($paid + 0.005 >= (float) $this->total ? 'paid' : 'partial');
+        $this->save();
     }
 
     public function creator(): BelongsTo

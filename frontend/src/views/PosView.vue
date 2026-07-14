@@ -9,17 +9,27 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import { priceDocument, type DiscountType } from '../utils/pricing'
 
 const toast = useToast()
 
+const discountTypes = [
+  { label: '%', value: 'percent' },
+  { label: '₹', value: 'flat' },
+]
+
 const warehouses = ref<any[]>([])
 const customers = ref<any[]>([])
+const brokers = ref<any[]>([])
 const products = ref<any[]>([])
 const search = ref('')
 const warehouseId = ref<number | null>(null)
 const customerId = ref<number | null>(null)
+const brokerId = ref<number | null>(null)
 
 const cart = ref<any[]>([])
+const overallDiscountType = ref<DiscountType>(null)
+const overallDiscountValue = ref<number>(0)
 const payments = ref<any[]>([{ mode: 'cash', amount: 0 }])
 const checkingOut = ref(false)
 const errors = ref<Record<string, string[]>>({})
@@ -39,11 +49,8 @@ const filteredProducts = computed(() => {
   )
 })
 
-const subtotal = computed(() => cart.value.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unit_price) || 0), 0))
-const taxTotal = computed(() =>
-  cart.value.reduce((s, l) => s + ((Number(l.quantity) || 0) * (Number(l.unit_price) || 0) * (Number(l.tax_percent) || 0)) / 100, 0),
-)
-const total = computed(() => subtotal.value + taxTotal.value)
+const pricing = computed(() => priceDocument(cart.value, overallDiscountType.value, overallDiscountValue.value))
+const total = computed(() => pricing.value.header.total)
 const paidTotal = computed(() => payments.value.reduce((s, p) => s + (Number(p.amount) || 0), 0))
 const balance = computed(() => Math.round((total.value - paidTotal.value) * 100) / 100)
 
@@ -60,6 +67,8 @@ function addToCart(product: any) {
     quantity: 1,
     unit_price: Number(product.selling_price) || 0,
     tax_percent: Number(product.tax_percent) || 0,
+    discount_type: null,
+    discount_value: 0,
   })
 }
 function removeLine(i: number) {
@@ -104,11 +113,16 @@ async function completeSale() {
     const { data } = await http.post('/pos/checkout', {
       warehouse_id: warehouseId.value,
       customer_id: customerId.value,
+      broker_id: brokerId.value,
+      discount_type: overallDiscountType.value,
+      discount_value: overallDiscountValue.value,
       items: cart.value.map((l) => ({
         product_id: l.product_id,
         quantity: l.quantity,
         unit_price: l.unit_price,
         tax_percent: l.tax_percent,
+        discount_type: l.discount_type,
+        discount_value: l.discount_value,
       })),
       payments: payments.value,
     })
@@ -126,8 +140,11 @@ async function completeSale() {
 
 function resetSale() {
   cart.value = []
+  overallDiscountType.value = null
+  overallDiscountValue.value = 0
   payments.value = [{ mode: 'cash', amount: 0 }]
   customerId.value = null
+  brokerId.value = null
   loadProducts()
 }
 
@@ -135,12 +152,14 @@ watch(warehouseId, loadProducts)
 watch(search, loadProducts)
 
 onMounted(async () => {
-  const [w, c] = await Promise.all([
+  const [w, c, b] = await Promise.all([
     http.get('/warehouses', { params: { per_page: 100 } }),
     http.get('/customers', { params: { per_page: 100 } }),
+    http.get('/brokers', { params: { per_page: 100, is_active: true } }),
   ])
   warehouses.value = (w.data.data ?? w.data).map((x: any) => ({ label: x.name, value: x.id }))
   customers.value = (c.data.data ?? c.data).map((x: any) => ({ label: x.name, value: x.id }))
+  brokers.value = (b.data.data ?? b.data).map((x: any) => ({ label: `${x.code} — ${x.name}`, value: x.id }))
   if (warehouses.value.length === 1) warehouseId.value = warehouses.value[0].value
   loadProducts()
 })
@@ -169,26 +188,44 @@ onMounted(async () => {
         <label>Customer</label>
         <Select v-model="customerId" :options="customers" optionLabel="label" optionValue="value" filter showClear placeholder="Walk-in Customer" class="w-full" />
       </div>
+      <div class="fld">
+        <label>Broker</label>
+        <Select v-model="brokerId" :options="brokers" optionLabel="label" optionValue="value" filter showClear placeholder="No broker" class="w-full" />
+      </div>
 
       <h3 class="lines-title">Cart</h3>
       <table class="lines">
-        <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th></th></tr></thead>
+        <thead><tr><th>Item</th><th>Qty</th><th>Disc</th><th>Total</th><th></th></tr></thead>
         <tbody>
           <tr v-for="(l, i) in cart" :key="i">
             <td>{{ l.name }}</td>
             <td><InputNumber v-model="l.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
-            <td>{{ money(l.quantity * l.unit_price * (1 + l.tax_percent / 100)) }}</td>
+            <td class="disc-cell">
+              <Select v-model="l.discount_type" :options="discountTypes" optionLabel="label" optionValue="value" showClear placeholder="—" class="disc-type" />
+              <InputNumber v-model="l.discount_value" :minFractionDigits="0" :maxFractionDigits="2" class="disc-val" :disabled="!l.discount_type" />
+            </td>
+            <td>{{ money(pricing.lines[i]?.line_total ?? 0) }}</td>
             <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeLine(i)" /></td>
           </tr>
-          <tr v-if="!cart.length"><td colspan="4" class="muted" style="text-align: center">Cart is empty.</td></tr>
+          <tr v-if="!cart.length"><td colspan="5" class="muted" style="text-align: center">Cart is empty.</td></tr>
         </tbody>
       </table>
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
+      <div class="overall-disc">
+        <label>Invoice Discount</label>
+        <Select v-model="overallDiscountType" :options="discountTypes" optionLabel="label" optionValue="value" showClear placeholder="—" class="disc-type" />
+        <InputNumber v-model="overallDiscountValue" :minFractionDigits="0" :maxFractionDigits="2" class="disc-val" :disabled="!overallDiscountType" />
+      </div>
+
       <div class="totals">
-        <div><span>Subtotal</span><span>{{ money(subtotal) }}</span></div>
-        <div><span>Tax</span><span>{{ money(taxTotal) }}</span></div>
-        <div class="grand"><span>Total</span><span>{{ money(total) }}</span></div>
+        <div><span>Subtotal</span><span>{{ money(pricing.header.subtotal) }}</span></div>
+        <div v-if="pricing.header.item_discount_total"><span>Item Discount</span><span>−{{ money(pricing.header.item_discount_total) }}</span></div>
+        <div v-if="pricing.header.discount_amount"><span>Invoice Discount</span><span>−{{ money(pricing.header.discount_amount) }}</span></div>
+        <div><span>Taxable</span><span>{{ money(pricing.header.taxable) }}</span></div>
+        <div><span>GST</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
+        <div v-if="pricing.header.round_off"><span>Round Off</span><span>{{ money(pricing.header.round_off) }}</span></div>
+        <div class="grand"><span>Grand Total</span><span>{{ money(total) }}</span></div>
       </div>
 
       <h3 class="lines-title">Payment</h3>
@@ -246,7 +283,14 @@ onMounted(async () => {
 .lines { width: 100%; border-collapse: collapse; }
 .lines th { text-align: left; font-size: 0.75rem; color: #6b7280; padding: 0.3rem; border-bottom: 1px solid #e5e7eb; }
 .lines td { padding: 0.3rem; }
-.num :deep(input) { width: 60px; }
+.num :deep(input) { width: 56px; }
+.disc-cell { display: flex; gap: 0.25rem; align-items: center; }
+.disc-type { width: 52px; }
+.disc-type :deep(.p-select) { width: 52px; }
+.disc-type :deep(.p-select-label) { padding: 0.35rem 0.2rem; }
+.disc-val :deep(input) { width: 56px; }
+.overall-disc { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.75rem; }
+.overall-disc label { font-size: 0.85rem; font-weight: 500; color: #374151; margin-right: auto; }
 .totals { margin-top: 0.75rem; font-size: 0.9rem; }
 .totals div { display: flex; justify-content: space-between; padding: 0.15rem 0; }
 .totals .grand { font-size: 1.05rem; font-weight: 600; border-top: 1px solid #e5e7eb; margin-top: 0.25rem; padding-top: 0.4rem; }

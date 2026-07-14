@@ -17,17 +17,28 @@ class SalesReturn extends Model
 
     protected $fillable = [
         'credit_note_number', 'invoice_id', 'customer_id', 'warehouse_id', 'status',
-        'return_date', 'subtotal', 'tax_amount', 'total', 'notes',
+        'return_date', 'subtotal', 'item_discount_total', 'discount_type', 'discount_value',
+        'discount_amount', 'tax_amount', 'round_off', 'total', 'notes',
         'created_by', 'approved_by', 'approved_at',
     ];
 
     protected $casts = [
         'return_date' => 'date',
         'subtotal' => 'decimal:2',
+        'item_discount_total' => 'decimal:2',
+        'discount_value' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
+        'round_off' => 'decimal:2',
         'total' => 'decimal:2',
         'approved_at' => 'datetime',
     ];
+
+    /** Net taxable value (excl. tax), after per-line and overall discounts. */
+    public function taxableValue(): float
+    {
+        return round((float) $this->subtotal - (float) $this->item_discount_total - (float) $this->discount_amount, 2);
+    }
 
     public function invoice(): BelongsTo
     {
