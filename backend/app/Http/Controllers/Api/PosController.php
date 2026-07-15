@@ -418,7 +418,7 @@ class PosController extends Controller
         $this->assertWithinCreditLimit($customer, round($newTotal - $covered, 2));
 
         try {
-            $result = DB::transaction(function () use ($request, $data, $originalInvoice, $customer, $newPriced, $newTotal, $returnTotal, $appliedCredit, $excessReturn, $paidTotal, $refundMode) {
+            $result = DB::transaction(function () use ($request, $data, $originalInvoice, $customer, $newPriced, $newTotal, $appliedCredit, $excessReturn, $paidTotal, $refundMode) {
                 // 1. Return the traded-in goods against the original invoice.
                 $return = $this->createApprovedReturn(
                     $request,
@@ -737,8 +737,8 @@ class PosController extends Controller
         return [
             'id' => $invoice->id,
             'invoice_number' => $invoice->invoice_number,
-            'total' => $invoice->total,
-            'paid_amount' => $invoice->paid_amount,
+            'total' => (float) $invoice->total,
+            'paid_amount' => (float) $invoice->paid_amount,
             'balance_due' => $invoice->balanceDue(),
             'status' => $invoice->status,
         ];

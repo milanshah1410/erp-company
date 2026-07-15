@@ -1,6 +1,13 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { usePortalAuthStore } from '../stores/portalAuth'
 import AppLayout from '../layouts/AppLayout.vue'
+import PortalLayout from '../layouts/PortalLayout.vue'
+import PortalLoginView from '../views/portal/PortalLoginView.vue'
+import PortalCatalogueView from '../views/portal/PortalCatalogueView.vue'
+import PortalCartView from '../views/portal/PortalCartView.vue'
+import PortalOrdersView from '../views/portal/PortalOrdersView.vue'
+import PortalPriceListView from '../views/portal/PortalPriceListView.vue'
 import LoginView from '../views/LoginView.vue'
 import CentralRegisterView from '../views/central/CentralRegisterView.vue'
 import CentralVerifyView from '../views/central/CentralVerifyView.vue'
@@ -53,6 +60,7 @@ import SalesOrdersView from '../views/SalesOrdersView.vue'
 import SalesQuotationsView from '../views/SalesQuotationsView.vue'
 import PosView from '../views/PosView.vue'
 import SalesReturnsView from '../views/SalesReturnsView.vue'
+import B2bOrdersView from '../views/B2bOrdersView.vue'
 import BomsView from '../views/BomsView.vue'
 import ManufacturingOrdersView from '../views/ManufacturingOrdersView.vue'
 import JobWorksView from '../views/JobWorksView.vue'
@@ -94,6 +102,13 @@ import LabelPrintingView from '../views/LabelPrintingView.vue'
 import AuditLogsView from '../views/AuditLogsView.vue'
 import BackupView from '../views/BackupView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
+import LeaveApplicationsView from '../views/LeaveApplicationsView.vue'
+import OvertimeView from '../views/OvertimeView.vue'
+import EmployeeBonusesView from '../views/EmployeeBonusesView.vue'
+import SalaryAdvancesView from '../views/SalaryAdvancesView.vue'
+import EmployeeLoansView from '../views/EmployeeLoansView.vue'
+import BiometricPunchesView from '../views/BiometricPunchesView.vue'
+import PayrollView from '../views/PayrollView.vue'
 import CustomerDisplayView from '../views/CustomerDisplayView.vue'
 
 // Single-domain app. Public routes (login + self-serve signup / verification /
@@ -162,6 +177,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'sales-orders', component: SalesOrdersView, meta: { permission: 'sales.view' } },
       { path: 'pos', component: PosView, meta: { permission: 'sales.create' } },
       { path: 'sales-returns', component: SalesReturnsView, meta: { permission: 'sales-returns.view' } },
+      { path: 'b2b-orders', component: B2bOrdersView, meta: { permission: 'b2b-orders.view' } },
       { path: 'boms', component: BomsView, meta: { permission: 'boms.view' } },
       { path: 'manufacturing-orders', component: ManufacturingOrdersView, meta: { permission: 'manufacturing-orders.view' } },
       { path: 'colour-printings', component: CrudView, meta: { resource: 'colour-printings', permission: 'colour-printing.view' } },
@@ -219,6 +235,16 @@ const routes: RouteRecordRaw[] = [
       { path: 'employees', component: CrudView, meta: { resource: 'employees', permission: 'employees.view' } },
       { path: 'attendance', component: CrudView, meta: { resource: 'attendance', permission: 'attendance.view' } },
       { path: 'salaries', component: CrudView, meta: { resource: 'salaries', permission: 'salaries.view' } },
+      { path: 'leave-types', component: CrudView, meta: { resource: 'leave-types', permission: 'leave-types.view' } },
+      { path: 'leave-applications', component: LeaveApplicationsView, meta: { permission: 'leave-applications.view' } },
+      { path: 'overtime', component: OvertimeView, meta: { permission: 'overtime.view' } },
+      { path: 'employee-bonuses', component: EmployeeBonusesView, meta: { permission: 'employee-bonuses.view' } },
+      { path: 'salary-advances', component: SalaryAdvancesView, meta: { permission: 'salary-advances.view' } },
+      { path: 'employee-loans', component: EmployeeLoansView, meta: { permission: 'employee-loans.view' } },
+      { path: 'salary-structures', component: CrudView, meta: { resource: 'salary-structures', permission: 'salary-structures.view' } },
+      { path: 'biometric-devices', component: CrudView, meta: { resource: 'biometric-devices', permission: 'biometric-devices.view' } },
+      { path: 'biometric-punches', component: BiometricPunchesView, meta: { permission: 'biometric-punches.view' } },
+      { path: 'payroll', component: PayrollView, meta: { permission: 'payroll.view' } },
       { path: 'users', component: UsersView, meta: { permission: 'users.view' } },
       { path: 'roles', component: RolesView, meta: { permission: 'roles.view' } },
       { path: 'settings', component: SettingsView, meta: { permission: 'settings.view' } },
@@ -231,6 +257,21 @@ const routes: RouteRecordRaw[] = [
   // Full-screen POS customer-facing display (own window on a 2nd monitor).
   // Outside AppLayout: no chrome, mirrors the terminal over a BroadcastChannel.
   { path: '/pos-display', name: 'pos-display', component: CustomerDisplayView, meta: { requiresAuth: true } },
+
+  // B2B customer portal (SRS §14): a separate authenticated surface for
+  // dealers/distributors/retailers, gated by its own portal token.
+  { path: '/portal/login', name: 'portal-login', component: PortalLoginView, meta: { portal: true, portalPublic: true } },
+  {
+    path: '/portal',
+    component: PortalLayout,
+    meta: { portal: true },
+    children: [
+      { path: '', name: 'portal-catalogue', component: PortalCatalogueView },
+      { path: 'price-list', name: 'portal-price-list', component: PortalPriceListView },
+      { path: 'cart', name: 'portal-cart', component: PortalCartView },
+      { path: 'orders', name: 'portal-orders', component: PortalOrdersView },
+    ],
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
@@ -240,6 +281,25 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  // B2B customer portal has its own token/session, separate from staff.
+  if (to.meta.portal) {
+    const portal = usePortalAuthStore()
+    if (to.meta.portalPublic) {
+      return portal.isAuthenticated && to.name === 'portal-login' ? { name: 'portal-catalogue' } : true
+    }
+    if (!portal.isAuthenticated) {
+      return { name: 'portal-login' }
+    }
+    if (!portal.customer) {
+      try {
+        await portal.fetchMe()
+      } catch {
+        return { name: 'portal-login' }
+      }
+    }
+    return true
+  }
+
   const auth = useAuthStore()
 
   if (to.meta.public) {

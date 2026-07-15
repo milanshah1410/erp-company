@@ -162,6 +162,31 @@ Route::middleware('api')->prefix('api')->group(function () {
     // Public: login (runs before any tenant context exists).
     Route::post('/login', [AuthController::class, 'login']);
 
+    /*
+    |----------------------------------------------------------------------
+    | B2B customer portal (SRS §14): dealers / distributors / retailers sign
+    | in as a Customer tokenable and place their own orders. Login is public;
+    | the rest is gated by `portal` (must be a Customer tokenable) on top of
+    | the usual tenant-resolution stack.
+    |----------------------------------------------------------------------
+    */
+    Route::post('/portal/login', [PortalAuthController::class, 'login']);
+
+    Route::middleware(['auth:sanctum', 'resolve.tenant', 'tenant.active', 'portal'])
+        ->prefix('portal')->group(function () {
+            Route::get('me', [PortalAuthController::class, 'me']);
+            Route::post('logout', [PortalAuthController::class, 'logout']);
+
+            Route::get('catalogue', [PortalCatalogueController::class, 'index']);
+            Route::get('catalogue/{product}', [PortalCatalogueController::class, 'show']);
+            Route::get('price-list', [PortalCatalogueController::class, 'priceList']);
+
+            Route::get('orders', [PortalOrderController::class, 'index']);
+            Route::post('orders', [PortalOrderController::class, 'store']);
+            Route::get('orders/{salesOrder}', [PortalOrderController::class, 'show']);
+            Route::post('orders/{salesOrder}/cancel', [PortalOrderController::class, 'cancel']);
+        });
+
     Route::middleware(['auth:sanctum', 'resolve.tenant', 'tenant.active'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -213,6 +238,8 @@ Route::middleware('api')->prefix('api')->group(function () {
         // Upcoming birthdays/anniversaries — must precede the /{customer} wildcard.
         Route::get('customers/occasions', [CustomerController::class, 'occasions'])->middleware('permission:customers.view');
         $crud('customers', CustomerController::class, 'customers', 'customer');
+        // B2B portal access: enable/disable login + (re)set the portal password.
+        Route::post('customers/{customer}/portal-access', [CustomerController::class, 'setPortalAccess'])->middleware('permission:customers.edit');
         Route::get('customers/{customer}/purchase-history', [CustomerController::class, 'purchaseHistory'])->middleware('permission:customers.view');
         Route::get('customers/{customer}/ledger', [CustomerController::class, 'ledger'])->middleware('permission:customers.view');
         Route::get('customers/{customer}/payments', [CustomerController::class, 'paymentHistory'])->middleware('permission:customers.view');
@@ -477,6 +504,13 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('sales-orders/{salesOrder}/ship', [SalesOrderController::class, 'ship'])->middleware('permission:sales.edit');
         Route::post('sales-orders/{salesOrder}/deliver', [SalesOrderController::class, 'deliver'])->middleware('permission:sales.edit');
         Route::post('sales-orders/{salesOrder}/cancel', [SalesOrderController::class, 'cancel'])->middleware('permission:sales.edit');
+
+        // B2B order approval queue (SRS §14): portal orders land here for staff
+        // to approve (credit-check + reserve, then confirm) or reject.
+        Route::get('b2b-orders', [B2bOrderController::class, 'index'])->middleware('permission:b2b-orders.view');
+        Route::get('b2b-orders/{salesOrder}', [B2bOrderController::class, 'show'])->middleware('permission:b2b-orders.view');
+        Route::post('b2b-orders/{salesOrder}/approve', [B2bOrderController::class, 'approve'])->middleware('permission:b2b-orders.approve');
+        Route::post('b2b-orders/{salesOrder}/reject', [B2bOrderController::class, 'reject'])->middleware('permission:b2b-orders.approve');
 
         Route::get('invoices', [InvoiceController::class, 'index'])->middleware('permission:sales.view');
         Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->middleware('permission:sales.view');

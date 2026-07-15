@@ -21,7 +21,7 @@ class RolePermissionSeeder extends Seeder
         'stock', 'stock-ledger', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
         'gate-entries', 'advanced-inventory', 'barcodes',
         'purchase-indents', 'rfqs', 'vendor-ratings',
-        'purchases', 'purchase-invoices', 'sales', 'sales-returns', 'reports', 'users', 'roles', 'settings',
+        'purchases', 'purchase-invoices', 'sales', 'sales-returns', 'b2b-orders', 'reports', 'users', 'roles', 'settings',
         'companies', 'branches', 'financial-years', 'gst-registrations', 'backups',
         'departments', 'employees', 'attendance', 'salaries',
         'leave-types', 'leave-applications', 'overtime', 'employee-bonuses',
@@ -54,7 +54,7 @@ class RolePermissionSeeder extends Seeder
      */
     private array $approvable = [
         'purchase-indents', 'purchases', 'purchase-invoices',
-        'sales', 'sales-returns', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
+        'sales', 'sales-returns', 'b2b-orders', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
         'job-works', 'expenses',
         'employee-claims', 'vehicle-expenses', 'fuel-expenses',
         'electricity-bills', 'factory-maintenances', 'asset-maintenances',
@@ -138,6 +138,7 @@ class RolePermissionSeeder extends Seeder
                 'referrals.view', 'referrals.create', 'referrals.edit', 'referrals.delete',
                 'whatsapp.view', 'whatsapp.create', 'whatsapp.edit', 'whatsapp.delete',
                 'sales.view', 'sales.create', 'sales.edit', 'sales.approve',
+                'b2b-orders.view', 'b2b-orders.create', 'b2b-orders.edit', 'b2b-orders.delete', 'b2b-orders.approve',
                 'payments.view', 'payments.create',
                 'stock.view', 'reports.view', 'barcodes.view', 'notifications.view',
                 'stock-returns.view', 'stock-returns.create', 'stock-returns.edit', 'stock-returns.approve',

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SalesOrderResource;
 use App\Models\SalesOrder;
 use App\Notifications\B2bOrderStatusNotification;
+use App\Services\SalesOrderFulfillmentService;
 use Illuminate\Http\Request;
 
 /**
@@ -18,7 +19,7 @@ use Illuminate\Http\Request;
  */
 class B2bOrderController extends Controller
 {
-    public function __construct(private readonly \App\Services\SalesOrderFulfillmentService $fulfillment) {}
+    public function __construct(private readonly SalesOrderFulfillmentService $fulfillment) {}
 
     public function index(Request $request)
     {

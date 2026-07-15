@@ -34,7 +34,7 @@ class B2bOrderStatusNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $mail = (new MailMessage())
+        $mail = (new MailMessage)
             ->subject("Your order {$this->salesOrder->so_number} was {$this->decision}")
             ->line($this->summary());
 

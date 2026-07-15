@@ -37,13 +37,17 @@ function money(v: number | string | null | undefined) {
 const typeColors: Record<string, string> = {
   retail: 'info',
   wholesale: 'success',
+  dealer: 'success',
   distributor: 'warn',
+  retailer: 'info',
 }
 
 const typeOptions = [
   { label: 'Retail', value: 'retail' },
   { label: 'Wholesale', value: 'wholesale' },
+  { label: 'Dealer', value: 'dealer' },
   { label: 'Distributor', value: 'distributor' },
+  { label: 'Retailer', value: 'retailer' },
 ]
 
 const gstTypeOptions = [
@@ -309,6 +313,46 @@ function openDetail(row: any) {
   detailVisible.value = true
 }
 
+// --- B2B portal access dialog ---
+const portalVisible = ref(false)
+const portalCustomer = ref<any>(null)
+const portalSaving = ref(false)
+const portalForm = ref<{ portal_enabled: boolean; password: string }>({ portal_enabled: false, password: '' })
+const portalErrors = ref<Record<string, string[]>>({})
+const portalError = ref<string | null>(null)
+
+function openPortal(row: any) {
+  portalCustomer.value = row
+  portalForm.value = { portal_enabled: !!row.portal_enabled, password: '' }
+  portalErrors.value = {}
+  portalError.value = null
+  portalVisible.value = true
+}
+
+async function savePortal() {
+  portalSaving.value = true
+  portalErrors.value = {}
+  portalError.value = null
+  try {
+    await http.post(`/customers/${portalCustomer.value.id}/portal-access`, {
+      portal_enabled: portalForm.value.portal_enabled,
+      password: portalForm.value.password || null,
+    })
+    toast.add({ severity: 'success', summary: 'Portal access updated', life: 2500 })
+    portalVisible.value = false
+    reload()
+  } catch (e: any) {
+    if (e.response?.status === 422) {
+      portalErrors.value = e.response.data.errors || {}
+      portalError.value = e.response.data.message || null
+    } else {
+      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    }
+  } finally {
+    portalSaving.value = false
+  }
+}
+
 onMounted(() => {
   loadCategories()
   loadCustomerOptions()
@@ -386,6 +430,8 @@ onMounted(() => {
         <template #body="{ data }">
           <Button v-if="canView" icon="pi pi-wallet" text rounded size="small" title="Account (ledger / payments / addresses / prices)" @click="openDetail(data)" />
           <Button v-if="canView" icon="pi pi-history" text rounded size="small" title="Purchase History" @click="openHistory(data)" />
+          <Button v-if="canEdit" :icon="data.portal_enabled ? 'pi pi-globe' : 'pi pi-lock'" text rounded size="small"
+            :severity="data.portal_enabled ? 'success' : 'secondary'" title="B2B Portal Access" @click="openPortal(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
         </template>
@@ -657,6 +703,37 @@ onMounted(() => {
 
     <!-- Account detail: ledger / payments / addresses / price list -->
     <CustomerDetailDialog v-model:visible="detailVisible" :customer="detailCustomer" :can-edit="canEdit" />
+
+    <!-- B2B portal access -->
+    <Dialog v-model:visible="portalVisible" modal :header="`B2B Portal Access — ${portalCustomer?.name ?? ''}`" :style="{ width: '460px' }">
+      <p class="portal-hint">
+        Let this customer sign in to the B2B portal to browse the catalogue, see their prices and live stock, and place
+        orders for approval. They log in with their email
+        <strong>{{ portalCustomer?.email || '(no email set)' }}</strong> and the password you set here.
+      </p>
+
+      <div class="checkbox-row">
+        <Checkbox v-model="portalForm.portal_enabled" binary inputId="portal_enabled" />
+        <label for="portal_enabled">Portal login enabled</label>
+      </div>
+
+      <div class="fld full" style="margin-top: 1rem">
+        <label>{{ portalCustomer?.has_portal_password ? 'Reset password' : 'Set password' }}</label>
+        <InputText v-model="portalForm.password" type="password" autocomplete="new-password"
+          :placeholder="portalCustomer?.has_portal_password ? 'Leave blank to keep current' : 'At least 6 characters'" />
+        <small v-if="portalErrors.password" class="error-text">{{ portalErrors.password[0] }}</small>
+        <small v-else-if="portalCustomer?.portal_last_login_at" class="muted-sub">
+          Last login: {{ new Date(portalCustomer.portal_last_login_at).toLocaleString() }}
+        </small>
+      </div>
+
+      <p v-if="portalError" class="error-text" style="margin-top: 0.75rem">{{ portalError }}</p>
+
+      <template #footer>
+        <Button label="Cancel" text @click="portalVisible = false" />
+        <Button label="Save" :loading="portalSaving" @click="savePortal" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -794,5 +871,11 @@ onMounted(() => {
 }
 .invoice-tag {
   margin-top: 0.2rem;
+}
+.portal-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+  line-height: 1.4;
 }
 </style>

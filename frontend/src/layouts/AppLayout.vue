@@ -120,6 +120,7 @@ const nav: NavEntry[] = [
       { label: 'Sales Orders', icon: 'pi pi-shopping-cart', to: '/sales-orders', permission: 'sales.view' },
       { label: 'POS', icon: 'pi pi-calculator', to: '/pos', permission: 'sales.create' },
       { label: 'Sales Returns', icon: 'pi pi-replay', to: '/sales-returns', permission: 'sales-returns.view' },
+      { label: 'B2B Orders', icon: 'pi pi-check-square', to: '/b2b-orders', permission: 'b2b-orders.view' },
     ],
   },
   {
@@ -262,7 +263,23 @@ const nav: NavEntry[] = [
       { label: 'Departments', icon: 'pi pi-sitemap', to: '/departments', permission: 'departments.view' },
       { label: 'Employees', icon: 'pi pi-users', to: '/employees', permission: 'employees.view' },
       { label: 'Attendance', icon: 'pi pi-calendar', to: '/attendance', permission: 'attendance.view' },
-      { label: 'Salary', icon: 'pi pi-wallet', to: '/salaries', permission: 'salaries.view' },
+      { label: 'Biometric Devices', icon: 'pi pi-desktop', to: '/biometric-devices', permission: 'biometric-devices.view' },
+      { label: 'Biometric Punches', icon: 'pi pi-fingerprint', to: '/biometric-punches', permission: 'biometric-punches.view' },
+      { label: 'Leave Types', icon: 'pi pi-tags', to: '/leave-types', permission: 'leave-types.view' },
+      { label: 'Leave Applications', icon: 'pi pi-calendar-times', to: '/leave-applications', permission: 'leave-applications.view' },
+      { label: 'Overtime', icon: 'pi pi-clock', to: '/overtime', permission: 'overtime.view' },
+    ],
+  },
+  {
+    label: 'Payroll',
+    icon: 'pi pi-wallet',
+    children: [
+      { label: 'Salary Structures', icon: 'pi pi-sliders-h', to: '/salary-structures', permission: 'salary-structures.view' },
+      { label: 'Payroll Processing', icon: 'pi pi-cog', to: '/payroll', permission: 'payroll.view' },
+      { label: 'Salary Register', icon: 'pi pi-wallet', to: '/salaries', permission: 'salaries.view' },
+      { label: 'Bonuses', icon: 'pi pi-star', to: '/employee-bonuses', permission: 'employee-bonuses.view' },
+      { label: 'Salary Advances', icon: 'pi pi-arrow-up-right', to: '/salary-advances', permission: 'salary-advances.view' },
+      { label: 'Loans', icon: 'pi pi-credit-card', to: '/employee-loans', permission: 'employee-loans.view' },
     ],
   },
   {

@@ -181,7 +181,7 @@ onMounted(async () => { await loadEmployees(); await load() })
         <template #body="{ data }">
           <Button v-if="canApprove && data.status === 'pending'" label="Approve" icon="pi pi-check" text severity="success" size="small" @click="approve(data)" />
           <Button v-if="canEdit && ['approved', 'pending'].includes(data.status)" label="Disburse" icon="pi pi-send" text severity="info" size="small" @click="disburse(data)" />
-          <Button v-if="['disbursed', 'closed'].includes(data.status)" icon="pi pi-list" text rounded size="small" @click="viewSchedule(data)" v-tooltip.top="'Schedule'" />
+          <Button v-if="['disbursed', 'closed'].includes(data.status)" label="Schedule" icon="pi pi-list" text size="small" @click="viewSchedule(data)" />
           <Button v-if="canEdit && data.status === 'pending'" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
           <Button v-if="canDelete && Number(data.repaid) === 0" icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(data)" />
         </template>

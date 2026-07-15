@@ -17,6 +17,7 @@ use App\Services\DocumentPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Spatie\Permission\Models\Role;
 
 /**
  * The customer's own order surface on the B2B portal (SRS §14). Orders are
@@ -173,10 +174,16 @@ class PortalOrderController extends Controller
     /** Alert staff who can approve B2B orders that a new one has arrived. */
     private function notifyStaff(SalesOrder $salesOrder): void
     {
-        $recipients = User::role(['super-admin', 'admin', 'sales-manager'])
-            ->where('is_active', true)
-            ->get();
+        // Only query roles that actually exist for this tenant, so an
+        // unseeded workspace never trips spatie's RoleDoesNotExist.
+        $roles = Role::query()
+            ->whereIn('name', ['super-admin', 'admin', 'sales-manager'])
+            ->pluck('name')->all();
+        if (empty($roles)) {
+            return;
+        }
 
+        $recipients = User::role($roles)->where('is_active', true)->get();
         if ($recipients->isNotEmpty()) {
             Notification::send($recipients, new B2bOrderPlacedNotification($salesOrder));
         }

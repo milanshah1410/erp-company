@@ -220,7 +220,11 @@ class PayrollService
     }
 
     /**
-     * Working / paid / present / LOP day counts for the month. When no
+     * Working / paid / present / LOP day counts for the month, using an
+     * "assume present unless marked otherwise" model: a day is paid unless it
+     * carries an explicit absence. Loss-of-pay is driven only by 'absent' rows
+     * (and the unworked half of a 'half-day'); recorded paid leave, holidays
+     * and weekly offs stay paid but don't count as worked/present days. When no
      * attendance is recorded at all the month is treated as fully paid — many
      * SMBs pay a fixed monthly salary without daily marking.
      *
@@ -238,19 +242,20 @@ class PayrollService
             return [$workingDays, $workingDays, $workingDays, 0.0];
         }
 
-        $present = 0.0;
-        $paid = 0.0;
+        $lop = 0.0;          // unpaid days: full absences + half of half-days
+        $nonWorked = 0.0;    // paid but not "present": leave / holiday / week-off
         foreach ($rows as $row) {
             match ($row->status) {
-                'present' => [$present += 1, $paid += 1],
-                'half-day' => [$present += 0.5, $paid += 0.5],
-                // Paid leave, declared holidays and weekly offs count as paid days.
-                'leave', 'holiday', 'week-off' => $paid += 1,
-                default => null, // 'absent' → neither present nor paid
+                'absent' => $lop += 1,
+                'half-day' => $lop += 0.5,
+                'leave', 'holiday', 'week-off' => $nonWorked += 1,
+                default => null, // 'present' (or anything else) → a normal paid worked day
             };
         }
 
-        $lop = max(0.0, $workingDays - $paid);
+        $lop = min($lop, $workingDays);
+        $paid = $workingDays - $lop;
+        $present = max(0.0, $paid - $nonWorked);
 
         return [$workingDays, round($paid, 1), round($present, 1), round($lop, 1)];
     }
