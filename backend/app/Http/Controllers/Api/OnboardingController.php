@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OnboardingProgress;
 use App\Models\User;
 use App\Support\TenantContext;
+use App\Support\TenantStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -57,8 +58,8 @@ class OnboardingController extends Controller
     }
 
     /**
-     * Store the company logo on the tenant's (suffixed) public disk and mark
-     * the welcome step done.
+     * Store the company logo in the tenant's private folder and mark the welcome
+     * step done. The returned URL is a short-lived signed URL.
      */
     public function uploadLogo(Request $request): JsonResponse
     {
@@ -66,14 +67,14 @@ class OnboardingController extends Controller
             'logo' => ['required', 'image', 'max:2048'],
         ]);
 
-        $path = $request->file('logo')->store('branding', 'public');
+        $path = TenantStorage::disk()->putFile('branding', $request->file('logo'));
 
         $progress = $this->progress();
         $progress->markStep('welcome');
 
         return response()->json([
             'logo_path' => $path,
-            'logo_url' => \Illuminate\Support\Facades\Storage::disk('public')->url($path),
+            'logo_url' => TenantStorage::temporaryUrl($path),
         ]);
     }
 

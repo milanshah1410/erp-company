@@ -35,6 +35,18 @@ export const usePortalAuthStore = defineStore('portalAuth', {
       this.customer = data.customer
       localStorage.setItem('sims_portal_token', data.token)
     },
+    /** Step 1 of OTP login: request a code to the registered phone. Returns a masked hint. */
+    async requestOtp(email: string): Promise<string | null> {
+      const { data } = await portalHttp.post('/login/otp/request', { email })
+      return data.phone_hint ?? null
+    },
+    /** Step 2 of OTP login: verify the code and start the session. */
+    async loginWithOtp(email: string, code: string) {
+      const { data } = await portalHttp.post('/login/otp', { email, code })
+      this.token = data.token
+      this.customer = data.customer
+      localStorage.setItem('sims_portal_token', data.token)
+    },
     async fetchMe() {
       if (!this.token) return
       const { data } = await portalHttp.get('/me')

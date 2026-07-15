@@ -13,6 +13,7 @@ import ProfitabilityReport from '../components/reports/ProfitabilityReport.vue'
 import GstReport from '../components/reports/GstReport.vue'
 import GstSummaryReport from '../components/reports/GstSummaryReport.vue'
 import Gstr1Report from '../components/reports/Gstr1Report.vue'
+import Gstr2Report from '../components/reports/Gstr2Report.vue'
 import TdsRegisterReport from '../components/reports/TdsRegisterReport.vue'
 import TcsRegisterReport from '../components/reports/TcsRegisterReport.vue'
 import BrokerCommissionReport from '../components/reports/BrokerCommissionReport.vue'
@@ -51,6 +52,7 @@ const reports: ReportItem[] = [
   { key: 'gst', label: 'GST / Tax', component: GstReport },
   { key: 'gst-summary', label: 'GST Summary (GSTR-3B)', component: GstSummaryReport },
   { key: 'gstr1', label: 'GSTR-1 (Outward)', component: Gstr1Report },
+  { key: 'gstr2', label: 'GSTR-2 (Inward)', component: Gstr2Report },
   { key: 'tds-register', label: 'TDS Register', component: TdsRegisterReport },
   { key: 'tcs-register', label: 'TCS Register', component: TcsRegisterReport },
   { key: 'stock-ageing', label: 'Stock Ageing', component: StockAgeingReport },

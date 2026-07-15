@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
+use App\Support\TenantStorage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
@@ -81,11 +81,12 @@ class ProductController extends Controller
         ]);
 
         // Replace: remove the previous file if it lives on our disk.
-        if ($product->image && Storage::disk('public')->exists($product->image)) {
-            Storage::disk('public')->delete($product->image);
+        $disk = TenantStorage::disk();
+        if ($product->image && $disk->exists($product->image)) {
+            $disk->delete($product->image);
         }
 
-        $path = $request->file('image')->store('products', 'public');
+        $path = $disk->putFile('products', $request->file('image'));
         $product->update(['image' => $path]);
 
         return new ProductResource($product->load(['category', 'brand', 'unit']));

@@ -14,6 +14,8 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import { openPdfBlob } from '../utils/blob'
+import SendEmailDialog from '../components/SendEmailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -25,6 +27,31 @@ const products = ref<any[]>([])
 
 const canCreate = computed(() => auth.can('purchases.create'))
 const canApprove = computed(() => auth.can('purchases.approve'))
+const canEmail = computed(() => auth.can('email.create'))
+
+// --- PDF preview + Email ---
+async function previewPdf(row: any) {
+  try {
+    const res = await http.get(`/purchase-orders/${row.id}/pdf`, { responseType: 'blob' })
+    openPdfBlob(res.data)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Could not open PDF', life: 3000 })
+  }
+}
+
+const emailVisible = ref(false)
+const emailCtx = ref<{ endpoint: string; title: string; defaultTo: string; defaultSubject: string }>({
+  endpoint: '', title: '', defaultTo: '', defaultSubject: '',
+})
+function openEmail(row: any) {
+  emailCtx.value = {
+    endpoint: `/email/purchase-orders/${row.id}`,
+    title: `Email Purchase Order ${row.po_number}`,
+    defaultTo: row.supplier?.email ?? '',
+    defaultSubject: `Purchase Order ${row.po_number}`,
+  }
+  emailVisible.value = true
+}
 
 const statusColors: Record<string, string> = {
   draft: 'secondary',
@@ -243,9 +270,11 @@ onMounted(async () => {
           <Tag v-else :severity="statusColors[data.status]" :value="data.status.replace('_', ' ')" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 12rem">
+      <Column header="Actions" style="width: 16rem">
         <template #body="{ data }">
-          <Button v-if="canApprove && ['draft', 'pending_approval'].includes(data.status)" label="Approve" size="small" outlined @click="approve(data)" />
+          <Button icon="pi pi-file-pdf" text rounded size="small" title="View PDF" @click="previewPdf(data)" />
+          <Button v-if="canEmail" icon="pi pi-envelope" text rounded size="small" title="Email to supplier" @click="openEmail(data)" />
+          <Button v-if="canApprove && ['draft', 'pending_approval'].includes(data.status)" label="Approve" size="small" outlined @click="approve(data)" style="margin-left: 4px" />
           <Button v-if="canCreate && ['approved', 'partially_received'].includes(data.status)" label="Receive" size="small" severity="success" @click="openReceive(data)" style="margin-left: 4px" />
         </template>
       </Column>
@@ -386,6 +415,14 @@ onMounted(async () => {
         <Button label="Confirm Receipt" :loading="grnSaving" :disabled="!grnLines.length" @click="saveGrn" />
       </template>
     </Dialog>
+
+    <SendEmailDialog
+      v-model:visible="emailVisible"
+      :endpoint="emailCtx.endpoint"
+      :title="emailCtx.title"
+      :defaultTo="emailCtx.defaultTo"
+      :defaultSubject="emailCtx.defaultSubject"
+    />
   </div>
 </template>
 

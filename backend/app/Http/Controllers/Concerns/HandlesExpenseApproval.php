@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\Concerns\HasApprovalWorkflow;
+use App\Support\TenantStorage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Reusable controller actions for the Expenses sub-modules' shared approval
@@ -20,7 +20,7 @@ trait HandlesExpenseApproval
     /** Eager-load list used when returning a single record. */
     abstract protected function relations(): array;
 
-    /** Public-disk folder scanned bills/receipts are stored under. */
+    /** Tenant-disk folder scanned bills/receipts are stored under. */
     abstract protected function attachmentDir(): string;
 
     /** Wrap a fresh model in the module's API resource. */
@@ -73,10 +73,11 @@ trait HandlesExpenseApproval
             'attachment' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
 
+        $disk = TenantStorage::disk();
         if ($model->attachment_path) {
-            Storage::disk('public')->delete($model->attachment_path);
+            $disk->delete($model->attachment_path);
         }
-        $path = $request->file('attachment')->store($this->attachmentDir(), 'public');
+        $path = $disk->putFile($this->attachmentDir(), $request->file('attachment'));
         $model->update(['attachment_path' => $path]);
 
         return $this->resource($model->load($this->relations()));
@@ -86,7 +87,7 @@ trait HandlesExpenseApproval
     protected function deleteAttachment(Model $model): void
     {
         if ($model->attachment_path) {
-            Storage::disk('public')->delete($model->attachment_path);
+            TenantStorage::disk()->delete($model->attachment_path);
         }
     }
 }

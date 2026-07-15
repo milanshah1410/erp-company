@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    /*
+    | MSG91 SMS gateway (SRS §18). The auth key can also be set per-company
+    | under Settings → SMS Gateway, which takes precedence over this env value.
+    */
+    'msg91' => [
+        'key' => env('MSG91_AUTH_KEY'),
+    ],
+
 ];

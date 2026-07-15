@@ -2,9 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Support\TenantStorage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class ExpenseResource extends JsonResource
 {
@@ -28,9 +28,7 @@ class ExpenseResource extends JsonResource
             'description' => $this->description,
             'status' => $this->status,
             'attachment_path' => $this->attachment_path,
-            'attachment_url' => $this->attachment_path
-                ? Storage::disk('public')->url($this->attachment_path)
-                : null,
+            'attachment_url' => TenantStorage::temporaryUrl($this->attachment_path),
             'paid_at' => $this->paid_at,
             'is_paid' => $this->paid_at !== null,
             'rejection_reason' => $this->rejection_reason,

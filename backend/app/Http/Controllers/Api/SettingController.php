@@ -28,7 +28,36 @@ class SettingController extends Controller
             'currency_code' => ['sometimes', 'required', 'string', 'max:10'],
             'currency_symbol' => ['sometimes', 'required', 'string', 'max:5'],
             'default_tax_percent' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
+
+            // SMS gateway (SRS §18)
+            'sms_driver' => ['sometimes', 'required', Rule::in(['log', 'msg91'])],
+            'sms_provider' => ['sometimes', 'required', 'string', 'max:30'],
+            'sms_sender_id' => ['sometimes', 'nullable', 'string', 'max:15'],
+            'sms_route' => ['sometimes', 'nullable', 'string', 'max:5'],
+            'sms_country_code' => ['sometimes', 'required', 'string', 'max:5'],
+            'sms_auth_key' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'sms_otp_length' => ['sometimes', 'required', 'integer', 'min:4', 'max:8'],
+            'sms_otp_ttl' => ['sometimes', 'required', 'integer', 'min:60', 'max:1800'],
+
+            // Email / SMTP gateway (SRS §19)
+            'mail_driver' => ['sometimes', 'required', Rule::in(['log', 'smtp'])],
+            'mail_host' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'mail_port' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:65535'],
+            'mail_username' => ['sometimes', 'nullable', 'string', 'max:180'],
+            'mail_password' => ['sometimes', 'nullable', 'string', 'max:180'],
+            'mail_encryption' => ['sometimes', 'required', Rule::in(['tls', 'ssl', 'none'])],
+            'mail_from_address' => ['sometimes', 'nullable', 'email', 'max:180'],
+            'mail_from_name' => ['sometimes', 'nullable', 'string', 'max:120'],
+
+            // AI Features (SRS §22)
+            'ai_provider' => ['sometimes', 'required', Rule::in(['local', 'openai', 'anthropic'])],
+            'ai_api_key' => ['sometimes', 'nullable', 'string', 'max:200'],
+            'ai_model' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'ai_lead_time_days' => ['sometimes', 'required', 'integer', 'min:0', 'max:180'],
         ];
+        foreach (Setting::SMS_TEMPLATE_KEYS as $key) {
+            $rules[$key] = ['sometimes', 'required', 'string', 'max:500'];
+        }
         foreach (array_keys(Setting::NUMBER_PREFIX_DEFAULTS) as $key) {
             $rules[$key] = ['sometimes', 'required', 'string', 'max:10', 'alpha_dash'];
         }

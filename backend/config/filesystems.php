@@ -17,6 +17,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Tenant Disk (shared bucket, folder per tenant)
+    |--------------------------------------------------------------------------
+    |
+    | Underlying disk that backs per-tenant file storage. Every tenant's files
+    | live under a `tenant-{id}/` prefix on this single disk/bucket — see
+    | App\Support\TenantStorage. Use `s3` in production (one bucket, one folder
+    | per tenant) and `local` for dev. Files are private; they are served only
+    | through short-lived signed URLs.
+    |
+    */
+
+    'tenant_disk' => env('TENANT_FILESYSTEM_DISK', 'local'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |

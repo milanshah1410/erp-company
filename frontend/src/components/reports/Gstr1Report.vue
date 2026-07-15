@@ -3,9 +3,10 @@ import { ref, onMounted, computed } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Tag from 'primevue/tag'
+import Button from 'primevue/button'
 import ReportToolbar from './ReportToolbar.vue'
 import http from '../../api/http'
-import { useReportExport } from '../../composables/useReportExport'
+import { useReportExport, downloadGovtJson } from '../../composables/useReportExport'
 import { formatCurrency } from '../../utils/currency'
 
 const rows = ref<any[]>([])
@@ -44,6 +45,16 @@ function doExport(format: 'csv' | 'xlsx' | 'pdf') {
   return exportAs(format, params())
 }
 
+const downloadingJson = ref(false)
+async function downloadJson() {
+  downloadingJson.value = true
+  try {
+    await downloadGovtJson('/reports/gstr1/json', 'gstr1', params())
+  } finally {
+    downloadingJson.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -64,10 +75,17 @@ onMounted(load)
       <Column header="Total Tax" style="text-align: right"><template #body="{ data }"><strong>{{ money(data.tax_amount) }}</strong></template></Column>
       <template #empty>No outward supplies in the selected range.</template>
     </DataTable>
+    <div class="json-row">
+      <Button label="Download GSTR-1 JSON (GSTN)" icon="pi pi-download" size="small" outlined
+        :loading="downloadingJson" @click="downloadJson" />
+      <span class="note">Government offline-tool upload format (HSN summary).</span>
+    </div>
     <p class="note">GSTR-1 outward supplies. Total taxable {{ totalTaxable }} · total tax {{ totalTax }}. CGST/SGST vs IGST inferred from customer state.</p>
   </div>
 </template>
 
 <style scoped>
 .note { color: #6b7280; font-size: 0.8rem; margin-top: 0.75rem; }
+.json-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+.json-row .note { margin-top: 0; }
 </style>

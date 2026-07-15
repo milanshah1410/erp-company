@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\TenantStorage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -39,7 +40,7 @@ class ProductResource extends JsonResource
             'max_stock_level' => $this->max_stock_level,
             'reorder_level' => $this->reorder_level,
             'image' => $this->image,
-            'image_url' => $this->image ? '/storage/'.ltrim($this->image, '/') : null,
+            'image_url' => TenantStorage::temporaryUrl($this->image),
             'attributes' => $this->getAttribute('attributes') ?? [],
             'track_expiry' => $this->track_expiry,
             'track_batch' => $this->track_batch,

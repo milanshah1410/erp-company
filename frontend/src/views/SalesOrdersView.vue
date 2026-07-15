@@ -15,6 +15,8 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import { priceDocument, type DiscountType } from '../utils/pricing'
+import { openPdfBlob } from '../utils/blob'
+import SendEmailDialog from '../components/SendEmailDialog.vue'
 
 const discountTypes = [
   { label: '%', value: 'percent' },
@@ -34,6 +36,33 @@ const products = ref<any[]>([])
 const canCreate = computed(() => auth.can('sales.create'))
 const canEdit = computed(() => auth.can('sales.edit'))
 const canApprove = computed(() => auth.can('sales.approve'))
+const canEmail = computed(() => auth.can('email.create'))
+
+// --- Invoice PDF preview + Email ---
+async function previewInvoicePdf(row: any) {
+  if (!row.invoice) return
+  try {
+    const res = await http.get(`/invoices/${row.invoice.id}/pdf`, { responseType: 'blob' })
+    openPdfBlob(res.data)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Could not open invoice PDF', life: 3000 })
+  }
+}
+
+const emailVisible = ref(false)
+const emailCtx = ref<{ endpoint: string; title: string; defaultTo: string; defaultSubject: string }>({
+  endpoint: '', title: '', defaultTo: '', defaultSubject: '',
+})
+function emailInvoice(row: any) {
+  if (!row.invoice) return
+  emailCtx.value = {
+    endpoint: `/email/invoices/${row.invoice.id}`,
+    title: `Email Invoice ${row.invoice.invoice_number}`,
+    defaultTo: row.customer?.email ?? '',
+    defaultSubject: `Invoice ${row.invoice.invoice_number}`,
+  }
+  emailVisible.value = true
+}
 
 const statusColors: Record<string, string> = {
   draft: 'secondary',
@@ -346,7 +375,9 @@ onMounted(async () => {
           </template>
           <Button v-if="canEdit && data.status === 'confirmed' && (data.channel === 'pos' || data.fulfillment_stage === 'shipped')" label="Deliver" size="small" severity="success" @click="deliverOrder(data)" />
           <Button v-if="canEdit && ['draft', 'confirmed', 'backordered'].includes(data.status)" label="Cancel" size="small" outlined severity="danger" @click="cancelOrder(data)" style="margin-left: 4px" />
-          <Button v-if="canCreate && data.status === 'delivered' && data.invoice" label="Payment" icon="pi pi-wallet" size="small" outlined @click="openPayment(data)" />
+          <Button v-if="canCreate && data.status === 'delivered' && data.invoice" label="Payment" icon="pi pi-wallet" size="small" outlined @click="openPayment(data)" style="margin-left: 4px" />
+          <Button v-if="data.invoice" icon="pi pi-file-pdf" text rounded size="small" title="Invoice PDF" @click="previewInvoicePdf(data)" />
+          <Button v-if="canEmail && data.invoice" icon="pi pi-envelope" text rounded size="small" title="Email invoice" @click="emailInvoice(data)" />
         </template>
       </Column>
       <template #empty>No sales orders yet.</template>
@@ -524,6 +555,14 @@ onMounted(async () => {
         <Button v-if="invoice && invoice.status !== 'paid'" label="Record Payment" :loading="paySaving" @click="savePayment" />
       </template>
     </Dialog>
+
+    <SendEmailDialog
+      v-model:visible="emailVisible"
+      :endpoint="emailCtx.endpoint"
+      :title="emailCtx.title"
+      :defaultTo="emailCtx.defaultTo"
+      :defaultSubject="emailCtx.defaultSubject"
+    />
   </div>
 </template>
 

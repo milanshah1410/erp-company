@@ -2,9 +2,10 @@
 import { ref, onMounted } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
+import Button from 'primevue/button'
 import ReportToolbar from './ReportToolbar.vue'
 import http from '../../api/http'
-import { useReportExport } from '../../composables/useReportExport'
+import { useReportExport, downloadGovtJson } from '../../composables/useReportExport'
 import { formatCurrency } from '../../utils/currency'
 
 const rows = ref<any[]>([])
@@ -40,6 +41,16 @@ function doExport(format: 'csv' | 'xlsx' | 'pdf') {
   return exportAs(format, params())
 }
 
+const downloadingJson = ref(false)
+async function downloadJson() {
+  downloadingJson.value = true
+  try {
+    await downloadGovtJson('/reports/gstr3b/json', 'gstr3b', params())
+  } finally {
+    downloadingJson.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -68,6 +79,11 @@ onMounted(load)
       <Column header="Tax Amount" style="text-align: right"><template #body="{ data }">{{ money(data.tax_amount) }}</template></Column>
       <template #empty>No GST transactions in the selected range.</template>
     </DataTable>
+    <div class="json-row">
+      <Button label="Download GSTR-3B JSON (GSTN)" icon="pi pi-download" size="small" outlined
+        :loading="downloadingJson" @click="downloadJson" />
+      <span class="note">Government offline-tool upload format.</span>
+    </div>
     <p class="note">GSTR-3B style summary, derived from sales &amp; purchase invoice lines.</p>
   </div>
 </template>
@@ -81,4 +97,6 @@ onMounted(load)
 .tile-value.in { color: #16a34a; }
 .tile-value.out { color: #dc2626; }
 .note { color: #6b7280; font-size: 0.8rem; margin-top: 0.75rem; }
+.json-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+.json-row .note { margin-top: 0; }
 </style>

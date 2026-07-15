@@ -3,16 +3,26 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\AccountBookController;
+use App\Http\Controllers\Api\AiController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\B2bOrderController;
+use App\Http\Controllers\Api\GlobalSearchController;
+use App\Http\Controllers\Api\EcommerceIntegrationController;
+use App\Http\Controllers\Api\ChannelOrderController;
+use App\Http\Controllers\Api\ChannelListingController;
+use App\Http\Controllers\Api\ChannelSyncLogController;
 use App\Http\Controllers\Api\Portal\PortalAuthController;
 use App\Http\Controllers\Api\Portal\PortalCatalogueController;
 use App\Http\Controllers\Api\Portal\PortalOrderController;
 use App\Http\Controllers\Api\BankAccountController;
 use App\Http\Controllers\Api\FinancialStatementController;
+use App\Http\Controllers\Api\GstController;
 use App\Http\Controllers\Api\GstReportController;
+use App\Http\Controllers\Api\HsnCodeController;
+use App\Http\Controllers\Api\EInvoiceController;
+use App\Http\Controllers\Api\EWayBillController;
 use App\Http\Controllers\Api\TaxRegisterController;
 use App\Http\Controllers\Api\TdsTcsRateController;
 use App\Http\Controllers\Api\VoucherController;
@@ -41,6 +51,9 @@ use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\LoyaltyController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\WhatsappController;
+use App\Http\Controllers\Api\SmsController;
+use App\Http\Controllers\Api\EmailController;
+use App\Http\Controllers\Api\MarketingCampaignController;
 use App\Http\Controllers\Api\CycleCountController;
 use App\Http\Controllers\Api\EmbroideryPaymentController;
 use App\Http\Controllers\Api\EmbroideryVendorController;
@@ -76,6 +89,8 @@ use App\Http\Controllers\Api\ManufacturingOrderController;
 use App\Http\Controllers\Api\ManufacturingReportController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\PaymentGatewayAccountController;
+use App\Http\Controllers\Api\PaymentTransactionController;
 use App\Http\Controllers\Api\PaymentVoucherController;
 use App\Http\Controllers\Api\PosController;
 use App\Http\Controllers\Api\PriceListController;
@@ -171,6 +186,9 @@ Route::middleware('api')->prefix('api')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::post('/portal/login', [PortalAuthController::class, 'login']);
+    // OTP login (SRS §18): request a code to the registered phone, then verify.
+    Route::post('/portal/login/otp/request', [PortalAuthController::class, 'requestOtp']);
+    Route::post('/portal/login/otp', [PortalAuthController::class, 'loginWithOtp']);
 
     Route::middleware(['auth:sanctum', 'resolve.tenant', 'tenant.active', 'portal'])
         ->prefix('portal')->group(function () {
@@ -190,6 +208,11 @@ Route::middleware('api')->prefix('api')->group(function () {
     Route::middleware(['auth:sanctum', 'resolve.tenant', 'tenant.active'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+
+        // Global omni-search (SRS §22): products + customers + invoices, each
+        // scoped to the current tenant and gated per-group by the caller's
+        // module view permissions inside the controller.
+        Route::get('/search', [GlobalSearchController::class, 'index']);
 
         /**
          * CRUD helper: each action guarded by a "<module>.<action>" permission.
@@ -312,6 +335,38 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('whatsapp/messages', [WhatsappController::class, 'store'])->middleware('permission:whatsapp.create');
         Route::delete('whatsapp/messages/{whatsappMessage}', [WhatsappController::class, 'destroy'])->middleware('permission:whatsapp.delete');
 
+        // SMS integration (SRS §18): OTP, invoice/dispatch/payment-reminder/festival
+        // sends + the outbound log. Sends go through the configured gateway (log
+        // by default, MSG91 when enabled under Settings).
+        Route::get('sms/messages', [SmsController::class, 'index'])->middleware('permission:sms.view');
+        Route::post('sms/messages', [SmsController::class, 'store'])->middleware('permission:sms.create');
+        Route::post('sms/invoices/{invoice}', [SmsController::class, 'invoice'])->middleware('permission:sms.create');
+        Route::post('sms/dispatches/{dispatchPlan}', [SmsController::class, 'dispatch'])->middleware('permission:sms.create');
+        Route::post('sms/payment-reminder', [SmsController::class, 'paymentReminder'])->middleware('permission:sms.create');
+        Route::post('sms/festival', [SmsController::class, 'festival'])->middleware('permission:sms.create');
+        Route::post('sms/otp/send', [SmsController::class, 'sendOtp'])->middleware('permission:sms.create');
+        Route::post('sms/otp/verify', [SmsController::class, 'verifyOtp'])->middleware('permission:sms.create');
+        Route::delete('sms/messages/{smsMessage}', [SmsController::class, 'destroy'])->middleware('permission:sms.delete');
+
+        // Email integration (SRS §19): send invoice / purchase order / quotation
+        // PDFs, connection test, and the outbound email log. Sends go through the
+        // tenant's SMTP settings (log driver by default) via a queued job.
+        Route::get('email/logs', [EmailController::class, 'index'])->middleware('permission:email.view');
+        Route::get('email/status', [EmailController::class, 'status'])->middleware('permission:email.view');
+        Route::post('email/test', [EmailController::class, 'test'])->middleware('permission:email.create');
+        Route::post('email/invoices/{invoice}', [EmailController::class, 'sendInvoice'])->middleware('permission:email.create');
+        Route::post('email/purchase-orders/{purchaseOrder}', [EmailController::class, 'sendPurchaseOrder'])->middleware('permission:email.create');
+        Route::post('email/quotations/{salesQuotation}', [EmailController::class, 'sendQuotation'])->middleware('permission:email.create');
+
+        // Marketing campaigns: compose + blast to an audience, per-recipient log.
+        Route::get('marketing-campaigns', [MarketingCampaignController::class, 'index'])->middleware('permission:marketing-campaigns.view');
+        Route::post('marketing-campaigns/preview', [MarketingCampaignController::class, 'preview'])->middleware('permission:marketing-campaigns.view');
+        Route::post('marketing-campaigns', [MarketingCampaignController::class, 'store'])->middleware('permission:marketing-campaigns.create');
+        Route::get('marketing-campaigns/{marketingCampaign}', [MarketingCampaignController::class, 'show'])->middleware('permission:marketing-campaigns.view');
+        Route::match(['put', 'patch'], 'marketing-campaigns/{marketingCampaign}', [MarketingCampaignController::class, 'update'])->middleware('permission:marketing-campaigns.edit');
+        Route::delete('marketing-campaigns/{marketingCampaign}', [MarketingCampaignController::class, 'destroy'])->middleware('permission:marketing-campaigns.delete');
+        Route::post('marketing-campaigns/{marketingCampaign}/send', [MarketingCampaignController::class, 'send'])->middleware('permission:marketing-campaigns.create');
+
         /*
         |----------------------------------------------------------------------
         | Tailor (job-work) module: masters, rate cards, piece-rate operations,
@@ -423,6 +478,25 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         /*
         |----------------------------------------------------------------------
+        | Online payment gateways (SRS §16): tenant gateway config + the payment
+        | links (transactions) generated to collect sales invoices online. The
+        | customer-facing pay page + gateway callbacks/webhooks are public and
+        | live in routes/api.php.
+        |----------------------------------------------------------------------
+        */
+        Route::get('payment-gateways/catalog', [PaymentGatewayAccountController::class, 'catalog'])->middleware('permission:payment-gateways.view');
+        Route::get('payment-gateways', [PaymentGatewayAccountController::class, 'index'])->middleware('permission:payment-gateways.view');
+        Route::post('payment-gateways', [PaymentGatewayAccountController::class, 'store'])->middleware('permission:payment-gateways.create');
+        Route::match(['put', 'patch'], 'payment-gateways/{paymentGateway}', [PaymentGatewayAccountController::class, 'update'])->middleware('permission:payment-gateways.edit');
+        Route::delete('payment-gateways/{paymentGateway}', [PaymentGatewayAccountController::class, 'destroy'])->middleware('permission:payment-gateways.delete');
+
+        Route::get('payment-transactions', [PaymentTransactionController::class, 'index'])->middleware('permission:payments.view');
+        Route::get('payment-transactions/{paymentTransaction}', [PaymentTransactionController::class, 'show'])->middleware('permission:payments.view');
+        Route::post('payment-transactions/{paymentTransaction}/cancel', [PaymentTransactionController::class, 'cancel'])->middleware('permission:payments.edit');
+        Route::post('invoices/{invoice}/payment-link', [PaymentTransactionController::class, 'createForInvoice'])->middleware('permission:payments.create');
+
+        /*
+        |----------------------------------------------------------------------
         | Purchase module
         |----------------------------------------------------------------------
         */
@@ -512,6 +586,40 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('b2b-orders/{salesOrder}/approve', [B2bOrderController::class, 'approve'])->middleware('permission:b2b-orders.approve');
         Route::post('b2b-orders/{salesOrder}/reject', [B2bOrderController::class, 'reject'])->middleware('permission:b2b-orders.approve');
 
+        /*
+        |----------------------------------------------------------------------
+        | E-commerce Integration (SRS §15): connect marketplaces/storefronts
+        | (Shopify, WooCommerce, Magento, Amazon, Flipkart, Meesho, IndiaMART),
+        | pull orders into the inbox, map listings, and push inventory.
+        |----------------------------------------------------------------------
+        */
+        Route::get('ecommerce/platforms', [EcommerceIntegrationController::class, 'platforms'])->middleware('permission:ecommerce-integrations.view');
+        Route::get('ecommerce-integrations', [EcommerceIntegrationController::class, 'index'])->middleware('permission:ecommerce-integrations.view');
+        Route::post('ecommerce-integrations', [EcommerceIntegrationController::class, 'store'])->middleware('permission:ecommerce-integrations.create');
+        Route::get('ecommerce-integrations/{ecommerceIntegration}', [EcommerceIntegrationController::class, 'show'])->middleware('permission:ecommerce-integrations.view');
+        Route::match(['put', 'patch'], 'ecommerce-integrations/{ecommerceIntegration}', [EcommerceIntegrationController::class, 'update'])->middleware('permission:ecommerce-integrations.edit');
+        Route::delete('ecommerce-integrations/{ecommerceIntegration}', [EcommerceIntegrationController::class, 'destroy'])->middleware('permission:ecommerce-integrations.delete');
+        Route::post('ecommerce-integrations/{ecommerceIntegration}/test', [EcommerceIntegrationController::class, 'test'])->middleware('permission:ecommerce-integrations.edit');
+        Route::post('ecommerce-integrations/{ecommerceIntegration}/sync-orders', [EcommerceIntegrationController::class, 'syncOrders'])->middleware('permission:ecommerce-integrations.edit');
+        Route::post('ecommerce-integrations/{ecommerceIntegration}/push-inventory', [EcommerceIntegrationController::class, 'pushInventory'])->middleware('permission:ecommerce-integrations.edit');
+        Route::post('ecommerce-integrations/{ecommerceIntegration}/sync-listings', [EcommerceIntegrationController::class, 'syncListings'])->middleware('permission:ecommerce-integrations.edit');
+        Route::get('ecommerce-integrations/{ecommerceIntegration}/remote-listings', [ChannelListingController::class, 'remote'])->middleware('permission:channel-listings.view');
+
+        // Marketplace order inbox
+        Route::get('channel-orders', [ChannelOrderController::class, 'index'])->middleware('permission:channel-orders.view');
+        Route::get('channel-orders/{channelOrder}', [ChannelOrderController::class, 'show'])->middleware('permission:channel-orders.view');
+        Route::post('channel-orders/{channelOrder}/import', [ChannelOrderController::class, 'import'])->middleware('permission:channel-orders.approve');
+        Route::post('channel-orders/{channelOrder}/ignore', [ChannelOrderController::class, 'ignore'])->middleware('permission:channel-orders.edit');
+
+        // Product ↔ listing mapping
+        Route::get('channel-listings', [ChannelListingController::class, 'index'])->middleware('permission:channel-listings.view');
+        Route::post('channel-listings', [ChannelListingController::class, 'store'])->middleware('permission:channel-listings.create');
+        Route::match(['put', 'patch'], 'channel-listings/{channelListing}', [ChannelListingController::class, 'update'])->middleware('permission:channel-listings.edit');
+        Route::delete('channel-listings/{channelListing}', [ChannelListingController::class, 'destroy'])->middleware('permission:channel-listings.delete');
+
+        // Sync run history (read-only)
+        Route::get('channel-sync-logs', [ChannelSyncLogController::class, 'index'])->middleware('permission:channel-sync-logs.view');
+
         Route::get('invoices', [InvoiceController::class, 'index'])->middleware('permission:sales.view');
         Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->middleware('permission:sales.view');
         Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->middleware('permission:sales.view');
@@ -521,6 +629,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('sales-quotations', [SalesQuotationController::class, 'index'])->middleware('permission:sales.view');
         Route::post('sales-quotations', [SalesQuotationController::class, 'store'])->middleware('permission:sales.create');
         Route::get('sales-quotations/{salesQuotation}', [SalesQuotationController::class, 'show'])->middleware('permission:sales.view');
+        Route::get('sales-quotations/{salesQuotation}/pdf', [SalesQuotationController::class, 'pdf'])->middleware('permission:sales.view');
         Route::match(['put', 'patch'], 'sales-quotations/{salesQuotation}', [SalesQuotationController::class, 'update'])->middleware('permission:sales.edit');
         Route::delete('sales-quotations/{salesQuotation}', [SalesQuotationController::class, 'destroy'])->middleware('permission:sales.delete');
         Route::post('sales-quotations/{salesQuotation}/send', [SalesQuotationController::class, 'send'])->middleware('permission:sales.edit');
@@ -834,6 +943,10 @@ Route::middleware('api')->prefix('api')->group(function () {
         // Consolidated GST (GSTR-3B summary + GSTR-1) and TDS/TCS registers.
         Route::get('reports/gst-summary', [GstReportController::class, 'summary'])->middleware('permission:reports.view');
         Route::get('reports/gstr1', [GstReportController::class, 'gstr1'])->middleware('permission:reports.view');
+        Route::get('reports/gstr2', [GstReportController::class, 'gstr2'])->middleware('permission:reports.view');
+        // Government offline-tool JSON exports (GالسTN upload schema).
+        Route::get('reports/gstr1/json', [GstReportController::class, 'gstr1Json'])->middleware('permission:reports.view');
+        Route::get('reports/gstr3b/json', [GstReportController::class, 'gstr3bJson'])->middleware('permission:reports.view');
         Route::get('reports/tds-register', [TaxRegisterController::class, 'tds'])->middleware('permission:reports.view');
         Route::get('reports/tcs-register', [TaxRegisterController::class, 'tcs'])->middleware('permission:reports.view');
         Route::get('reports/broker-commissions', [BrokerReportController::class, 'commissions'])->middleware('permission:reports.view');
@@ -969,6 +1082,50 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         // GST registrations: multiple state-wise GSTINs per company/branch
         $crud('gst-registrations', GstRegistrationController::class, 'gst-registrations', 'gstRegistration');
+
+        /*
+        |----------------------------------------------------------------------
+        | GST Integration (SRS §20): GSTIN validation, HSN master, e-invoice
+        | (IRN) and e-way bill generation.
+        |----------------------------------------------------------------------
+        */
+        // GSTIN structural + check-digit validation and HSN type-ahead lookup.
+        Route::post('gst/validate-gstin', [GstController::class, 'validateGstin']);
+        Route::get('gst/hsn-lookup', [GstController::class, 'hsnLookup']);
+
+        // HSN / SAC master.
+        $crud('hsn-codes', HsnCodeController::class, 'hsn-codes', 'hsnCode');
+
+        // E-invoice (IRN) — keyed by the underlying sales invoice.
+        Route::get('e-invoices', [EInvoiceController::class, 'index'])->middleware('permission:e-invoices.view');
+        Route::get('e-invoices/{invoice}', [EInvoiceController::class, 'show'])->middleware('permission:e-invoices.view');
+        Route::get('e-invoices/{invoice}/preview', [EInvoiceController::class, 'preview'])->middleware('permission:e-invoices.view');
+        Route::post('e-invoices/{invoice}/generate', [EInvoiceController::class, 'generate'])->middleware('permission:e-invoices.create');
+        Route::post('e-invoices/{invoice}/cancel', [EInvoiceController::class, 'cancel'])->middleware('permission:e-invoices.edit');
+
+        // E-way bill — keyed by the underlying sales invoice.
+        Route::get('e-way-bills', [EWayBillController::class, 'index'])->middleware('permission:e-way-bills.view');
+        Route::get('e-way-bills/{invoice}', [EWayBillController::class, 'show'])->middleware('permission:e-way-bills.view');
+        Route::post('e-way-bills/{invoice}/generate', [EWayBillController::class, 'generate'])->middleware('permission:e-way-bills.create');
+        Route::post('e-way-bills/{invoice}/update-vehicle', [EWayBillController::class, 'updateVehicle'])->middleware('permission:e-way-bills.edit');
+        Route::post('e-way-bills/{invoice}/cancel', [EWayBillController::class, 'cancel'])->middleware('permission:e-way-bills.edit');
+
+        /*
+        |----------------------------------------------------------------------
+        | AI Features (SRS §22): statistical sales forecast + demand prediction,
+        | forecast-driven auto purchase suggestions, low-stock (days-to-stockout)
+        | prediction, narrated AI reports, and the chat / Gujarati-voice ERP
+        | assistant. All engines run locally; an optional hosted-model seam
+        | (Settings → AI) only polishes narrative text.
+        |----------------------------------------------------------------------
+        */
+        Route::get('ai/status', [AiController::class, 'status'])->middleware('permission:ai.view');
+        Route::get('ai/sales-forecast', [AiController::class, 'salesForecast'])->middleware('permission:ai.view');
+        Route::get('ai/demand-prediction', [AiController::class, 'demandPrediction'])->middleware('permission:ai.view');
+        Route::get('ai/purchase-suggestions', [AiController::class, 'purchaseSuggestions'])->middleware('permission:ai.view');
+        Route::get('ai/low-stock-prediction', [AiController::class, 'lowStockPrediction'])->middleware('permission:ai.view');
+        Route::get('ai/report', [AiController::class, 'report'])->middleware('permission:ai.view');
+        Route::post('ai/search', [AiController::class, 'search'])->middleware('permission:ai.view');
 
         Route::post('context/switch', [ContextController::class, 'switch']);
 

@@ -58,4 +58,20 @@ class GstStateCodes
     {
         return self::MAP[$code] ?? null;
     }
+
+    /** Reverse lookup: the 2-digit code for a (case-insensitive) state name. */
+    public static function code(?string $name): ?string
+    {
+        $name = strtolower(trim((string) $name));
+        if ($name === '') {
+            return null;
+        }
+        foreach (self::MAP as $code => $stateName) {
+            if (strtolower($stateName) === $name) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
 }

@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Scout\Searchable;
 
 class Product extends Model
 {
-    use BelongsToTenant, LogsAuditActivity, SoftDeletes;
+    use BelongsToTenant, LogsAuditActivity, Searchable, SoftDeletes;
 
     protected $fillable = [
         'sku', 'barcode', 'rfid_tag', 'name', 'description',
@@ -45,6 +46,25 @@ class Product extends Model
                 $product->barcode = $product->sku;
             }
         });
+    }
+
+    /**
+     * The `products` Meilisearch index is shared by every tenant; `tenant_id`
+     * is emitted on each document and declared filterable (see config/scout.php)
+     * so searches are constrained with ->where('tenant_id', ...).
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'tenant_id' => $this->tenant_id,
+            'sku' => $this->sku,
+            'barcode' => $this->barcode,
+            'name' => $this->name,
+            'description' => $this->description,
+            'hsn_code' => $this->hsn_code,
+            'is_active' => (bool) $this->is_active,
+        ];
     }
 
     public function preferredSupplier(): BelongsTo

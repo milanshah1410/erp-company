@@ -15,14 +15,17 @@ class RolePermissionSeeder extends Seeder
     private array $modules = [
         'products', 'categories', 'brands', 'units', 'warehouses',
         'suppliers', 'customers', 'customer-categories', 'brokers', 'price-lists',
-        'leads', 'follow-ups', 'loyalty', 'coupons', 'referrals', 'whatsapp',
+        'leads', 'follow-ups', 'loyalty', 'coupons', 'referrals', 'whatsapp', 'sms', 'email', 'marketing-campaigns',
         'salesmen', 'salesman-targets', 'beats', 'salesman-visits',
         'salesman-locations', 'salesman-collections', 'salesman-expenses',
         'stock', 'stock-ledger', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
         'gate-entries', 'advanced-inventory', 'barcodes',
         'purchase-indents', 'rfqs', 'vendor-ratings',
-        'purchases', 'purchase-invoices', 'sales', 'sales-returns', 'b2b-orders', 'reports', 'users', 'roles', 'settings',
+        'purchases', 'purchase-invoices', 'sales', 'sales-returns', 'b2b-orders',
+        'ecommerce-integrations', 'channel-orders', 'channel-listings',
+        'reports', 'users', 'roles', 'settings',
         'companies', 'branches', 'financial-years', 'gst-registrations', 'backups',
+        'hsn-codes', 'e-invoices', 'e-way-bills',
         'departments', 'employees', 'attendance', 'salaries',
         'leave-types', 'leave-applications', 'overtime', 'employee-bonuses',
         'salary-advances', 'employee-loans', 'biometric-devices', 'biometric-punches',
@@ -37,7 +40,7 @@ class RolePermissionSeeder extends Seeder
         'employee-claims', 'vehicle-expenses', 'fuel-expenses',
         'electricity-bills', 'factory-maintenances', 'asset-maintenances',
         'drivers', 'delivery-routes', 'dispatch-plans', 'dispatch-pods', 'transport-charges',
-        'payments',
+        'payments', 'payment-gateways',
         'bank-accounts', 'vouchers', 'tds-tcs-rates',
     ];
 
@@ -46,7 +49,9 @@ class RolePermissionSeeder extends Seeder
      * immutable log with no user-facing mutation actions.
      */
     private array $viewOnlyModules = [
-        'audit-logs', 'notifications', 'accounts',
+        'audit-logs', 'notifications', 'accounts', 'channel-sync-logs',
+        // AI Features (SRS §22) — read-only analytics + assistant.
+        'ai',
     ];
 
     /**
@@ -54,7 +59,7 @@ class RolePermissionSeeder extends Seeder
      */
     private array $approvable = [
         'purchase-indents', 'purchases', 'purchase-invoices',
-        'sales', 'sales-returns', 'b2b-orders', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
+        'sales', 'sales-returns', 'b2b-orders', 'channel-orders', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
         'job-works', 'expenses',
         'employee-claims', 'vehicle-expenses', 'fuel-expenses',
         'electricity-bills', 'factory-maintenances', 'asset-maintenances',
@@ -110,7 +115,7 @@ class RolePermissionSeeder extends Seeder
                 'dispatch-plans.view', 'dispatch-plans.create', 'dispatch-plans.edit', 'dispatch-plans.delete',
                 'dispatch-pods.view', 'dispatch-pods.create', 'dispatch-pods.edit', 'dispatch-pods.delete',
                 'transport-charges.view', 'transport-charges.create', 'transport-charges.edit', 'transport-charges.delete',
-                'reports.view', 'barcodes.view',
+                'reports.view', 'barcodes.view', 'ai.view',
             ],
             'purchase-manager' => [
                 'products.view', 'categories.view', 'brands.view', 'units.view',
@@ -120,10 +125,11 @@ class RolePermissionSeeder extends Seeder
                 'vendor-ratings.view', 'vendor-ratings.create', 'vendor-ratings.delete',
                 'purchases.view', 'purchases.create', 'purchases.edit', 'purchases.approve',
                 'purchase-invoices.view', 'purchase-invoices.create', 'purchase-invoices.edit', 'purchase-invoices.approve',
+                'email.view', 'email.create',
                 'payments.view', 'payments.create',
                 'stock-returns.view', 'stock-returns.create', 'stock-returns.edit', 'stock-returns.approve',
                 'advanced-inventory.view', 'advanced-inventory.create',
-                'stock.view', 'stock-ledger.view', 'reports.view', 'barcodes.view', 'notifications.view',
+                'stock.view', 'stock-ledger.view', 'reports.view', 'barcodes.view', 'notifications.view', 'ai.view',
             ],
             'sales-manager' => [
                 'products.view', 'categories.view', 'brands.view', 'units.view',
@@ -137,10 +143,13 @@ class RolePermissionSeeder extends Seeder
                 'coupons.view', 'coupons.create', 'coupons.edit', 'coupons.delete',
                 'referrals.view', 'referrals.create', 'referrals.edit', 'referrals.delete',
                 'whatsapp.view', 'whatsapp.create', 'whatsapp.edit', 'whatsapp.delete',
+                'sms.view', 'sms.create', 'sms.edit', 'sms.delete',
+                'email.view', 'email.create', 'email.edit', 'email.delete',
+                'marketing-campaigns.view', 'marketing-campaigns.create', 'marketing-campaigns.edit', 'marketing-campaigns.delete',
                 'sales.view', 'sales.create', 'sales.edit', 'sales.approve',
                 'b2b-orders.view', 'b2b-orders.create', 'b2b-orders.edit', 'b2b-orders.delete', 'b2b-orders.approve',
                 'payments.view', 'payments.create',
-                'stock.view', 'reports.view', 'barcodes.view', 'notifications.view',
+                'stock.view', 'reports.view', 'barcodes.view', 'notifications.view', 'ai.view',
                 'stock-returns.view', 'stock-returns.create', 'stock-returns.edit', 'stock-returns.approve',
                 'sales-returns.view', 'sales-returns.create', 'sales-returns.edit', 'sales-returns.approve',
                 // Field-sales team management
@@ -169,11 +178,17 @@ class RolePermissionSeeder extends Seeder
                 'factory-maintenances.view', 'factory-maintenances.create', 'factory-maintenances.edit', 'factory-maintenances.delete', 'factory-maintenances.approve',
                 'asset-maintenances.view', 'asset-maintenances.create', 'asset-maintenances.edit', 'asset-maintenances.delete', 'asset-maintenances.approve',
                 'payments.view', 'payments.create', 'payments.edit', 'payments.delete',
+                'payment-gateways.view', 'payment-gateways.create', 'payment-gateways.edit', 'payment-gateways.delete',
                 'bank-accounts.view', 'bank-accounts.create', 'bank-accounts.edit', 'bank-accounts.delete',
                 'vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete',
                 'tds-tcs-rates.view', 'tds-tcs-rates.create', 'tds-tcs-rates.edit', 'tds-tcs-rates.delete',
                 'accounts.view',
-                'reports.view', 'stock.view', 'stock-ledger.view', 'notifications.view',
+                // GST integration (§20): HSN master, e-invoice, e-way bill.
+                'gst-registrations.view', 'gst-registrations.create', 'gst-registrations.edit', 'gst-registrations.delete',
+                'hsn-codes.view', 'hsn-codes.create', 'hsn-codes.edit', 'hsn-codes.delete',
+                'e-invoices.view', 'e-invoices.create', 'e-invoices.edit',
+                'e-way-bills.view', 'e-way-bills.create', 'e-way-bills.edit',
+                'reports.view', 'stock.view', 'stock-ledger.view', 'notifications.view', 'ai.view',
             ],
             'staff' => [
                 'products.view', 'stock.view', 'stock.edit',

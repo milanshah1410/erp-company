@@ -10,11 +10,30 @@ use App\Models\PurchaseOrder;
 use App\Models\SalesOrder;
 use App\Models\StockLedger;
 use App\Models\WarehouseStock;
+use App\Support\TenantCache;
 
 class DashboardController extends Controller
 {
-    /** All headline metrics for the landing dashboard (current tenant). */
+    /** How long the computed dashboard payload is cached per tenant (seconds). */
+    private const CACHE_TTL = 300;
+
+    /**
+     * All headline metrics for the landing dashboard (current tenant).
+     *
+     * The payload is a dozen-plus aggregate queries, so it is cached per tenant
+     * (key "tenant_{id}_dashboard") for a few minutes rather than recomputed on
+     * every page load. The short TTL bounds staleness without needing every
+     * sale/purchase write to invalidate the cache.
+     */
     public function kpis()
+    {
+        return response()->json(
+            TenantCache::remember('dashboard', self::CACHE_TTL, fn () => $this->buildKpis())
+        );
+    }
+
+    /** Compute the full dashboard metrics payload for the current tenant. */
+    private function buildKpis(): array
     {
         $today = now()->toDateString();
         $monthStart = now()->startOfMonth();
@@ -68,7 +87,8 @@ class DashboardController extends Controller
             ->orderByDesc('qty_sold')
             ->limit(5)
             ->get()
-            ->map(fn ($r) => ['sku' => $r->sku, 'name' => $r->name, 'qty_sold' => (float) $r->qty_sold]);
+            ->map(fn ($r) => ['sku' => $r->sku, 'name' => $r->name, 'qty_sold' => (float) $r->qty_sold])
+            ->all();
 
         // 10. Recent Activities (tenant-scoped audit log).
         $recentActivities = ActivityLog::query()
@@ -82,13 +102,14 @@ class DashboardController extends Controller
                 'log_name' => $a->log_name,
                 'causer' => $a->causer?->name,
                 'at' => $a->created_at?->toIso8601String(),
-            ]);
+            ])
+            ->all();
 
         $totalStockValue = (float) WarehouseStock::query()
             ->selectRaw('SUM(quantity * average_cost) as total')
             ->value('total');
 
-        return response()->json([
+        return [
             'today_sales' => ['total' => round($todaySalesTotal, 2), 'count' => $todaySalesCount],
             'purchase_summary' => [
                 'month_total' => round($purchaseMonthTotal, 2),
@@ -117,6 +138,6 @@ class DashboardController extends Controller
             // Kept for backward compatibility with the previous UI.
             'pending_po_count' => $pendingPoCount,
             'top_skus' => $topProducts,
-        ]);
+        ];
     }
 }

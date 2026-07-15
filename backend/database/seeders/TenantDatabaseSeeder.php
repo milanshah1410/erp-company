@@ -78,5 +78,8 @@ class TenantDatabaseSeeder extends Seeder
 
         // 8. Baseline settings.
         Setting::updateOrCreate(['key' => 'costing_method'], ['value' => 'weighted_average']);
+
+        // 9. Baseline HSN/SAC master (GST integration).
+        (new HsnCodeSeeder)->run();
     }
 }

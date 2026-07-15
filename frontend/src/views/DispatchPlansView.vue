@@ -27,6 +27,7 @@ const customers = ref<any[]>([])
 const canCreate = computed(() => auth.can('dispatch-plans.create'))
 const canEdit = computed(() => auth.can('dispatch-plans.edit'))
 const canDelete = computed(() => auth.can('dispatch-plans.delete'))
+const canSms = computed(() => auth.can('sms.create'))
 
 const statusColors: Record<string, string> = {
   draft: 'secondary',
@@ -142,6 +143,21 @@ async function workflow(row: any, action: 'dispatch' | 'deliver' | 'cancel', tit
   }
 }
 
+async function notifySms(row: any) {
+  const res = await Swal.fire({
+    title: `Send dispatch SMS for ${row.dispatch_number}?`,
+    text: 'Every consignment customer with a phone number will be notified.',
+    icon: 'question', showCancelButton: true, confirmButtonText: 'Send SMS',
+  })
+  if (!res.isConfirmed) return
+  try {
+    const { data } = await http.post(`/sms/dispatches/${row.id}`)
+    toast.add({ severity: 'success', summary: data.message || 'Dispatch SMS sent', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed to send SMS', life: 4000 })
+  }
+}
+
 async function removePlan(row: any) {
   const res = await Swal.fire({ title: `Delete ${row.dispatch_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete' })
   if (!res.isConfirmed) return
@@ -220,6 +236,8 @@ onMounted(async () => {
           </template>
           <Button v-if="canEdit && data.status === 'dispatched'" label="Mark Delivered" size="small" severity="success"
             @click="workflow(data, 'deliver', 'Mark delivered', 'Mark delivered')" />
+          <Button v-if="canSms && data.status !== 'draft' && data.status !== 'cancelled'" icon="pi pi-comment"
+            size="small" text severity="info" title="Send dispatch SMS" @click="notifySms(data)" />
         </template>
       </Column>
       <template #empty>No dispatch plans yet.</template>

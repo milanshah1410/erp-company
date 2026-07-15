@@ -2,7 +2,7 @@
 
 namespace App\Http\Resources\Concerns;
 
-use Illuminate\Support\Facades\Storage;
+use App\Support\TenantStorage;
 
 /**
  * Shared serialization of the approval-workflow + payment + attachment fields
@@ -18,9 +18,7 @@ trait SerializesWorkflowFields
             'description' => $this->description,
             'status' => $this->status,
             'attachment_path' => $this->attachment_path,
-            'attachment_url' => $this->attachment_path
-                ? Storage::disk('public')->url($this->attachment_path)
-                : null,
+            'attachment_url' => TenantStorage::temporaryUrl($this->attachment_path),
             'paid_at' => $this->paid_at,
             'is_paid' => $this->paid_at !== null,
             'rejection_reason' => $this->rejection_reason,

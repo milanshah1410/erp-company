@@ -8,10 +8,12 @@ use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Laravel\Scout\Searchable;
 
 class Invoice extends Model
 {
-    use BelongsToTenant, HasDocumentNumber, LogsAuditActivity;
+    use BelongsToTenant, HasDocumentNumber, LogsAuditActivity, Searchable;
 
     protected static string $numberSettingKey = 'invoice_number_prefix';
 
@@ -38,6 +40,34 @@ class Invoice extends Model
         });
     }
 
+    /**
+     * Fields for the shared `invoices` index. The customer's name/company are
+     * denormalised in so an invoice is findable by who it was billed to; the
+     * date is also emitted as a unix timestamp for sortable recency.
+     */
+    public function toSearchableArray(): array
+    {
+        // Scout indexing runs on the queue with no tenant context, where the
+        // fail-closed TenantScope would throw. This invoice already belongs to
+        // its tenant, so resolve its customer with the scope bypassed rather
+        // than via the (scoped) relation.
+        $customer = $this->relationLoaded('customer')
+            ? $this->customer
+            : Customer::withoutGlobalScopes()->find($this->customer_id);
+
+        return [
+            'id' => $this->id,
+            'tenant_id' => $this->tenant_id,
+            'invoice_number' => $this->invoice_number,
+            'customer_name' => $customer?->name,
+            'customer_company' => $customer?->company_name,
+            'status' => $this->status,
+            'total' => (float) $this->total,
+            'invoice_date' => optional($this->invoice_date)->toDateString(),
+            'invoice_date_ts' => optional($this->invoice_date)->getTimestamp(),
+        ];
+    }
+
     public function salesOrder(): BelongsTo
     {
         return $this->belongsTo(SalesOrder::class);
@@ -62,6 +92,16 @@ class Invoice extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function eInvoice(): HasOne
+    {
+        return $this->hasOne(EInvoice::class);
+    }
+
+    public function eWayBill(): HasOne
+    {
+        return $this->hasOne(EWayBill::class);
     }
 
     public function balanceDue(): float

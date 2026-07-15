@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SalesQuotationRequest;
 use App\Http\Resources\SalesOrderResource;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 
 class SalesQuotationController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function __construct(
         private readonly DocumentPricingService $pricing,
     ) {}
@@ -67,6 +70,22 @@ class SalesQuotationController extends Controller
     {
         return new SalesQuotationResource(
             $salesQuotation->load(['customer', 'warehouse', 'items.product', 'salesOrder'])
+        );
+    }
+
+    /** Stream the quotation as a printable PDF to send to the customer. */
+    public function pdf(Request $request, SalesQuotation $salesQuotation)
+    {
+        $salesQuotation->load([
+            'customer', 'warehouse:id,name',
+            'items.product:id,name,sku', 'items.variant:id,name,sku',
+        ]);
+
+        return $this->renderDocument(
+            $request,
+            'documents.quotation',
+            ['quotation' => $salesQuotation],
+            "quotation-{$salesQuotation->quote_number}.pdf",
         );
     }
 

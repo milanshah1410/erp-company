@@ -49,6 +49,9 @@ import FollowUpsView from '../views/FollowUpsView.vue'
 import ReferralsView from '../views/ReferralsView.vue'
 import OccasionsView from '../views/OccasionsView.vue'
 import WhatsAppView from '../views/WhatsAppView.vue'
+import SmsView from '../views/SmsView.vue'
+import MarketingCampaignsView from '../views/MarketingCampaignsView.vue'
+import EmailLogsView from '../views/EmailLogsView.vue'
 import SalesmanTargetsView from '../views/SalesmanTargetsView.vue'
 import BeatsView from '../views/BeatsView.vue'
 import SalesmanVisitsView from '../views/SalesmanVisitsView.vue'
@@ -61,6 +64,10 @@ import SalesQuotationsView from '../views/SalesQuotationsView.vue'
 import PosView from '../views/PosView.vue'
 import SalesReturnsView from '../views/SalesReturnsView.vue'
 import B2bOrdersView from '../views/B2bOrdersView.vue'
+import EcommerceIntegrationsView from '../views/EcommerceIntegrationsView.vue'
+import ChannelOrdersView from '../views/ChannelOrdersView.vue'
+import ChannelListingsView from '../views/ChannelListingsView.vue'
+import ChannelSyncLogsView from '../views/ChannelSyncLogsView.vue'
 import BomsView from '../views/BomsView.vue'
 import ManufacturingOrdersView from '../views/ManufacturingOrdersView.vue'
 import JobWorksView from '../views/JobWorksView.vue'
@@ -101,6 +108,10 @@ import BarcodeScanView from '../views/BarcodeScanView.vue'
 import LabelPrintingView from '../views/LabelPrintingView.vue'
 import AuditLogsView from '../views/AuditLogsView.vue'
 import BackupView from '../views/BackupView.vue'
+import GstToolsView from '../views/GstToolsView.vue'
+import EInvoicesView from '../views/EInvoicesView.vue'
+import SearchResultsView from '../views/SearchResultsView.vue'
+import EWayBillsView from '../views/EWayBillsView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import LeaveApplicationsView from '../views/LeaveApplicationsView.vue'
 import OvertimeView from '../views/OvertimeView.vue'
@@ -110,6 +121,11 @@ import EmployeeLoansView from '../views/EmployeeLoansView.vue'
 import BiometricPunchesView from '../views/BiometricPunchesView.vue'
 import PayrollView from '../views/PayrollView.vue'
 import CustomerDisplayView from '../views/CustomerDisplayView.vue'
+import PaymentGatewaysView from '../views/PaymentGatewaysView.vue'
+import PaymentTransactionsView from '../views/PaymentTransactionsView.vue'
+import PayView from '../views/PayView.vue'
+import AiInsightsView from '../views/AiInsightsView.vue'
+import AiAssistantView from '../views/AiAssistantView.vue'
 
 // Single-domain app. Public routes (login + self-serve signup / verification /
 // provisioning status) sit alongside the authenticated tenant application; the
@@ -126,6 +142,9 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'dashboard', component: DashboardView },
       { path: 'billing', name: 'billing', component: BillingView },
+      // Global omni-search results (§22). No permission gate: the API itself
+      // only returns groups the caller is allowed to view.
+      { path: 'search', name: 'search', component: SearchResultsView },
       { path: 'notifications', component: NotificationsView },
       { path: 'products', component: ProductsView, meta: { permission: 'products.view' } },
       { path: 'categories', component: CategoriesView, meta: { permission: 'categories.view' } },
@@ -144,6 +163,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'referrals', component: ReferralsView, meta: { permission: 'referrals.view' } },
       { path: 'crm/occasions', component: OccasionsView, meta: { permission: 'customers.view' } },
       { path: 'whatsapp', component: WhatsAppView, meta: { permission: 'whatsapp.view' } },
+      { path: 'sms', component: SmsView, meta: { permission: 'sms.view' } },
+      { path: 'marketing-campaigns', component: MarketingCampaignsView, meta: { permission: 'marketing-campaigns.view' } },
+      { path: 'email-logs', component: EmailLogsView, meta: { permission: 'email.view' } },
       { path: 'salesmen', component: CrudView, meta: { resource: 'salesmen', permission: 'salesmen.view' } },
       { path: 'salesman-targets', component: SalesmanTargetsView, meta: { permission: 'salesman-targets.view' } },
       { path: 'beats', component: BeatsView, meta: { permission: 'beats.view' } },
@@ -178,6 +200,10 @@ const routes: RouteRecordRaw[] = [
       { path: 'pos', component: PosView, meta: { permission: 'sales.create' } },
       { path: 'sales-returns', component: SalesReturnsView, meta: { permission: 'sales-returns.view' } },
       { path: 'b2b-orders', component: B2bOrdersView, meta: { permission: 'b2b-orders.view' } },
+      { path: 'ecommerce-integrations', component: EcommerceIntegrationsView, meta: { permission: 'ecommerce-integrations.view' } },
+      { path: 'channel-orders', component: ChannelOrdersView, meta: { permission: 'channel-orders.view' } },
+      { path: 'channel-listings', component: ChannelListingsView, meta: { permission: 'channel-listings.view' } },
+      { path: 'channel-sync-logs', component: ChannelSyncLogsView, meta: { permission: 'channel-sync-logs.view' } },
       { path: 'boms', component: BomsView, meta: { permission: 'boms.view' } },
       { path: 'manufacturing-orders', component: ManufacturingOrdersView, meta: { permission: 'manufacturing-orders.view' } },
       { path: 'colour-printings', component: CrudView, meta: { resource: 'colour-printings', permission: 'colour-printing.view' } },
@@ -252,11 +278,27 @@ const routes: RouteRecordRaw[] = [
       { path: 'companies', component: CrudView, meta: { resource: 'companies', permission: 'companies.view' } },
       { path: 'branches', component: CrudView, meta: { resource: 'branches', permission: 'branches.view' } },
       { path: 'backups', component: BackupView, meta: { permission: 'backups.view' } },
+      // Payment Gateways (§16)
+      { path: 'payment-gateways', component: PaymentGatewaysView, meta: { permission: 'payment-gateways.view' } },
+      { path: 'payment-transactions', component: PaymentTransactionsView, meta: { permission: 'payments.view' } },
+      // GST Integration (§20)
+      { path: 'gst-registrations', component: CrudView, meta: { resource: 'gst-registrations', permission: 'gst-registrations.view' } },
+      { path: 'hsn-codes', component: CrudView, meta: { resource: 'hsn-codes', permission: 'hsn-codes.view' } },
+      { path: 'gst-tools', component: GstToolsView, meta: { permission: 'hsn-codes.view' } },
+      { path: 'e-invoices', component: EInvoicesView, meta: { permission: 'e-invoices.view' } },
+      { path: 'e-way-bills', component: EWayBillsView, meta: { permission: 'e-way-bills.view' } },
+      // AI Features (§22)
+      { path: 'ai-assistant', component: AiAssistantView, meta: { permission: 'ai.view' } },
+      { path: 'ai-insights', component: AiInsightsView, meta: { permission: 'ai.view' } },
     ],
   },
   // Full-screen POS customer-facing display (own window on a 2nd monitor).
   // Outside AppLayout: no chrome, mirrors the terminal over a BroadcastChannel.
   { path: '/pos-display', name: 'pos-display', component: CustomerDisplayView, meta: { requiresAuth: true } },
+
+  // Public hosted pay page (SRS §16): customers open a payment link here — no
+  // login. Outside AppLayout; the tenant is derived server-side from the token.
+  { path: '/pay/:token', name: 'pay', component: PayView, meta: { public: true } },
 
   // B2B customer portal (SRS §14): a separate authenticated surface for
   // dealers/distributors/retailers, gated by its own portal token.

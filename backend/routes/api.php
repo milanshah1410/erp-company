@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Central\PaymentWebhookController;
 use App\Http\Controllers\Central\PlanController;
+use App\Http\Controllers\Central\PublicPaymentController;
+use App\Http\Controllers\Central\TenantFileController;
 use App\Http\Controllers\Central\RazorpayWebhookController;
 use App\Http\Controllers\Central\RegistrationController;
 use Illuminate\Support\Facades\Route;
@@ -34,3 +37,24 @@ Route::get('/provisioning-status/{registration}', [RegistrationController::class
 
 // Razorpay recurring-billing webhook (signature-verified inside the controller).
 Route::post('/razorpay/webhook', [RazorpayWebhookController::class, 'handle']);
+
+/*
+| Customer payment collection (SRS §16). The hosted pay page + gateway
+| callbacks/webhooks are public: the tenant is derived from the payment link
+| token / a signed webhook, not from an authenticated user.
+*/
+Route::get('/pay/{token}', [PublicPaymentController::class, 'show']);
+Route::post('/pay/{token}/start', [PublicPaymentController::class, 'start']);
+Route::match(['get', 'post'], '/pay/{token}/callback', [PublicPaymentController::class, 'callback']);
+Route::post('/webhooks/payments/{gateway}', [PaymentWebhookController::class, 'handle']);
+
+/*
+| Local-dev signed streaming of tenant files (see App\Support\TenantStorage).
+| The 'signed' middleware is the whole authorization: the tenant id, path and
+| expiry are baked into the signature. In production, tenant files are served by
+| native pre-signed S3 URLs and this route is not hit.
+*/
+Route::get('/tenant-files/{tenant}/{path}', [TenantFileController::class, 'show'])
+    ->where('path', '.*')
+    ->middleware('signed')
+    ->name('tenant.file');

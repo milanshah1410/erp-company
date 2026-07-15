@@ -7,8 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ExpenseRequest;
 use App\Http\Resources\ExpenseResource;
 use App\Models\Expense;
+use App\Support\TenantStorage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Company Expense — operating spend booked against a category and optionally a
@@ -73,7 +73,7 @@ class ExpenseController extends Controller
             return response()->json(['message' => 'Only draft or rejected expenses can be deleted.'], 422);
         }
         if ($expense->attachment_path) {
-            Storage::disk('public')->delete($expense->attachment_path);
+            TenantStorage::disk()->delete($expense->attachment_path);
         }
         $expense->delete();
 
@@ -140,10 +140,11 @@ class ExpenseController extends Controller
             'attachment' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
 
+        $disk = TenantStorage::disk();
         if ($expense->attachment_path) {
-            Storage::disk('public')->delete($expense->attachment_path);
+            $disk->delete($expense->attachment_path);
         }
-        $path = $request->file('attachment')->store('expenses', 'public');
+        $path = $disk->putFile('expenses', $request->file('attachment'));
         $expense->update(['attachment_path' => $path]);
 
         return new ExpenseResource($expense->load($this->relations()));

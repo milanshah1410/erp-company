@@ -4,6 +4,7 @@ import Button from 'primevue/button'
 import RadioButton from 'primevue/radiobutton'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
@@ -38,6 +39,45 @@ const NUMBER_PREFIX_KEYS = [
   { key: 'gate_entry_number_prefix', label: 'Gate Entry' },
 ]
 const numberPrefixes = ref<Record<string, string>>({})
+
+// --- SMS gateway (SRS §18) ---
+const SMS_KEYS = [
+  'sms_driver', 'sms_provider', 'sms_sender_id', 'sms_route', 'sms_country_code',
+  'sms_auth_key', 'sms_otp_length', 'sms_otp_ttl',
+  'sms_tpl_otp', 'sms_tpl_invoice', 'sms_tpl_dispatch', 'sms_tpl_payment_reminder', 'sms_tpl_festival',
+]
+const sms = ref<Record<string, any>>({})
+const savingSms = ref(false)
+const smsDriverOptions = [
+  { label: 'Log only (no gateway account needed)', value: 'log' },
+  { label: 'MSG91 (send for real)', value: 'msg91' },
+]
+const SMS_TEMPLATE_FIELDS = [
+  { key: 'sms_tpl_otp', label: 'OTP', hint: 'Placeholders: {otp} {minutes}' },
+  { key: 'sms_tpl_invoice', label: 'Invoice', hint: 'Placeholders: {name} {number} {symbol} {amount} {business}' },
+  { key: 'sms_tpl_dispatch', label: 'Dispatch', hint: 'Placeholders: {name} {number} {date} {business}' },
+  { key: 'sms_tpl_payment_reminder', label: 'Payment Reminder', hint: 'Placeholders: {name} {symbol} {amount} {business}' },
+  { key: 'sms_tpl_festival', label: 'Festival Greeting', hint: 'Placeholders: {name} {festival} {business}' },
+]
+
+// --- Email / SMTP gateway (SRS §19) ---
+const MAIL_KEYS = [
+  'mail_driver', 'mail_host', 'mail_port', 'mail_username', 'mail_password',
+  'mail_encryption', 'mail_from_address', 'mail_from_name',
+]
+const mail = ref<Record<string, any>>({})
+const savingMail = ref(false)
+const testingMail = ref(false)
+const testEmailTo = ref('')
+const mailDriverOptions = [
+  { label: 'Log only (no mail server needed)', value: 'log' },
+  { label: 'SMTP (send for real)', value: 'smtp' },
+]
+const mailEncryptionOptions = [
+  { label: 'TLS', value: 'tls' },
+  { label: 'SSL', value: 'ssl' },
+  { label: 'None', value: 'none' },
+]
 
 const monthOptions = [
   { label: 'January', value: 1 }, { label: 'February', value: 2 }, { label: 'March', value: 3 },
@@ -75,6 +115,63 @@ function applySettings(data: Record<string, any>) {
   const prefixes: Record<string, string> = {}
   for (const { key } of NUMBER_PREFIX_KEYS) prefixes[key] = data[key] ?? ''
   numberPrefixes.value = prefixes
+  const smsData: Record<string, any> = {}
+  for (const key of SMS_KEYS) smsData[key] = data[key] ?? ''
+  smsData.sms_otp_length = Number(data.sms_otp_length ?? 6)
+  smsData.sms_otp_ttl = Number(data.sms_otp_ttl ?? 300)
+  sms.value = smsData
+  const mailData: Record<string, any> = {}
+  for (const key of MAIL_KEYS) mailData[key] = data[key] ?? ''
+  if (!mailData.mail_driver) mailData.mail_driver = 'log'
+  if (!mailData.mail_encryption) mailData.mail_encryption = 'tls'
+  if (!mailData.mail_port) mailData.mail_port = 587
+  mail.value = mailData
+}
+
+async function saveMail() {
+  savingMail.value = true
+  try {
+    const payload: Record<string, any> = {}
+    for (const key of MAIL_KEYS) payload[key] = mail.value[key]
+    const { data } = await http.put('/settings', payload)
+    applySettings(data.data ?? {})
+    toast.add({ severity: 'success', summary: 'Email settings saved', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Save failed', detail: e.response?.data?.message ?? 'Unexpected error', life: 4000 })
+  } finally {
+    savingMail.value = false
+  }
+}
+
+async function sendTestEmail() {
+  if (!testEmailTo.value) {
+    toast.add({ severity: 'warn', summary: 'Enter a recipient email first', life: 3000 })
+    return
+  }
+  testingMail.value = true
+  try {
+    const { data } = await http.post('/email/test', { to: testEmailTo.value })
+    toast.add({ severity: 'success', summary: 'Test email', detail: data.message, life: 5000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Test failed', detail: e.response?.data?.message ?? 'Unexpected error', life: 5000 })
+  } finally {
+    testingMail.value = false
+  }
+}
+
+async function saveSms() {
+  savingSms.value = true
+  try {
+    const payload: Record<string, any> = {}
+    for (const key of SMS_KEYS) payload[key] = sms.value[key]
+    const { data } = await http.put('/settings', payload)
+    applySettings(data.data ?? {})
+    toast.add({ severity: 'success', summary: 'SMS settings saved', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Save failed', detail: e.response?.data?.message ?? 'Unexpected error', life: 4000 })
+  } finally {
+    savingSms.value = false
+  }
 }
 
 async function load() {
@@ -229,6 +326,119 @@ onMounted(load)
     </div>
 
     <div class="card">
+      <h2>SMS Gateway</h2>
+      <p class="card-note">
+        Configure how the app sends SMS (OTP, invoice, dispatch, payment reminders, festival greetings).
+        The <b>Log only</b> driver records messages without a gateway account — ideal for testing. Switch to
+        <b>MSG91</b> and enter your auth key + sender id to send for real.
+      </p>
+
+      <div v-if="loading" class="loading">Loading…</div>
+      <template v-else>
+        <div class="form-grid">
+          <div class="fld">
+            <label>Driver</label>
+            <Select v-model="sms.sms_driver" :options="smsDriverOptions" optionLabel="label" optionValue="value" :disabled="!canEdit" />
+          </div>
+          <div class="fld">
+            <label>Sender ID</label>
+            <InputText v-model="sms.sms_sender_id" :disabled="!canEdit" placeholder="ERPTXT" />
+          </div>
+          <div class="fld">
+            <label>MSG91 Auth Key</label>
+            <InputText v-model="sms.sms_auth_key" :disabled="!canEdit" placeholder="Required for MSG91" />
+          </div>
+          <div class="fld">
+            <label>Route</label>
+            <InputText v-model="sms.sms_route" :disabled="!canEdit" placeholder="4" />
+          </div>
+          <div class="fld">
+            <label>Country code</label>
+            <InputText v-model="sms.sms_country_code" :disabled="!canEdit" placeholder="91" />
+          </div>
+          <div class="fld">
+            <label>OTP length</label>
+            <InputNumber v-model="sms.sms_otp_length" :min="4" :max="8" :disabled="!canEdit" />
+          </div>
+          <div class="fld">
+            <label>OTP validity (seconds)</label>
+            <InputNumber v-model="sms.sms_otp_ttl" :min="60" :max="1800" :disabled="!canEdit" />
+          </div>
+        </div>
+
+        <h3 class="subhead">Message Templates</h3>
+        <div class="tpl-grid">
+          <div v-for="t in SMS_TEMPLATE_FIELDS" :key="t.key" class="fld">
+            <label>{{ t.label }}</label>
+            <Textarea v-model="sms[t.key]" rows="2" :disabled="!canEdit" autoResize />
+            <small class="tpl-hint">{{ t.hint }}</small>
+          </div>
+        </div>
+      </template>
+
+      <div v-if="canEdit" class="actions">
+        <Button label="Save" icon="pi pi-check" :loading="savingSms" :disabled="loading" @click="saveSms" />
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Email Gateway</h2>
+      <p class="card-note">
+        Configure how the app sends email (invoice / purchase order / quotation PDFs and marketing campaigns).
+        The <b>Log only</b> driver records mail to the application log — ideal for testing with no mail server.
+        Switch to <b>SMTP</b> and enter your mail account details to send for real.
+      </p>
+
+      <div v-if="loading" class="loading">Loading…</div>
+      <template v-else>
+        <div class="form-grid">
+          <div class="fld">
+            <label>Driver</label>
+            <Select v-model="mail.mail_driver" :options="mailDriverOptions" optionLabel="label" optionValue="value" :disabled="!canEdit" />
+          </div>
+          <div class="fld">
+            <label>Encryption</label>
+            <Select v-model="mail.mail_encryption" :options="mailEncryptionOptions" optionLabel="label" optionValue="value" :disabled="!canEdit" />
+          </div>
+          <div class="fld">
+            <label>SMTP Host</label>
+            <InputText v-model="mail.mail_host" :disabled="!canEdit" placeholder="smtp.gmail.com" />
+          </div>
+          <div class="fld">
+            <label>SMTP Port</label>
+            <InputNumber v-model="mail.mail_port" :min="1" :max="65535" :useGrouping="false" :disabled="!canEdit" />
+          </div>
+          <div class="fld">
+            <label>Username</label>
+            <InputText v-model="mail.mail_username" :disabled="!canEdit" placeholder="you@company.com" />
+          </div>
+          <div class="fld">
+            <label>Password</label>
+            <InputText v-model="mail.mail_password" type="password" :disabled="!canEdit" placeholder="App password" />
+          </div>
+          <div class="fld">
+            <label>From Address</label>
+            <InputText v-model="mail.mail_from_address" :disabled="!canEdit" placeholder="no-reply@company.com" />
+          </div>
+          <div class="fld">
+            <label>From Name</label>
+            <InputText v-model="mail.mail_from_name" :disabled="!canEdit" placeholder="Your Company" />
+          </div>
+        </div>
+
+        <h3 class="subhead">Send a Test Email</h3>
+        <div class="test-row">
+          <InputText v-model="testEmailTo" :disabled="!canEdit" placeholder="recipient@example.com" />
+          <Button label="Send Test" icon="pi pi-send" outlined :loading="testingMail" :disabled="!canEdit" @click="sendTestEmail" />
+        </div>
+      </template>
+
+      <div v-if="canEdit" class="actions">
+        <Button label="Save" icon="pi pi-check" :loading="savingMail" :disabled="loading" @click="saveMail" />
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Document Numbering</h2>
       <p class="card-note">
         Prefix used when generating each document's next number, e.g. a "PO" prefix produces PO-000001. Only affects
@@ -335,5 +545,19 @@ onMounted(load)
 }
 .settings-page .card + .card {
   margin-top: 1.25rem;
+}
+.subhead {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 1.1rem 0 0.75rem;
+}
+.test-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.test-row :deep(.p-inputtext) {
+  min-width: 260px;
 }
 </style>

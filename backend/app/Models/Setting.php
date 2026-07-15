@@ -77,6 +77,49 @@ class Setting extends Model
         'currency_symbol' => '₹',
         'default_tax_percent' => '0',
         'whatsapp_country_code' => '91',
+
+        // SMS gateway (SRS §18). Driver `log` records messages without a gateway;
+        // `msg91` sends for real using the auth key + sender id below.
+        'sms_driver' => 'log',
+        'sms_provider' => 'msg91',
+        'sms_sender_id' => 'ERPTXT',
+        'sms_route' => '4',
+        'sms_country_code' => '91',
+        'sms_auth_key' => '',
+        'sms_otp_length' => '6',
+        'sms_otp_ttl' => '300',
+        // Message templates — {placeholders} are filled in at send time.
+        'sms_tpl_otp' => 'Your OTP is {otp}. It is valid for {minutes} minutes. Do not share it with anyone.',
+        'sms_tpl_invoice' => 'Dear {name}, invoice {number} for {symbol}{amount} has been generated. Thank you for your business.',
+        'sms_tpl_dispatch' => 'Dear {name}, your order (Dispatch {number}) has been dispatched on {date} and is on its way. - {business}',
+        'sms_tpl_payment_reminder' => 'Dear {name}, an amount of {symbol}{amount} is outstanding on your account. Kindly arrange payment at the earliest. - {business}',
+        'sms_tpl_festival' => 'Dear {name}, {business} wishes you and your family a very Happy {festival}!',
+
+        // Email / SMTP gateway (SRS §19). Driver `log` writes mail to the Laravel
+        // log without a mail server; `smtp` sends for real over the SMTP account
+        // configured below. Mirrors the SMS module's log-first philosophy.
+        'mail_driver' => 'log',
+        'mail_host' => '',
+        'mail_port' => '587',
+        'mail_username' => '',
+        'mail_password' => '',
+        'mail_encryption' => 'tls',        // tls / ssl / none
+        'mail_from_address' => '',
+        'mail_from_name' => '',
+
+        // AI Features (SRS §22). All engines run locally; the narration provider
+        // seam mirrors the SMS/GST modules. `local` needs no key; `openai` /
+        // `anthropic` narrate via a hosted model once an API key is set.
+        'ai_provider' => 'local',          // local / openai / anthropic
+        'ai_api_key' => '',
+        'ai_model' => '',                  // blank = provider default (config/ai.php)
+        'ai_lead_time_days' => '7',        // supplier lead time for purchase suggestions
+    ];
+
+    /** SMS keys that hold a template body (validated as free text, not codes). */
+    public const SMS_TEMPLATE_KEYS = [
+        'sms_tpl_otp', 'sms_tpl_invoice', 'sms_tpl_dispatch',
+        'sms_tpl_payment_reminder', 'sms_tpl_festival',
     ];
 
     protected $fillable = ['key', 'value'];
@@ -130,5 +173,35 @@ class Setting extends Model
     public static function numberPrefix(string $settingKey): string
     {
         return static::get($settingKey, self::NUMBER_PREFIX_DEFAULTS[$settingKey] ?? '');
+    }
+
+    /** Keys holding outgoing-mail (SMTP) configuration. */
+    public const MAIL_KEYS = [
+        'mail_driver', 'mail_host', 'mail_port', 'mail_username', 'mail_password',
+        'mail_encryption', 'mail_from_address', 'mail_from_name',
+    ];
+
+    /** The tenant's mail settings as a flat map, defaults filled in for anything unset. */
+    public static function mailConfig(): array
+    {
+        $stored = static::query()
+            ->whereIn('key', self::MAIL_KEYS)
+            ->pluck('value', 'key')
+            ->toArray();
+
+        return array_merge(
+            array_intersect_key(self::OTHER_DEFAULTS, array_flip(self::MAIL_KEYS)),
+            array_filter($stored, fn ($v) => $v !== null),
+        );
+    }
+
+    /** True when the tenant has entered enough SMTP config to send real mail. */
+    public static function mailConfigured(): bool
+    {
+        $c = static::mailConfig();
+
+        return ($c['mail_driver'] ?? 'log') === 'smtp'
+            && ! empty($c['mail_host'])
+            && ! empty($c['mail_from_address']);
     }
 }

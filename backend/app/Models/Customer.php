@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Laravel\Scout\Searchable;
 
 /**
  * A customer is also a B2B portal account (SRS §14): with `portal_enabled` and
@@ -21,7 +22,7 @@ use Laravel\Sanctum\HasApiTokens;
  */
 class Customer extends Model implements AuthenticatableContract
 {
-    use AuthenticatableTrait, BelongsToTenant, HasApiTokens, LogsAuditActivity, Notifiable;
+    use AuthenticatableTrait, BelongsToTenant, HasApiTokens, LogsAuditActivity, Notifiable, Searchable;
 
     protected $fillable = [
         'code', 'name', 'company_name', 'email', 'phone', 'type', 'customer_category_id',
@@ -56,6 +57,27 @@ class Customer extends Model implements AuthenticatableContract
     public function canUsePortal(): bool
     {
         return $this->is_active && $this->portal_enabled && ! empty($this->portal_password);
+    }
+
+    /**
+     * Fields exposed to the shared `customers` Meilisearch index. `tenant_id` is
+     * filterable so global search only ever returns the caller's own customers;
+     * `portal_password` is never emitted (it is $hidden and omitted here).
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'tenant_id' => $this->tenant_id,
+            'code' => $this->code,
+            'name' => $this->name,
+            'company_name' => $this->company_name,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'gst_number' => $this->gst_number,
+            'city' => $this->city,
+            'is_active' => (bool) $this->is_active,
+        ];
     }
 
     public function category(): BelongsTo

@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\DispatchItemResource;
 use App\Models\DispatchItem;
 use App\Models\DispatchPlan;
+use App\Support\TenantStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -80,10 +80,11 @@ class ProofOfDeliveryController extends Controller
             'photo' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
 
+        $disk = TenantStorage::disk();
         if ($dispatchItem->pod_photo_path) {
-            Storage::disk('public')->delete($dispatchItem->pod_photo_path);
+            $disk->delete($dispatchItem->pod_photo_path);
         }
-        $path = $request->file('photo')->store('dispatch-pod', 'public');
+        $path = $disk->putFile('dispatch-pod', $request->file('photo'));
         $dispatchItem->update(['pod_photo_path' => $path]);
 
         return new DispatchItemResource(

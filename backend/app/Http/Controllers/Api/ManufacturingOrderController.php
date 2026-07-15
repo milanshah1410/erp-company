@@ -10,9 +10,9 @@ use App\Models\ManufacturingOrder;
 use App\Models\ManufacturingOrderStage;
 use App\Models\Product;
 use App\Services\StockService;
+use App\Support\TenantStorage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -323,11 +323,12 @@ class ManufacturingOrderController extends Controller
             'image' => ['required', 'image', 'max:2048'], // 2 MB
         ]);
 
-        if ($stage->image && Storage::disk('public')->exists($stage->image)) {
-            Storage::disk('public')->delete($stage->image);
+        $disk = TenantStorage::disk();
+        if ($stage->image && $disk->exists($stage->image)) {
+            $disk->delete($stage->image);
         }
 
-        $path = $request->file('image')->store('manufacturing-stages', 'public');
+        $path = $disk->putFile('manufacturing-stages', $request->file('image'));
         $stage->update(['image' => $path]);
 
         return new ManufacturingOrderStageResource($stage->fresh()->load('employee'));

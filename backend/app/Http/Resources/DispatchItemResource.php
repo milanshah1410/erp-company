@@ -2,9 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Support\TenantStorage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class DispatchItemResource extends JsonResource
 {
@@ -29,9 +29,7 @@ class DispatchItemResource extends JsonResource
             'received_by' => $this->received_by,
             'receiver_phone' => $this->receiver_phone,
             'pod_photo_path' => $this->pod_photo_path,
-            'pod_photo_url' => $this->pod_photo_path
-                ? Storage::disk('public')->url($this->pod_photo_path)
-                : null,
+            'pod_photo_url' => TenantStorage::temporaryUrl($this->pod_photo_path),
             'pod_remarks' => $this->pod_remarks,
         ];
     }

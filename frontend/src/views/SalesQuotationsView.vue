@@ -15,6 +15,8 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import { priceDocument, type DiscountType } from '../utils/pricing'
+import { openPdfBlob } from '../utils/blob'
+import SendEmailDialog from '../components/SendEmailDialog.vue'
 
 const discountTypes = [
   { label: '%', value: 'percent' },
@@ -31,6 +33,31 @@ const products = ref<any[]>([])
 
 const canCreate = computed(() => auth.can('sales.create'))
 const canEdit = computed(() => auth.can('sales.edit'))
+const canEmail = computed(() => auth.can('email.create'))
+
+// --- PDF preview + Email ---
+async function previewPdf(row: any) {
+  try {
+    const res = await http.get(`/sales-quotations/${row.id}/pdf`, { responseType: 'blob' })
+    openPdfBlob(res.data)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Could not open PDF', life: 3000 })
+  }
+}
+
+const emailVisible = ref(false)
+const emailCtx = ref<{ endpoint: string; title: string; defaultTo: string; defaultSubject: string }>({
+  endpoint: '', title: '', defaultTo: '', defaultSubject: '',
+})
+function openEmail(row: any) {
+  emailCtx.value = {
+    endpoint: `/email/quotations/${row.id}`,
+    title: `Email Quotation ${row.quote_number}`,
+    defaultTo: row.customer?.email ?? '',
+    defaultSubject: `Quotation ${row.quote_number}`,
+  }
+  emailVisible.value = true
+}
 
 const statusColors: Record<string, string> = {
   draft: 'secondary',
@@ -174,10 +201,12 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 18rem">
         <template #body="{ data }">
-          <Button v-if="canEdit && data.status === 'draft'" label="Send" size="small" outlined @click="sendQuotation(data)" />
+          <Button icon="pi pi-file-pdf" text rounded size="small" title="View PDF" @click="previewPdf(data)" />
+          <Button v-if="canEmail" icon="pi pi-envelope" text rounded size="small" title="Email to customer" @click="openEmail(data)" />
+          <Button v-if="canEdit && data.status === 'draft'" label="Send" size="small" outlined @click="sendQuotation(data)" style="margin-left: 4px" />
           <Button v-if="canEdit && data.status === 'sent'" label="Accept" size="small" outlined severity="success" @click="acceptQuotation(data)" style="margin-left: 4px" />
           <Button v-if="canEdit && data.status === 'sent'" label="Reject" size="small" outlined severity="danger" @click="rejectQuotation(data)" style="margin-left: 4px" />
-          <Button v-if="canCreate && data.status === 'accepted'" label="Convert to SO" size="small" severity="success" @click="convertQuotation(data)" />
+          <Button v-if="canCreate && data.status === 'accepted'" label="Convert to SO" size="small" severity="success" @click="convertQuotation(data)" style="margin-left: 4px" />
         </template>
       </Column>
       <template #empty>No quotations yet.</template>
@@ -261,6 +290,14 @@ onMounted(async () => {
         <Button label="Create Quotation" :loading="saving" @click="saveQuotation" />
       </template>
     </Dialog>
+
+    <SendEmailDialog
+      v-model:visible="emailVisible"
+      :endpoint="emailCtx.endpoint"
+      :title="emailCtx.title"
+      :defaultTo="emailCtx.defaultTo"
+      :defaultSubject="emailCtx.defaultSubject"
+    />
   </div>
 </template>
 

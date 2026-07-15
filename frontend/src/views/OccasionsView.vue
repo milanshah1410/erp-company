@@ -70,6 +70,23 @@ async function wish(row: any) {
   }
 }
 
+async function wishSms(row: any) {
+  if (!row.phone) {
+    toast.add({ severity: 'warn', summary: 'No phone number for this customer', life: 3000 })
+    return
+  }
+  try {
+    await http.post('/sms/messages', {
+      customer_id: row.customer_id,
+      template: 'festival',
+      body: defaultMessage(row),
+    })
+    toast.add({ severity: 'success', summary: 'Greeting SMS sent', life: 2500 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -112,6 +129,11 @@ onMounted(load)
             icon="pi pi-whatsapp" label="Wish" size="small" severity="success" outlined
             @click="wish(data)"
           />
+          <Button
+            v-if="data.phone"
+            icon="pi pi-comment" label="SMS" size="small" severity="info" outlined class="sms-btn"
+            @click="wishSms(data)"
+          />
         </template>
       </Column>
       <template #empty>No upcoming birthdays or anniversaries in this window.</template>
@@ -125,4 +147,5 @@ onMounted(load)
 .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
 .filter { min-width: 160px; }
 .muted-sub { display: block; color: #6b7280; font-size: 0.78rem; }
+.sms-btn { margin-left: 0.35rem; }
 </style>

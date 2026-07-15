@@ -2,18 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PrintLabelsRequest;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\BarcodeService;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class BarcodeController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function __construct(private readonly BarcodeService $barcodes) {}
 
     /** Render an ad-hoc value as a barcode/QR PNG (e.g. live preview while editing a product). */
@@ -119,24 +121,48 @@ class BarcodeController extends Controller
         ];
     }
 
-    /** Build a printable PDF of barcode/QR labels for the selected products/variants. */
+    /**
+     * Build a printable PDF sheet of labels for the selected products/variants.
+     *
+     * SRS §21 offers four formats, chosen with `template`:
+     *   - barcode   → a compact CODE128 barcode label
+     *   - qr        → a square QR-code label
+     *   - sticker   → a richer product sticker (name, category/brand, code)
+     *   - price_tag → a retail price tag with a prominent selling price
+     *
+     * For the sticker/price-tag templates the code drawn on the label follows
+     * `label_type` (code128|qr); the barcode/qr templates imply their own.
+     */
     public function printLabels(PrintLabelsRequest $request)
     {
-        $labelType = $request->input('label_type', 'code128');
+        // Resolve the template, keeping the old label_type-only callers working:
+        // a bare label_type=qr still yields a QR sheet, code128 a barcode sheet.
+        $template = $request->input('template')
+            ?: ($request->input('label_type') === 'qr' ? 'qr' : 'barcode');
+
+        // Which symbology the drawn code uses for this template.
+        $symbology = match ($template) {
+            'qr' => 'qr',
+            'barcode' => 'code128',
+            default => $request->input('label_type', 'code128'),
+        };
+
+        $showPrice = $request->boolean('show_price', true);
         $labels = [];
 
         foreach ($request->input('items') as $item) {
             if ($item['type'] === 'variant') {
-                $variant = ProductVariant::with('product')->find($item['id']);
+                $variant = ProductVariant::with('product.category', 'product.brand')->find($item['id']);
                 if (! $variant || empty($variant->barcode)) {
                     continue;
                 }
-                $line1 = $variant->product->name;
+                $product = $variant->product;
+                $line1 = $product->name;
                 $line2 = $variant->name ?: $variant->sku;
                 $value = $variant->barcode;
-                $price = $variant->selling_price ?? $variant->product->selling_price;
+                $price = $variant->selling_price ?? $product->selling_price;
             } else {
-                $product = Product::find($item['id']);
+                $product = Product::with('category', 'brand')->find($item['id']);
                 if (! $product || empty($product->barcode)) {
                     continue;
                 }
@@ -146,18 +172,22 @@ class BarcodeController extends Controller
                 $price = $product->selling_price;
             }
 
-            $image = $labelType === 'qr'
-                ? $this->barcodes->qrDataUri($value, 200)
+            $image = $symbology === 'qr'
+                ? $this->barcodes->qrDataUri($value, 220)
                 : $this->barcodes->code128DataUri($value);
 
+            $row = [
+                'line1' => $line1,
+                'line2' => $line2,
+                'value' => $value,
+                'price' => $showPrice ? $price : null,
+                'category' => $product->category?->name,
+                'brand' => $product->brand?->name,
+                'image' => $image,
+            ];
+
             for ($i = 0; $i < $item['quantity']; $i++) {
-                $labels[] = [
-                    'line1' => $line1,
-                    'line2' => $line2,
-                    'value' => $value,
-                    'price' => $price,
-                    'image' => $image,
-                ];
+                $labels[] = $row;
             }
         }
 
@@ -165,7 +195,15 @@ class BarcodeController extends Controller
             throw ValidationException::withMessages(['items' => 'None of the selected items have a barcode value to print.']);
         }
 
-        $pdf = Pdf::loadView('labels.print', ['labels' => $labels])->setPaper('a4');
+        $company = $this->documentCompany($request);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('labels.print', [
+            'labels' => $labels,
+            'template' => $template,
+            'symbology' => $symbology,
+            'company' => $request->boolean('show_company', true) ? $company : null,
+            'currency' => $company['currency'],
+        ])->setPaper('a4');
 
         return $pdf->stream('labels.pdf');
     }

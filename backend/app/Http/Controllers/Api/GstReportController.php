@@ -99,6 +99,169 @@ class GstReportController extends Controller
         ]);
     }
 
+    /** GSTR-2: inward supplies (purchases), supplier + HSN + rate wise, ITC split. */
+    public function gstr2(Request $request)
+    {
+        [$from, $to] = [$request->query('date_from'), $request->query('date_to')];
+        $homeState = $this->homeState();
+
+        $rows = PurchaseInvoiceItem::query()
+            ->join('purchase_invoices', 'purchase_invoices.id', '=', 'purchase_invoice_items.purchase_invoice_id')
+            ->join('products', 'products.id', '=', 'purchase_invoice_items.product_id')
+            ->leftJoin('suppliers', 'suppliers.id', '=', 'purchase_invoices.supplier_id')
+            ->when($from, fn ($q) => $q->whereDate('purchase_invoices.invoice_date', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('purchase_invoices.invoice_date', '<=', $to))
+            ->selectRaw("
+                CASE WHEN suppliers.gst_number IS NULL OR suppliers.gst_number = '' THEN 'Unregistered' ELSE 'Registered' END as supply_type,
+                CASE WHEN suppliers.state IS NULL OR suppliers.state = '' OR LOWER(TRIM(suppliers.state)) = ? THEN 0 ELSE 1 END as is_interstate,
+                COALESCE(products.hsn_code, 'N/A') as hsn_code,
+                purchase_invoice_items.tax_percent,
+                SUM(purchase_invoice_items.line_total - purchase_invoice_items.tax_amount) as taxable_value,
+                SUM(purchase_invoice_items.tax_amount) as tax_amount
+            ", [$homeState])
+            ->groupBy('supply_type', 'is_interstate', 'hsn_code', 'purchase_invoice_items.tax_percent')
+            ->orderBy('supply_type')
+            ->orderBy('hsn_code')
+            ->get()
+            ->map(function ($r) {
+                $tax = round((float) $r->tax_amount, 2);
+                $interstate = (int) $r->is_interstate === 1;
+
+                return [
+                    'supply_type' => $r->supply_type,
+                    'hsn_code' => $r->hsn_code,
+                    'tax_percent' => (float) $r->tax_percent,
+                    'taxable_value' => round((float) $r->taxable_value, 2),
+                    'cgst' => $interstate ? 0.0 : round($tax / 2, 2),
+                    'sgst' => $interstate ? 0.0 : round($tax / 2, 2),
+                    'igst' => $interstate ? $tax : 0.0,
+                    'tax_amount' => $tax,
+                ];
+            })->all();
+
+        return $this->exportResponse($request, $rows, [
+            'supply_type' => 'Supply', 'hsn_code' => 'HSN Code', 'tax_percent' => 'Tax %',
+            'taxable_value' => 'Taxable Value', 'cgst' => 'CGST', 'sgst' => 'SGST', 'igst' => 'IGST', 'tax_amount' => 'Total ITC',
+        ], 'gstr2', [
+            'total_taxable' => round(array_sum(array_column($rows, 'taxable_value')), 2),
+            'total_tax' => round(array_sum(array_column($rows, 'tax_amount')), 2),
+        ]);
+    }
+
+    /**
+     * Government offline-tool JSON for GSTR-1 (HSN summary section). Streams a
+     * downloadable .json shaped like the GالسTN upload schema (gstin, fp, hsn[]).
+     */
+    public function gstr1Json(Request $request)
+    {
+        [$from, $to] = [$request->query('date_from'), $request->query('date_to')];
+        $homeState = $this->homeState();
+
+        $hsn = SalesItem::query()
+            ->join('sales_orders', 'sales_orders.id', '=', 'sales_items.sales_order_id')
+            ->join('products', 'products.id', '=', 'sales_items.product_id')
+            ->leftJoin('customers', 'customers.id', '=', 'sales_orders.customer_id')
+            ->where('sales_orders.status', '!=', 'cancelled')
+            ->when($from, fn ($q) => $q->whereDate('sales_orders.order_date', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('sales_orders.order_date', '<=', $to))
+            ->selectRaw("
+                COALESCE(products.hsn_code, 'N/A') as hsn_code,
+                sales_items.tax_percent,
+                CASE WHEN customers.state IS NULL OR customers.state = '' OR LOWER(TRIM(customers.state)) = ? THEN 0 ELSE 1 END as is_interstate,
+                SUM(sales_items.quantity) as qty,
+                SUM(sales_items.line_total - sales_items.tax_amount) as taxable_value,
+                SUM(sales_items.tax_amount) as tax_amount,
+                SUM(sales_items.line_total) as total_value
+            ", [$homeState])
+            ->groupBy('hsn_code', 'sales_items.tax_percent', 'is_interstate')
+            ->get()
+            ->values()
+            ->map(function ($r, $i) {
+                $tax = round((float) $r->tax_amount, 2);
+                $interstate = (int) $r->is_interstate === 1;
+
+                return [
+                    'num' => $i + 1,
+                    'hsn_sc' => $r->hsn_code,
+                    'rt' => (float) $r->tax_percent,
+                    'qty' => round((float) $r->qty, 2),
+                    'txval' => round((float) $r->taxable_value, 2),
+                    'iamt' => $interstate ? $tax : 0.0,
+                    'camt' => $interstate ? 0.0 : round($tax / 2, 2),
+                    'samt' => $interstate ? 0.0 : round($tax / 2, 2),
+                    'csamt' => 0.0,
+                    'val' => round((float) $r->total_value, 2),
+                ];
+            })->all();
+
+        $doc = [
+            'gstin' => $this->homeGstin(),
+            'fp' => $this->returnPeriod($from, $to),
+            'version' => 'GST3.1.6',
+            'hash' => 'hash',
+            'hsn' => ['data' => $hsn],
+        ];
+
+        return response()->streamDownload(
+            fn () => print(json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)),
+            'gstr1-'.$doc['fp'].'.json',
+            ['Content-Type' => 'application/json'],
+        );
+    }
+
+    /** Government offline-tool JSON for GSTR-3B (sec 3.1 outward + 4 ITC). */
+    public function gstr3bJson(Request $request)
+    {
+        [$from, $to] = [$request->query('date_from'), $request->query('date_to')];
+        $out = $this->salesTaxTotals($from, $to);
+        $in = $this->purchaseTaxTotals($from, $to);
+
+        $doc = [
+            'gstin' => $this->homeGstin(),
+            'ret_period' => $this->returnPeriod($from, $to),
+            'sup_details' => [
+                'osup_det' => [
+                    'txval' => $out['taxable'],
+                    'iamt' => 0.0,
+                    'camt' => round($out['tax'] / 2, 2),
+                    'samt' => round($out['tax'] / 2, 2),
+                    'csamt' => 0.0,
+                ],
+            ],
+            'itc_elg' => [
+                'itc_avl' => [[
+                    'ty' => 'OTH',
+                    'iamt' => 0.0,
+                    'camt' => round($in['tax'] / 2, 2),
+                    'samt' => round($in['tax'] / 2, 2),
+                    'csamt' => 0.0,
+                ]],
+            ],
+        ];
+
+        return response()->streamDownload(
+            fn () => print(json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)),
+            'gstr3b-'.$doc['ret_period'].'.json',
+            ['Content-Type' => 'application/json'],
+        );
+    }
+
+    /** MMYYYY return period from the range end (or now). */
+    private function returnPeriod(?string $from, ?string $to): string
+    {
+        $ref = $to ?: $from;
+
+        return $ref ? \Carbon\Carbon::parse($ref)->format('mY') : now()->format('mY');
+    }
+
+    /** The company's primary GSTIN for the JSON header. */
+    private function homeGstin(): string
+    {
+        return GstRegistration::query()->orderByDesc('is_primary')->value('gstin')
+            ?? Company::query()->value('gstin')
+            ?? '';
+    }
+
     /** @return array{taxable:float,tax:float} */
     private function salesTaxTotals(?string $from, ?string $to): array
     {
