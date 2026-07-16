@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Central\AuthController as CentralAuthController;
+use App\Http\Controllers\Central\OperatorController;
 use App\Http\Controllers\Central\PaymentWebhookController;
 use App\Http\Controllers\Central\PlanController;
 use App\Http\Controllers\Central\PublicPaymentController;
+use App\Http\Controllers\Central\RoleController as CentralRoleController;
 use App\Http\Controllers\Central\TenantFileController;
 use App\Http\Controllers\Central\RazorpayWebhookController;
 use App\Http\Controllers\Central\RegistrationController;
@@ -58,3 +61,35 @@ Route::get('/tenant-files/{tenant}/{path}', [TenantFileController::class, 'show'
     ->where('path', '.*')
     ->middleware('signed')
     ->name('tenant.file');
+
+/*
+|--------------------------------------------------------------------------
+| SaaS-owner platform panel  —  <APP_URL>/api/central/...
+|--------------------------------------------------------------------------
+|
+| Level-1 (platform operator) RBAC. Operators authenticate on the `central`
+| guard; `central.context` pins Spatie's team scope to NULL (where the central
+| roles live) and blocks deactivated accounts. Every business endpoint is gated
+| by a platform permission on that guard (permission:<name>,central).
+|
+*/
+Route::prefix('central')->group(function () {
+    Route::post('/login', [CentralAuthController::class, 'login']);
+
+    Route::middleware(['auth:central', 'central.context'])->group(function () {
+        Route::get('/me', [CentralAuthController::class, 'me']);
+        Route::post('/logout', [CentralAuthController::class, 'logout']);
+
+        // Platform operators + their Level-1 roles.
+        Route::get('/operators', [OperatorController::class, 'index'])->middleware('permission:operators.view,central');
+        Route::post('/operators', [OperatorController::class, 'store'])->middleware('permission:operators.create,central');
+        Route::get('/operators/{operator}', [OperatorController::class, 'show'])->middleware('permission:operators.view,central');
+        Route::match(['put', 'patch'], '/operators/{operator}', [OperatorController::class, 'update'])->middleware('permission:operators.edit,central');
+        Route::delete('/operators/{operator}', [OperatorController::class, 'destroy'])->middleware('permission:operators.delete,central');
+
+        // Role catalogue + permission matrix (tuning is super-admin-only).
+        Route::get('/roles', [CentralRoleController::class, 'index'])->middleware('permission:roles.view,central');
+        Route::get('/permissions', [CentralRoleController::class, 'permissions'])->middleware('permission:roles.view,central');
+        Route::match(['put', 'patch'], '/roles/{role}', [CentralRoleController::class, 'update'])->middleware('permission:roles.edit,central');
+    });
+});

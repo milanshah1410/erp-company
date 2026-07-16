@@ -25,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             // SaaS multi-tenancy
             'resolve.tenant' => \App\Http\Middleware\ResolveTenant::class,
+            // SaaS-owner (platform operator) context — pins Spatie team to NULL.
+            'central.context' => \App\Http\Middleware\ResolveCentralContext::class,
             'plan.limit' => \App\Http\Middleware\EnforcePlanLimit::class,
             'tenant.active' => \App\Http\Middleware\EnsureTenantActive::class,
             // B2B customer portal (SRS §14): the tokenable must be a Customer.

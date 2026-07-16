@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CentralUser;
 use App\Models\User;
 
 return [
@@ -42,6 +43,18 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        /*
+        | Platform / landlord operators (SaaS-owner RBAC — Level 1). Token-based
+        | (Sanctum) against the central_users table. Sanctum's guard reads the
+        | provider below, so a token minted for a CentralUser authenticates here
+        | while tenant-user tokens (guard: sanctum → users) are rejected, keeping
+        | the two operator populations cleanly isolated.
+        */
+        'central' => [
+            'driver' => 'sanctum',
+            'provider' => 'central_users',
+        ],
     ],
 
     /*
@@ -65,6 +78,12 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        // Landlord operators live in the central DB (see App\Models\CentralUser).
+        'central_users' => [
+            'driver' => 'eloquent',
+            'model' => CentralUser::class,
         ],
 
         // 'users' => [

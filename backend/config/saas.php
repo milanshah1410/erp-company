@@ -27,6 +27,14 @@ return [
     'grace_days' => (int) env('SAAS_GRACE_DAYS', 3),
 
     /*
+    | Database connection the platform/landlord models (e.g. CentralUser) run
+    | on. Defaults to the dedicated `central` connection. Overridden in the test
+    | suite so the shared sqlite connection is reused (two :memory: connections
+    | would otherwise be isolated databases).
+    */
+    'central_connection' => env('CENTRAL_DB_CONNECTION', 'central'),
+
+    /*
     | Razorpay recurring-billing credentials + webhook secret. Real values
     | live in .env on the deployed environment; blank locally.
     */

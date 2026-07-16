@@ -1,8 +1,14 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usePortalAuthStore } from '../stores/portalAuth'
+import { useCentralAuthStore } from '../stores/centralAuth'
 import AppLayout from '../layouts/AppLayout.vue'
 import PortalLayout from '../layouts/PortalLayout.vue'
+import CentralAdminLayout from '../layouts/CentralAdminLayout.vue'
+import CentralLoginView from '../views/central/CentralLoginView.vue'
+import CentralDashboardView from '../views/central/CentralDashboardView.vue'
+import CentralOperatorsView from '../views/central/CentralOperatorsView.vue'
+import CentralRolesView from '../views/central/CentralRolesView.vue'
 import PortalLoginView from '../views/portal/PortalLoginView.vue'
 import PortalCatalogueView from '../views/portal/PortalCatalogueView.vue'
 import PortalCartView from '../views/portal/PortalCartView.vue'
@@ -316,6 +322,20 @@ const routes: RouteRecordRaw[] = [
       { path: 'orders', name: 'portal-orders', component: PortalOrdersView },
     ],
   },
+  // SaaS-owner platform panel (Level-1 RBAC): platform operators managing the
+  // SaaS itself — tenants, billing, support, ops. Own token/guard, separate
+  // from staff and portal. Authenticates against /api/central/*.
+  { path: '/platform/login', name: 'central-login', component: CentralLoginView, meta: { central: true, centralPublic: true } },
+  {
+    path: '/platform',
+    component: CentralAdminLayout,
+    meta: { central: true },
+    children: [
+      { path: '', name: 'central-dashboard', component: CentralDashboardView },
+      { path: 'operators', name: 'central-operators', component: CentralOperatorsView, meta: { permission: 'operators.view' } },
+      { path: 'roles', name: 'central-roles', component: CentralRolesView, meta: { permission: 'roles.view' } },
+    ],
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
@@ -325,6 +345,28 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  // SaaS-owner platform panel has its own token/session, separate from staff.
+  if (to.meta.central) {
+    const central = useCentralAuthStore()
+    if (to.meta.centralPublic) {
+      return central.isAuthenticated && to.name === 'central-login' ? { name: 'central-dashboard' } : true
+    }
+    if (!central.isAuthenticated) {
+      return { name: 'central-login' }
+    }
+    if (!central.operator) {
+      try {
+        await central.fetchMe()
+      } catch {
+        return { name: 'central-login' }
+      }
+    }
+    if (to.meta.permission && !central.can(to.meta.permission as string)) {
+      return { name: 'central-dashboard' }
+    }
+    return true
+  }
+
   // B2B customer portal has its own token/session, separate from staff.
   if (to.meta.portal) {
     const portal = usePortalAuthStore()

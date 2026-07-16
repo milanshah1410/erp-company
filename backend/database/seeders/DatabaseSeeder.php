@@ -36,6 +36,11 @@ class DatabaseSeeder extends Seeder
         app(PermissionRegistrar::class)->setPermissionsTeamId(null);
         $this->call(RolePermissionSeeder::class);
 
+        // SaaS-owner RBAC (Level 1): platform operators, roles & permissions on
+        // the `central` guard, plus a bootstrap Super Admin. Manages its own
+        // (NULL) team context internally.
+        $this->call(CentralRolePermissionSeeder::class);
+
         // 2. A dev tenant — seeded on a trial so the trial banner + onboarding
         //    "Getting Started" widget are visible on first login.
         $tenant = Tenant::firstOrCreate(
