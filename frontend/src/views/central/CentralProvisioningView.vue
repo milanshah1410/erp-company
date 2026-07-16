@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import http from '../../api/http'
 
@@ -10,15 +10,33 @@ const status = ref<'provisioning' | 'active' | 'failed' | 'pending_verification'
 const loginUrl = ref<string | null>(null)
 const errorMsg = ref('')
 
+// The Step-7 "Generate" sequence from the onboarding spec. Provisioning is a
+// single atomic job server-side, so we reveal these client-side for perceived
+// progress and mark them all complete once the tenant is active.
 const steps = [
-  'Creating your database',
-  'Running migrations',
-  'Seeding defaults & roles',
-  'Setting up your admin account',
-  'Starting your free trial',
+  { label: 'Company', icon: 'pi pi-building' },
+  { label: 'Menus', icon: 'pi pi-bars' },
+  { label: 'Permissions', icon: 'pi pi-key' },
+  { label: 'Roles', icon: 'pi pi-shield' },
+  { label: 'Users', icon: 'pi pi-users' },
+  { label: 'Settings', icon: 'pi pi-cog' },
+  { label: 'Dashboard', icon: 'pi pi-th-large' },
+  { label: 'Sample data', icon: 'pi pi-database' },
 ]
 
+// How many steps have "completed" so far (all of them once active).
+const revealed = ref(1)
+const stepState = (i: number): 'done' | 'active' | 'pending' => {
+  if (status.value === 'active' || i < revealed.value) return 'done'
+  if (i === revealed.value) return 'active'
+  return 'pending'
+}
+const progressPct = computed(() =>
+  status.value === 'active' ? 100 : Math.round((revealed.value / steps.length) * 100),
+)
+
 let poll: ReturnType<typeof setInterval>
+let reveal: ReturnType<typeof setInterval>
 
 async function check() {
   try {
@@ -28,9 +46,13 @@ async function check() {
     errorMsg.value = data.error || ''
     if (data.status === 'active' && data.login_url) {
       clearInterval(poll)
-      setTimeout(() => (window.location.href = data.login_url), 1200)
+      clearInterval(reveal)
+      setTimeout(() => (window.location.href = data.login_url), 1500)
     }
-    if (data.status === 'failed') clearInterval(poll)
+    if (data.status === 'failed') {
+      clearInterval(poll)
+      clearInterval(reveal)
+    }
   } catch {
     /* keep polling */
   }
@@ -39,8 +61,16 @@ async function check() {
 onMounted(() => {
   check()
   poll = setInterval(check, 2000)
+  // Walk the generate steps while we wait, pausing on the last one until the
+  // server confirms completion.
+  reveal = setInterval(() => {
+    if (status.value === 'provisioning' && revealed.value < steps.length) revealed.value++
+  }, 700)
 })
-onBeforeUnmount(() => clearInterval(poll))
+onBeforeUnmount(() => {
+  clearInterval(poll)
+  clearInterval(reveal)
+})
 </script>
 
 <template>
@@ -50,16 +80,23 @@ onBeforeUnmount(() => clearInterval(poll))
         <div class="spinner" :class="{ done: status === 'active' }">
           <i :class="status === 'active' ? 'pi pi-check' : 'pi pi-spin pi-spinner'" />
         </div>
-        <h1>{{ status === 'active' ? 'Your workspace is ready!' : 'Setting up your workspace…' }}</h1>
+        <h1>{{ status === 'active' ? 'Your workspace is ready!' : 'Generating your workspace…' }}</h1>
         <p class="sub">
-          {{ status === 'active' ? 'Redirecting you to your dashboard…' : 'This takes just a few seconds.' }}
+          {{ status === 'active' ? 'Redirecting you to your dashboard…' : 'Setting everything up — just a few seconds.' }}
         </p>
-        <div class="barcode-divider" />
+
+        <div class="progress"><div class="bar" :style="{ width: progressPct + '%' }" /></div>
+
         <ul class="steps">
-          <li v-for="s in steps" :key="s" :class="{ ok: status === 'active' }">
-            <i :class="status === 'active' ? 'pi pi-check-circle' : 'pi pi-circle'" />{{ s }}
+          <li v-for="(s, i) in steps" :key="s.label" :class="stepState(i)">
+            <i
+              :class="stepState(i) === 'done' ? 'pi pi-check-circle'
+                : stepState(i) === 'active' ? 'pi pi-spin pi-spinner' : 'pi pi-circle'"
+            />
+            {{ s.label }}
           </li>
         </ul>
+
         <a v-if="status === 'active' && loginUrl" :href="loginUrl" class="go">Open dashboard →</a>
       </template>
 
@@ -67,7 +104,7 @@ onBeforeUnmount(() => clearInterval(poll))
         <div class="spinner failed"><i class="pi pi-times" /></div>
         <h1>Provisioning failed</h1>
         <p class="sub">{{ errorMsg || 'Something went wrong while creating your workspace.' }}</p>
-        <RouterLink :to="{ name: 'central-register' }" class="go">Try again</RouterLink>
+        <RouterLink :to="{ name: 'register' }" class="go">Try again</RouterLink>
       </template>
     </div>
   </div>
@@ -119,31 +156,53 @@ h1 {
   font-size: 0.9rem;
   margin-top: 0.4rem;
 }
-.barcode-divider {
-  margin: 1.1rem 0;
+.progress {
+  height: 6px;
+  background: #eee;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 1.25rem 0;
+}
+.progress .bar {
+  height: 100%;
+  background: linear-gradient(135deg, #eaad48, #c98730);
+  border-radius: 999px;
+  transition: width 0.5s ease;
 }
 .steps {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.15rem 1rem;
   text-align: left;
 }
 .steps li {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0;
-  color: #6b7280;
-  font-size: 0.9rem;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  color: #9ca3af;
+  font-size: 0.88rem;
+  transition: color 0.3s;
 }
-.steps li.ok {
+.steps li.active {
+  color: #1e2328;
+  font-weight: 600;
+}
+.steps li.done {
   color: #4c8b6c;
 }
 .steps li i {
   color: #c98730;
+  font-size: 0.85rem;
 }
-.steps li.ok i {
+.steps li.done i {
   color: #4c8b6c;
+}
+.steps li.pending i {
+  color: #d8d3c8;
 }
 .go {
   display: inline-block;
