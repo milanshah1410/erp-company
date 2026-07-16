@@ -11,6 +11,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -121,6 +122,19 @@ onMounted(load)
         <DatePicker v-model="month" view="month" dateFormat="MM yy" showIcon iconDisplay="input" @update:modelValue="load" />
         <Button v-if="canGenerate" label="Generate" icon="pi pi-cog" :loading="generating" @click="generate" />
         <Button v-if="canPay && draftCount > 0" label="Pay All" icon="pi pi-check-circle" severity="success" :loading="paying" @click="payAll" />
+        <TableExportButtons title="Payroll" :rows="rows"
+          :columns="[
+            { key: 'employee_name', label: 'Employee' },
+            { key: 'paid_days', label: 'Paid Days' },
+            { key: 'gross', label: 'Gross' },
+            { key: 'pf_employee', label: 'PF' },
+            { key: 'esi_employee', label: 'ESI' },
+            { key: 'professional_tax', label: 'PT' },
+            { key: 'advance_deduction', label: 'Advance' },
+            { key: 'loan_deduction', label: 'Loan' },
+            { key: 'net_salary', label: 'Net' },
+            { key: 'status', label: 'Status' },
+          ]" />
       </div>
     </div>
 

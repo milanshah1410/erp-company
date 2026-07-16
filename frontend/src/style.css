@@ -1,3 +1,13 @@
+/* Tailwind CSS (project-stack.md §1). Installed alongside PrimeVue as an
+   opt-in utility layer. We import the theme + utilities but deliberately OMIT
+   Tailwind's Preflight (base reset) so it does not restyle existing PrimeVue
+   components or scoped-CSS screens — utilities are available for new/responsive
+   markup and can be adopted incrementally. Layer order keeps utilities low so
+   they never fight established component styles unintentionally. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
 :root {
   /* Warehouse Ledger palette */
   --graphite: #1e2328;
@@ -14,6 +24,34 @@
   color: var(--graphite);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode (project-stack.md §20). PrimeVue components switch via the
+   darkModeSelector; here we flip the app-chrome palette so custom surfaces
+   (content background, headings, cards) follow along. */
+:root.dark-mode {
+  --graphite: #e6e8ea;      /* now the primary *text* colour */
+  --graphite-light: #c2c7cc;
+  --paper: #16191d;         /* app/content background */
+  --surface: #1e2328;       /* raised cards/panels */
+  --surface-2: #262c32;
+  --border: #333a41;
+  color: var(--graphite);
+  color-scheme: dark;
+}
+:root.dark-mode body {
+  background: var(--paper);
+}
+:root.dark-mode h1,
+:root.dark-mode h2,
+:root.dark-mode h3 {
+  color: var(--graphite);
+}
+/* Light-theme surface tokens (so components can reference them in both modes). */
+:root {
+  --surface: #ffffff;
+  --surface-2: #f2f0ea;
+  --border: #e3ded3;
 }
 
 * {
@@ -48,6 +86,87 @@ a {
 .mono,
 code {
   font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* ------------------------------------------------------------------ *
+ * Global responsiveness (project-stack.md §1 "Responsive Design").
+ * Screens use scoped CSS with recurring layout class names. These global
+ * rules target those names so every screen collapses gracefully on small
+ * viewports without editing each component. !important is scoped to the
+ * mobile media query only, to beat the higher-specificity scoped selectors
+ * (.form-grid[data-v-xxx]) they override.
+ * ------------------------------------------------------------------ */
+
+/* Any DataTable scrolls horizontally instead of forcing the page to. */
+.p-datatable-wrapper,
+.p-datatable-table-container {
+  overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+  /* Two/three-column form + attribute grids collapse to a single column. */
+  .form-grid,
+  .attr-grid,
+  .filters-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Page header: stack title above its primary action, full-width button. */
+  .header,
+  .crud-header,
+  .page-header,
+  .view-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+
+  /* Toolbars (search + filters + export/print) wrap and go full width. */
+  .toolbar,
+  .crud-toolbar,
+  .filters,
+  .actions-bar {
+    flex-wrap: wrap !important;
+  }
+  .toolbar > *,
+  .crud-toolbar > *,
+  .filters > * {
+    flex: 1 1 100% !important;
+  }
+  /* The search box has a fixed pixel width in many screens — free it. */
+  .search,
+  .search :deep(input),
+  .search input {
+    width: 100% !important;
+  }
+
+  /* Dialogs should not exceed the viewport on phones. */
+  .p-dialog {
+    width: 96vw !important;
+    max-width: 96vw !important;
+  }
+
+  /* KPI / stat card rows wrap to one per line. */
+  .stats,
+  .kpi-row,
+  .cards,
+  .card-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Print: hide app chrome and show only the printable region when a screen
+   marks its content with .printable (used by the export/print helper's
+   in-page fallback). The iframe-based printer is preferred; this is a safety
+   net for screens that print the live DOM. */
+@media print {
+  .app-sidebar,
+  .app-topbar,
+  .no-print {
+    display: none !important;
+  }
 }
 
 /* Barcode-stripe divider — signature motif for section breaks */

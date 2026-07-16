@@ -15,9 +15,15 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const canCreate = computed(() => auth.can('leads.create'))
 const canEdit = computed(() => auth.can('leads.edit'))
@@ -27,6 +33,8 @@ const crud = ref(useCrud('/leads'))
 const search = ref('')
 const statusFilter = ref<string | null>(null)
 const stateFilter = ref<string | null>('open')
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 function money(v: number | string | null | undefined) {
   return formatCurrency(v)
@@ -82,12 +90,23 @@ function reload() {
   if (search.value) params.search = search.value
   if (statusFilter.value) params.status = statusFilter.value
   if (stateFilter.value) params.state = stateFilter.value
+  if (sortField.value && sortOrder.value) {
+    params.sort = sortField.value
+    params.direction = sortOrder.value === 1 ? 'asc' : 'desc'
+  }
   crud.value.fetch(params)
 }
 
 function onPage(e: any) {
   crud.value.currentPage = e.page + 1
   crud.value.perPage = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
   reload()
 }
 
@@ -249,6 +268,19 @@ onMounted(() => {
         placeholder="All statuses" showClear class="filter" @change="reload"
       />
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Leads" endpoint="/leads"
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}), ...(stateFilter ? { state: stateFilter } : {}) })"
+        :columns="[
+          { key: 'code', label: 'Code' },
+          { key: 'name', label: 'Name' },
+          { key: 'company_name', label: 'Company' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'source', label: 'Source' },
+          { key: 'estimated_value', label: 'Est. Value' },
+          { key: 'status', label: 'Status' },
+          { key: 'assignee.name', label: 'Assigned' },
+        ]" />
     </div>
 
     <DataTable
@@ -261,10 +293,14 @@ onMounted(() => {
       :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id"
       @page="onPage"
+      removableSort
+      :sortField="sortField ?? undefined"
+      :sortOrder="sortOrder ?? undefined"
+      @sort="onSort"
       class="p-datatable-sm"
     >
-      <Column field="code" header="Code" style="width: 8rem" />
-      <Column header="Name">
+      <Column field="code" header="Code" sortable style="width: 8rem" />
+      <Column field="name" header="Name" sortable>
         <template #body="{ data }">
           <span>{{ data.name }}</span>
           <span v-if="data.company_name" class="muted-sub">{{ data.company_name }}</span>
@@ -275,7 +311,7 @@ onMounted(() => {
       <Column header="Est. Value" style="text-align: right">
         <template #body="{ data }">{{ money(data.estimated_value) }}</template>
       </Column>
-      <Column header="Status">
+      <Column field="status" header="Status" sortable>
         <template #body="{ data }">
           <Tag :severity="statusColors[data.status]" :value="data.status" />
           <span v-if="data.is_converted" class="muted-sub">→ customer</span>
@@ -286,6 +322,7 @@ onMounted(() => {
       </Column>
       <Column header="Actions" style="width: 11rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button
             v-if="canEdit && !data.is_converted"
             icon="pi pi-user-plus" text rounded size="small" severity="success"
@@ -379,13 +416,29 @@ onMounted(() => {
         <Button label="Convert" icon="pi pi-user-plus" :loading="converting" @click="doConvert" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Lead Details" :fields="[
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Name' },
+      { key: 'company_name', label: 'Company' },
+      { key: 'email', label: 'Email' },
+      { key: 'phone', label: 'Phone' },
+      { key: 'source', label: 'Source' },
+      { key: 'status', label: 'Status' },
+      { key: 'estimated_value', label: 'Estimated Value', format:(v)=>v==null||v===''?'—':'₹'+Number(v).toLocaleString('en-IN',{minimumFractionDigits:2}) },
+      { key: 'expected_close_date', label: 'Expected Close' },
+      { key: 'assignee.name', label: 'Assigned To' },
+      { key: 'lost_reason', label: 'Lost Reason' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar-spacer { flex: 1 1 auto; }
 .search { position: relative; display: flex; align-items: center; }
 .search i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search :deep(input) { padding-left: 2.25rem; width: 280px; }

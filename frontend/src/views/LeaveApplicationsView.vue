@@ -13,9 +13,15 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -187,6 +193,17 @@ onMounted(async () => {
         placeholder="All employees" class="w-60" @change="load" />
       <Select v-model="filters.status" :options="STATUSES" optionLabel="label" optionValue="value" showClear
         placeholder="All statuses" @change="load" />
+      <TableExportButtons title="Leave Applications" endpoint="/leave-applications"
+        :params="() => ({ ...(filters.employee_id ? { employee_id: filters.employee_id } : {}), ...(filters.status ? { status: filters.status } : {}) })"
+        :columns="[
+          { key: 'employee_name', label: 'Employee' },
+          { key: 'leave_type_name', label: 'Type' },
+          { key: 'from_date', label: 'From' },
+          { key: 'to_date', label: 'To' },
+          { key: 'days', label: 'Days' },
+          { key: 'reason', label: 'Reason' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
@@ -202,6 +219,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 15rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canApprove && data.status === 'pending'" label="Approve" icon="pi pi-check" text severity="success" size="small" @click="approve(data)" />
           <Button v-if="canApprove && data.status === 'pending'" label="Reject" icon="pi pi-times" text severity="danger" size="small" @click="reject(data)" />
           <Button v-if="canEdit && data.status === 'pending'" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
@@ -249,6 +267,17 @@ onMounted(async () => {
         <Button :label="editingId ? 'Update' : 'Apply'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Leave Application Details" :fields="[
+      { key: 'employee_name', label: 'Employee' },
+      { key: 'leave_type_name', label: 'Leave Type' },
+      { key: 'from_date', label: 'From' },
+      { key: 'to_date', label: 'To' },
+      { key: 'days', label: 'Days' },
+      { key: 'half_day', label: 'Half Day' },
+      { key: 'status', label: 'Status' },
+      { key: 'reason', label: 'Reason', full: true },
+    ]" />
   </div>
 </template>
 

@@ -10,6 +10,7 @@ import Tag from 'primevue/tag'
 import ProgressBar from 'primevue/progressbar'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const now = new Date()
 const MONTHS = [
@@ -99,6 +100,17 @@ onMounted(loadIncentive)
         <Select v-model="incPeriod.year" :options="YEARS" optionLabel="label" optionValue="value" @change="loadIncentive" />
         <Select v-model="incPeriod.month" :options="MONTHS" optionLabel="label" optionValue="value" @change="loadIncentive" />
         <Button label="Refresh" icon="pi pi-refresh" :loading="activeLoading" outlined @click="loadIncentive" />
+        <TableExportButtons title="Salesman Incentive" :rows="incRows" filenameBase="salesman-incentive" :columns="[
+          { key: 'name', label: 'Salesman' },
+          { key: 'code', label: 'Code' },
+          { key: 'target_amount', label: 'Target', format: (v) => money(v) },
+          { key: 'achieved_amount', label: 'Achieved', format: (v) => money(v) },
+          { key: 'achievement_percent', label: 'Achievement %', format: (v) => `${Number(v).toFixed(0)}%` },
+          { key: 'achieved_orders', label: 'Orders' },
+          { key: 'incentive_percent', label: 'Incentive %', format: (v) => `${Number(v).toFixed(2)}%` },
+          { key: 'incentive_amount', label: 'Incentive', format: (v) => money(v) },
+          { key: 'target_met', label: 'Status', format: (v) => (v ? 'Met' : 'In progress') },
+        ]" />
       </div>
 
       <div v-if="incSummary" class="cards">
@@ -137,6 +149,14 @@ onMounted(loadIncentive)
         <span class="to">to</span>
         <DatePicker v-model="compRange.to" dateFormat="yy-mm-dd" showIcon iconDisplay="input" />
         <Button label="Run" icon="pi pi-search" @click="loadCompliance" />
+        <TableExportButtons title="Visit Compliance" :rows="compRows" filenameBase="visit-compliance" :columns="[
+          { key: 'salesman', label: 'Salesman' },
+          { key: 'code', label: 'Code' },
+          { key: 'planned', label: 'Planned' },
+          { key: 'visited', label: 'Visited' },
+          { key: 'skipped', label: 'Skipped' },
+          { key: 'compliance_percent', label: 'Compliance %', format: (v) => `${Number(v).toFixed(0)}%` },
+        ]" />
       </div>
 
       <DataTable :value="compRows" :loading="compLoading" dataKey="salesman_id" class="p-datatable-sm">

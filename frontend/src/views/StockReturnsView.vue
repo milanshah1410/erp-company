@@ -14,6 +14,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -48,6 +50,13 @@ const statusOptions = [
   { label: 'Approved', value: 'approved' },
   { label: 'Cancelled', value: 'cancelled' },
 ]
+
+const search = ref('')
+
+// --- Read-only detail dialog ---
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 // --- Create / edit dialog ---
 const dialogVisible = ref(false)
@@ -179,7 +188,7 @@ async function removeReturn(row: any) {
 }
 
 function reload() {
-  crud.fetch(statusFilter.value ? { status: statusFilter.value } : {})
+  crud.fetch({ status: statusFilter.value || undefined, search: search.value || undefined })
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -207,8 +216,25 @@ onMounted(async () => {
     <div class="header">
       <h1>Stock Returns (Inward)</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="Stock Returns" endpoint="/stock-returns"
+          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+          :columns="[
+            { key: 'return_number', label: 'Return #' },
+            { key: 'warehouse.name', label: 'Warehouse' },
+            { key: 'return_type', label: 'Type' },
+            { key: 'customer.name', label: 'Customer' },
+            { key: 'supplier.name', label: 'Supplier' },
+            { key: 'return_date', label: 'Date' },
+            { key: 'items_count', label: 'Lines' },
+            { key: 'status', label: 'Status' },
+          ]" />
         <Button v-if="canCreate" label="New Return" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
@@ -228,8 +254,9 @@ onMounted(async () => {
           <Tag :severity="statusColors[data.status]" :value="data.status" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 14rem">
+      <Column header="Actions" style="width: 16rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <template v-if="data.status === 'draft'">
             <Button v-if="canApprove" label="Approve" size="small" severity="success" outlined @click="approve(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -316,6 +343,19 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Create Draft'" :loading="saving" @click="saveReturn" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" title="Stock Return" :record="detailRecord" :fields="[
+      { key: 'return_number', label: 'Return #' },
+      { key: 'warehouse.name', label: 'Warehouse' },
+      { key: 'return_type', label: 'Type', format: (v) => returnTypeLabel(v) },
+      { key: 'customer.name', label: 'Customer' },
+      { key: 'supplier.name', label: 'Supplier' },
+      { key: 'debit_note_number', label: 'Debit Note #' },
+      { key: 'return_date', label: 'Date' },
+      { key: 'items_count', label: 'Lines' },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
@@ -324,6 +364,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

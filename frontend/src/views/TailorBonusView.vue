@@ -14,9 +14,15 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const tailors = ref<{ label: string; value: number }[]>([])
 const filterTailor = ref<number | null>(null)
@@ -200,6 +206,17 @@ onMounted(async () => {
     <div class="toolbar">
       <Select v-model="filterTailor" :options="tailors" optionLabel="label" optionValue="value"
         placeholder="All tailors" showClear filter class="tailor-select" @change="() => { page = 1; load() }" />
+      <TableExportButtons title="Tailor Bonuses" endpoint="/tailor-bonuses"
+        :params="() => ({ tailor_id: filterTailor || undefined })"
+        :columns="[
+          { key: 'bonus_number', label: 'Bonus #' },
+          { key: 'tailor_name', label: 'Tailor' },
+          { key: 'basis', label: 'Basis' },
+          { key: 'period_start', label: 'Period Start' },
+          { key: 'period_end', label: 'Period End' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
@@ -218,6 +235,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canApprove && data.status === 'draft'" label="Approve" icon="pi pi-check" text size="small" @click="approve(data)" />
           <Button v-if="canApprove && data.status === 'draft'" icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(data)" />
           <span v-if="data.status !== 'draft'" class="muted">—</span>
@@ -281,6 +299,19 @@ onMounted(async () => {
         <Button label="Save Draft" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Bonus Details" :fields="[
+      { key: 'bonus_number', label: 'Bonus #' },
+      { key: 'tailor_name', label: 'Tailor' },
+      { key: 'basis', label: 'Basis' },
+      { key: 'period_start', label: 'Period Start' },
+      { key: 'period_end', label: 'Period End' },
+      { key: 'pieces', label: 'Pieces' },
+      { key: 'rate', label: 'Rate', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'amount', label: 'Amount', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 

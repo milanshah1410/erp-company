@@ -6,6 +6,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const entries = ref<any[]>([])
 const summary = ref<any>(null)
@@ -66,6 +67,17 @@ onMounted(async () => {
         placeholder="All bank accounts" showClear class="acc-select" @change="load" />
       <label>From <input type="date" v-model="from" class="date-input" @change="load" /></label>
       <label>To <input type="date" v-model="to" class="date-input" @change="load" /></label>
+      <TableExportButtons title="Bank Book" :rows="entries"
+        :columns="[
+          { key: 'date', label: 'Date' },
+          { key: 'source', label: 'Type' },
+          { key: 'mode', label: 'Mode' },
+          { key: 'reference', label: 'Reference' },
+          { key: 'party', label: 'Party' },
+          { key: 'debit', label: 'In' },
+          { key: 'credit', label: 'Out' },
+          { key: 'balance', label: 'Balance' },
+        ]" />
     </div>
 
     <p v-if="!bankAccountId" class="note">

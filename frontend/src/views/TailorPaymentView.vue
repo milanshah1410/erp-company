@@ -13,9 +13,15 @@ import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const tailors = ref<{ label: string; value: number }[]>([])
 const filterTailor = ref<number | null>(null)
@@ -134,6 +140,16 @@ onMounted(async () => {
     <div class="toolbar">
       <Select v-model="filterTailor" :options="tailors" optionLabel="label" optionValue="value"
         placeholder="All tailors" showClear filter class="tailor-select" @change="() => { page = 1; load() }" />
+      <TableExportButtons title="Tailor Payments" endpoint="/tailor-payments"
+        :params="() => ({ tailor_id: filterTailor || undefined })"
+        :columns="[
+          { key: 'payment_number', label: 'Payment #' },
+          { key: 'payment_date', label: 'Date' },
+          { key: 'tailor_name', label: 'Tailor' },
+          { key: 'mode', label: 'Mode' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'notes', label: 'Notes' },
+        ]" />
     </div>
 
     <DataTable
@@ -158,6 +174,11 @@ onMounted(async () => {
         <template #body="{ data }">{{ money(data.amount) }}</template>
       </Column>
       <Column field="notes" header="Notes" />
+      <Column header="Actions" style="width: 5rem">
+        <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
+        </template>
+      </Column>
       <template #empty>No payments recorded.</template>
     </DataTable>
 
@@ -195,6 +216,15 @@ onMounted(async () => {
         <Button label="Save" :loading="saving" @click="savePayment" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Payment Details" :fields="[
+      { key: 'payment_number', label: 'Payment #' },
+      { key: 'payment_date', label: 'Date' },
+      { key: 'tailor_name', label: 'Tailor' },
+      { key: 'mode', label: 'Mode' },
+      { key: 'amount', label: 'Amount', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 

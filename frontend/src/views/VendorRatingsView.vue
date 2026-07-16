@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import Rating from 'primevue/rating'
@@ -13,6 +14,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -21,6 +23,7 @@ const crud = useCrud('/vendor-ratings')
 const suppliers = ref<any[]>([])
 const grns = ref<any[]>([])
 const summary = ref<any[]>([])
+const search = ref('')
 
 const canCreate = computed(() => auth.can('vendor-ratings.create'))
 const canDelete = computed(() => auth.can('vendor-ratings.delete'))
@@ -88,7 +91,7 @@ function scoreColor(v: number): string {
 }
 
 function reload() {
-  return crud.fetch()
+  return crud.fetch({ search: search.value || undefined })
 }
 async function loadSummary() {
   const { data } = await http.get('/vendor-ratings/summary')
@@ -135,7 +138,29 @@ onMounted(async () => {
     </div>
 
     <!-- Individual ratings -->
-    <h3 class="card-title" style="margin-top: 1.5rem">All Ratings</h3>
+    <div class="ratings-head">
+      <h3 class="card-title" style="margin-top: 1.5rem">All Ratings</h3>
+      <div class="ratings-tools">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search vendor / remarks..." @keyup.enter="crud.currentPage.value = 1; reload()" />
+        </span>
+        <Button label="Search" outlined @click="crud.currentPage.value = 1; reload()" />
+        <TableExportButtons title="Vendor Ratings" endpoint="/vendor-ratings"
+          :params="() => ({ search: search || undefined })"
+          :columns="[
+          { key: 'supplier.name', label: 'Vendor' },
+          { key: 'rated_on', label: 'Date' },
+          { key: 'goods_receipt.grn_number', label: 'GRN' },
+          { key: 'quality_score', label: 'Quality' },
+          { key: 'delivery_score', label: 'Delivery' },
+          { key: 'pricing_score', label: 'Pricing' },
+          { key: 'service_score', label: 'Service' },
+          { key: 'overall_score', label: 'Overall' },
+          { key: 'remarks', label: 'Remarks' },
+        ]" />
+      </div>
+    </div>
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
       <Column header="Vendor"><template #body="{ data }">{{ data.supplier?.name }}</template></Column>
@@ -201,6 +226,11 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; }
 .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.6rem; }
+.ratings-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.ratings-tools { display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
 .fld.full { margin-top: 0.25rem; }
 .fld label { font-size: 0.85rem; font-weight: 500; color: #374151; }

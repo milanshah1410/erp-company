@@ -14,6 +14,8 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -24,6 +26,8 @@ const canDelete = computed(() => auth.can('customer-categories.delete'))
 
 const crud = ref(useCrud('/customer-categories'))
 const search = ref('')
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 const priceLevelOptions = [
   { label: 'MRP', value: 'mrp' },
@@ -33,7 +37,10 @@ const priceLevelOptions = [
 ]
 
 function reload() {
-  crud.value.fetch(search.value ? { search: search.value } : {})
+  crud.value.fetch({
+    ...(search.value ? { search: search.value } : {}),
+    ...(sortField.value && sortOrder.value ? { sort: sortField.value, direction: sortOrder.value === 1 ? 'asc' : 'desc' } : {}),
+  })
 }
 
 function onPage(e: any) {
@@ -41,6 +48,17 @@ function onPage(e: any) {
   crud.value.perPage = e.rows
   reload()
 }
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
+  reload()
+}
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -146,6 +164,17 @@ onMounted(reload)
         <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
       </span>
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Customer Categories" endpoint="/customer-categories"
+        :params="() => (search ? { search } : {})"
+        :columns="[
+          { key: 'name', label: 'Name' },
+          { key: 'code', label: 'Code' },
+          { key: 'default_price_level', label: 'Price Level' },
+          { key: 'discount_percent', label: 'Discount %' },
+          { key: 'customers_count', label: 'Customers' },
+          { key: 'is_active', label: 'Active', format: (v) => v ? 'Yes' : 'No' },
+        ]" />
     </div>
 
     <DataTable
@@ -157,10 +186,14 @@ onMounted(reload)
       :totalRecords="crud.total"
       :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id"
+      removableSort
+      :sortField="sortField ?? undefined"
+      :sortOrder="sortOrder ?? undefined"
       @page="onPage"
+      @sort="onSort"
       class="p-datatable-sm"
     >
-      <Column field="name" header="Name" />
+      <Column field="name" header="Name" sortable />
       <Column field="code" header="Code" />
       <Column header="Price Level">
         <template #body="{ data }"><Tag :value="data.default_price_level" severity="info" /></template>
@@ -178,6 +211,7 @@ onMounted(reload)
       </Column>
       <Column header="Actions" style="width: 8rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
         </template>
@@ -230,6 +264,16 @@ onMounted(reload)
         <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Category Details" :fields="[
+      { key: 'name', label: 'Name' },
+      { key: 'code', label: 'Code' },
+      { key: 'default_price_level', label: 'Price Level' },
+      { key: 'discount_percent', label: 'Discount %' },
+      { key: 'customers_count', label: 'Customers' },
+      { key: 'is_active', label: 'Active' },
+      { key: 'description', label: 'Description', full: true },
+    ]" />
   </div>
 </template>
 
@@ -246,8 +290,12 @@ onMounted(reload)
 }
 .toolbar {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+.toolbar-spacer {
+  flex: 1 1 auto;
 }
 .search {
   position: relative;

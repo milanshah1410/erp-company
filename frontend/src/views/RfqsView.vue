@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
@@ -15,10 +16,16 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/rfqs')
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const warehouses = ref<any[]>([])
 const suppliers = ref<any[]>([])
@@ -32,6 +39,16 @@ const canAward = computed(() => auth.can('purchases.create'))
 const statusColors: Record<string, string> = {
   draft: 'secondary', sent: 'warn', awarded: 'success', closed: 'info', cancelled: 'danger',
 }
+
+const search = ref('')
+const statusFilter = ref<string | null>(null)
+const statusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Sent', value: 'sent' },
+  { label: 'Awarded', value: 'awarded' },
+  { label: 'Closed', value: 'closed' },
+  { label: 'Cancelled', value: 'cancelled' },
+]
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -235,7 +252,10 @@ async function award(vendor: any) {
 }
 
 function reload() {
-  crud.fetch()
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -263,6 +283,27 @@ onMounted(async () => {
       <Button v-if="canCreate" label="New RFQ" icon="pi pi-plus" @click="openCreate" />
     </div>
 
+    <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.5rem;align-items:center;margin-bottom:1rem">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button label="Search" outlined @click="reload" />
+      <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+        placeholder="All statuses" @change="reload" class="status-filter" />
+      <TableExportButtons title="RFQs" endpoint="/rfqs"
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+        :columns="[
+          { key: 'rfq_number', label: 'RFQ #' },
+          { key: 'rfq_date', label: 'Date' },
+          { key: 'response_deadline', label: 'Deadline' },
+          { key: 'items_count', label: 'Items' },
+          { key: 'suppliers_count', label: 'Vendors' },
+          { key: 'awarded_supplier.name', label: 'Awarded To' },
+          { key: 'status', label: 'Status' },
+        ]" />
+    </div>
+
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
       <Column field="rfq_number" header="RFQ #" />
@@ -277,6 +318,7 @@ onMounted(async () => {
       <Column header="Actions" style="width: 22rem">
         <template #body="{ data }">
           <div class="actions">
+            <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
             <Button v-if="canEdit && data.status === 'draft'" label="Send" size="small" outlined @click="send(data)" />
             <Button v-if="canEdit && data.status === 'sent'" label="Record Quote" size="small" outlined @click="openQuote(data)" />
             <Button v-if="['sent', 'awarded'].includes(data.status)" label="Compare" size="small" severity="info" outlined @click="openCompare(data)" />
@@ -426,12 +468,27 @@ onMounted(async () => {
         <Button label="Close" text @click="compareVisible = false" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="RFQ" :fields="[
+      { key: 'rfq_number', label: 'RFQ #' },
+      { key: 'rfq_date', label: 'Date' },
+      { key: 'response_deadline', label: 'Deadline' },
+      { key: 'items_count', label: 'Items' },
+      { key: 'suppliers_count', label: 'Vendors' },
+      { key: 'awarded_supplier.name', label: 'Awarded To' },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }

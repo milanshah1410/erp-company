@@ -925,6 +925,11 @@ onBeforeUnmount(() => {
 .bar-spacer { flex: 1; }
 
 .pos { display: grid; grid-template-columns: 1fr 400px; gap: 1rem; flex: 1; min-height: 0; }
+@media (max-width: 820px) {
+  .pos-wrap { height: auto; }
+  .pos { grid-template-columns: 1fr; }
+  .pos-right { border-left: none; padding-left: 0; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
+}
 .pos-left { display: flex; flex-direction: column; min-height: 0; }
 .pos-toolbar { display: flex; gap: 0.75rem; margin-bottom: 0.75rem; }
 .scan-wrap { flex: 1; position: relative; display: flex; align-items: center; }

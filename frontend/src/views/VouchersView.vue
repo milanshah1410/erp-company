@@ -15,6 +15,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -48,6 +49,7 @@ const partyTypeOptions = [
   { label: 'Employee', value: 'employee' },
 ]
 
+const search = ref('')
 const filters = ref<{ voucher_type: string | null; status: string | null; date_from: string | null; date_to: string | null }>({
   voucher_type: null,
   status: null,
@@ -64,6 +66,7 @@ function today() {
 
 function activeParams() {
   const p: Record<string, any> = {}
+  if (search.value) p.search = search.value
   if (filters.value.voucher_type) p.voucher_type = filters.value.voucher_type
   if (filters.value.status) p.status = filters.value.status
   if (filters.value.date_from) p.date_from = filters.value.date_from
@@ -213,6 +216,22 @@ onMounted(async () => {
       <Select v-model="filters.status" :options="[{ label: 'Posted', value: 'posted' }, { label: 'Cancelled', value: 'cancelled' }]" optionLabel="label" optionValue="value" showClear placeholder="All statuses" class="flt" @change="reload" />
       <input type="date" v-model="filters.date_from" class="date-input" title="From" @change="reload" />
       <input type="date" v-model="filters.date_to" class="date-input" title="To" @change="reload" />
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button label="Search" outlined @click="reload" />
+      <TableExportButtons title="Vouchers" endpoint="/vouchers" :params="() => activeParams()"
+        :columns="[
+          { key: 'voucher_number', label: 'Voucher #' },
+          { key: 'voucher_date', label: 'Date' },
+          { key: 'voucher_type', label: 'Type' },
+          { key: 'bank_account', label: 'Account' },
+          { key: 'mode', label: 'Mode' },
+          { key: 'party_name', label: 'Party' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator
@@ -318,6 +337,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .filters { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; align-items: center; }
 .flt { min-width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

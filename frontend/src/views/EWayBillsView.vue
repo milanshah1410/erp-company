@@ -13,6 +13,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -26,6 +28,11 @@ const total = ref(0)
 const perPage = ref(15)
 const page = ref(1)
 const statusFilter = ref<string | null>(null)
+const search = ref('')
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const statusOptions = [
   { label: 'Not generated', value: 'none' },
@@ -43,7 +50,7 @@ async function load() {
   loading.value = true
   try {
     const { data } = await http.get('/e-way-bills', {
-      params: { page: page.value, per_page: perPage.value, status: statusFilter.value || undefined },
+      params: { page: page.value, per_page: perPage.value, status: statusFilter.value || undefined, search: search.value || undefined },
     })
     rows.value = data.data
     total.value = data.total
@@ -151,8 +158,24 @@ onMounted(load)
     <div class="header">
       <h1>E-Way Bills</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search invoice #..." @keyup.enter="load" />
+        </span>
+        <Button label="Search" outlined @click="load" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All" @change="load" class="filter" />
+        <TableExportButtons title="E-Way Bills" filenameBase="e-way-bills" endpoint="/e-way-bills"
+          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+          :columns="[
+            { key: 'invoice_number', label: 'Invoice #' },
+            { key: 'invoice_date', label: 'Date' },
+            { key: 'customer_name', label: 'Customer' },
+            { key: 'total', label: 'Total' },
+            { key: 'eway_bill.ewb_no', label: 'EWB No.' },
+            { key: 'eway_bill.valid_upto', label: 'Valid Upto' },
+            { key: 'eway_bill.status', label: 'Status' },
+          ]" />
         <Button icon="pi pi-refresh" text rounded @click="load" title="Refresh" />
       </div>
     </div>
@@ -177,6 +200,7 @@ onMounted(load)
       </Column>
       <Column header="Actions" style="width: 18rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canCreate && (!data.eway_bill || data.eway_bill.status === 'failed')" label="Generate" size="small" severity="success" outlined @click="openGenerate(data)" />
           <template v-if="data.eway_bill && data.eway_bill.status === 'generated'">
             <Button v-if="canEdit" label="Vehicle" size="small" text @click="updateVehicle(data)" />
@@ -227,14 +251,29 @@ onMounted(load)
         <Button label="Generate" :loading="saving" @click="submitGenerate" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" title="E-Way Bill Details" :record="detailRecord" :fields="[
+      { key: 'invoice_number', label: 'Invoice #' },
+      { key: 'invoice_date', label: 'Date' },
+      { key: 'customer_name', label: 'Customer' },
+      { key: 'total', label: 'Total', format: (v) => money(v) },
+      { key: 'eway_bill.ewb_no', label: 'EWB No.' },
+      { key: 'eway_bill.status', label: 'Status' },
+      { key: 'eway_bill.valid_upto', label: 'Valid Upto' },
+      { key: 'eway_bill.transport_mode', label: 'Transport Mode' },
+      { key: 'eway_bill.vehicle_no', label: 'Vehicle No.' },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.header-actions { display: flex; gap: 0.75rem; align-items: center; }
+.header-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .filter { width: 170px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .muted { color: #6b7280; font-size: 0.85rem; }
 .sub { color: #6b7280; margin-bottom: 0.75rem; }
 .form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; }

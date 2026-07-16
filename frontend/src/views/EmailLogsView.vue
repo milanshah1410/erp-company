@@ -8,6 +8,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 
@@ -90,6 +91,22 @@ onMounted(reload)
       <Select v-model="mailableFilter" :options="mailableOptions" optionLabel="label" optionValue="value" @change="reload" />
       <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" @change="reload" />
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Email Log" filenameBase="email-log" endpoint="/email/logs"
+        :params="() => ({
+          ...(search ? { search } : {}),
+          ...(mailableFilter ? { mailable: mailableFilter } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
+        })"
+        :columns="[
+          { key: 'created_at', label: 'Date' },
+          { key: 'mailable', label: 'Type' },
+          { key: 'to_name', label: 'To Name' },
+          { key: 'to_email', label: 'To Email' },
+          { key: 'subject', label: 'Subject' },
+          { key: 'status', label: 'Status' },
+          { key: 'by', label: 'By' },
+        ]" />
     </div>
 
     <DataTable
@@ -125,7 +142,8 @@ onMounted(reload)
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .hint { display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.82rem; margin-bottom: 1rem; }
-.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar-spacer { flex: 1 1 auto; }
 .search { position: relative; display: flex; align-items: center; }
 .search i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search :deep(input) { padding-left: 2.25rem; width: 260px; }

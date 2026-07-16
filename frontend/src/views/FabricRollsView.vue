@@ -15,10 +15,16 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/fabric-rolls')
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const products = ref<any[]>([])
 const warehouses = ref<any[]>([])
@@ -65,6 +71,7 @@ async function loadSummary() {
 }
 
 const statusFilter = ref<string | null>(null)
+const search = ref('')
 function switchTab(key: typeof tab.value) {
   tab.value = key
   if (key === 'summary') loadSummary()
@@ -75,6 +82,7 @@ function reload() {
   const params: Record<string, any> = {}
   if (tab.value === 'leftovers') params.leftover = 1
   if (statusFilter.value) params.status = statusFilter.value
+  if (search.value) params.search = search.value
   crud.fetch(params)
 }
 function onPage(e: any) {
@@ -202,8 +210,25 @@ onMounted(async () => {
     <div class="header">
       <h1>Fabric Rolls</h1>
       <div class="header-actions">
+        <span v-if="tab !== 'summary'" class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button v-if="tab !== 'summary'" label="Search" outlined @click="reload" />
         <Select v-if="tab !== 'summary'" v-model="statusFilter" :options="statusOptions" optionLabel="label"
           optionValue="value" showClear placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons v-if="tab !== 'summary'" title="Fabric Rolls" endpoint="/fabric-rolls"
+          :params="() => ({ leftover: tab === 'leftovers' ? 1 : undefined, status: statusFilter || undefined, search: search || undefined })" :columns="[
+          { key: 'roll_number', label: 'Roll #' },
+          { key: 'product.name', label: 'Fabric' },
+          { key: 'shade_no', label: 'Shade No.' },
+          { key: 'dye_lot', label: 'Dye Lot' },
+          { key: 'gsm', label: 'GSM' },
+          { key: 'width', label: 'Width' },
+          { key: 'current_length', label: 'Length' },
+          { key: 'grade', label: 'Grade' },
+          { key: 'status', label: 'Status' },
+        ]" />
         <Button v-if="canCreate" label="Add Roll" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
@@ -249,8 +274,9 @@ onMounted(async () => {
       <Column header="Status">
         <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="data.status" /></template>
       </Column>
-      <Column header="Actions" style="width: 13rem">
+      <Column header="Actions" style="width: 15rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" title="Edit" />
           <Button v-if="canEdit && data.status !== 'quarantined' && data.status !== 'scrapped'" icon="pi pi-exclamation-triangle" size="small" text severity="warn" title="Quarantine" @click="changeStatus(data, 'quarantined', 'Quarantine')" />
           <Button v-if="canEdit && (data.status === 'quarantined' || data.status === 'scrapped')" icon="pi pi-check" size="small" text severity="success" title="Reinstate" @click="changeStatus(data, 'available', 'Reinstate')" />
@@ -351,6 +377,20 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Add Roll'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" title="Fabric Roll" :record="detailRecord" :fields="[
+      { key: 'roll_number', label: 'Roll #' },
+      { key: 'product.name', label: 'Fabric' },
+      { key: 'shade_no', label: 'Shade No.' },
+      { key: 'dye_lot', label: 'Dye Lot' },
+      { key: 'gsm', label: 'GSM', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'width', label: 'Width', format: (v, row) => v == null ? '—' : `${Number(v)} ${row.width_unit}` },
+      { key: 'current_length', label: 'Current Length', format: (v, row) => v == null ? '—' : `${Number(v)} ${row.length_unit}` },
+      { key: 'initial_length', label: 'Initial Length', format: (v, row) => v == null ? '—' : `${Number(v)} ${row.length_unit}` },
+      { key: 'grade', label: 'Grade' },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
@@ -359,6 +399,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 170px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .tabbar { display: flex; gap: 0.25rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem; }
 .tab { background: none; border: none; padding: 0.6rem 1rem; font: inherit; font-size: 0.9rem; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 0.4rem; }
 .tab:hover { color: #111827; }

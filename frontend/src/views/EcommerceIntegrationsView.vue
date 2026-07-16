@@ -10,6 +10,7 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -166,7 +167,20 @@ function fmt(dt: string | null) {
   <div>
     <div class="header">
       <h1>E-commerce Integration</h1>
-      <Button icon="pi pi-refresh" text rounded @click="loadAll" title="Refresh" />
+      <div style="display: flex; gap: 0.5rem; align-items: center">
+        <TableExportButtons title="E-commerce Integrations" filenameBase="ecommerce-integrations" :rows="integrations"
+          :columns="[
+            { key: 'name', label: 'Name' },
+            { key: 'platform_label', label: 'Platform' },
+            { key: 'status', label: 'Status' },
+            { key: 'warehouse.name', label: 'Warehouse' },
+            { key: 'listings_count', label: 'Listings' },
+            { key: 'pending_orders_count', label: 'Pending Orders' },
+            { key: 'last_order_sync_at', label: 'Orders Synced' },
+            { key: 'last_inventory_sync_at', label: 'Stock Pushed' },
+          ]" />
+        <Button icon="pi pi-refresh" text rounded @click="loadAll" title="Refresh" />
+      </div>
     </div>
     <p class="subtitle">Connect marketplaces and storefronts to pull orders, map listings, and push live stock.</p>
 

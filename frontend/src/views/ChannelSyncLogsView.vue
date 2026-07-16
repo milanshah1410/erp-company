@@ -4,15 +4,18 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Select from 'primevue/select'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const crud = useCrud('/channel-sync-logs')
 const integrations = ref<any[]>([])
 const integrationFilter = ref<number | null>(null)
 const typeFilter = ref<string | null>(null)
 const statusFilter = ref<string | null>(null)
+const search = ref('')
 
 const typeOptions = [
   { label: 'Connection', value: 'connection' },
@@ -36,6 +39,7 @@ function reload() {
     ...(integrationFilter.value ? { channel_integration_id: integrationFilter.value } : {}),
     ...(typeFilter.value ? { type: typeFilter.value } : {}),
     ...(statusFilter.value ? { status: statusFilter.value } : {}),
+    ...(search.value ? { search: search.value } : {}),
   })
 }
 function onPage(e: any) {
@@ -54,10 +58,32 @@ onMounted(async () => {
     <div class="header">
       <h1>Sync History</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search message / channel..." @keyup.enter="reload" />
+        </span>
         <Select v-model="integrationFilter" :options="integrations" optionLabel="name" optionValue="id" showClear placeholder="All channels" class="filter" @change="reload" />
         <Select v-model="typeFilter" :options="typeOptions" optionLabel="label" optionValue="value" showClear placeholder="All types" class="filter-sm" @change="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear placeholder="All statuses" class="filter-sm" @change="reload" />
         <Button icon="pi pi-refresh" text rounded @click="reload" title="Refresh" />
+        <TableExportButtons title="Sync History" endpoint="/channel-sync-logs"
+          :params="() => ({
+            ...(integrationFilter ? { channel_integration_id: integrationFilter } : {}),
+            ...(typeFilter ? { type: typeFilter } : {}),
+            ...(statusFilter ? { status: statusFilter } : {}),
+            ...(search ? { search } : {}),
+          })"
+          :columns="[
+            { key: 'created_at', label: 'When' },
+            { key: 'integration.name', label: 'Channel' },
+            { key: 'type', label: 'Type' },
+            { key: 'direction', label: 'Direction' },
+            { key: 'status', label: 'Status' },
+            { key: 'processed', label: 'Processed' },
+            { key: 'succeeded', label: 'Succeeded' },
+            { key: 'failed', label: 'Failed' },
+            { key: 'message', label: 'Message' },
+          ]" />
       </div>
     </div>
 
@@ -82,9 +108,12 @@ onMounted(async () => {
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.header-actions { display: flex; gap: 0.5rem; align-items: center; }
+.header-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .filter { width: 190px; }
 .filter-sm { width: 140px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .muted { color: #6b7280; }
 .cap { text-transform: capitalize; }
 .counts { font-size: 0.85rem; }

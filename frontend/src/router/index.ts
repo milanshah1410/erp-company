@@ -274,6 +274,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'users', component: UsersView, meta: { permission: 'users.view' } },
       { path: 'roles', component: RolesView, meta: { permission: 'roles.view' } },
       { path: 'settings', component: SettingsView, meta: { permission: 'settings.view' } },
+      { path: 'system-tools', component: () => import('../views/SystemToolsView.vue'), meta: { permission: 'settings.view' } },
+      { path: 'workflows', component: () => import('../views/WorkflowsView.vue'), meta: { permission: 'workflows.view' } },
       { path: 'audit-logs', component: AuditLogsView, meta: { permission: 'audit-logs.view' } },
       { path: 'companies', component: CrudView, meta: { resource: 'companies', permission: 'companies.view' } },
       { path: 'branches', component: CrudView, meta: { resource: 'branches', permission: 'branches.view' } },

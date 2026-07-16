@@ -13,6 +13,8 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -38,6 +40,10 @@ const filterSalesman = ref<number | null>(null)
 const canCreate = computed(() => auth.can('beats.create'))
 const canEdit = computed(() => auth.can('beats.edit'))
 const canDelete = computed(() => auth.can('beats.delete'))
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -201,6 +207,15 @@ onMounted(async () => {
         <InputText v-model="search" placeholder="Search beat / area..." @keyup.enter="load" />
       </span>
       <Button label="Search" outlined @click="load" />
+      <TableExportButtons title="Beats" endpoint="/beats" :params="() => ({ salesman_id: filterSalesman || undefined, search: search || undefined })"
+        :columns="[
+          { key: 'name', label: 'Beat' },
+          { key: 'salesman', label: 'Salesman' },
+          { key: 'day_of_week', label: 'Day' },
+          { key: 'area', label: 'Area' },
+          { key: 'stops_count', label: 'Stops' },
+          { key: 'is_active', label: 'Active', format: (v) => v ? 'Yes' : 'No' },
+        ]" />
     </div>
 
     <DataTable
@@ -229,6 +244,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 6rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(data)" />
         </template>
@@ -297,6 +313,16 @@ onMounted(async () => {
         <Button :label="editingId ? 'Update' : 'Create'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Beat Details" :fields="[
+      { key: 'name', label: 'Beat' },
+      { key: 'salesman', label: 'Salesman' },
+      { key: 'day_of_week', label: 'Day' },
+      { key: 'area', label: 'Area' },
+      { key: 'stops_count', label: 'Stops' },
+      { key: 'is_active', label: 'Active' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 

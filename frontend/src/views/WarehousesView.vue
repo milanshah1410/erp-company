@@ -16,6 +16,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -29,6 +30,8 @@ const canViewStock = computed(() => auth.can('stock.view'))
 // --- Warehouse list ---
 const crud = ref(useCrud('/warehouses'))
 const search = ref('')
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 const typeOptions = [
   { label: 'Main', value: 'main' },
@@ -57,12 +60,22 @@ function typeLabel(type: string): string {
 }
 
 function reload() {
-  crud.value.fetch(search.value ? { search: search.value } : {})
+  crud.value.fetch({
+    ...(search.value ? { search: search.value } : {}),
+    ...(sortField.value && sortOrder.value ? { sort: sortField.value, direction: sortOrder.value === 1 ? 'asc' : 'desc' } : {}),
+  })
 }
 
 function onPage(e: any) {
   crud.value.currentPage = e.page + 1
   crud.value.perPage = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
   reload()
 }
 
@@ -402,6 +415,15 @@ onMounted(reload)
         <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
       </span>
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Warehouses" endpoint="/warehouses" :params="() => (search ? { search } : {})"
+        :columns="[
+          { key: 'code', label: 'Code' },
+          { key: 'name', label: 'Name' },
+          { key: 'type', label: 'Type' },
+          { key: 'city', label: 'City' },
+          { key: 'is_active', label: 'Active', format: (v) => (v ? 'Yes' : 'No') },
+        ]" />
     </div>
 
     <DataTable
@@ -413,11 +435,15 @@ onMounted(reload)
       :totalRecords="crud.total"
       :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id"
+      removableSort
+      :sortField="sortField ?? undefined"
+      :sortOrder="sortOrder ?? undefined"
+      @sort="onSort"
       @page="onPage"
       class="p-datatable-sm"
     >
-      <Column field="code" header="Code" />
-      <Column field="name" header="Name" />
+      <Column field="code" header="Code" sortable />
+      <Column field="name" header="Name" sortable />
       <Column field="type" header="Type">
         <template #body="{ data }">
           <Tag :severity="typeSeverity(data.type)" :value="typeLabel(data.type)" />
@@ -649,8 +675,12 @@ onMounted(reload)
 }
 .toolbar {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+.toolbar-spacer {
+  flex: 1 1 auto;
 }
 .search {
   position: relative;

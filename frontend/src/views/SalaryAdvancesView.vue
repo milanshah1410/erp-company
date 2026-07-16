@@ -14,9 +14,15 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -134,6 +140,17 @@ onMounted(async () => { await loadEmployees(); await load() })
     <div class="toolbar">
       <Select v-model="filters.employee_id" :options="employees" optionLabel="label" optionValue="value" filter showClear placeholder="All employees" class="w-60" @change="load" />
       <Select v-model="filters.status" :options="STATUSES" optionLabel="label" optionValue="value" showClear placeholder="All statuses" @change="load" />
+      <TableExportButtons title="Salary Advances" endpoint="/salary-advances"
+        :params="() => ({ employee_id: filters.employee_id || undefined, status: filters.status || undefined })"
+        :columns="[
+          { key: 'date', label: 'Date' },
+          { key: 'employee_name', label: 'Employee' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'monthly_recovery', label: 'Monthly Recovery' },
+          { key: 'recovered', label: 'Recovered' },
+          { key: 'outstanding', label: 'Outstanding' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total" :rowsPerPageOptions="[15, 30, 50, 100]" dataKey="id" @page="onPage" class="p-datatable-sm">
@@ -146,6 +163,7 @@ onMounted(async () => { await loadEmployees(); await load() })
       <Column header="Status"><template #body="{ data }"><Tag :value="data.status" :severity="statusSeverity(data.status)" /></template></Column>
       <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canApprove && data.status === 'pending'" label="Approve" icon="pi pi-check" text severity="success" size="small" @click="approve(data)" />
           <Button v-if="canEdit && ['pending', 'approved'].includes(data.status)" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
           <Button v-if="canDelete && Number(data.recovered) === 0" icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(data)" />
@@ -187,6 +205,22 @@ onMounted(async () => { await loadEmployees(); await load() })
         <Button :label="editingId ? 'Update' : 'Save'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog
+      v-model:visible="detailVisible"
+      title="Salary Advance"
+      :record="detailRecord"
+      :fields="[
+        { label: 'Date', key: 'date' },
+        { label: 'Employee', key: 'employee_name' },
+        { label: 'Amount', key: 'amount', format: (v) => money(v) },
+        { label: 'Monthly Recovery', key: 'monthly_recovery', format: (v) => money(v) },
+        { label: 'Recovered', key: 'recovered', format: (v) => money(v) },
+        { label: 'Outstanding', key: 'outstanding', format: (v) => money(v) },
+        { label: 'Status', key: 'status' },
+        { label: 'Reason', key: 'reason', full: true },
+      ]"
+    />
   </div>
 </template>
 

@@ -42,6 +42,7 @@ class RolePermissionSeeder extends Seeder
         'drivers', 'delivery-routes', 'dispatch-plans', 'dispatch-pods', 'transport-charges',
         'payments', 'payment-gateways',
         'bank-accounts', 'vouchers', 'tds-tcs-rates',
+        'workflows',
     ];
 
     /**

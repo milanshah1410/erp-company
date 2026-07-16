@@ -14,6 +14,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -166,6 +167,17 @@ onMounted(async () => { await loadEmployees(); await load() })
     <div class="toolbar">
       <Select v-model="filters.employee_id" :options="employees" optionLabel="label" optionValue="value" filter showClear placeholder="All employees" class="w-60" @change="load" />
       <Select v-model="filters.status" :options="STATUSES" optionLabel="label" optionValue="value" showClear placeholder="All statuses" @change="load" />
+      <TableExportButtons title="Employee Loans" endpoint="/employee-loans"
+        :params="() => ({ employee_id: filters.employee_id || undefined, status: filters.status || undefined })" :columns="[
+        { key: 'loan_number', label: 'Loan #' },
+        { key: 'employee_name', label: 'Employee' },
+        { key: 'principal', label: 'Principal' },
+        { key: 'emi', label: 'EMI' },
+        { key: 'tenure_months', label: 'Tenure' },
+        { key: 'repaid', label: 'Repaid' },
+        { key: 'outstanding', label: 'Outstanding' },
+        { key: 'status', label: 'Status' },
+      ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total" :rowsPerPageOptions="[15, 30, 50, 100]" dataKey="id" @page="onPage" class="p-datatable-sm">

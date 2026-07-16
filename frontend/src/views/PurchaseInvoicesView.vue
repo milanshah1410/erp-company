@@ -15,6 +15,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -42,6 +43,7 @@ const canDelete = computed(() => auth.can('purchase-invoices.delete'))
 const statusColors: Record<string, string> = { pending: 'secondary', approved: 'success', cancelled: 'danger' }
 const matchColors: Record<string, string> = { matched: 'success', exception: 'warn' }
 
+const search = ref('')
 const statusFilter = ref<string | null>(null)
 const statusOptions = [
   { label: 'Pending', value: 'pending' },
@@ -264,7 +266,10 @@ async function savePayment() {
 }
 
 function reload() {
-  crud.fetch(statusFilter.value ? { status: statusFilter.value } : {})
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -291,9 +296,26 @@ onMounted(async () => {
     <div class="header">
       <h1>Vendor Invoices</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
         <Button v-if="canCreate" label="Record Invoice" icon="pi pi-plus" @click="openCreate" />
+        <TableExportButtons title="Vendor Invoices" endpoint="/purchase-invoices"
+          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+          :columns="[
+            { key: 'invoice_number', label: 'Invoice #' },
+            { key: 'purchase_order.po_number', label: 'PO' },
+            { key: 'supplier.name', label: 'Supplier' },
+            { key: 'invoice_date', label: 'Date' },
+            { key: 'total', label: 'Total' },
+            { key: 'match_status', label: 'Match' },
+            { key: 'status', label: 'Status' },
+            { key: 'payment_status', label: 'Payment' },
+          ]" />
       </div>
     </div>
 
@@ -468,6 +490,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

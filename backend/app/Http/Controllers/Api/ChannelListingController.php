@@ -37,6 +37,16 @@ class ChannelListingController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
         }
+        if ($search = trim((string) $request->query('search', ''))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('external_id', 'like', "%{$search}%")
+                    ->orWhere('external_sku', 'like', "%{$search}%")
+                    ->orWhere('listing_title', 'like', "%{$search}%")
+                    ->orWhereHas('product', fn ($p) => $p
+                        ->where('sku', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%"));
+            });
+        }
 
         $perPage = min((int) $request->query('per_page', 20), 100);
 

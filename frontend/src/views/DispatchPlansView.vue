@@ -14,6 +14,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -36,6 +38,7 @@ const statusColors: Record<string, string> = {
   cancelled: 'danger',
 }
 
+const search = ref('')
 const statusFilter = ref<string | null>(null)
 const statusOptions = [
   { label: 'Draft', value: 'draft' },
@@ -43,6 +46,10 @@ const statusOptions = [
   { label: 'Delivered', value: 'delivered' },
   { label: 'Cancelled', value: 'cancelled' },
 ]
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 // --- Create / edit dialog ---
 const dialogVisible = ref(false)
@@ -171,7 +178,10 @@ async function removePlan(row: any) {
 }
 
 function reload() {
-  crud.fetch(statusFilter.value ? { status: statusFilter.value } : {})
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -199,8 +209,24 @@ onMounted(async () => {
     <div class="header">
       <h1>Dispatch Planning</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="Dispatch Plans" endpoint="/dispatch-plans"
+          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+          :columns="[
+            { key: 'dispatch_number', label: 'Dispatch #' },
+            { key: 'dispatch_date', label: 'Date' },
+            { key: 'vehicle', label: 'Vehicle' },
+            { key: 'driver', label: 'Driver' },
+            { key: 'route', label: 'Route' },
+            { key: 'items_count', label: 'Drops' },
+            { key: 'status', label: 'Status' },
+          ]" />
         <Button v-if="canCreate" label="New Dispatch" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
@@ -228,6 +254,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 16rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <template v-if="data.status === 'draft'">
             <Button v-if="canEdit" label="Dispatch" size="small" severity="success" outlined @click="workflow(data, 'dispatch', 'Dispatch', 'Dispatch')" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -304,6 +331,17 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Create Draft'" :loading="saving" @click="savePlan" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Dispatch Plan Details" :fields="[
+      { key: 'dispatch_number', label: 'Dispatch #' },
+      { key: 'dispatch_date', label: 'Date' },
+      { key: 'vehicle', label: 'Vehicle' },
+      { key: 'driver', label: 'Driver' },
+      { key: 'route', label: 'Route' },
+      { key: 'items_count', label: 'Drops' },
+      { key: 'status', label: 'Status' },
+      { key: 'remarks', label: 'Remarks', full: true },
+    ]" />
   </div>
 </template>
 
@@ -312,6 +350,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

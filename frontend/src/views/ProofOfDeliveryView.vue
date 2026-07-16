@@ -13,10 +13,16 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/dispatch-pods')
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const canEdit = computed(() => auth.can('dispatch-pods.edit'))
 
@@ -25,6 +31,7 @@ const statusColors: Record<string, string> = {
   delivered: 'success',
   failed: 'danger',
 }
+const search = ref('')
 const statusFilter = ref<string | null>('pending')
 const statusOptions = [
   { label: 'Pending', value: 'pending' },
@@ -107,7 +114,10 @@ async function onFileSelected(e: Event) {
 }
 
 function reload() {
-  crud.fetch(statusFilter.value ? { delivery_status: statusFilter.value } : {})
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.delivery_status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -123,8 +133,25 @@ onMounted(reload)
     <div class="header">
       <h1>Proof of Delivery</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="Proof of Delivery" endpoint="/dispatch-pods"
+          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { delivery_status: statusFilter } : {}) })"
+          :columns="[
+            { key: 'dispatch_number', label: 'Dispatch #' },
+            { key: 'dispatch_date', label: 'Date' },
+            { key: 'customer', label: 'Customer' },
+            { key: 'sales_order', label: 'Sales Order' },
+            { key: 'packages', label: 'Pkgs' },
+            { key: 'cod_amount', label: 'COD' },
+            { key: 'delivery_status', label: 'Status' },
+            { key: 'received_by', label: 'Received By' },
+          ]" />
       </div>
     </div>
 
@@ -160,6 +187,7 @@ onMounted(reload)
       </Column>
       <Column header="Actions" style="width: 8rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit" label="Record" size="small" outlined @click="openRecord(data)" />
         </template>
       </Column>
@@ -211,6 +239,21 @@ onMounted(reload)
         <Button label="Save" :loading="saving" @click="savePod" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Proof of Delivery Details" :fields="[
+      { key: 'dispatch_number', label: 'Dispatch #' },
+      { key: 'dispatch_date', label: 'Dispatch Date' },
+      { key: 'customer', label: 'Customer' },
+      { key: 'sales_order', label: 'Sales Order' },
+      { key: 'packages', label: 'Packages' },
+      { key: 'cod_amount', label: 'COD Amount', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'delivery_status', label: 'Status' },
+      { key: 'delivered_at', label: 'Delivered On' },
+      { key: 'received_by', label: 'Received By' },
+      { key: 'receiver_phone', label: 'Receiver Phone' },
+      { key: 'delivery_address', label: 'Delivery Address', full: true },
+      { key: 'pod_remarks', label: 'Remarks', full: true },
+    ]" />
   </div>
 </template>
 
@@ -219,6 +262,9 @@ onMounted(reload)
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .pod-summary { background: #f3f4f6; border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 1rem; font-size: 0.9rem; }
 .pod-summary .addr { display: block; color: #6b7280; font-size: 0.82rem; margin-top: 0.2rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }

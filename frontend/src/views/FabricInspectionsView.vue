@@ -14,12 +14,36 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/fabric-inspections')
 
 const rolls = ref<any[]>([])
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
+
+const search = ref('')
+const resultFilter = ref<string | null>(null)
+const gradeFilter = ref<string | null>(null)
+const resultOptions = [
+  { label: 'Pending', value: 'pending' },
+  { label: 'Pass', value: 'pass' },
+  { label: 'Reject', value: 'reject' },
+]
+const gradeFilterOptions = [
+  { label: 'Grade A', value: 'A' },
+  { label: 'Grade B', value: 'B' },
+  { label: 'Grade C', value: 'C' },
+]
+
+function reload() {
+  crud.fetch({ search: search.value || undefined, result: resultFilter.value || undefined, grade: gradeFilter.value || undefined })
+}
 
 const canCreate = computed(() => auth.can('textile.create'))
 const canEdit = computed(() => auth.can('textile.edit'))
@@ -121,7 +145,7 @@ async function save() {
       toast.add({ severity: 'success', summary: 'Inspection recorded', life: 2500 })
     }
     dialogVisible.value = false
-    crud.fetch()
+    reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
     else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
@@ -136,7 +160,7 @@ async function removeRow(row: any) {
   try {
     await http.delete(`/fabric-inspections/${row.id}`)
     toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
-    crud.fetch()
+    reload()
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
   }
@@ -145,7 +169,7 @@ async function removeRow(row: any) {
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
   crud.perPage.value = e.rows
-  crud.fetch()
+  reload()
 }
 
 onMounted(async () => {
@@ -154,7 +178,7 @@ onMounted(async () => {
     ...r,
     label: `${r.roll_number} — ${r.product?.name ?? ''}${r.dye_lot ? ' (' + r.dye_lot + ')' : ''}`,
   }))
-  crud.fetch()
+  reload()
 })
 </script>
 
@@ -165,6 +189,29 @@ onMounted(async () => {
       <Button v-if="canCreate" label="New Inspection" icon="pi pi-plus" @click="openCreate" />
     </div>
     <p class="subtitle">4-point system — defect points scored per 100 m² grade the fabric A / B / C.</p>
+
+    <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.75rem;align-items:center;margin-bottom:1rem">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button label="Search" outlined @click="reload" />
+      <Select v-model="resultFilter" :options="resultOptions" optionLabel="label" optionValue="value" showClear
+        placeholder="All results" @change="reload" class="filter-sel" />
+      <Select v-model="gradeFilter" :options="gradeFilterOptions" optionLabel="label" optionValue="value" showClear
+        placeholder="All grades" @change="reload" class="filter-sel" />
+      <TableExportButtons title="Fabric Inspections" endpoint="/fabric-inspections"
+        :params="() => ({ search: search || undefined, result: resultFilter || undefined, grade: gradeFilter || undefined })" :columns="[
+        { key: 'inspection_number', label: 'Inspection #' },
+        { key: 'fabric_roll.roll_number', label: 'Roll' },
+        { key: 'inspection_date', label: 'Date' },
+        { key: 'inspected_length', label: 'Inspected' },
+        { key: 'total_points', label: 'Points' },
+        { key: 'points_per_100sqm', label: 'Pts / 100m²' },
+        { key: 'grade', label: 'Grade' },
+        { key: 'result', label: 'Result' },
+      ]" />
+    </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
@@ -191,8 +238,9 @@ onMounted(async () => {
       <Column header="Result">
         <template #body="{ data }"><Tag :severity="resultColors[data.result]" :value="data.result" /></template>
       </Column>
-      <Column header="Actions" style="width: 8rem">
+      <Column header="Actions" style="width: 10rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="removeRow(data)" />
         </template>
@@ -274,6 +322,21 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Record Inspection'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" title="Fabric Inspection" :record="detailRecord" :fields="[
+      { key: 'inspection_number', label: 'Inspection #' },
+      { key: 'fabric_roll.roll_number', label: 'Roll' },
+      { key: 'fabric_roll.product.name', label: 'Fabric' },
+      { key: 'inspection_date', label: 'Date' },
+      { key: 'inspector', label: 'Inspector' },
+      { key: 'inspected_length', label: 'Inspected Length', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'inspected_width', label: 'Inspected Width', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'total_points', label: 'Total Points', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'points_per_100sqm', label: 'Points / 100 m²', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'grade', label: 'Grade' },
+      { key: 'result', label: 'Result' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
@@ -281,6 +344,10 @@ onMounted(async () => {
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .subtitle { color: #6b7280; font-size: 0.85rem; margin-bottom: 1rem; }
+.filter-sel { width: 150px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.span2 { grid-column: span 2; }

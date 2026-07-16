@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
@@ -14,10 +15,16 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/purchase-indents')
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const departments = ref<any[]>([])
 const warehouses = ref<any[]>([])
@@ -47,6 +54,17 @@ const priorities = [
   { label: 'Normal', value: 'normal' },
   { label: 'High', value: 'high' },
   { label: 'Urgent', value: 'urgent' },
+]
+
+const search = ref('')
+const statusFilter = ref<string | null>(null)
+const statusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Pending Approval', value: 'pending_approval' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Rejected', value: 'rejected' },
+  { label: 'Converted', value: 'converted' },
+  { label: 'Cancelled', value: 'cancelled' },
 ]
 
 function today() {
@@ -219,7 +237,10 @@ async function convertToPo() {
 }
 
 function reload() {
-  crud.fetch()
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -249,6 +270,27 @@ onMounted(async () => {
       <Button v-if="canCreate" label="New Indent" icon="pi pi-plus" @click="openCreate" />
     </div>
 
+    <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.5rem;align-items:center;margin-bottom:1rem">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button label="Search" outlined @click="reload" />
+      <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+        placeholder="All statuses" @change="reload" class="status-filter" />
+      <TableExportButtons title="Purchase Indents" endpoint="/purchase-indents"
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+        :columns="[
+          { key: 'indent_number', label: 'Indent #' },
+          { key: 'department.name', label: 'Department' },
+          { key: 'indent_date', label: 'Date' },
+          { key: 'required_date', label: 'Required' },
+          { key: 'priority', label: 'Priority' },
+          { key: 'items_count', label: 'Items' },
+          { key: 'status', label: 'Status' },
+        ]" />
+    </div>
+
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
       <Column field="indent_number" header="Indent #" />
@@ -265,6 +307,7 @@ onMounted(async () => {
       <Column header="Actions" style="width: 20rem">
         <template #body="{ data }">
           <div class="actions">
+            <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
             <Button v-if="canEdit && ['draft', 'rejected'].includes(data.status)" label="Submit" size="small" outlined @click="submit(data)" />
             <Button v-if="canApprove && data.status === 'pending_approval'" label="Approve" size="small" severity="success" outlined @click="approve(data)" />
             <Button v-if="canApprove && data.status === 'pending_approval'" label="Reject" size="small" severity="danger" outlined @click="reject(data)" />
@@ -366,12 +409,28 @@ onMounted(async () => {
         <Button label="Create PO" :loading="poSaving" @click="convertToPo" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Purchase Indent Details" :fields="[
+      { key: 'indent_number', label: 'Indent #' },
+      { key: 'department.name', label: 'Department' },
+      { key: 'warehouse.name', label: 'Warehouse' },
+      { key: 'priority', label: 'Priority' },
+      { key: 'indent_date', label: 'Indent Date' },
+      { key: 'required_date', label: 'Required By' },
+      { key: 'items_count', label: 'Items' },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }

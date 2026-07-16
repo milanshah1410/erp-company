@@ -13,6 +13,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -20,6 +22,10 @@ const crud = useCrud('/shrinkage-records')
 
 const rolls = ref<any[]>([])
 const products = ref<any[]>([])
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const canCreate = computed(() => auth.can('textile.create'))
 const canEdit = computed(() => auth.can('textile.edit'))
@@ -31,6 +37,13 @@ const processOptions = [
   { label: 'Steaming', value: 'steaming' },
   { label: 'Other', value: 'other' },
 ]
+
+const search = ref('')
+const processFilter = ref<string | null>(null)
+
+function reload() {
+  crud.fetch({ search: search.value || undefined, process: processFilter.value || undefined })
+}
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -95,7 +108,7 @@ async function save() {
       toast.add({ severity: 'success', summary: 'Shrinkage recorded', life: 2500 })
     }
     dialogVisible.value = false
-    crud.fetch()
+    reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
     else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
@@ -110,7 +123,7 @@ async function removeRow(row: any) {
   try {
     await http.delete(`/shrinkage-records/${row.id}`)
     toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
-    crud.fetch()
+    reload()
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
   }
@@ -119,7 +132,7 @@ async function removeRow(row: any) {
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
   crud.perPage.value = e.rows
-  crud.fetch()
+  reload()
 }
 function pctClass(v: any) {
   return Number(v) >= 5 ? 'dmg' : Number(v) > 0 ? 'warn' : ''
@@ -134,7 +147,7 @@ onMounted(async () => {
     ...x, label: `${x.roll_number} — ${x.product?.name ?? ''}`,
   }))
   products.value = p.data.data ?? p.data
-  crud.fetch()
+  reload()
 })
 </script>
 
@@ -142,7 +155,29 @@ onMounted(async () => {
   <div>
     <div class="header">
       <h1>Shrinkage Records</h1>
-      <Button v-if="canCreate" label="New Record" icon="pi pi-plus" @click="openCreate" />
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
+        <Select v-model="processFilter" :options="processOptions" optionLabel="label" optionValue="value" showClear
+          placeholder="All processes" @change="reload" class="filter-sel" />
+        <TableExportButtons title="Shrinkage Records" endpoint="/shrinkage-records"
+          :params="() => ({ search: search || undefined, process: processFilter || undefined })"
+          :columns="[
+            { key: 'record_number', label: 'Record #' },
+            { key: 'fabric_roll', label: 'Roll' },
+            { key: 'product', label: 'Product' },
+            { key: 'process', label: 'Process' },
+            { key: 'test_date', label: 'Date' },
+            { key: 'length_before', label: 'Length Before' },
+            { key: 'length_after', label: 'Length After' },
+            { key: 'length_shrinkage_pct', label: 'Length Shrink %' },
+            { key: 'width_shrinkage_pct', label: 'Width Shrink %' },
+          ]" />
+        <Button v-if="canCreate" label="New Record" icon="pi pi-plus" @click="openCreate" />
+      </div>
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
@@ -164,8 +199,9 @@ onMounted(async () => {
       <Column header="Width Shrink %" style="text-align:right">
         <template #body="{ data }"><span :class="pctClass(data.width_shrinkage_pct)">{{ Number(data.width_shrinkage_pct) }}%</span></template>
       </Column>
-      <Column header="Actions" style="width: 8rem">
+      <Column header="Actions" style="width: 10rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="removeRow(data)" />
         </template>
@@ -239,12 +275,32 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Record'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" title="Shrinkage Record" :record="detailRecord" :fields="[
+      { key: 'record_number', label: 'Record #' },
+      { key: 'fabric_roll', label: 'Roll' },
+      { key: 'product', label: 'Product' },
+      { key: 'process', label: 'Process' },
+      { key: 'test_date', label: 'Date' },
+      { key: 'length_before', label: 'Length Before', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'length_after', label: 'Length After', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'length_shrinkage_pct', label: 'Length Shrink %', format: (v) => v == null ? '—' : Number(v) + '%' },
+      { key: 'width_before', label: 'Width Before', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'width_after', label: 'Width After', format: (v) => v == null ? '—' : String(Number(v)) },
+      { key: 'width_shrinkage_pct', label: 'Width Shrink %', format: (v) => v == null ? '—' : Number(v) + '%' },
+      { key: 'tested_by', label: 'Tested By' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.filter-sel { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .hint { font-size: 0.82rem; color: #6b7280; margin-bottom: 1rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }

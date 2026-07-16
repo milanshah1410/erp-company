@@ -14,6 +14,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -235,6 +236,21 @@ onMounted(() => {
       <Select v-model="templateFilter" :options="templateFilterOptions" optionLabel="label" optionValue="value" placeholder="All types" showClear class="filter" @change="reload" />
       <Select v-model="statusFilter" :options="statusFilterOptions" optionLabel="label" optionValue="value" placeholder="All status" showClear class="filter" @change="reload" />
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="SMS" endpoint="/sms/messages"
+        :params="() => ({
+          search: search || undefined,
+          status: statusFilter || undefined,
+          template: templateFilter || undefined,
+        })"
+        :columns="[
+          { key: 'created_at', label: 'Date' },
+          { key: 'customer.name', label: 'Customer' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'template', label: 'Type' },
+          { key: 'body', label: 'Message' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable
@@ -348,7 +364,8 @@ onMounted(() => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.5rem; }
 .hint { display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.82rem; margin-bottom: 1rem; }
-.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar-spacer { flex: 1 1 auto; }
 .search { position: relative; display: flex; align-items: center; }
 .search i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search :deep(input) { padding-left: 2.25rem; width: 260px; }

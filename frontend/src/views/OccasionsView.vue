@@ -7,6 +7,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 
@@ -99,27 +100,38 @@ onMounted(load)
     <div class="toolbar">
       <Select v-model="days" :options="daysOptions" optionLabel="label" optionValue="value" class="filter" @change="load" />
       <Select v-model="typeFilter" :options="typeOptions" optionLabel="label" optionValue="value" placeholder="All" showClear class="filter" @change="load" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Upcoming Occasions" :rows="rows"
+        :columns="[
+          { key: 'days_away', label: 'Days Away' },
+          { key: 'type', label: 'Type' },
+          { key: 'name', label: 'Customer' },
+          { key: 'code', label: 'Code' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'next_date', label: 'Date' },
+          { key: 'years', label: 'Years' },
+        ]" />
     </div>
 
-    <DataTable :value="rows" :loading="loading" dataKey="customer_id" class="p-datatable-sm" :rowClass="() => ''">
-      <Column header="When" style="width: 9rem">
+    <DataTable :value="rows" :loading="loading" dataKey="customer_id" removableSort class="p-datatable-sm" :rowClass="() => ''">
+      <Column field="days_away" header="When" sortable style="width: 9rem">
         <template #body="{ data }">
           <Tag :severity="data.days_away === 0 ? 'success' : 'info'" :value="whenLabel(data.days_away)" />
         </template>
       </Column>
-      <Column header="Type" style="width: 8rem">
+      <Column field="type" header="Type" sortable style="width: 8rem">
         <template #body="{ data }">
           <Tag :severity="data.type === 'birthday' ? 'warn' : 'success'" :value="data.type" />
         </template>
       </Column>
-      <Column header="Customer">
+      <Column field="name" header="Customer" sortable>
         <template #body="{ data }">
           <span>{{ data.name }}</span>
           <span class="muted-sub">{{ data.code }}</span>
         </template>
       </Column>
-      <Column field="phone" header="Phone" />
-      <Column header="Date">
+      <Column field="phone" header="Phone" sortable />
+      <Column field="next_date" header="Date" sortable>
         <template #body="{ data }">{{ data.next_date }} <span class="muted-sub">({{ data.years }} yrs)</span></template>
       </Column>
       <Column header="Actions" style="width: 8rem">
@@ -144,7 +156,8 @@ onMounted(load)
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar-spacer { flex: 1 1 auto; }
 .filter { min-width: 160px; }
 .muted-sub { display: block; color: #6b7280; font-size: 0.78rem; }
 .sms-btn { margin-left: 0.35rem; }

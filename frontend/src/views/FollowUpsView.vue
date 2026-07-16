@@ -14,6 +14,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -33,6 +35,13 @@ const tabs: { key: Scope; label: string; icon: string }[] = [
   { key: 'all', label: 'All', icon: 'pi pi-list' },
 ]
 const scope = ref<Scope>('today')
+const search = ref('')
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const typeColors: Record<string, string> = {
   call: 'info', visit: 'success', email: 'warn', whatsapp: 'success', other: 'secondary',
@@ -58,12 +67,24 @@ function setScope(s: Scope) {
 function reload() {
   const params: Record<string, any> = {}
   if (scope.value !== 'all') params.scope = scope.value
+  if (search.value) params.search = search.value
+  if (sortField.value && sortOrder.value) {
+    params.sort = sortField.value
+    params.direction = sortOrder.value === 1 ? 'asc' : 'desc'
+  }
   crud.value.fetch(params)
 }
 
 function onPage(e: any) {
   crud.value.currentPage = e.page + 1
   crud.value.perPage = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
   reload()
 }
 
@@ -234,6 +255,25 @@ onMounted(() => {
       </button>
     </div>
 
+    <div class="toolbar no-print" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem">
+      <span class="fu-search">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search title / notes..." @keyup.enter="crud.currentPage = 1; reload()" />
+        </span>
+        <Button label="Search" outlined @click="crud.currentPage = 1; reload()" />
+      </span>
+      <TableExportButtons title="Follow-ups" endpoint="/follow-ups"
+        :params="() => ({ ...(scope !== 'all' ? { scope } : {}), ...(search ? { search } : {}) })" :columns="[
+        { key: 'due_at', label: 'Due' },
+        { key: 'type', label: 'Type' },
+        { key: 'related.name', label: 'Related' },
+        { key: 'title', label: 'Title' },
+        { key: 'assignee.name', label: 'Assigned' },
+        { key: 'status', label: 'Status' },
+      ]" />
+    </div>
+
     <DataTable
       :value="crud.items"
       :loading="crud.loading"
@@ -244,9 +284,13 @@ onMounted(() => {
       :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id"
       @page="onPage"
+      removableSort
+      :sortField="sortField ?? undefined"
+      :sortOrder="sortOrder ?? undefined"
+      @sort="onSort"
       class="p-datatable-sm"
     >
-      <Column header="Due">
+      <Column field="due_at" header="Due" sortable>
         <template #body="{ data }">
           <span :class="{ overdue: data.is_overdue }">{{ fmtDue(data.due_at) }}</span>
         </template>
@@ -271,8 +315,9 @@ onMounted(() => {
           <Tag :severity="statusColors[data.status]" :value="data.status" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 10rem">
+      <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button
             v-if="canEdit && data.status === 'pending'"
             icon="pi pi-check" text rounded size="small" severity="success"
@@ -338,6 +383,18 @@ onMounted(() => {
         <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" title="Follow-up Details" :record="detailRecord" :fields="[
+      { key: 'due_at', label: 'Due', format: (v) => fmtDue(v) },
+      { key: 'type', label: 'Type' },
+      { key: 'related.name', label: 'Related' },
+      { key: 'related_type', label: 'Related Type' },
+      { key: 'title', label: 'Title' },
+      { key: 'assignee.name', label: 'Assigned To' },
+      { key: 'status', label: 'Status' },
+      { key: 'outcome', label: 'Outcome', full: true },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
@@ -353,6 +410,10 @@ onMounted(() => {
 .tab:hover { color: #111827; }
 .tab.active { color: var(--ink-blue, #2c4a5e); border-bottom-color: var(--safety-amber, #e8a33d); font-weight: 600; }
 .muted-sub { display: block; color: #6b7280; font-size: 0.78rem; text-transform: capitalize; }
+.fu-search { display: inline-flex; gap: 0.5rem; align-items: center; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .overdue { color: #dc2626; font-weight: 600; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding-top: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.35rem; }

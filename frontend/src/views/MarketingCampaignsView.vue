@@ -12,9 +12,15 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const canCreate = computed(() => auth.can('marketing-campaigns.create'))
 const canEdit = computed(() => auth.can('marketing-campaigns.edit'))
@@ -26,10 +32,17 @@ const total = ref(0)
 const currentPage = ref(1)
 const perPage = ref(15)
 const search = ref('')
+const statusFilter = ref<string | null>(null)
 
 const statusColors: Record<string, string> = {
   draft: 'secondary', sending: 'info', sent: 'success', failed: 'danger',
 }
+const statusFilterOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Sending', value: 'sending' },
+  { label: 'Sent', value: 'sent' },
+  { label: 'Failed', value: 'failed' },
+]
 const audienceLabels: Record<string, string> = {
   all: 'All customers', category: 'Customer category', manual: 'Manual list',
 }
@@ -55,7 +68,7 @@ async function reload() {
   loading.value = true
   try {
     const { data } = await http.get('/marketing-campaigns', {
-      params: { per_page: perPage.value, page: currentPage.value, search: search.value || undefined },
+      params: { per_page: perPage.value, page: currentPage.value, search: search.value || undefined, status: statusFilter.value || undefined },
     })
     items.value = data.data ?? []
     total.value = data.total ?? items.value.length
@@ -229,7 +242,19 @@ onMounted(() => {
         <i class="pi pi-search" />
         <InputText v-model="search" placeholder="Search name / subject..." @keyup.enter="reload" />
       </span>
+      <Select v-model="statusFilter" :options="statusFilterOptions" optionLabel="label" optionValue="value" placeholder="All status" showClear class="filter" @change="reload" />
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Marketing Campaigns" endpoint="/marketing-campaigns"
+        :params="() => ({ search: search || undefined, status: statusFilter || undefined })"
+        :columns="[
+          { key: 'name', label: 'Name' },
+          { key: 'subject', label: 'Subject' },
+          { key: 'audience', label: 'Audience' },
+          { key: 'sent_count', label: 'Sent' },
+          { key: 'recipient_count', label: 'Recipients' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable
@@ -255,6 +280,7 @@ onMounted(() => {
       </Column>
       <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit && ['draft', 'failed'].includes(data.status)" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
           <Button v-if="canCreate && data.status !== 'sending'" icon="pi pi-send" text rounded size="small" severity="success" title="Send" @click="sendCampaign(data)" />
           <Button v-if="canDelete && data.status !== 'sending'" icon="pi pi-trash" text rounded size="small" severity="danger" title="Delete" @click="confirmDelete(data)" />
@@ -305,6 +331,18 @@ onMounted(() => {
         <Button :label="editingId ? 'Save' : 'Create'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Campaign Details" :fields="[
+      { key: 'name', label: 'Name' },
+      { key: 'subject', label: 'Subject' },
+      { key: 'audience', label: 'Audience', format:(v)=>audienceLabels[v] ?? v },
+      { key: 'customer_category', label: 'Category' },
+      { key: 'recipient_count', label: 'Recipients' },
+      { key: 'sent_count', label: 'Sent' },
+      { key: 'failed_count', label: 'Failed' },
+      { key: 'status', label: 'Status' },
+      { key: 'body', label: 'Email Body', full: true },
+    ]" />
   </div>
 </template>
 
@@ -312,7 +350,9 @@ onMounted(() => {
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .hint { display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.82rem; margin-bottom: 1rem; }
-.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar-spacer { flex: 1 1 auto; }
+.filter { min-width: 150px; }
 .search { position: relative; display: flex; align-items: center; }
 .search i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search :deep(input) { padding-left: 2.25rem; width: 280px; }

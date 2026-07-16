@@ -22,6 +22,7 @@ import { formatCurrency } from '../utils/currency'
 import BrokerRatesPanel from '../components/broker/BrokerRatesPanel.vue'
 import BrokerWalletPanel from '../components/broker/BrokerWalletPanel.vue'
 import BrokerMonthlyStatement from '../components/broker/BrokerMonthlyStatement.vue'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -160,6 +161,15 @@ onMounted(loadBrokers)
       <TabPanels>
         <TabPanel value="ledger">
           <div class="ledger-actions">
+            <TableExportButtons title="Broker Ledger" :rows="entries"
+              :columns="[
+                { key: 'date', label: 'Date' },
+                { key: 'type', label: 'Type' },
+                { key: 'reference', label: 'Reference' },
+                { key: 'credit', label: 'Commission (Credit)' },
+                { key: 'debit', label: 'Settled (Debit)' },
+                { key: 'balance', label: 'Balance' },
+              ]" />
             <Button v-if="canSettle" label="Record Settlement" icon="pi pi-wallet" @click="openSettle" />
           </div>
 

@@ -8,6 +8,7 @@ import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -51,6 +52,17 @@ onMounted(load)
       <span class="search"><i class="pi pi-search" /><InputText v-model="search" placeholder="Search product..." @keyup.enter="page = 1; load()" /></span>
       <Button label="Search" outlined @click="page = 1; load()" />
       <label class="low"><ToggleSwitch v-model="lowOnly" @change="page = 1; load()" /> Low stock only</label>
+      <TableExportButtons title="Current Stock" endpoint="/stock"
+        :params="() => ({ search: search || undefined, low_stock: lowOnly || undefined })"
+        :columns="[
+          { key: 'product.name', label: 'Product' },
+          { key: 'product.sku', label: 'SKU' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'quantity', label: 'On Hand' },
+          { key: 'available_quantity', label: 'Available' },
+          { key: 'average_cost', label: 'Avg Cost' },
+          { key: 'stock_value', label: 'Stock Value' },
+        ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"

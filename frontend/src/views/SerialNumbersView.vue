@@ -7,6 +7,7 @@ import Select from 'primevue/select'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import http from '../api/http'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -68,6 +69,16 @@ onMounted(load)
       <span class="search"><i class="pi pi-search" /><InputText v-model="search" placeholder="Search serial..." @keyup.enter="doSearch" /></span>
       <Select v-model="status" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Any status" showClear @change="doSearch" />
       <Button label="Search" outlined @click="doSearch" />
+      <TableExportButtons title="Serial Numbers" endpoint="/serial-numbers"
+        :params="() => ({ search: search || undefined, status: status || undefined })"
+        :columns="[
+          { key: 'product.name', label: 'Product' },
+          { key: 'product.sku', label: 'SKU' },
+          { key: 'serial', label: 'Serial #' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'status', label: 'Status' },
+          { key: 'updated_at', label: 'Updated' },
+        ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"

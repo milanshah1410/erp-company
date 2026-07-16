@@ -13,6 +13,7 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -58,6 +59,24 @@ async function loadTree() {
     loading.value = false
   }
 }
+
+// Flattened rows (name / parent / product count) for CSV export + print.
+const exportRows = computed(() => {
+  const out: any[] = []
+  const walk = (list: any[], parentName: string) => {
+    for (const c of list) {
+      out.push({
+        name: c.name,
+        parent: parentName || '—',
+        products_count: c.products_count ?? 0,
+        is_active: c.is_active ? 'Yes' : 'No',
+      })
+      if (c.children?.length) walk(c.children, c.name)
+    }
+  }
+  walk(categories.value, '')
+  return out
+})
 
 // Flatten the tree (depth-first) with indent level, for parent Select options.
 function flatten(list: any[], depth = 0, acc: any[] = []): any[] {
@@ -242,11 +261,20 @@ onMounted(loadTree)
   <div>
     <div class="header">
       <h1>Categories</h1>
-      <Button v-if="canCreate" label="New Root Category" icon="pi pi-plus" @click="openCreateRoot" />
+      <div class="header-actions">
+        <TableExportButtons title="Categories" :rows="exportRows" size="small" :columns="[
+          { key: 'name', label: 'Name' },
+          { key: 'parent', label: 'Parent' },
+          { key: 'products_count', label: 'Products' },
+          { key: 'is_active', label: 'Active' },
+        ]" />
+        <Button v-if="canCreate" label="New Root Category" icon="pi pi-plus" @click="openCreateRoot" />
+      </div>
     </div>
 
     <div class="tree-card">
-      <Tree :value="nodes" v-model:expandedKeys="expandedKeys" :loading="loading" class="cat-tree">
+      <Tree :value="nodes" v-model:expandedKeys="expandedKeys" :loading="loading" class="cat-tree"
+        :filter="true" filterMode="lenient" filterPlaceholder="Search categories...">
         <template #default="{ node }">
           <div class="node-row">
             <span class="node-name">{{ node.label }}</span>
@@ -350,6 +378,11 @@ onMounted(loadTree)
 .header h1 {
   font-size: 1.5rem;
   font-weight: 600;
+}
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
 }
 .tree-card {
   background: #fff;

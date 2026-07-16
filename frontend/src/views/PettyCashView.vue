@@ -5,6 +5,7 @@ import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const entries = ref<any[]>([])
 const summary = ref<any>(null)
@@ -49,6 +50,16 @@ onMounted(load)
     <div class="filters">
       <label>From <input type="date" v-model="from" class="date-input" @change="load" /></label>
       <label>To <input type="date" v-model="to" class="date-input" @change="load" /></label>
+      <TableExportButtons title="Petty Cash" :rows="entries"
+        :columns="[
+          { key: 'date', label: 'Date' },
+          { key: 'source', label: 'Type' },
+          { key: 'reference', label: 'Reference' },
+          { key: 'party', label: 'Party' },
+          { key: 'debit', label: 'In' },
+          { key: 'credit', label: 'Out' },
+          { key: 'balance', label: 'Balance' },
+        ]" />
     </div>
 
     <div v-if="summary" class="tiles">

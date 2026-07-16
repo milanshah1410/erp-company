@@ -5,6 +5,7 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
@@ -14,6 +15,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -31,6 +33,14 @@ const statusColors: Record<string, string> = {
   completed: 'success',
   cancelled: 'danger',
 }
+
+const search = ref('')
+const statusFilter = ref<string | null>(null)
+const statusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Completed', value: 'completed' },
+  { label: 'Cancelled', value: 'cancelled' },
+]
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -205,7 +215,7 @@ async function cancelCount(row: any) {
 }
 
 function reload() {
-  crud.fetch()
+  crud.fetch({ status: statusFilter.value || undefined, search: search.value || undefined })
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -239,7 +249,25 @@ onMounted(async () => {
   <div>
     <div class="header">
       <h1>Cycle Counts</h1>
-      <Button v-if="canCreate" label="New Cycle Count" icon="pi pi-plus" @click="openCreate" />
+      <div style="display: flex; gap: 0.5rem; align-items: center">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
+        <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+          placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="Cycle Counts" endpoint="/cycle-counts"
+          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+          :columns="[
+            { key: 'count_number', label: 'Count #' },
+            { key: 'warehouse.name', label: 'Warehouse' },
+            { key: 'count_date', label: 'Date' },
+            { key: 'items_count', label: 'Items' },
+            { key: 'status', label: 'Status' },
+          ]" />
+        <Button v-if="canCreate" label="New Cycle Count" icon="pi pi-plus" @click="openCreate" />
+      </div>
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
@@ -363,6 +391,10 @@ onMounted(async () => {
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

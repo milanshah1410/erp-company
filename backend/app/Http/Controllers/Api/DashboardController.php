@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\DashboardLayout;
 use App\Models\Invoice;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -11,11 +12,99 @@ use App\Models\SalesOrder;
 use App\Models\StockLedger;
 use App\Models\WarehouseStock;
 use App\Support\TenantCache;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
     /** How long the computed dashboard payload is cached per tenant (seconds). */
     private const CACHE_TTL = 300;
+
+    /**
+     * The catalogue of dashboard widgets (project-stack.md §5). Each maps to a
+     * key the frontend knows how to render from the kpis payload. This is also
+     * the default layout (all visible, in this order) for a brand-new user.
+     */
+    public const WIDGETS = [
+        'today_sales', 'purchase_summary', 'pending_orders', 'profit_loss',
+        'low_stock', 'out_of_stock', 'total_stock_value', 'products_count',
+        'top_products', 'recent_activities',
+    ];
+
+    /**
+     * Return the current user's saved widget layout, or the default catalogue
+     * (everything visible) when they have not customised it yet.
+     */
+    public function layout(Request $request): JsonResponse
+    {
+        $saved = DashboardLayout::where('user_id', $request->user()->id)->first();
+
+        if ($saved) {
+            return response()->json(['widgets' => $this->reconcile($saved->widgets)]);
+        }
+
+        return response()->json(['widgets' => $this->defaultLayout()]);
+    }
+
+    /**
+     * Persist the user's widget order + visibility. Unknown keys are ignored and
+     * any missing catalogue widgets are appended (hidden) so the layout always
+     * covers the full set.
+     */
+    public function saveLayout(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'widgets' => ['required', 'array'],
+            'widgets.*.key' => ['required', 'string'],
+            'widgets.*.visible' => ['required', 'boolean'],
+        ]);
+
+        $clean = collect($data['widgets'])
+            ->filter(fn ($w) => in_array($w['key'], self::WIDGETS, true))
+            ->map(fn ($w) => ['key' => $w['key'], 'visible' => (bool) $w['visible']])
+            ->values()
+            ->all();
+
+        $widgets = $this->reconcile($clean);
+
+        DashboardLayout::updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['widgets' => $widgets],
+        );
+
+        return response()->json(['widgets' => $widgets]);
+    }
+
+    /** Default layout: every widget, visible, in catalogue order. */
+    private function defaultLayout(): array
+    {
+        return array_map(fn (string $key) => ['key' => $key, 'visible' => true], self::WIDGETS);
+    }
+
+    /**
+     * Ensure a stored layout still covers the whole catalogue: keep the saved
+     * order, drop stale keys, append any newly-added widgets (hidden).
+     *
+     * @param  array<int,array{key:string,visible:bool}>  $saved
+     */
+    private function reconcile(array $saved): array
+    {
+        $known = collect($saved)->keyBy('key');
+        $result = [];
+
+        foreach ($saved as $w) {
+            if (in_array($w['key'], self::WIDGETS, true)) {
+                $result[] = ['key' => $w['key'], 'visible' => (bool) $w['visible']];
+            }
+        }
+        foreach (self::WIDGETS as $key) {
+            if (! $known->has($key)) {
+                $result[] = ['key' => $key, 'visible' => false];
+            }
+        }
+
+        return $result;
+    }
 
     /**
      * All headline metrics for the landing dashboard (current tenant).

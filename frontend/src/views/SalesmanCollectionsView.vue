@@ -15,6 +15,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -49,6 +51,10 @@ const saving = ref(false)
 const editingId = ref<number | null>(null)
 const errors = ref<Record<string, string[]>>({})
 const form = ref<any>({ salesman_id: null, customer_id: null, amount: null, mode: 'cash', reference_no: '', collection_date: new Date(), notes: '' })
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 function money(v: any) {
   return formatCurrency(v)
@@ -211,6 +217,22 @@ onMounted(async () => {
         <InputText v-model="search" placeholder="Search #, reference..." @keyup.enter="load" />
       </span>
       <Button label="Search" outlined @click="load" />
+      <TableExportButtons title="Collection Entry" endpoint="/salesman-collections"
+        :params="() => ({
+          salesman_id: filters.salesman_id || undefined,
+          status: filters.status || undefined,
+          search: search || undefined,
+        })"
+        :columns="[
+          { key: 'collection_number', label: 'Collection #' },
+          { key: 'collection_date', label: 'Date' },
+          { key: 'salesman', label: 'Salesman' },
+          { key: 'customer', label: 'Customer' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'mode', label: 'Mode' },
+          { key: 'reference_no', label: 'Reference' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable
@@ -241,6 +263,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 13rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canEdit && data.status === 'collected'" label="Deposit" icon="pi pi-download" text size="small" @click="deposit(data)" />
           <Button v-if="canEdit && ['collected', 'deposited'].includes(data.status)" label="Bounce" icon="pi pi-times-circle" text severity="danger" size="small" @click="bounce(data)" />
           <Button v-if="canEdit && data.status === 'collected'" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
@@ -296,6 +319,18 @@ onMounted(async () => {
         <Button :label="editingId ? 'Update' : 'Save'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Collection Details" :fields="[
+      { key: 'collection_number', label: 'Collection #' },
+      { key: 'collection_date', label: 'Date' },
+      { key: 'salesman', label: 'Salesman' },
+      { key: 'customer', label: 'Customer' },
+      { key: 'amount', label: 'Amount', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'mode', label: 'Mode' },
+      { key: 'reference_no', label: 'Reference' },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 

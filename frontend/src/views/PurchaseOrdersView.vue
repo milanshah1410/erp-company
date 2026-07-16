@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
@@ -16,10 +17,16 @@ import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import { openPdfBlob } from '../utils/blob'
 import SendEmailDialog from '../components/SendEmailDialog.vue'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/purchase-orders')
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const suppliers = ref<any[]>([])
 const warehouses = ref<any[]>([])
@@ -61,6 +68,17 @@ const statusColors: Record<string, string> = {
   received: 'success',
   cancelled: 'danger',
 }
+
+const search = ref('')
+const statusFilter = ref<string | null>(null)
+const statusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Pending Approval', value: 'pending_approval' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Partially Received', value: 'partially_received' },
+  { label: 'Received', value: 'received' },
+  { label: 'Cancelled', value: 'cancelled' },
+]
 
 // --- Create dialog ---
 const createVisible = ref(false)
@@ -226,7 +244,10 @@ function serialCount(line: any): number {
 }
 
 function reload() {
-  crud.fetch()
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -257,6 +278,26 @@ onMounted(async () => {
       <Button v-if="canCreate" label="New Purchase Order" icon="pi pi-plus" @click="openCreate" />
     </div>
 
+    <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.5rem;align-items:center;margin-bottom:1rem">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button label="Search" outlined @click="reload" />
+      <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+        placeholder="All statuses" @change="reload" class="status-filter" />
+      <TableExportButtons title="Purchase Orders" only="export" endpoint="/purchase-orders"
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+        :columns="[
+          { key: 'po_number', label: 'PO #' },
+          { key: 'supplier.name', label: 'Supplier' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'order_date', label: 'Date' },
+          { key: 'total', label: 'Total' },
+          { key: 'status', label: 'Status' },
+        ]" />
+    </div>
+
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
       <Column field="po_number" header="PO #" />
@@ -272,6 +313,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 16rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button icon="pi pi-file-pdf" text rounded size="small" title="View PDF" @click="previewPdf(data)" />
           <Button v-if="canEmail" icon="pi pi-envelope" text rounded size="small" title="Email to supplier" @click="openEmail(data)" />
           <Button v-if="canApprove && ['draft', 'pending_approval'].includes(data.status)" label="Approve" size="small" outlined @click="approve(data)" style="margin-left: 4px" />
@@ -423,12 +465,27 @@ onMounted(async () => {
       :defaultTo="emailCtx.defaultTo"
       :defaultSubject="emailCtx.defaultSubject"
     />
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Purchase Order Details" :fields="[
+      { key: 'po_number', label: 'PO #' },
+      { key: 'supplier.name', label: 'Supplier' },
+      { key: 'warehouse.name', label: 'Warehouse' },
+      { key: 'order_date', label: 'Order Date' },
+      { key: 'expected_date', label: 'Expected Date' },
+      { key: 'status', label: 'Status' },
+      { key: 'total', label: 'Total', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

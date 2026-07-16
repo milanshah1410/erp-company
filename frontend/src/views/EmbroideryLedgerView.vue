@@ -6,6 +6,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const vendors = ref<{ label: string; value: number }[]>([])
 const vendorId = ref<number | null>(null)
@@ -50,6 +51,14 @@ onMounted(loadVendors)
     <div class="toolbar">
       <Select v-model="vendorId" :options="vendors" optionLabel="label" optionValue="value"
         placeholder="Select a vendor" showClear filter class="vendor-select" @change="loadLedger" />
+      <TableExportButtons title="Embroidery Vendor Ledger" :rows="entries" :columns="[
+        { key: 'date', label: 'Date' },
+        { key: 'type', label: 'Type' },
+        { key: 'reference', label: 'Reference' },
+        { key: 'credit', label: 'Earned (Credit)' },
+        { key: 'debit', label: 'Paid (Debit)' },
+        { key: 'balance', label: 'Balance' },
+      ]" />
     </div>
 
     <div v-if="summary" class="tiles">

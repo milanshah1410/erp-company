@@ -14,6 +14,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -67,6 +69,7 @@ const tabs = [
 ] as const
 
 // --- List filters ---
+const search = ref('')
 const filters = ref<{ status: string | null; expense_category_id: number | null; branch_id: number | null; date_from: string | null; date_to: string | null }>({
   status: null,
   expense_category_id: null,
@@ -77,6 +80,7 @@ const filters = ref<{ status: string | null; expense_category_id: number | null;
 
 function activeParams() {
   const p: Record<string, any> = {}
+  if (search.value) p.search = search.value
   if (filters.value.status) p.status = filters.value.status
   if (filters.value.expense_category_id) p.expense_category_id = filters.value.expense_category_id
   if (filters.value.branch_id) p.branch_id = filters.value.branch_id
@@ -130,6 +134,10 @@ const form = ref<any>(blankForm())
 const errors = ref<Record<string, string[]>>({})
 const selectedFile = ref<File | null>(null)
 const existingAttachment = ref<string | null>(null)
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 function blankForm() {
   return {
@@ -294,6 +302,20 @@ onMounted(async () => {
     <div class="header">
       <h1>Company Expenses</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
+        <TableExportButtons title="Company Expenses" endpoint="/expenses" :params="() => activeParams()" :columns="[
+          { key: 'expense_number', label: 'Expense #' },
+          { key: 'expense_date', label: 'Date' },
+          { key: 'category', label: 'Category' },
+          { key: 'branch', label: 'Branch' },
+          { key: 'payee', label: 'Payee' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'status', label: 'Status' },
+        ]" />
         <Button v-if="canCreate" label="New Expense" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
@@ -339,6 +361,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 18rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <template v-if="data.status === 'draft' || data.status === 'rejected'">
             <Button v-if="canEdit" label="Submit" size="small" severity="info" outlined @click="submitExpense(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -458,6 +481,17 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Create Draft'" :loading="saving" @click="saveExpense" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Expense Details" :fields="[
+      { key: 'expense_number', label: 'Expense #' },
+      { key: 'expense_date', label: 'Date' },
+      { key: 'category', label: 'Category' },
+      { key: 'branch', label: 'Branch' },
+      { key: 'payee', label: 'Payee' },
+      { key: 'amount', label: 'Amount', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'status', label: 'Status' },
+      { key: 'is_paid', label: 'Paid' },
+    ]" />
   </div>
 </template>
 
@@ -465,6 +499,9 @@ onMounted(async () => {
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .tabbar { display: flex; gap: 0.25rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem; }
 .tab { background: none; border: none; padding: 0.6rem 1rem; font: inherit; font-size: 0.9rem; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 0.4rem; }
 .tab:hover { color: #111827; }

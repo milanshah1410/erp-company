@@ -14,6 +14,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -53,6 +55,10 @@ const form = ref<any>({
   salesman_id: null, period_year: now.getFullYear(), period_month: now.getMonth() + 1,
   target_amount: null, target_orders: null, incentive_percent: null, notes: '',
 })
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 function money(v: any) {
   return formatCurrency(v)
@@ -186,6 +192,26 @@ onMounted(async () => {
         placeholder="Year" @change="load" />
       <Select v-model="filters.period_month" :options="MONTHS" optionLabel="label" optionValue="value" showClear
         placeholder="All months" @change="load" />
+      <TableExportButtons title="Salesman Targets" endpoint="/salesman-targets"
+        :params="() => ({
+          salesman_id: filters.salesman_id || undefined,
+          period_year: filters.period_year || undefined,
+          period_month: filters.period_month || undefined,
+          with_achievement: 1,
+        })"
+        :columns="[
+          { key: 'salesman', label: 'Salesman' },
+          { key: 'period_month', label: 'Month' },
+          { key: 'period_year', label: 'Year' },
+          { key: 'target_amount', label: 'Target' },
+          { key: 'achievement.achieved_amount', label: 'Achieved' },
+          { key: 'achievement.achievement_percent', label: 'Achievement %' },
+          { key: 'achievement.achieved_orders', label: 'Orders' },
+          { key: 'target_orders', label: 'Target Orders' },
+          { key: 'effective_incentive_percent', label: 'Incentive %' },
+          { key: 'achievement.incentive_amount', label: 'Incentive' },
+          { key: 'achievement.target_met', label: 'Target Met', format: (v) => (v ? 'Yes' : 'No') },
+        ]" />
     </div>
 
     <DataTable
@@ -240,6 +266,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 6rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(data)" />
         </template>
@@ -296,6 +323,24 @@ onMounted(async () => {
         <Button :label="editingId ? 'Update' : 'Create'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog
+      v-model:visible="detailVisible"
+      title="Salesman Target"
+      :record="detailRecord"
+      :fields="[
+        { label: 'Salesman', key: 'salesman' },
+        { label: 'Period', key: 'period_month', format: (_v, r) => `${monthName(r.period_month)} ${r.period_year}` },
+        { label: 'Target Amount', key: 'target_amount', format: (v) => money(v) },
+        { label: 'Achieved', key: 'achievement.achieved_amount', format: (v) => money(v ?? 0) },
+        { label: 'Achievement %', key: 'achievement.achievement_percent', format: (v) => `${(v ?? 0).toFixed(0)}%` },
+        { label: 'Target Orders', key: 'target_orders' },
+        { label: 'Achieved Orders', key: 'achievement.achieved_orders', format: (v) => String(v ?? 0) },
+        { label: 'Incentive %', key: 'effective_incentive_percent', format: (v) => `${Number(v).toFixed(2)}%` },
+        { label: 'Incentive', key: 'achievement.incentive_amount', format: (v) => money(v ?? 0) },
+        { label: 'Notes', key: 'notes', full: true },
+      ]"
+    />
   </div>
 </template>
 

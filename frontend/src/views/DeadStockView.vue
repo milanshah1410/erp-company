@@ -6,6 +6,7 @@ import InputNumber from 'primevue/inputnumber'
 import Button from 'primevue/button'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -37,6 +38,16 @@ onMounted(load)
       <label>Idle for at least</label>
       <InputNumber v-model="days" :min="1" :max="3650" suffix=" days" />
       <Button label="Refresh" icon="pi pi-refresh" @click="load" />
+      <TableExportButtons title="Dead Stock" filenameBase="dead-stock" :rows="rows"
+        :columns="[
+          { key: 'product.name', label: 'Product' },
+          { key: 'product.sku', label: 'SKU' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'quantity', label: 'On Hand' },
+          { key: 'stock_value', label: 'Stock Value' },
+          { key: 'last_movement_at', label: 'Last Movement' },
+          { key: 'days_idle', label: 'Days Idle' },
+        ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" dataKey="product.id" class="p-datatable-sm">

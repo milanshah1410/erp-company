@@ -17,6 +17,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const route = useRoute()
 const toast = useToast()
@@ -57,6 +59,11 @@ const savingReceive = ref(false)
 const receiveErrors = ref<Record<string, string[]>>({})
 const receiveTarget = ref<any>(null)
 const receiveForm = ref<any>({ qty: null, received_at: new Date(), received_to_stock: false, warehouse_id: null, notes: '' })
+
+// --- Detail (read-only view) dialog ---
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 function money(v: any) {
   return formatCurrency(v)
@@ -247,6 +254,20 @@ onMounted(async () => {
         <InputText v-model="search" placeholder="Search dispatch #, design, vendor, product..." @keyup.enter="load" />
       </span>
       <Button label="Search" outlined @click="load" />
+      <TableExportButtons :title="isPending ? 'Pending Dispatch' : 'Received'" endpoint="/embroidery-works"
+        :params="() => ({ status: mode, search: search || undefined })" :columns="[
+        { key: 'work_number', label: 'Dispatch #' },
+        { key: 'vendor_name', label: 'Vendor' },
+        { key: 'product_name', label: 'Product' },
+        { key: 'design_number', label: 'Design #' },
+        { key: 'stitch_count', label: 'Stitches' },
+        { key: 'cost', label: 'Cost' },
+        { key: 'dispatched_qty', label: 'Dispatched' },
+        { key: 'received_qty', label: 'Received' },
+        { key: 'pending_qty', label: 'Pending' },
+        { key: 'due_date', label: 'Due' },
+        { key: 'status', label: 'Status' },
+      ]" />
     </div>
 
     <DataTable
@@ -289,6 +310,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 11rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <template v-if="isPending">
             <Button v-if="canEdit" label="Receive" icon="pi pi-check" text size="small" @click="openReceive(data)" />
             <Button v-if="canEdit && Number(data.received_qty) === 0" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
@@ -391,6 +413,21 @@ onMounted(async () => {
         <Button label="Save" :loading="savingReceive" @click="saveReceive" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Embroidery Work Details" :fields="[
+      { key: 'work_number', label: 'Dispatch #' },
+      { key: 'vendor_name', label: 'Vendor' },
+      { key: 'product_name', label: 'Product' },
+      { key: 'design_number', label: 'Design #' },
+      { key: 'stitch_count', label: 'Stitches' },
+      { key: 'cost', label: 'Cost', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'dispatched_qty', label: 'Dispatched' },
+      { key: 'received_qty', label: 'Received' },
+      { key: 'pending_qty', label: 'Pending' },
+      { key: 'due_date', label: 'Due Date' },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 

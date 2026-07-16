@@ -9,6 +9,7 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -176,6 +177,15 @@ onMounted(async () => {
     <div class="header">
       <h1>Roles &amp; Permissions</h1>
       <Button v-if="canCreate" label="New Role" icon="pi pi-plus" @click="openCreate" />
+    </div>
+
+    <div class="toolbar no-print" style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+      <TableExportButtons title="Roles" :rows="roles"
+        :columns="[
+          { key: 'name', label: 'Role' },
+          { key: 'permissions_count', label: 'Permissions' },
+          { key: 'users_count', label: 'Users' },
+        ]" />
     </div>
 
     <div class="panels">

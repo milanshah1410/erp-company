@@ -9,6 +9,10 @@ use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\B2bOrderController;
 use App\Http\Controllers\Api\GlobalSearchController;
+use App\Http\Controllers\Api\MenuController;
+use App\Http\Controllers\Api\DemoDataController;
+use App\Http\Controllers\Api\DataImportController;
+use App\Http\Controllers\Api\WorkflowController;
 use App\Http\Controllers\Api\EcommerceIntegrationController;
 use App\Http\Controllers\Api\ChannelOrderController;
 use App\Http\Controllers\Api\ChannelListingController;
@@ -213,6 +217,13 @@ Route::middleware('api')->prefix('api')->group(function () {
         // scoped to the current tenant and gated per-group by the caller's
         // module view permissions inside the controller.
         Route::get('/search', [GlobalSearchController::class, 'index']);
+
+        // Dynamic navigation (project-stack.md §3): the DB-driven menu tree
+        // filtered for this user (role + subscription) plus favorites/recents.
+        // No permission gate — the payload is already filtered per-user.
+        Route::get('/menu', [MenuController::class, 'index']);
+        Route::post('/menu/favorites', [MenuController::class, 'toggleFavorite']);
+        Route::post('/menu/recents', [MenuController::class, 'trackRecent']);
 
         /**
          * CRUD helper: each action guarded by a "<module>.<action>" permission.
@@ -966,6 +977,9 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('reports/supplier-ledger', [LedgerReportController::class, 'supplier'])->middleware('permission:reports.view');
 
         Route::get('dashboard/kpis', [DashboardController::class, 'kpis']);
+        // Customizable widget layout (project-stack.md §5), per user.
+        Route::get('dashboard/layout', [DashboardController::class, 'layout']);
+        Route::put('dashboard/layout', [DashboardController::class, 'saveLayout']);
 
         Route::get('reorder/suggestions', [ReorderController::class, 'suggestions'])->middleware('permission:advanced-inventory.view');
         Route::post('reorder/generate', [ReorderController::class, 'generate'])->middleware('permission:advanced-inventory.create');
@@ -1055,6 +1069,24 @@ Route::middleware('api')->prefix('api')->group(function () {
         */
         Route::get('settings', [SettingController::class, 'index'])->middleware('permission:settings.view');
         Route::match(['put', 'patch'], 'settings', [SettingController::class, 'update'])->middleware('permission:settings.edit');
+
+        // System Tools → Demo Data generator (project-stack.md §7).
+        Route::get('system-tools/demo-data/options', [DemoDataController::class, 'options'])->middleware('permission:settings.view');
+        Route::post('system-tools/demo-data', [DemoDataController::class, 'generate'])->middleware('permission:settings.edit');
+
+        // System Tools → Import Data (project-stack.md §8): Excel / CSV / JSON.
+        Route::get('system-tools/import/modules', [DataImportController::class, 'modules'])->middleware('permission:settings.view');
+        Route::get('system-tools/import/{module}/template', [DataImportController::class, 'template'])->middleware('permission:settings.view');
+        Route::post('system-tools/import/{module}', [DataImportController::class, 'store'])->middleware('permission:settings.edit');
+
+        // Workflow Builder (project-stack.md §11).
+        Route::get('workflows/meta', [WorkflowController::class, 'meta'])->middleware('permission:workflows.view');
+        Route::post('workflows/test', [WorkflowController::class, 'test'])->middleware('permission:workflows.view');
+        Route::get('workflows', [WorkflowController::class, 'index'])->middleware('permission:workflows.view');
+        Route::post('workflows', [WorkflowController::class, 'store'])->middleware('permission:workflows.create');
+        Route::get('workflows/{workflow}', [WorkflowController::class, 'show'])->middleware('permission:workflows.view');
+        Route::match(['put', 'patch'], 'workflows/{workflow}', [WorkflowController::class, 'update'])->middleware('permission:workflows.edit');
+        Route::delete('workflows/{workflow}', [WorkflowController::class, 'destroy'])->middleware('permission:workflows.delete');
 
         $crud('users', UserController::class, 'users', 'user', 'users');
 

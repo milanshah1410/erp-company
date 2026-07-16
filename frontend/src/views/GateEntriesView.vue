@@ -13,10 +13,16 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/gate-entries')
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const warehouses = ref<any[]>([])
 
@@ -44,6 +50,7 @@ const referenceTypeOptions = [
   { label: 'Other', value: 'other' },
 ]
 
+const search = ref('')
 const directionFilter = ref<string | null>(null)
 const statusFilter = ref<string | null>(null)
 const statusOptions = [
@@ -134,6 +141,7 @@ async function removeEntry(row: any) {
 
 function reload() {
   const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
   if (statusFilter.value) params.status = statusFilter.value
   if (directionFilter.value) params.direction = directionFilter.value
   crud.fetch(params)
@@ -156,10 +164,26 @@ onMounted(async () => {
     <div class="header">
       <h1>Gate Entries</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="directionFilter" :options="directionOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All directions" @change="reload" class="status-filter" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="Gate Entries" endpoint="/gate-entries"
+          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}), ...(directionFilter ? { direction: directionFilter } : {}) })"
+          :columns="[
+            { key: 'entry_number', label: 'Entry #' },
+            { key: 'warehouse.name', label: 'Warehouse' },
+            { key: 'direction', label: 'Direction' },
+            { key: 'vehicle_number', label: 'Vehicle #' },
+            { key: 'driver_name', label: 'Driver' },
+            { key: 'reference_number', label: 'Reference' },
+            { key: 'status', label: 'Status' },
+          ]" />
         <Button v-if="canCreate" label="New Gate Entry" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
@@ -179,6 +203,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <template v-if="data.status === 'open'">
             <Button v-if="canEdit" label="Close" size="small" severity="success" outlined @click="closeEntry(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -240,6 +265,19 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Log Entry'" :loading="saving" @click="saveEntry" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Gate Entry Details" :fields="[
+      { key: 'entry_number', label: 'Entry #' },
+      { key: 'warehouse.name', label: 'Warehouse' },
+      { key: 'direction', label: 'Direction', format:(v)=>directionLabel(v) },
+      { key: 'vehicle_number', label: 'Vehicle Number' },
+      { key: 'driver_name', label: 'Driver Name' },
+      { key: 'driver_contact', label: 'Driver Contact' },
+      { key: 'reference_type', label: 'Reference Type' },
+      { key: 'reference_number', label: 'Reference Number' },
+      { key: 'status', label: 'Status' },
+      { key: 'purpose', label: 'Purpose / Remarks', full: true },
+    ]" />
   </div>
 </template>
 
@@ -248,6 +286,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

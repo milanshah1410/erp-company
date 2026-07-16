@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
@@ -17,6 +18,7 @@ import { formatCurrency } from '../utils/currency'
 import { priceDocument, type DiscountType } from '../utils/pricing'
 import { openPdfBlob } from '../utils/blob'
 import SendEmailDialog from '../components/SendEmailDialog.vue'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const discountTypes = [
   { label: '%', value: 'percent' },
@@ -71,6 +73,16 @@ const statusColors: Record<string, string> = {
   delivered: 'success',
   cancelled: 'danger',
 }
+
+const search = ref('')
+const statusFilter = ref<string | null>(null)
+const statusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Confirmed', value: 'confirmed' },
+  { label: 'Backordered', value: 'backordered' },
+  { label: 'Delivered', value: 'delivered' },
+  { label: 'Cancelled', value: 'cancelled' },
+]
 
 const invoiceStatusColors: Record<string, string> = {
   unpaid: 'danger',
@@ -300,7 +312,10 @@ async function savePayment() {
 }
 
 function reload() {
-  crud.fetch()
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -335,6 +350,29 @@ onMounted(async () => {
     <div class="header">
       <h1>Sales Orders</h1>
       <Button v-if="canCreate" label="New Sales Order" icon="pi pi-plus" @click="openCreate" />
+    </div>
+
+    <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.5rem;align-items:center;margin-bottom:1rem">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button label="Search" outlined @click="reload" />
+      <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+        placeholder="All statuses" @change="reload" class="status-filter" />
+      <TableExportButtons title="Sales Orders" only="export" endpoint="/sales-orders"
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+        :columns="[
+          { key: 'so_number', label: 'SO #' },
+          { key: 'customer.name', label: 'Customer' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'order_date', label: 'Date' },
+          { key: 'total', label: 'Total' },
+          { key: 'status', label: 'Status' },
+          { key: 'fulfillment_stage', label: 'Fulfillment' },
+          { key: 'invoice.invoice_number', label: 'Invoice' },
+          { key: 'invoice.status', label: 'Invoice Status' },
+        ]" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
@@ -569,6 +607,10 @@ onMounted(async () => {
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

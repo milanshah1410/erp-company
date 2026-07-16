@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const entries = ref<any[]>([])
 const summary = ref<any>(null)
@@ -48,6 +49,16 @@ onMounted(load)
     <div class="filters">
       <label>From <input type="date" v-model="from" class="date-input" @change="load" /></label>
       <label>To <input type="date" v-model="to" class="date-input" @change="load" /></label>
+      <TableExportButtons title="Journal" :rows="entries"
+        :columns="[
+          { key: 'date', label: 'Date' },
+          { key: 'reference', label: 'Reference' },
+          { key: 'type', label: 'Type' },
+          { key: 'debit_ledger', label: 'Debit (Dr)' },
+          { key: 'credit_ledger', label: 'Credit (Cr)' },
+          { key: 'narration', label: 'Narration' },
+          { key: 'amount', label: 'Amount' },
+        ]" />
     </div>
 
     <p class="note">Non-cash entries: journal vouchers plus adjustment-mode transactions.</p>

@@ -8,6 +8,7 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -118,6 +119,17 @@ onMounted(load)
     <div class="toolbar">
       <Select v-model="type" :options="typeOptions" optionLabel="label" optionValue="value" placeholder="Any type" showClear @change="doFilter" />
       <Select v-model="status" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Open + Acknowledged" showClear @change="doFilter" />
+      <TableExportButtons title="Inventory Alerts" endpoint="/inventory-alerts"
+        :params="() => ({ ...(status ? { status } : {}), ...(type ? { type } : {}) })"
+        :columns="[
+          { key: 'severity', label: 'Severity' },
+          { key: 'type', label: 'Type' },
+          { key: 'product.name', label: 'Product' },
+          { key: 'product.sku', label: 'SKU' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'message', label: 'Message' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"

@@ -17,8 +17,14 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const route = useRoute()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 const toast = useToast()
 const auth = useAuthStore()
 
@@ -249,6 +255,21 @@ onMounted(async () => {
         <InputText v-model="search" placeholder="Search work #, tailor, style..." @keyup.enter="load" />
       </span>
       <Button label="Search" outlined @click="load" />
+      <TableExportButtons :title="isPending ? 'Pending Work' : 'Completed Work'" endpoint="/tailor-works"
+        :params="() => ({ status: mode, search: search || undefined })"
+        :columns="[
+          { key: 'work_number', label: 'Work #' },
+          { key: 'tailor_name', label: 'Tailor' },
+          { key: 'product_name', label: 'Style / Product' },
+          { key: 'rate', label: 'Rate' },
+          { key: 'issued_qty', label: 'Issued' },
+          { key: 'completed_qty', label: 'Completed' },
+          { key: 'rejected_qty', label: 'Rejected' },
+          { key: 'remaining_qty', label: 'Remaining' },
+          { key: 'earned', label: 'Earned' },
+          { key: 'due_date', label: 'Due' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable
@@ -290,14 +311,14 @@ onMounted(async () => {
       <Column header="Status">
         <template #body="{ data }"><Tag :value="data.status" :severity="statusSeverity(data.status)" /></template>
       </Column>
-      <Column header="Actions" style="width: 11rem">
+      <Column header="Actions" style="width: 13rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <template v-if="isPending">
             <Button v-if="canEdit" label="Complete" icon="pi pi-check" text size="small" @click="openComplete(data)" />
             <Button v-if="canEdit && Number(data.completed_qty) === 0" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
             <Button v-if="canDelete && Number(data.completed_qty) === 0" icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(data)" />
           </template>
-          <span v-else class="muted">—</span>
         </template>
       </Column>
       <template #empty>{{ isPending ? 'No pending work.' : 'No completed work yet.' }}</template>
@@ -400,6 +421,26 @@ onMounted(async () => {
         <Button label="Save" :loading="savingComplete" @click="saveComplete" />
       </template>
     </Dialog>
+
+    <DetailDialog
+      v-model:visible="detailVisible"
+      title="Work Order"
+      :record="detailRecord"
+      :fields="[
+        { label: 'Work #', key: 'work_number' },
+        { label: 'Tailor', key: 'tailor_name' },
+        { label: 'Style / Product', key: 'product_name' },
+        { label: 'Rate', key: 'rate', format: (v) => money(v) },
+        { label: 'Issued', key: 'issued_qty', format: (v) => String(Number(v)) },
+        { label: 'Completed', key: 'completed_qty', format: (v) => String(Number(v)) },
+        { label: 'Rejected', key: 'rejected_qty', format: (v) => String(Number(v)) },
+        { label: 'Remaining', key: 'remaining_qty', format: (v) => String(Number(v)) },
+        { label: 'Earned', key: 'earned', format: (v) => money(v) },
+        { label: 'Due Date', key: 'due_date' },
+        { label: 'Status', key: 'status' },
+        { label: 'Notes', key: 'notes', full: true },
+      ]"
+    />
   </div>
 </template>
 

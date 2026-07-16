@@ -5,6 +5,7 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
@@ -13,6 +14,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -46,6 +49,13 @@ const statusOptions = [
   { label: 'Received', value: 'received' },
   { label: 'Cancelled', value: 'cancelled' },
 ]
+
+const search = ref('')
+
+// --- Read-only detail dialog ---
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 // --- Create / edit dialog ---
 const dialogVisible = ref(false)
@@ -179,7 +189,7 @@ async function removeTransfer(row: any) {
 }
 
 function reload() {
-  crud.fetch(statusFilter.value ? { status: statusFilter.value } : {})
+  crud.fetch({ status: statusFilter.value || undefined, search: search.value || undefined })
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -203,8 +213,24 @@ onMounted(async () => {
     <div class="header">
       <h1>Stock Transfers</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="Stock Transfers" endpoint="/stock-transfers"
+          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+          :columns="[
+            { key: 'transfer_number', label: 'Transfer #' },
+            { key: 'from_warehouse.name', label: 'From' },
+            { key: 'to_warehouse.name', label: 'To' },
+            { key: 'transfer_date', label: 'Date' },
+            { key: 'items_count', label: 'Lines' },
+            { key: 'status', label: 'Status' },
+            { key: 'received_date', label: 'Received' },
+          ]" />
         <Button v-if="canCreate" label="New Transfer" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
@@ -229,8 +255,9 @@ onMounted(async () => {
       <Column field="received_date" header="Received">
         <template #body="{ data }">{{ data.received_date || '—' }}</template>
       </Column>
-      <Column header="Actions" style="width: 14rem">
+      <Column header="Actions" style="width: 16rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <template v-if="data.status === 'draft'">
             <Button v-if="canApprove" label="Dispatch" size="small" severity="success" outlined @click="dispatchTransfer(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -293,6 +320,17 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Create Draft'" :loading="saving" @click="saveTransfer" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" title="Stock Transfer" :record="detailRecord" :fields="[
+      { key: 'transfer_number', label: 'Transfer #' },
+      { key: 'from_warehouse.name', label: 'From' },
+      { key: 'to_warehouse.name', label: 'To' },
+      { key: 'transfer_date', label: 'Date' },
+      { key: 'items_count', label: 'Lines' },
+      { key: 'status', label: 'Status', format: (v) => statusLabels[v] ?? v },
+      { key: 'received_date', label: 'Received' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
@@ -301,6 +339,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .route-arrow { font-size: 0.7rem; color: #6b7280; margin: 0 0.4rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }

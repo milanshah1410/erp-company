@@ -281,6 +281,11 @@ h1 { font-size: 1.5rem; font-weight: 600; }
   gap: 1.25rem;
   align-items: start;
 }
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
 .panel {
   background: #fff;
   border: 1px solid #e5e7eb;

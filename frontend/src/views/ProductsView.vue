@@ -17,6 +17,8 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { openPdfBlob } from '../utils/blob'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -24,6 +26,16 @@ const crud = useCrud('/products')
 const canScanBarcodes = computed(() => auth.can('barcodes.view'))
 
 const search = ref('')
+const categoryFilter = ref<number | null>(null)
+const activeFilter = ref<boolean | null>(null)
+const activeOptions = [
+  { label: 'Active', value: true },
+  { label: 'Inactive', value: false },
+]
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const categories = ref<any[]>([])
 const brands = ref<any[]>([])
@@ -47,8 +59,18 @@ function trackingTags(row: any): string[] {
   return tags
 }
 
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
+
 function reload() {
-  crud.fetch(search.value ? { search: search.value } : {})
+  crud.fetch({
+    ...(search.value ? { search: search.value } : {}),
+    ...(categoryFilter.value ? { category_id: categoryFilter.value } : {}),
+    ...(activeFilter.value !== null ? { is_active: activeFilter.value } : {}),
+    ...(sortField.value && sortOrder.value
+      ? { sort: sortField.value, direction: sortOrder.value === 1 ? 'asc' : 'desc' }
+      : {}),
+  })
 }
 
 function doSearch() {
@@ -59,6 +81,13 @@ function doSearch() {
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
   crud.perPage.value = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.currentPage.value = 1
   reload()
 }
 
@@ -408,21 +437,38 @@ onMounted(async () => {
         <i class="pi pi-search" />
         <InputText v-model="search" placeholder="Search products..." @keyup.enter="doSearch" />
       </span>
+      <Select v-model="categoryFilter" :options="categories" optionLabel="label" optionValue="value" placeholder="All categories" showClear class="filter" @change="doSearch" />
+      <Select v-model="activeFilter" :options="activeOptions" optionLabel="label" optionValue="value" placeholder="All status" showClear class="filter" @change="doSearch" />
       <Button label="Search" outlined @click="doSearch" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Products" endpoint="/products"
+        :params="() => ({
+          search: search || undefined,
+          category_id: categoryFilter || undefined,
+          is_active: activeFilter !== null ? activeFilter : undefined,
+        })"
+        :columns="[
+          { key: 'sku', label: 'SKU' },
+          { key: 'name', label: 'Name' },
+          { key: 'category.name', label: 'Category' },
+          { key: 'selling_price', label: 'Selling Price' },
+          { key: 'is_active', label: 'Active', format: (v) => v ? 'Yes' : 'No' },
+        ]" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
-      :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50, 100]" dataKey="id" @page="onPage" class="p-datatable-sm">
+      :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50, 100]" dataKey="id" @page="onPage"
+      removableSort :sortField="sortField ?? undefined" :sortOrder="sortOrder ?? undefined" @sort="onSort" class="p-datatable-sm">
       <Column header="Image" style="width: 56px">
         <template #body="{ data }">
           <img v-if="data.image_url" :src="data.image_url" :alt="data.name" class="thumb" />
           <span v-else class="thumb thumb-placeholder"><i class="pi pi-image" /></span>
         </template>
       </Column>
-      <Column field="sku" header="SKU" />
-      <Column field="name" header="Name" />
+      <Column field="sku" header="SKU" sortable />
+      <Column field="name" header="Name" sortable />
       <Column header="Category"><template #body="{ data }">{{ data.category?.name }}</template></Column>
-      <Column header="Selling Price"><template #body="{ data }">{{ money(data.selling_price) }}</template></Column>
+      <Column field="selling_price" header="Selling Price" sortable><template #body="{ data }">{{ money(data.selling_price) }}</template></Column>
       <Column header="Tracking">
         <template #body="{ data }">
           <Tag v-for="t in trackingTags(data)" :key="t" :value="t" severity="info" class="track-tag" />
@@ -433,8 +479,9 @@ onMounted(async () => {
           <Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? 'Yes' : 'No'" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 9rem">
+      <Column header="Actions" style="width: 11rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
           <Button v-if="canView" icon="pi pi-sitemap" text rounded size="small" severity="secondary" @click="openVariants(data)" />
           <Button v-if="canScanBarcodes" icon="pi pi-qrcode" text rounded size="small" severity="secondary" @click="openBarcode(data)" />
@@ -698,6 +745,23 @@ onMounted(async () => {
         <Button label="Close" text @click="barcodeVisible = false" />
       </template>
     </Dialog>
+
+    <!-- Read-only detail dialog -->
+    <DetailDialog v-model:visible="detailVisible" title="Product Details" :record="detailRecord" :fields="[
+      { key: 'sku', label: 'SKU' },
+      { key: 'name', label: 'Name' },
+      { key: 'category.name', label: 'Category' },
+      { key: 'brand.name', label: 'Brand' },
+      { key: 'unit.short_name', label: 'Unit' },
+      { key: 'hsn_code', label: 'HSN Code' },
+      { key: 'barcode', label: 'Barcode' },
+      { key: 'cost_price', label: 'Cost Price', format: (v) => money(v) },
+      { key: 'selling_price', label: 'Selling Price', format: (v) => money(v) },
+      { key: 'tax_percent', label: 'Tax %' },
+      { key: 'reorder_level', label: 'Reorder Level' },
+      { key: 'is_active', label: 'Active' },
+      { key: 'description', label: 'Description', full: true },
+    ]" />
   </div>
 </template>
 
@@ -716,6 +780,14 @@ onMounted(async () => {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+.filter {
+  min-width: 160px;
 }
 .search {
   position: relative;

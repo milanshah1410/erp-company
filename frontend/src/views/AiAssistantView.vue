@@ -54,12 +54,20 @@ const ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in windo
 const listening = ref(false)
 let recognition: any = null
 
+// Web Speech API only runs in a secure context (https:// or http://localhost).
+// WAMP is frequently opened over plain http on a hostname/IP, where start()
+// throws or immediately errors — so we detect that up front and explain it
+// rather than failing silently.
+const secureContextOk = typeof window !== 'undefined' && (window.isSecureContext ?? location.protocol === 'https:')
+const voiceReady = voiceSupported && secureContextOk
+
 function setupRecognition() {
-  if (!voiceSupported) return
+  if (!voiceReady) return
   recognition = new SpeechRecognitionCtor()
   recognition.continuous = false
   recognition.interimResults = false
   recognition.maxAlternatives = 1
+  recognition.onstart = () => { listening.value = true }
   recognition.onresult = (event: any) => {
     const transcript = event.results?.[0]?.[0]?.transcript ?? ''
     if (transcript) {
@@ -69,28 +77,70 @@ function setupRecognition() {
   }
   recognition.onerror = (event: any) => {
     listening.value = false
-    if (event.error !== 'aborted' && event.error !== 'no-speech') {
-      toast.add({ severity: 'warn', summary: 'Voice input', detail: `Could not capture audio (${event.error}).`, life: 3500 })
+    const err = event?.error
+    if (err === 'aborted' || err === 'no-speech') return
+    const messages: Record<string, string> = {
+      'not-allowed': 'Microphone access was blocked. Allow mic access for this site in your browser settings, then try again.',
+      'service-not-allowed': 'Microphone blocked — this usually means the page is not served over HTTPS or localhost. Open the app via https:// or http://localhost.',
+      'audio-capture': 'No microphone was found. Check that a mic is connected and enabled.',
+      network: 'Speech recognition needs an internet connection and could not reach the service.',
     }
+    toast.add({ severity: 'warn', summary: 'Voice input', detail: messages[err] ?? `Could not capture audio (${err}).`, life: 5000 })
   }
   recognition.onend = () => { listening.value = false }
 }
 
-function toggleListen() {
-  if (!voiceSupported || !recognition) {
-    toast.add({ severity: 'warn', summary: 'Voice not supported', detail: 'This browser does not support speech input. Please type instead.', life: 4000 })
+async function toggleListen() {
+  if (!voiceSupported) {
+    toast.add({ severity: 'warn', summary: 'Voice not supported', detail: 'This browser does not support speech input (try Chrome or Edge). Please type instead.', life: 5000 })
     return
   }
+  if (!secureContextOk) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Voice needs a secure context',
+      detail: 'Microphone input only works over HTTPS or http://localhost. Open the app at http://localhost instead of an IP/hostname, or enable HTTPS.',
+      life: 7000,
+    })
+    return
+  }
+  if (!recognition) return
+
   if (listening.value) {
-    recognition.stop()
+    try { recognition.stop() } catch { /* noop */ }
     return
   }
+
+  // Proactively prompt for / verify microphone permission so the failure mode
+  // is an explicit browser prompt rather than a silent no-op.
+  try {
+    if (navigator.mediaDevices?.getUserMedia) {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // We only needed the permission grant; release the mic for the recogniser.
+      stream.getTracks().forEach((t) => t.stop())
+    }
+  } catch (e: any) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Microphone blocked',
+      detail: e?.name === 'NotAllowedError'
+        ? 'Please allow microphone access for this site (click the mic/lock icon in the address bar), then try again.'
+        : `Could not access the microphone (${e?.name ?? 'unknown error'}).`,
+      life: 6000,
+    })
+    return
+  }
+
   try {
     recognition.lang = lang.value
     recognition.start()
     listening.value = true
-  } catch {
+  } catch (e: any) {
     listening.value = false
+    // InvalidStateError = already started; otherwise surface it.
+    if (e?.name !== 'InvalidStateError') {
+      toast.add({ severity: 'warn', summary: 'Voice input', detail: e?.message ?? 'Could not start voice input.', life: 5000 })
+    }
   }
 }
 
@@ -210,9 +260,9 @@ onBeforeUnmount(() => {
       <div class="composer">
         <button
           class="mic"
-          :class="{ listening, unsupported: !voiceSupported }"
+          :class="{ listening, unsupported: !voiceReady }"
           @click="toggleListen"
-          :title="voiceSupported ? 'Speak your question' : 'Voice input not supported in this browser'"
+          :title="voiceReady ? 'Speak your question' : (!voiceSupported ? 'Voice input not supported in this browser (try Chrome/Edge)' : 'Voice needs HTTPS or http://localhost')"
         >
           <i :class="listening ? 'pi pi-stop-circle' : 'pi pi-microphone'" />
         </button>

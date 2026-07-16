@@ -9,6 +9,10 @@ import './style.css'
 
 import App from './App.vue'
 import router from './router'
+import { initTheme } from './composables/useTheme'
+
+// Apply the saved light/dark preference before mount to avoid a flash.
+initTheme()
 
 // "Warehouse Ledger" theme — safety-amber (#E8A33D) as the primary accent,
 // ink-blue as the secondary/highlight tone.

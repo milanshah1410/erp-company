@@ -13,9 +13,15 @@ import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const vendors = ref<{ label: string; value: number }[]>([])
 const filterVendor = ref<number | null>(null)
@@ -134,6 +140,15 @@ onMounted(async () => {
     <div class="toolbar">
       <Select v-model="filterVendor" :options="vendors" optionLabel="label" optionValue="value"
         placeholder="All vendors" showClear filter class="vendor-select" @change="() => { page = 1; load() }" />
+      <TableExportButtons title="Embroidery Payments" endpoint="/embroidery-payments"
+        :params="() => ({ embroidery_vendor_id: filterVendor || undefined })" :columns="[
+        { key: 'payment_number', label: 'Payment #' },
+        { key: 'payment_date', label: 'Date' },
+        { key: 'vendor_name', label: 'Vendor' },
+        { key: 'mode', label: 'Mode' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'notes', label: 'Notes' },
+      ]" />
     </div>
 
     <DataTable
@@ -158,6 +173,11 @@ onMounted(async () => {
         <template #body="{ data }">{{ money(data.amount) }}</template>
       </Column>
       <Column field="notes" header="Notes" />
+      <Column header="Actions" style="width: 5rem">
+        <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
+        </template>
+      </Column>
       <template #empty>No payments recorded.</template>
     </DataTable>
 
@@ -195,6 +215,15 @@ onMounted(async () => {
         <Button label="Save" :loading="saving" @click="savePayment" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Payment Details" :fields="[
+      { key: 'payment_number', label: 'Payment #' },
+      { key: 'payment_date', label: 'Date' },
+      { key: 'vendor_name', label: 'Vendor' },
+      { key: 'mode', label: 'Mode' },
+      { key: 'amount', label: 'Amount', format:(v)=>money(v) },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 

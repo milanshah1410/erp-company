@@ -4,8 +4,10 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Select from 'primevue/select'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import http from '../api/http'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -13,6 +15,7 @@ const total = ref(0)
 const page = ref(1)
 const perPage = ref(20)
 const typeFilter = ref<string | null>(null)
+const search = ref('')
 
 const types = [
   { label: 'All types', value: null },
@@ -29,7 +32,7 @@ async function load() {
   loading.value = true
   try {
     const { data } = await http.get('/stock-ledger', {
-      params: { page: page.value, per_page: perPage.value, type: typeFilter.value || undefined },
+      params: { page: page.value, per_page: perPage.value, type: typeFilter.value || undefined, search: search.value || undefined },
     })
     rows.value = data.data
     total.value = data.meta?.total ?? data.data.length
@@ -56,8 +59,26 @@ onMounted(load)
     <p class="subtitle">Immutable record of every stock movement</p>
 
     <div class="toolbar">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search product / reference..." @keyup.enter="page = 1; load()" />
+      </span>
       <Select v-model="typeFilter" :options="types" optionLabel="label" optionValue="value" placeholder="Type" @change="page = 1; load()" />
-      <Button label="Refresh" icon="pi pi-refresh" outlined @click="load()" />
+      <Button label="Search" outlined @click="page = 1; load()" />
+      <TableExportButtons title="Stock Ledger" endpoint="/stock-ledger"
+        :params="() => ({ type: typeFilter || undefined, search: search || undefined })"
+        :columns="[
+          { key: 'created_at', label: 'Date' },
+          { key: 'type', label: 'Type' },
+          { key: 'product.name', label: 'Product' },
+          { key: 'product.sku', label: 'SKU' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'quantity_in', label: 'In' },
+          { key: 'quantity_out', label: 'Out' },
+          { key: 'balance', label: 'Balance' },
+          { key: 'reference_number', label: 'Reference' },
+          { key: 'user', label: 'By' },
+        ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
@@ -79,7 +100,10 @@ onMounted(load)
 <style scoped>
 h1 { font-size: 1.5rem; font-weight: 600; }
 .subtitle { color: #6b7280; margin-bottom: 1rem; }
-.toolbar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; }
+.toolbar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .in { color: #059669; font-weight: 600; }
 .out { color: #dc2626; font-weight: 600; }
 </style>

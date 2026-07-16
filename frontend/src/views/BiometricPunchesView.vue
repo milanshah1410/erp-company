@@ -11,6 +11,8 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -28,6 +30,10 @@ const PROCESSED = [{ label: 'Unprocessed', value: 'false' }, { label: 'Processed
 const canImport = computed(() => auth.can('biometric-punches.create'))
 const canSync = computed(() => auth.can('attendance.create'))
 const canDelete = computed(() => auth.can('biometric-punches.delete'))
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const importVisible = ref(false)
 const importing = ref(false)
@@ -130,6 +136,18 @@ onMounted(async () => { await loadDevices(); await load() })
     <div class="toolbar">
       <Select v-model="filters.biometric_device_id" :options="devices" optionLabel="label" optionValue="value" filter showClear placeholder="All devices" class="w-60" @change="load" />
       <Select v-model="filters.processed" :options="PROCESSED" optionLabel="label" optionValue="value" showClear placeholder="All punches" @change="load" />
+      <TableExportButtons title="Biometric Punches" endpoint="/biometric-punches" :params="() => ({
+        biometric_device_id: filters.biometric_device_id || undefined,
+        processed: filters.processed ?? undefined,
+      })" :columns="[
+        { key: 'punched_at', label: 'Punched At' },
+        { key: 'employee_name', label: 'Employee' },
+        { key: 'device_user_id', label: 'Device User' },
+        { key: 'device_name', label: 'Device' },
+        { key: 'direction', label: 'Direction' },
+        { key: 'source', label: 'Source' },
+        { key: 'processed', label: 'Processed', format: (v) => v ? 'Yes' : 'No' },
+      ]" />
       <div class="spacer" />
       <template v-if="canSync">
         <DatePicker v-model="syncRange.from" dateFormat="yy-mm-dd" placeholder="From" showIcon iconDisplay="input" />
@@ -148,6 +166,7 @@ onMounted(async () => { await loadDevices(); await load() })
       <Column header="Processed"><template #body="{ data }"><Tag :value="data.processed ? 'Yes' : 'No'" :severity="data.processed ? 'success' : 'secondary'" /></template></Column>
       <Column header="" style="width: 4rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canDelete && !data.processed" icon="pi pi-trash" text rounded severity="danger" size="small" @click="del(data)" />
         </template>
       </Column>
@@ -171,6 +190,16 @@ onMounted(async () => { await loadDevices(); await load() })
         <Button label="Import" icon="pi pi-upload" :loading="importing" @click="runImport" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Punch Details" :fields="[
+      { key: 'punched_at', label: 'Punched At' },
+      { key: 'employee_name', label: 'Employee' },
+      { key: 'device_user_id', label: 'Device User' },
+      { key: 'device_name', label: 'Device' },
+      { key: 'direction', label: 'Direction' },
+      { key: 'source', label: 'Source' },
+      { key: 'processed', label: 'Processed' },
+    ]" />
   </div>
 </template>
 

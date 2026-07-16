@@ -17,6 +17,7 @@ import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import SupplierAccountDialog from '../components/SupplierAccountDialog.vue'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -37,18 +38,30 @@ const canDelete = computed(() => auth.can('suppliers.delete'))
 // --- Supplier list ---
 const crud = ref(useCrud('/suppliers'))
 const search = ref('')
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 function money(v: number | string | null | undefined) {
   return formatCurrency(v)
 }
 
 function reload() {
-  crud.value.fetch(search.value ? { search: search.value } : {})
+  crud.value.fetch({
+    ...(search.value ? { search: search.value } : {}),
+    ...(sortField.value && sortOrder.value ? { sort: sortField.value, direction: sortOrder.value === 1 ? 'asc' : 'desc' } : {}),
+  })
 }
 
 function onPage(e: any) {
   crud.value.currentPage = e.page + 1
   crud.value.perPage = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
   reload()
 }
 
@@ -251,6 +264,17 @@ onMounted(reload)
         <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
       </span>
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Suppliers" endpoint="/suppliers" :params="() => (search ? { search } : {})"
+        :columns="[
+          { key: 'code', label: 'Code' },
+          { key: 'name', label: 'Name' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'gst_number', label: 'GST' },
+          { key: 'credit_limit', label: 'Credit Limit' },
+          { key: 'payment_terms_days', label: 'Terms' },
+          { key: 'is_active', label: 'Active', format: (v) => (v ? 'Yes' : 'No') },
+        ]" />
     </div>
 
     <DataTable
@@ -262,11 +286,15 @@ onMounted(reload)
       :totalRecords="crud.total"
       :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id"
+      removableSort
+      :sortField="sortField ?? undefined"
+      :sortOrder="sortOrder ?? undefined"
+      @sort="onSort"
       @page="onPage"
       class="p-datatable-sm"
     >
-      <Column field="code" header="Code" />
-      <Column header="Name">
+      <Column field="code" header="Code" sortable />
+      <Column field="name" header="Name" sortable>
         <template #body="{ data }">
           <span>{{ data.name }}</span>
           <span v-if="data.company_name" class="muted-sub">{{ data.company_name }}</span>
@@ -482,8 +510,12 @@ onMounted(reload)
 }
 .toolbar {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+.toolbar-spacer {
+  flex: 1 1 auto;
 }
 .search {
   position: relative;

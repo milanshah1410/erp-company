@@ -16,6 +16,8 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -30,6 +32,17 @@ const canDelete = computed(() => auth.can('boms.delete'))
 function money(v: number | string) {
   return formatCurrency(v)
 }
+
+const search = ref('')
+const activeFilter = ref<string | null>(null)
+const activeOptions = [
+  { label: 'Active', value: '1' },
+  { label: 'Inactive', value: '0' },
+]
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 // --- Create / edit dialog ---
 const editVisible = ref(false)
@@ -153,7 +166,7 @@ async function deleteBom(row: any) {
 }
 
 function reload() {
-  crud.fetch()
+  crud.fetch({ search: search.value || undefined, is_active: activeFilter.value ?? undefined })
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -172,7 +185,27 @@ onMounted(async () => {
   <div>
     <div class="header">
       <h1>Bills of Materials</h1>
-      <Button v-if="canCreate" label="New BOM" icon="pi pi-plus" @click="openCreate" />
+      <div style="display: flex; gap: 0.5rem; align-items: center">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
+        <Select v-model="activeFilter" :options="activeOptions" optionLabel="label" optionValue="value" showClear
+          placeholder="All" @change="reload" class="status-filter" />
+        <TableExportButtons title="Bills of Materials" endpoint="/boms"
+          :params="() => ({ search: search || undefined, is_active: activeFilter ?? undefined })"
+          :columns="[
+            { key: 'bom_number', label: 'BOM #' },
+            { key: 'name', label: 'Name' },
+            { key: 'product.name', label: 'Finished Product' },
+            { key: 'output_quantity', label: 'Output Qty' },
+            { key: 'items_count', label: 'Components' },
+            { key: 'material_cost', label: 'Material Cost' },
+            { key: 'is_active', label: 'Active', format: (v) => v ? 'Yes' : 'No' },
+          ]" />
+        <Button v-if="canCreate" label="New BOM" icon="pi pi-plus" @click="openCreate" />
+      </div>
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
@@ -191,6 +224,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canEdit" label="Edit" size="small" outlined @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="deleteBom(data)" style="margin-left: 4px" />
         </template>
@@ -258,12 +292,28 @@ onMounted(async () => {
         <Button :label="isEditing ? 'Save Changes' : 'Create BOM'" :loading="saving" @click="saveBom" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="BOM Details" :fields="[
+      { key: 'bom_number', label: 'BOM #' },
+      { key: 'name', label: 'Name' },
+      { key: 'product.name', label: 'Finished Product' },
+      { key: 'output_quantity', label: 'Output Qty' },
+      { key: 'items_count', label: 'Components' },
+      { key: 'material_cost', label: 'Material Cost', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'is_default', label: 'Default' },
+      { key: 'is_active', label: 'Active' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.status-filter { width: 140px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

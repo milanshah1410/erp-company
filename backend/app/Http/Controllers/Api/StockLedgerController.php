@@ -28,6 +28,14 @@ class StockLedgerController extends Controller
         if ($request->filled('date_to')) {
             $query->whereDate('created_at', '<=', $request->query('date_to'));
         }
+        if ($search = trim((string) $request->query('search', ''))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('reference_number', 'like', "%{$search}%")
+                    ->orWhereHas('product', fn ($p) => $p
+                        ->where('sku', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%"));
+            });
+        }
 
         $query->orderByDesc('id');
         $perPage = min((int) $request->query('per_page', 20), 200);

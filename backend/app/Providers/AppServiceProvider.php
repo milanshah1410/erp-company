@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Observers\WorkflowObserver;
+use App\Services\WorkflowEngine;
 use App\Support\TenantContext;
 use Illuminate\Support\ServiceProvider;
 
@@ -22,6 +24,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Fire user-defined workflows (project-stack.md §11) on the `created`
+        // event of every model that backs a "*.created" trigger.
+        foreach (WorkflowEngine::TRIGGERS as $meta) {
+            $meta['model']::observe(WorkflowObserver::class);
+        }
     }
 }

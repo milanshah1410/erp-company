@@ -27,6 +27,15 @@ class FollowUpController extends Controller
             $query->where('assigned_to', $request->query('assigned_to'));
         }
 
+        if ($search = trim((string) $request->query('search', ''))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhere('outcome', 'like', "%{$search}%")
+                    ->orWhereHas('assignee', fn ($a) => $a->where('name', 'like', "%{$search}%"));
+            });
+        }
+
         // Filter to one related party, e.g. related_type=lead&related_id=5
         if ($request->filled('related_type') && $request->filled('related_id')) {
             $class = FollowUpRequest::RELATED_TYPES[$request->query('related_type')] ?? null;

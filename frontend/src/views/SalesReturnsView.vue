@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import { priceDocument, type DiscountType } from '../utils/pricing'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const discountTypes = [
   { label: '%', value: 'percent' },
@@ -41,6 +42,7 @@ const statusColors: Record<string, string> = {
   cancelled: 'danger',
 }
 
+const search = ref('')
 const statusFilter = ref<string | null>(null)
 const statusOptions = [
   { label: 'Draft', value: 'draft' },
@@ -176,7 +178,10 @@ async function removeReturn(row: any) {
 }
 
 function reload() {
-  crud.fetch(statusFilter.value ? { status: statusFilter.value } : {})
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -199,8 +204,23 @@ onMounted(async () => {
     <div class="header">
       <h1>Sales Returns / Credit Notes</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="Sales Returns" endpoint="/sales-returns"
+          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+          :columns="[
+            { key: 'credit_note_number', label: 'Credit Note #' },
+            { key: 'invoice.invoice_number', label: 'Invoice' },
+            { key: 'customer.name', label: 'Customer' },
+            { key: 'return_date', label: 'Date' },
+            { key: 'total', label: 'Total' },
+            { key: 'status', label: 'Status' },
+          ]" />
         <Button v-if="canCreate" label="New Credit Note" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
@@ -315,6 +335,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

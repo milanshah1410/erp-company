@@ -5,6 +5,7 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import Checkbox from 'primevue/checkbox'
@@ -15,6 +16,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 import {
   MANUFACTURING_STAGES,
   STAGE_STATUS_COLORS,
@@ -47,6 +49,15 @@ const statusLabels: Record<string, string> = {
   completed: 'Completed',
   cancelled: 'Cancelled',
 }
+
+const search = ref('')
+const statusFilter = ref<string | null>(null)
+const statusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'In Progress', value: 'in_progress' },
+  { label: 'Completed', value: 'completed' },
+  { label: 'Cancelled', value: 'cancelled' },
+]
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -420,7 +431,7 @@ async function onFileChosen(e: Event) {
 }
 
 function reload() {
-  crud.fetch()
+  crud.fetch({ status: statusFilter.value || undefined, search: search.value || undefined })
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -445,7 +456,27 @@ onMounted(async () => {
   <div>
     <div class="header">
       <h1>Manufacturing Orders</h1>
-      <Button v-if="canCreate" label="New Manufacturing Order" icon="pi pi-plus" @click="openCreate" />
+      <div class="header-actions" style="display: flex; gap: 0.75rem; align-items: center">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
+        <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+          placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="Manufacturing Orders" endpoint="/manufacturing-orders"
+          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+          :columns="[
+            { key: 'mo_number', label: 'MO #' },
+            { key: 'product.name', label: 'Product' },
+            { key: 'warehouse.name', label: 'Warehouse' },
+            { key: 'quantity_to_produce', label: 'Qty' },
+            { key: 'order_date', label: 'Date' },
+            { key: 'total_cost', label: 'Total Cost' },
+            { key: 'status', label: 'Status' },
+          ]" />
+        <Button v-if="canCreate" label="New Manufacturing Order" icon="pi pi-plus" @click="openCreate" />
+      </div>
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
@@ -689,6 +720,10 @@ onMounted(async () => {
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

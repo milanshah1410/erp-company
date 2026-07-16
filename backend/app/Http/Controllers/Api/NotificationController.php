@@ -17,6 +17,11 @@ class NotificationController extends Controller
         if ($request->boolean('unread_only')) {
             $query->whereNull('read_at');
         }
+        if ($search = trim((string) $request->query('search', ''))) {
+            // The notification payload lives in the JSON `data` column; a LIKE over
+            // its raw text matches on the title/message we render to the user.
+            $query->where('data', 'like', "%{$search}%");
+        }
 
         $page = $query->paginate($perPage);
 

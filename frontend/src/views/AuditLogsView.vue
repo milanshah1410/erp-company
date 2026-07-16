@@ -8,6 +8,7 @@ import Tag from 'primevue/tag'
 import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import http from '../api/http'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -128,6 +129,21 @@ onMounted(async () => {
       <input type="date" v-model="dateTo" class="date-input" @change="applyFilters" />
       <Button label="Apply" icon="pi pi-filter" @click="applyFilters" />
       <Button label="Reset" icon="pi pi-times" text @click="resetFilters" />
+      <TableExportButtons title="Audit Logs" endpoint="/audit-logs" :params="() => ({
+        log_name: logNameFilter || undefined,
+        event: eventFilter || undefined,
+        subject_type: subjectTypeFilter || undefined,
+        search: search || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+      })" :columns="[
+        { key: 'created_at', label: 'Date/Time' },
+        { key: 'log_name', label: 'Module' },
+        { key: 'event', label: 'Event' },
+        { key: 'subject_type', label: 'Subject' },
+        { key: 'description', label: 'Description' },
+        { key: 'causer.name', label: 'By' },
+      ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"

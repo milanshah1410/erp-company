@@ -4,13 +4,16 @@ import { useRouter } from 'vue-router'
 import DataView from 'primevue/dataview'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
+import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import http from '../api/http'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const router = useRouter()
 const items = ref<any[]>([])
 const loading = ref(false)
 const unreadOnly = ref(false)
+const search = ref('')
 const page = ref(1)
 const lastPage = ref(1)
 
@@ -18,7 +21,7 @@ async function load() {
   loading.value = true
   try {
     const { data } = await http.get('/notifications', {
-      params: { per_page: 20, page: page.value, unread_only: unreadOnly.value || undefined },
+      params: { per_page: 20, page: page.value, unread_only: unreadOnly.value || undefined, search: search.value || undefined },
     })
     items.value = data.data ?? []
     lastPage.value = data.meta?.last_page ?? 1
@@ -69,11 +72,23 @@ onMounted(load)
     <div class="header">
       <h1>Notifications</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search notifications..." @keyup.enter="reload" />
+        </span>
         <label class="unread-toggle">
           <Checkbox v-model="unreadOnly" binary @change="reload" />
           Unread only
         </label>
         <Button label="Mark all read" icon="pi pi-check" outlined size="small" @click="markAllRead" />
+        <TableExportButtons title="Notifications" endpoint="/notifications" size="small"
+          :params="() => ({ ...(unreadOnly ? { unread_only: true } : {}), ...(search ? { search } : {}) })"
+          :columns="[
+            { key: 'data.severity', label: 'Severity' },
+            { key: 'data.title', label: 'Title' },
+            { key: 'data.message', label: 'Message' },
+            { key: 'created_at', label: 'Time' },
+          ]" />
       </div>
     </div>
 
@@ -120,6 +135,20 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+.search-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.search-box i {
+  position: absolute;
+  left: 0.75rem;
+  color: #9ca3af;
+}
+.search-box :deep(input) {
+  padding-left: 2.25rem;
 }
 .unread-toggle {
   display: flex;

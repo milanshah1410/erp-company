@@ -13,6 +13,8 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { useExpenseWorkflow } from '../composables/useExpenseWorkflow'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const auth = useAuthStore()
 const crud = useCrud('/electricity-bills')
@@ -41,10 +43,12 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
+const search = ref('')
 const tab = ref<'list' | 'report'>('list')
 const filters = ref<Record<string, any>>({ status: null, branch_id: null, date_from: null, date_to: null })
 function activeParams() {
   const p: Record<string, any> = {}
+  if (search.value) p.search = search.value
   for (const [k, v] of Object.entries(filters.value)) if (v) p[k] = v
   return p
 }
@@ -79,6 +83,10 @@ function switchTab(key: 'list' | 'report') {
 function applyFilters() {
   tab.value === 'list' ? reload() : loadReport()
 }
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -182,6 +190,23 @@ onMounted(async () => {
       <Select v-model="filters.branch_id" :options="branches" optionLabel="label" optionValue="value" filter showClear placeholder="All branches" class="flt" @change="applyFilters" />
       <input type="date" v-model="filters.date_from" class="date-input" title="From" @change="applyFilters" />
       <input type="date" v-model="filters.date_to" class="date-input" title="To" @change="applyFilters" />
+      <span v-if="tab === 'list'" class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button v-if="tab === 'list'" label="Search" outlined @click="reload" />
+      <TableExportButtons v-if="tab === 'list'" title="Electricity Bills" endpoint="/electricity-bills"
+        :params="() => activeParams()"
+        :columns="[
+          { key: 'bill_number', label: 'Bill #' },
+          { key: 'bill_date', label: 'Date' },
+          { key: 'branch', label: 'Branch' },
+          { key: 'meter_number', label: 'Meter' },
+          { key: 'units_consumed', label: 'Units' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'due_date', label: 'Due' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable v-if="tab === 'list'" :value="crud.items.value" :loading="crud.loading.value" lazy paginator
@@ -202,6 +227,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 18rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <template v-if="data.status === 'draft' || data.status === 'rejected'">
             <Button v-if="canEdit" label="Submit" size="small" severity="info" outlined @click="wf.submit(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -306,6 +332,25 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Create Draft'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog
+      v-model:visible="detailVisible"
+      title="Electricity Bill"
+      :record="detailRecord"
+      :fields="[
+        { label: 'Bill #', key: 'bill_number' },
+        { label: 'Bill Date', key: 'bill_date' },
+        { label: 'Provider', key: 'provider' },
+        { label: 'Branch', key: 'branch' },
+        { label: 'Meter', key: 'meter_number' },
+        { label: 'Units Consumed', key: 'units_consumed' },
+        { label: 'Amount', key: 'amount', format: (v) => currency(v) },
+        { label: 'Due Date', key: 'due_date' },
+        { label: 'Status', key: 'status' },
+        { label: 'Paid', key: 'is_paid' },
+        { label: 'Notes', key: 'notes', full: true },
+      ]"
+    />
   </div>
 </template>
 
@@ -318,6 +363,9 @@ onMounted(async () => {
 .tab.active { color: var(--p-primary-color, #6366f1); border-bottom-color: var(--p-primary-color, #6366f1); font-weight: 600; }
 .filters { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; align-items: center; }
 .flt { min-width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

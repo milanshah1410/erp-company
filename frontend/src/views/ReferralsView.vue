@@ -14,9 +14,15 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const canCreate = computed(() => auth.can('referrals.create'))
 const canEdit = computed(() => auth.can('referrals.edit'))
@@ -200,6 +206,17 @@ onMounted(() => {
         placeholder="All statuses" showClear class="filter" @change="reload"
       />
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Referrals" endpoint="/referrals"
+        :params="() => ({ search: search || undefined, status: statusFilter || undefined })"
+        :columns="[
+          { key: 'referrer.name', label: 'Referrer' },
+          { key: 'referred_name', label: 'Referred' },
+          { key: 'referred_phone', label: 'Phone' },
+          { key: 'referred_customer.name', label: 'Became Customer' },
+          { key: 'reward_points', label: 'Reward Pts' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable
@@ -227,6 +244,7 @@ onMounted(() => {
       </Column>
       <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button
             v-if="canEdit && data.status === 'pending'"
             icon="pi pi-user-plus" text rounded size="small" severity="info"
@@ -292,13 +310,24 @@ onMounted(() => {
         <Button label="Mark Joined" :disabled="!joinCustomerId" :loading="joining" @click="doJoin" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Referral Details" :fields="[
+      { key: 'referrer.name', label: 'Referrer' },
+      { key: 'referred_name', label: 'Referred' },
+      { key: 'referred_phone', label: 'Referred Phone' },
+      { key: 'referred_customer.name', label: 'Became Customer' },
+      { key: 'reward_points', label: 'Reward Points' },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar-spacer { flex: 1 1 auto; }
 .search { position: relative; display: flex; align-items: center; }
 .search i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search :deep(input) { padding-left: 2.25rem; width: 280px; }

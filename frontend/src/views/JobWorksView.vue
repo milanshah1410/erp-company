@@ -14,10 +14,16 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/job-works')
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const suppliers = ref<any[]>([])
 const warehouses = ref<any[]>([])
@@ -74,6 +80,7 @@ function switchTab(key: typeof tab.value) {
 }
 
 const statusFilter = ref<string | null>(null)
+const search = ref('')
 
 // --- Create / edit dialog ---
 const dialogVisible = ref(false)
@@ -270,7 +277,7 @@ async function removeJob(row: any) {
 }
 
 function reload() {
-  crud.fetch(statusFilter.value ? { status: statusFilter.value } : {})
+  crud.fetch({ status: statusFilter.value || undefined, search: search.value || undefined })
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -296,8 +303,24 @@ onMounted(async () => {
     <div class="header">
       <h1>Job Work</h1>
       <div class="header-actions">
+        <span v-if="tab === 'orders'" class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button v-if="tab === 'orders'" label="Search" outlined @click="reload" />
         <Select v-if="tab === 'orders'" v-model="statusFilter" :options="statusOptions" optionLabel="label"
           optionValue="value" showClear placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons v-if="tab === 'orders'" title="Job Work" endpoint="/job-works"
+          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+          :columns="[
+            { key: 'job_work_number', label: 'Job Work #' },
+            { key: 'supplier.name', label: 'Vendor' },
+            { key: 'warehouse.name', label: 'Warehouse' },
+            { key: 'job_type', label: 'Type' },
+            { key: 'job_work_date', label: 'Date' },
+            { key: 'items_count', label: 'Lines' },
+            { key: 'status', label: 'Status' },
+          ]" />
         <Button v-if="canCreate && tab === 'orders'" label="New Job Work" icon="pi pi-plus" @click="openCreate" />
       </div>
     </div>
@@ -331,6 +354,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 16rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <template v-if="data.status === 'draft'">
             <Button v-if="canApprove" label="Issue" size="small" severity="success" outlined @click="issueJob(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -467,6 +491,18 @@ onMounted(async () => {
         <Button label="Receive Material" :loading="receiving" :disabled="!receiveLines.length" @click="submitReceive" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Job Work Details" :fields="[
+      { key: 'job_work_number', label: 'Job Work #' },
+      { key: 'supplier.name', label: 'Vendor' },
+      { key: 'warehouse.name', label: 'Warehouse' },
+      { key: 'job_type', label: 'Job Type' },
+      { key: 'job_work_date', label: 'Job Work Date' },
+      { key: 'expected_date', label: 'Expected Return' },
+      { key: 'items_count', label: 'Lines' },
+      { key: 'status', label: 'Status' },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 
@@ -475,6 +511,9 @@ onMounted(async () => {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .tabbar { display: flex; gap: 0.25rem; border-bottom: 1px solid #e5e7eb; margin-bottom: 1rem; }
 .tab { background: none; border: none; padding: 0.6rem 1rem; font: inherit; font-size: 0.9rem; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 0.4rem; }
 .tab:hover { color: #111827; }

@@ -14,6 +14,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -25,6 +27,7 @@ const canSync = computed(() => auth.can('ecommerce-integrations.edit'))
 
 const integrations = ref<any[]>([])
 const integrationFilter = ref<number | null>(null)
+const search = ref('')
 const syncing = ref(false)
 
 async function loadIntegrations() {
@@ -32,8 +35,14 @@ async function loadIntegrations() {
   integrations.value = data.data.map((i: any) => ({ id: i.id, name: `${i.name} (${i.platform_label})`, listings: i.capabilities?.listings }))
 }
 
+function listParams() {
+  return {
+    ...(integrationFilter.value ? { channel_integration_id: integrationFilter.value } : {}),
+    ...(search.value ? { search: search.value } : {}),
+  }
+}
 function reload() {
-  crud.fetch(integrationFilter.value ? { channel_integration_id: integrationFilter.value } : {})
+  crud.fetch(listParams())
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -47,6 +56,10 @@ async function searchProducts(e: any) {
   const { data } = await http.get('/products', { params: { search: e.query, per_page: 15 } })
   productMatches.value = (data.data ?? data).map((p: any) => ({ id: p.id, sku: p.sku, name: p.name, has_variants: p.has_variants, label: `${p.name} (${p.sku})` }))
 }
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 // Dialog
 const dialogVisible = ref(false)
@@ -144,11 +157,25 @@ onMounted(async () => {
     <div class="header">
       <h1>Channel Listings</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search listing / SKU..." @keyup.enter="reload" />
+        </span>
         <Select v-model="integrationFilter" :options="integrations" optionLabel="name" optionValue="id" showClear
           placeholder="All channels" class="filter" @change="reload" />
+        <Button label="Search" outlined size="small" @click="reload" />
         <Button label="Auto-map by SKU" icon="pi pi-sync" outlined size="small" :loading="syncing"
           :disabled="!canSync" @click="autoMap" />
         <Button label="Map product" icon="pi pi-plus" size="small" :disabled="!canCreate" @click="openAdd" />
+        <TableExportButtons title="Channel Listings" endpoint="/channel-listings"
+          :params="() => listParams()"
+          :columns="[
+            { key: 'product.name', label: 'Product' },
+            { key: 'external_id', label: 'External ID' },
+            { key: 'external_sku', label: 'External SKU' },
+            { key: 'listing_title', label: 'Listing title' },
+            { key: 'status', label: 'Status' },
+          ]" />
         <Button icon="pi pi-refresh" text rounded @click="reload" title="Refresh" />
       </div>
     </div>
@@ -168,6 +195,7 @@ onMounted(async () => {
       <Column header="Status"><template #body="{ data }"><Tag :severity="data.status === 'active' ? 'success' : 'secondary'" :value="data.status" /></template></Column>
       <Column header="Actions" style="width: 8rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button icon="pi pi-pencil" size="small" text :disabled="!canEdit" @click="openEdit(data)" />
           <Button icon="pi pi-trash" size="small" text severity="danger" :disabled="!canDelete" @click="remove(data)" />
         </template>
@@ -214,14 +242,27 @@ onMounted(async () => {
         <Button label="Save" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Listing Details" :fields="[
+      { key: 'product.name', label: 'Product' },
+      { key: 'product.sku', label: 'SKU' },
+      { key: 'external_id', label: 'External ID' },
+      { key: 'external_sku', label: 'External SKU' },
+      { key: 'listing_title', label: 'Listing Title' },
+      { key: 'price', label: 'Price', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'status', label: 'Status' },
+    ]" />
   </div>
 </template>
 
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.header-actions { display: flex; gap: 0.5rem; align-items: center; }
+.header-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .filter { width: 190px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .subtitle { color: #6b7280; margin: 0.25rem 0 1rem; }
 .prod { display: flex; flex-direction: column; }
 .muted { color: #6b7280; font-size: 0.8rem; }

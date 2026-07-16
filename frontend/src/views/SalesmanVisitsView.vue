@@ -14,9 +14,15 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -304,6 +310,24 @@ onMounted(async () => {
       <DatePicker v-model="filters.date" dateFormat="yy-mm-dd" showIcon iconDisplay="input" showButtonBar @update:modelValue="load" />
       <Select v-model="filters.status" :options="STATUSES" optionLabel="label" optionValue="value" showClear
         placeholder="All statuses" @change="load" />
+      <TableExportButtons title="Daily Visit Plan" endpoint="/salesman-visits"
+        :params="() => ({
+          salesman_id: filters.salesman_id || undefined,
+          status: filters.status || undefined,
+          date: toDateString(filters.date),
+        })"
+        :columns="[
+          { key: 'sequence', label: '#' },
+          { key: 'visit_date', label: 'Date' },
+          { key: 'salesman', label: 'Salesman' },
+          { key: 'customer', label: 'Customer' },
+          { key: 'beat', label: 'Beat' },
+          { key: 'check_in_at', label: 'Check-in' },
+          { key: 'check_out_at', label: 'Check-out' },
+          { key: 'outcome', label: 'Outcome' },
+          { key: 'sales_order_number', label: 'Order' },
+          { key: 'status', label: 'Status' },
+        ]" />
     </div>
 
     <DataTable
@@ -343,6 +367,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 13rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit && data.status === 'planned'" label="Check in" icon="pi pi-map-marker" text size="small" @click="openCheckin(data)" />
           <Button v-if="canEdit && data.status === 'visited' && !data.check_out_at" label="Check out" icon="pi pi-sign-out" text size="small" @click="checkOut(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
@@ -443,6 +468,21 @@ onMounted(async () => {
         <Button label="Check In" icon="pi pi-check" :loading="savingCheckin" @click="saveCheckin" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Visit Details" :fields="[
+      { key: 'sequence', label: 'Sequence' },
+      { key: 'visit_date', label: 'Date' },
+      { key: 'salesman', label: 'Salesman' },
+      { key: 'customer', label: 'Customer' },
+      { key: 'beat', label: 'Beat' },
+      { key: 'check_in_at', label: 'Check-in', format:(v)=>fmtTime(v) },
+      { key: 'check_out_at', label: 'Check-out', format:(v)=>fmtTime(v) },
+      { key: 'outcome', label: 'Outcome' },
+      { key: 'sales_order_number', label: 'Order' },
+      { key: 'status', label: 'Status' },
+      { key: 'purpose', label: 'Purpose', full: true },
+      { key: 'notes', label: 'Notes', full: true },
+    ]" />
   </div>
 </template>
 

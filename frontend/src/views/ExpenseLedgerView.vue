@@ -5,6 +5,7 @@ import Column from 'primevue/column'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const rows = ref<any[]>([])
 const total = ref(0)
@@ -51,6 +52,17 @@ onMounted(load)
     <div class="filters">
       <label>From <input type="date" v-model="from" class="date-input" @change="load" /></label>
       <label>To <input type="date" v-model="to" class="date-input" @change="load" /></label>
+      <TableExportButtons title="Expense Ledger" :rows="rows" :columns="[
+        { key: 'expense_date', label: 'Date' },
+        { key: 'expense_number', label: 'Expense #' },
+        { key: 'category', label: 'Category' },
+        { key: 'branch', label: 'Branch' },
+        { key: 'payee', label: 'Payee' },
+        { key: 'payment_method', label: 'Method' },
+        { key: 'status', label: 'Status' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'running_total', label: 'Running Total' },
+      ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" dataKey="id" class="p-datatable-sm" paginator :rows="25" :rowsPerPageOptions="[25, 50, 100]">

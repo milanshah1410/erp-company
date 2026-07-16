@@ -27,6 +27,10 @@ class DatabaseSeeder extends Seeder
         // 1. Platform-global data (no tenant).
         $this->call(PlanSeeder::class);
 
+        // The dynamic navigation catalogue (project-stack.md §3) is global too
+        // (tenant_id NULL), shared by every tenant like the permission set.
+        $this->call(MenuSeeder::class);
+
         // Global roles/permissions live at tenant_id = NULL and are shared by
         // every tenant; seed them with no active team.
         app(PermissionRegistrar::class)->setPermissionsTeamId(null);

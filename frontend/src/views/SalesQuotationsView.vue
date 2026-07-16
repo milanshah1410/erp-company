@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
@@ -17,6 +18,7 @@ import { formatCurrency } from '../utils/currency'
 import { priceDocument, type DiscountType } from '../utils/pricing'
 import { openPdfBlob } from '../utils/blob'
 import SendEmailDialog from '../components/SendEmailDialog.vue'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const discountTypes = [
   { label: '%', value: 'percent' },
@@ -67,6 +69,17 @@ const statusColors: Record<string, string> = {
   expired: 'warn',
   converted: 'success',
 }
+
+const search = ref('')
+const statusFilter = ref<string | null>(null)
+const statusOptions = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Sent', value: 'sent' },
+  { label: 'Accepted', value: 'accepted' },
+  { label: 'Rejected', value: 'rejected' },
+  { label: 'Expired', value: 'expired' },
+  { label: 'Converted', value: 'converted' },
+]
 
 // --- Create dialog ---
 const createVisible = ref(false)
@@ -155,7 +168,10 @@ async function runAction(row: any, action: string, successMsg: string) {
 }
 
 function reload() {
-  crud.fetch()
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -183,7 +199,27 @@ onMounted(async () => {
   <div>
     <div class="header">
       <h1>Sales Quotations</h1>
-      <Button v-if="canCreate" label="New Quotation" icon="pi pi-plus" @click="openCreate" />
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
+        <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+          placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons only="export" title="Sales Quotations" endpoint="/sales-quotations"
+          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+          :columns="[
+            { key: 'quote_number', label: 'Quote #' },
+            { key: 'customer.name', label: 'Customer' },
+            { key: 'warehouse.name', label: 'Warehouse' },
+            { key: 'quote_date', label: 'Date' },
+            { key: 'valid_until', label: 'Valid Until' },
+            { key: 'total', label: 'Total' },
+            { key: 'status', label: 'Status' },
+          ]" />
+        <Button v-if="canCreate" label="New Quotation" icon="pi pi-plus" @click="openCreate" />
+      </div>
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
@@ -304,6 +340,10 @@ onMounted(async () => {
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
+.status-filter { width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-top { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.5rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

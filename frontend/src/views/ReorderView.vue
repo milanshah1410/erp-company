@@ -9,6 +9,7 @@ import { RouterLink } from 'vue-router'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -58,8 +59,19 @@ onMounted(load)
   <div>
     <div class="header">
       <h1>Reorder Suggestions</h1>
-      <Button v-if="canGenerate" label="Generate Purchase Orders" icon="pi pi-file-plus" :loading="generating"
-        :disabled="!rows.length" @click="generate" />
+      <div class="header-actions">
+        <TableExportButtons title="Reorder Suggestions" :rows="rows" :columns="[
+          { key: 'product.name', label: 'Product' },
+          { key: 'product.sku', label: 'SKU' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'on_hand', label: 'On Hand' },
+          { key: 'reorder_level', label: 'Reorder Level' },
+          { key: 'suggested_quantity', label: 'Suggested Qty' },
+          { key: 'supplier.name', label: 'Supplier' },
+        ]" />
+        <Button v-if="canGenerate" label="Generate Purchase Orders" icon="pi pi-file-plus" :loading="generating"
+          :disabled="!rows.length" @click="generate" />
+      </div>
     </div>
     <p class="subtitle">Products at or below their reorder level, grouped by preferred supplier</p>
     <p v-if="needsSupplierCount" class="warning-note">
@@ -96,7 +108,8 @@ onMounted(load)
 </template>
 
 <style scoped>
-.header { display: flex; justify-content: space-between; align-items: center; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.header-actions { display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 h1 { font-size: 1.5rem; font-weight: 600; }
 .subtitle { color: #6b7280; margin-bottom: 0.5rem; }
 .warning-note { color: #b45309; font-size: 0.85rem; margin-bottom: 1rem; }

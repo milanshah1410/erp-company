@@ -5,12 +5,14 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
+import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -24,6 +26,7 @@ const total = ref(0)
 const perPage = ref(15)
 const page = ref(1)
 const statusFilter = ref<string | null>(null)
+const search = ref('')
 
 const statusOptions = [
   { label: 'Not generated', value: 'none' },
@@ -44,7 +47,7 @@ async function load() {
   loading.value = true
   try {
     const { data } = await http.get('/e-invoices', {
-      params: { page: page.value, per_page: perPage.value, status: statusFilter.value || undefined },
+      params: { page: page.value, per_page: perPage.value, status: statusFilter.value || undefined, search: search.value || undefined },
     })
     rows.value = data.data
     total.value = data.total
@@ -129,8 +132,23 @@ onMounted(load)
     <div class="header">
       <h1>E-Invoices (IRN)</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search invoice #..." @keyup.enter="load" />
+        </span>
+        <Button label="Search" outlined @click="load" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All" @change="load" class="filter" />
+        <TableExportButtons title="E-Invoices" filenameBase="e-invoices" endpoint="/e-invoices"
+          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+          :columns="[
+            { key: 'invoice_number', label: 'Invoice #' },
+            { key: 'invoice_date', label: 'Date' },
+            { key: 'customer_name', label: 'Customer' },
+            { key: 'customer_gstin', label: 'GSTIN' },
+            { key: 'total', label: 'Total' },
+            { key: 'einvoice.status', label: 'E-Invoice' },
+          ]" />
         <Button icon="pi pi-refresh" text rounded @click="load" title="Refresh" />
       </div>
     </div>
@@ -183,8 +201,11 @@ onMounted(load)
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.header-actions { display: flex; gap: 0.75rem; align-items: center; }
+.header-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
 .filter { width: 170px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .muted { color: #6b7280; font-size: 0.85rem; }
 .detail { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .d-cell { display: flex; flex-direction: column; gap: 0.25rem; }

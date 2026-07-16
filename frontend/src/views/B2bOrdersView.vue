@@ -4,6 +4,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
@@ -12,6 +13,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -36,6 +38,7 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
 }
 
+const search = ref('')
 const statusFilter = ref<string | null>('pending_approval')
 const statusOptions = [
   { label: 'Pending approval', value: 'pending_approval' },
@@ -105,7 +108,10 @@ async function reject(row: any) {
 }
 
 function reload() {
-  crud.fetch(statusFilter.value ? { status: statusFilter.value } : {})
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (statusFilter.value) params.status = statusFilter.value
+  crud.fetch(params)
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -124,8 +130,23 @@ onMounted(reload)
     <div class="header">
       <h1>B2B Orders</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <TableExportButtons title="B2B Orders" endpoint="/b2b-orders"
+          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+          :columns="[
+            { key: 'so_number', label: 'Order #' },
+            { key: 'customer.name', label: 'Customer' },
+            { key: 'order_date', label: 'Date' },
+            { key: 'items.length', label: 'Items' },
+            { key: 'total', label: 'Total' },
+            { key: 'status', label: 'Status' },
+          ]" />
         <Button icon="pi pi-refresh" text rounded @click="reload" title="Refresh" />
       </div>
     </div>
@@ -210,6 +231,9 @@ onMounted(reload)
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .header-actions { display: flex; gap: 0.75rem; align-items: center; }
 .status-filter { width: 180px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .cust { display: flex; flex-direction: column; }
 .muted { color: #6b7280; font-size: 0.8rem; }
 .detail-top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.75rem; }

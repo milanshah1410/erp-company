@@ -13,6 +13,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 /**
  * Payment links / online-collection transactions (SRS §16): staff generate a
@@ -177,6 +178,17 @@ onMounted(reload)
       </span>
       <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Status" @change="reload" style="width: 11rem" />
       <Button label="Search" outlined @click="reload" />
+      <TableExportButtons title="Payment Links" endpoint="/payment-transactions"
+        :params="() => ({ search: search || undefined, status: statusFilter || undefined })"
+        :columns="[
+          { key: 'created_at', label: 'Date' },
+          { key: 'invoice.invoice_number', label: 'Invoice' },
+          { key: 'customer.name', label: 'Customer' },
+          { key: 'amount', label: 'Amount' },
+          { key: 'gateway_label', label: 'Gateway' },
+          { key: 'status', label: 'Status' },
+          { key: 'voucher_number', label: 'Voucher' },
+        ]" />
     </div>
 
     <DataTable

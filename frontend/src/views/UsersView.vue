@@ -5,6 +5,7 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
 import Password from 'primevue/password'
 import MultiSelect from 'primevue/multiselect'
 import Checkbox from 'primevue/checkbox'
@@ -14,12 +15,14 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/users')
 
 const search = ref('')
+const roleFilter = ref<string | null>(null)
 const roleOptions = ref<any[]>([])
 const companyOptions = ref<any[]>([])
 const branchOptions = ref<any[]>([])
@@ -40,7 +43,10 @@ function fieldError(key: string): string | null {
 }
 
 function reload() {
-  crud.fetch(search.value ? { search: search.value } : {})
+  crud.fetch({
+    ...(search.value ? { search: search.value } : {}),
+    ...(roleFilter.value ? { role: roleFilter.value } : {}),
+  })
 }
 
 function onPage(e: any) {
@@ -161,7 +167,17 @@ onMounted(async () => {
         <i class="pi pi-search" />
         <InputText v-model="search" placeholder="Search users..." @keyup.enter="reload" />
       </span>
+      <Select v-model="roleFilter" :options="roleOptions" optionLabel="name" optionValue="name" placeholder="All roles" showClear class="filter" @change="reload" />
       <Button label="Search" outlined @click="reload" />
+      <TableExportButtons title="Users" endpoint="/users"
+        :params="() => ({ search: search || undefined, role: roleFilter || undefined })"
+        :columns="[
+          { key: 'name', label: 'Name' },
+          { key: 'email', label: 'Email' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'roles', label: 'Roles', format: (v) => (Array.isArray(v) ? v.join(', ') : '') },
+          { key: 'is_active', label: 'Active', format: (v) => (v ? 'Yes' : 'No') },
+        ]" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
@@ -262,6 +278,10 @@ onMounted(async () => {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.filter {
+  min-width: 160px;
 }
 .search {
   position: relative;

@@ -6,6 +6,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const tailors = ref<{ label: string; value: number }[]>([])
 const tailorId = ref<number | null>(null)
@@ -50,6 +51,15 @@ onMounted(loadTailors)
     <div class="toolbar">
       <Select v-model="tailorId" :options="tailors" optionLabel="label" optionValue="value"
         placeholder="Select a tailor" showClear filter class="tailor-select" @change="loadLedger" />
+      <TableExportButtons title="Tailor Ledger" :rows="entries"
+        :columns="[
+          { key: 'date', label: 'Date' },
+          { key: 'type', label: 'Type' },
+          { key: 'reference', label: 'Reference' },
+          { key: 'credit', label: 'Earned (Credit)' },
+          { key: 'debit', label: 'Paid (Debit)' },
+          { key: 'balance', label: 'Balance' },
+        ]" />
     </div>
 
     <div v-if="summary" class="tiles">

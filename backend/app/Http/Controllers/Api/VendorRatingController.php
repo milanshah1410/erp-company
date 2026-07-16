@@ -18,6 +18,12 @@ class VendorRatingController extends Controller
         if ($request->filled('supplier_id')) {
             $query->where('supplier_id', $request->query('supplier_id'));
         }
+        if ($search = trim((string) $request->query('search', ''))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('remarks', 'like', "%{$search}%")
+                    ->orWhereHas('supplier', fn ($s) => $s->where('name', 'like', "%{$search}%"));
+            });
+        }
 
         $query->orderByDesc('rated_on')->orderByDesc('id');
         $perPage = min((int) $request->query('per_page', 15), 100);

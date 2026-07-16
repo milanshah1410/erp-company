@@ -13,9 +13,16 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { useExpenseWorkflow } from '../composables/useExpenseWorkflow'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const auth = useAuthStore()
 const crud = useCrud('/factory-maintenances')
+
+const search = ref('')
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const branches = ref<any[]>([])
 const assets = ref<any[]>([])
@@ -50,6 +57,7 @@ const tab = ref<'list' | 'report'>('list')
 const filters = ref<Record<string, any>>({ status: null, branch_id: null, maintenance_type: null, date_from: null, date_to: null })
 function activeParams() {
   const p: Record<string, any> = {}
+  if (search.value) p.search = search.value
   for (const [k, v] of Object.entries(filters.value)) if (v) p[k] = v
   return p
 }
@@ -177,6 +185,21 @@ onMounted(async () => {
       <Select v-if="tab === 'list'" v-model="filters.maintenance_type" :options="types" optionLabel="label" optionValue="value" showClear placeholder="All types" class="flt" @change="applyFilters" />
       <input type="date" v-model="filters.date_from" class="date-input" title="From" @change="applyFilters" />
       <input type="date" v-model="filters.date_to" class="date-input" title="To" @change="applyFilters" />
+      <span v-if="tab === 'list'" class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button v-if="tab === 'list'" label="Search" outlined @click="reload" />
+      <TableExportButtons title="Factory Maintenance" endpoint="/factory-maintenances"
+        :params="() => activeParams()" :columns="[
+        { key: 'maintenance_number', label: 'Record #' },
+        { key: 'maintenance_date', label: 'Date' },
+        { key: 'area', label: 'Area / Asset' },
+        { key: 'maintenance_type', label: 'Type' },
+        { key: 'downtime_hours', label: 'Downtime (h)' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'status', label: 'Status' },
+      ]" />
     </div>
 
     <DataTable v-if="tab === 'list'" :value="crud.items.value" :loading="crud.loading.value" lazy paginator
@@ -196,6 +219,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 18rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <template v-if="data.status === 'draft' || data.status === 'rejected'">
             <Button v-if="canEdit" label="Submit" size="small" severity="info" outlined @click="wf.submit(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -281,6 +305,22 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Create Draft'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Maintenance Details" :fields="[
+      { key: 'maintenance_number', label: 'Record #' },
+      { key: 'maintenance_date', label: 'Date' },
+      { key: 'area', label: 'Area / Section' },
+      { key: 'asset', label: 'Asset / Machine' },
+      { key: 'maintenance_type', label: 'Type' },
+      { key: 'performed_by', label: 'Performed By' },
+      { key: 'downtime_hours', label: 'Downtime (h)' },
+      { key: 'amount', label: 'Amount', format:(v)=>v==null||v===''?'—':'₹'+Number(v).toLocaleString('en-IN',{minimumFractionDigits:2}) },
+      { key: 'payment_method', label: 'Payment Method' },
+      { key: 'reference_no', label: 'Reference No.' },
+      { key: 'status', label: 'Status' },
+      { key: 'is_paid', label: 'Paid' },
+      { key: 'description', label: 'Description', full: true },
+    ]" />
   </div>
 </template>
 
@@ -293,6 +333,9 @@ onMounted(async () => {
 .tab.active { color: var(--p-primary-color, #6366f1); border-bottom-color: var(--p-primary-color, #6366f1); font-weight: 600; }
 .filters { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem; align-items: center; }
 .flt { min-width: 160px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; }
 .fld.full { margin-top: 1rem; }

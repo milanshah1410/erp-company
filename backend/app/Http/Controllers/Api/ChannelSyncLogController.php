@@ -27,6 +27,12 @@ class ChannelSyncLogController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
         }
+        if ($search = trim((string) $request->query('search', ''))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('message', 'like', "%{$search}%")
+                    ->orWhereHas('integration', fn ($i) => $i->where('name', 'like', "%{$search}%"));
+            });
+        }
 
         $perPage = min((int) $request->query('per_page', 20), 100);
 

@@ -13,6 +13,8 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { useExpenseWorkflow } from '../composables/useExpenseWorkflow'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const auth = useAuthStore()
 const crud = useCrud('/employee-claims')
@@ -67,6 +69,10 @@ const form = ref<any>(blankForm())
 const errors = ref<Record<string, string[]>>({})
 const selectedFile = ref<File | null>(null)
 const existingAttachment = ref<string | null>(null)
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 function blankForm() {
   return {
@@ -170,6 +176,16 @@ onMounted(async () => {
       <Select v-model="filters.branch_id" :options="branches" optionLabel="label" optionValue="value" filter showClear placeholder="All branches" class="flt" @change="reload" />
       <input type="date" v-model="filters.date_from" class="date-input" title="From" @change="reload" />
       <input type="date" v-model="filters.date_to" class="date-input" title="To" @change="reload" />
+      <TableExportButtons title="Employee Expense Claims" endpoint="/employee-claims"
+        :params="() => activeParams()" :columns="[
+        { key: 'claim_number', label: 'Claim #' },
+        { key: 'claim_date', label: 'Date' },
+        { key: 'employee', label: 'Employee' },
+        { key: 'title', label: 'Purpose' },
+        { key: 'items_count', label: 'Lines' },
+        { key: 'total_amount', label: 'Amount' },
+        { key: 'status', label: 'Status' },
+      ]" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator
@@ -195,6 +211,7 @@ onMounted(async () => {
       </Column>
       <Column header="Actions" style="width: 18rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <template v-if="data.status === 'draft' || data.status === 'rejected'">
             <Button v-if="canEdit" label="Submit" size="small" severity="info" outlined @click="wf.submit(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
@@ -257,7 +274,7 @@ onMounted(async () => {
             <td><Select v-model="it.expense_category_id" :options="categories" optionLabel="label" optionValue="value" filter showClear placeholder="—" class="cat-sel" /></td>
             <td><InputText v-model="it.description" placeholder="Details" class="w-full" /></td>
             <td><InputNumber v-model="it.amount" mode="currency" currency="INR" locale="en-IN" :minFractionDigits="2" class="amt" /></td>
-            <td><Button icon="pi pi-times" size="small" text severity="danger" @click="removeItem(i)" /></td>
+            <td><Button icon="pi pi-times" size="small" text severity="danger" @click="removeItem(Number(i))" /></td>
           </tr>
         </tbody>
         <tfoot>
@@ -282,6 +299,17 @@ onMounted(async () => {
         <Button :label="editingId ? 'Save Changes' : 'Create Draft'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Claim Details" :fields="[
+      { key: 'claim_number', label: 'Claim #' },
+      { key: 'claim_date', label: 'Date' },
+      { key: 'employee', label: 'Employee' },
+      { key: 'title', label: 'Purpose' },
+      { key: 'items_count', label: 'Lines' },
+      { key: 'total_amount', label: 'Amount', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'status', label: 'Status' },
+      { key: 'is_paid', label: 'Reimbursed' },
+    ]" />
   </div>
 </template>
 

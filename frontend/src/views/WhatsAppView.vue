@@ -13,6 +13,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -22,14 +23,25 @@ const canDelete = computed(() => auth.can('whatsapp.delete'))
 
 const crud = ref(useCrud('/whatsapp/messages'))
 const search = ref('')
+const templateFilter = ref<string | null>(null)
 
 const templateColors: Record<string, string> = {
   manual: 'secondary', invoice: 'info', 'payment-reminder': 'warn',
   birthday: 'success', anniversary: 'success', promo: 'help',
 }
 
+const templateFilterOptions = [
+  { label: 'Manual', value: 'manual' },
+  { label: 'Invoice', value: 'invoice' },
+  { label: 'Payment Reminder', value: 'payment-reminder' },
+  { label: 'Promotional', value: 'promo' },
+]
+
 function reload() {
-  crud.value.fetch(search.value ? { search: search.value } : {})
+  const params: Record<string, any> = {}
+  if (search.value) params.search = search.value
+  if (templateFilter.value) params.template = templateFilter.value
+  crud.value.fetch(params)
 }
 
 function onPage(e: any) {
@@ -140,7 +152,18 @@ onMounted(() => {
         <i class="pi pi-search" />
         <InputText v-model="search" placeholder="Search phone / text..." @keyup.enter="reload" />
       </span>
+      <Select v-model="templateFilter" :options="templateFilterOptions" optionLabel="label" optionValue="value" placeholder="All templates" showClear class="filter" @change="reload" />
       <Button label="Search" outlined @click="reload" />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="WhatsApp" endpoint="/whatsapp/messages"
+        :params="() => ({ search: search || undefined, template: templateFilter || undefined })"
+        :columns="[
+          { key: 'created_at', label: 'Date' },
+          { key: 'customer.name', label: 'Customer' },
+          { key: 'phone', label: 'Phone' },
+          { key: 'template', label: 'Template' },
+          { key: 'body', label: 'Message' },
+        ]" />
     </div>
 
     <DataTable
@@ -208,7 +231,9 @@ onMounted(() => {
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .hint { display: flex; align-items: center; gap: 0.5rem; color: #6b7280; font-size: 0.82rem; margin-bottom: 1rem; }
-.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.toolbar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.toolbar-spacer { flex: 1 1 auto; }
+.filter { min-width: 150px; }
 .search { position: relative; display: flex; align-items: center; }
 .search i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search :deep(input) { padding-left: 2.25rem; width: 280px; }

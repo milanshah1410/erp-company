@@ -13,9 +13,15 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 const canCreate = computed(() => auth.can('price-lists.create'))
 const canEdit = computed(() => auth.can('price-lists.edit'))
@@ -43,6 +49,8 @@ function money(v: number | string | null | undefined) {
 const crud = ref(useCrud('/price-lists'))
 const filterProduct = ref<number | null>(null)
 const filterLevel = ref<string | null>(null)
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 const products = ref<{ label: string; value: number }[]>([])
 
@@ -59,6 +67,10 @@ function reload() {
   const params: Record<string, any> = {}
   if (filterProduct.value) params.product_id = filterProduct.value
   if (filterLevel.value) params.level = filterLevel.value
+  if (sortField.value && sortOrder.value) {
+    params.sort = sortField.value
+    params.direction = sortOrder.value === 1 ? 'asc' : 'desc'
+  }
   crud.value.fetch(params)
 }
 
@@ -70,6 +82,13 @@ function onFilterChange() {
 function onPage(e: any) {
   crud.value.currentPage = e.page + 1
   crud.value.perPage = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
   reload()
 }
 
@@ -227,6 +246,15 @@ onMounted(() => {
         class="filter"
         @change="onFilterChange"
       />
+      <span class="toolbar-spacer" />
+      <TableExportButtons title="Price Lists" endpoint="/price-lists"
+        :params="() => ({ product_id: filterProduct || undefined, level: filterLevel || undefined })"
+        :columns="[
+          { key: 'product.name', label: 'Product' },
+          { key: 'level', label: 'Level' },
+          { key: 'price', label: 'Price' },
+          { key: 'min_quantity', label: 'Min Qty' },
+        ]" />
     </div>
 
     <DataTable
@@ -238,7 +266,11 @@ onMounted(() => {
       :totalRecords="crud.total"
       :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id"
+      removableSort
+      :sortField="sortField ?? undefined"
+      :sortOrder="sortOrder ?? undefined"
       @page="onPage"
+      @sort="onSort"
       class="p-datatable-sm"
     >
       <Column header="Product">
@@ -247,19 +279,20 @@ onMounted(() => {
           <span v-if="data.variant" class="muted-sub">{{ data.variant.sku }}<template v-if="data.variant.name"> — {{ data.variant.name }}</template></span>
         </template>
       </Column>
-      <Column header="Level">
+      <Column field="level" header="Level" sortable>
         <template #body="{ data }">
           <Tag :severity="levelColors[data.level]" :value="String(data.level).toUpperCase()" />
         </template>
       </Column>
-      <Column header="Price">
+      <Column field="price" header="Price" sortable>
         <template #body="{ data }">{{ money(data.price) }}</template>
       </Column>
-      <Column header="Min Qty">
+      <Column field="min_quantity" header="Min Qty" sortable>
         <template #body="{ data }">{{ Number(data.min_quantity ?? 1) }}</template>
       </Column>
       <Column header="Actions" style="width: 8rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
         </template>
@@ -329,6 +362,15 @@ onMounted(() => {
         <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Price Details" :fields="[
+      { key: 'product.name', label: 'Product' },
+      { key: 'variant.sku', label: 'Variant SKU' },
+      { key: 'variant.name', label: 'Variant' },
+      { key: 'level', label: 'Level' },
+      { key: 'price', label: 'Price', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'min_quantity', label: 'Min Qty' },
+    ]" />
   </div>
 </template>
 
@@ -345,8 +387,12 @@ onMounted(() => {
 }
 .toolbar {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+.toolbar-spacer {
+  flex: 1 1 auto;
 }
 .filter {
   min-width: 220px;

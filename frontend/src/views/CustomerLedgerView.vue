@@ -6,6 +6,7 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const customers = ref<{ label: string; value: number }[]>([])
 const customerId = ref<number | null>(null)
@@ -50,6 +51,15 @@ onMounted(loadCustomers)
     <div class="toolbar">
       <Select v-model="customerId" :options="customers" optionLabel="label" optionValue="value"
         placeholder="Select a customer" showClear filter class="sel" @change="loadLedger" />
+      <TableExportButtons title="Customer Ledger" :rows="entries"
+        :columns="[
+          { key: 'date', label: 'Date' },
+          { key: 'type', label: 'Type' },
+          { key: 'reference', label: 'Reference' },
+          { key: 'debit', label: 'Debit' },
+          { key: 'credit', label: 'Credit' },
+          { key: 'balance', label: 'Balance' },
+        ]" />
     </div>
 
     <div v-if="summary" class="tiles">

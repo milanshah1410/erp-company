@@ -12,6 +12,8 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import TableExportButtons from '../components/TableExportButtons.vue'
+import DetailDialog from '../components/DetailDialog.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -21,6 +23,10 @@ const rolls = ref<any[]>([])
 
 const canCreate = computed(() => auth.can('textile.create'))
 const canDelete = computed(() => auth.can('textile.delete'))
+
+const detailVisible = ref(false)
+const detailRecord = ref<any>(null)
+function openDetail(row: any) { detailRecord.value = row; detailVisible.value = true }
 
 // --- Tabs ---
 const tab = ref<'cuttings' | 'loss'>('cuttings')
@@ -145,6 +151,19 @@ onMounted(async () => {
       </button>
     </div>
 
+    <div v-if="tab === 'cuttings'" class="toolbar no-print" style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+      <TableExportButtons title="Fabric Cuttings" endpoint="/fabric-cuttings" :columns="[
+        { key: 'cutting_number', label: 'Cutting #' },
+        { key: 'fabric_roll.roll_number', label: 'Roll' },
+        { key: 'cut_date', label: 'Date' },
+        { key: 'length_used', label: 'Used' },
+        { key: 'length_consumed', label: 'Consumed' },
+        { key: 'cutting_loss', label: 'Loss' },
+        { key: 'leftover_length', label: 'Leftover' },
+        { key: 'pieces_produced', label: 'Pieces' },
+      ]" />
+    </div>
+
     <!-- Cuttings -->
     <DataTable v-if="tab === 'cuttings'" :value="crud.items.value" :loading="crud.loading.value" lazy paginator
       :rows="crud.perPage.value" :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id"
@@ -173,8 +192,9 @@ onMounted(async () => {
         </template>
       </Column>
       <Column field="pieces_produced" header="Pieces" style="text-align:right" />
-      <Column header="Actions" style="width: 6rem">
+      <Column header="Actions" style="width: 8rem">
         <template #body="{ data }">
+          <Button icon="pi pi-eye" size="small" text rounded severity="secondary" title="View" @click="openDetail(data)" />
           <Button v-if="canDelete" icon="pi pi-undo" size="small" text severity="danger" title="Reverse" @click="removeRow(data)" />
         </template>
       </Column>
@@ -257,6 +277,25 @@ onMounted(async () => {
         <Button label="Record Cutting" :loading="saving" :disabled="overCut" @click="save" />
       </template>
     </Dialog>
+
+    <DetailDialog
+      v-model:visible="detailVisible"
+      title="Fabric Cutting"
+      :record="detailRecord"
+      :fields="[
+        { label: 'Cutting #', key: 'cutting_number' },
+        { label: 'Roll', key: 'fabric_roll.roll_number' },
+        { label: 'Fabric', key: 'fabric_roll.product.name' },
+        { label: 'Date', key: 'cut_date' },
+        { label: 'Length Used', key: 'length_used', format: (v) => String(Number(v)) },
+        { label: 'Consumed', key: 'length_consumed', format: (v) => String(Number(v)) },
+        { label: 'Cutting Loss', key: 'cutting_loss', format: (v) => String(Number(v)) },
+        { label: 'Loss %', key: 'loss_pct', format: (v) => `${Number(v)}%` },
+        { label: 'Leftover', key: 'leftover_length', format: (v) => String(Number(v)) },
+        { label: 'Pieces Produced', key: 'pieces_produced' },
+        { label: 'Notes', key: 'notes', full: true },
+      ]"
+    />
   </div>
 </template>
 

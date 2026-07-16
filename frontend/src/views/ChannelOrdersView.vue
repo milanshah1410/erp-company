@@ -5,6 +5,7 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
+import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
@@ -12,6 +13,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import TableExportButtons from '../components/TableExportButtons.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -22,6 +24,7 @@ const canEdit = computed(() => auth.can('channel-orders.edit'))
 const integrations = ref<any[]>([])
 const integrationFilter = ref<number | null>(null)
 const statusFilter = ref<string | null>('pending')
+const search = ref('')
 const statusOptions = [
   { label: 'Pending', value: 'pending' },
   { label: 'Imported', value: 'imported' },
@@ -37,6 +40,7 @@ async function loadIntegrations() {
 
 function reload() {
   crud.fetch({
+    ...(search.value ? { search: search.value } : {}),
     ...(integrationFilter.value ? { channel_integration_id: integrationFilter.value } : {}),
     ...(statusFilter.value ? { import_status: statusFilter.value } : {}),
   })
@@ -108,10 +112,28 @@ onMounted(async () => {
     <div class="header">
       <h1>Marketplace Orders</h1>
       <div class="header-actions">
+        <span class="search-box">
+          <i class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        </span>
+        <Button label="Search" outlined @click="reload" />
         <Select v-model="integrationFilter" :options="integrations" optionLabel="name" optionValue="id" showClear
           placeholder="All channels" class="filter" @change="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" class="filter" @change="reload" />
+        <TableExportButtons title="Marketplace Orders" endpoint="/channel-orders" :params="() => ({
+          ...(search ? { search } : {}),
+          ...(integrationFilter ? { channel_integration_id: integrationFilter } : {}),
+          ...(statusFilter ? { import_status: statusFilter } : {}),
+        })" :columns="[
+          { key: 'external_order_number', label: 'Order #' },
+          { key: 'integration.platform', label: 'Channel' },
+          { key: 'customer_name', label: 'Buyer' },
+          { key: 'placed_at', label: 'Placed' },
+          { key: 'items.length', label: 'Items' },
+          { key: 'total', label: 'Total' },
+          { key: 'import_status', label: 'Status' },
+        ]" />
         <Button icon="pi pi-refresh" text rounded @click="reload" title="Refresh" />
       </div>
     </div>
@@ -190,8 +212,11 @@ onMounted(async () => {
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.header-actions { display: flex; gap: 0.6rem; align-items: center; }
+.header-actions { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 .filter { width: 190px; }
+.search-box { position: relative; display: inline-flex; align-items: center; }
+.search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
+.search-box :deep(input) { padding-left: 2.25rem; }
 .cap { text-transform: capitalize; }
 .linked { font-size: 0.75rem; color: #16a34a; }
 .muted { color: #6b7280; }
