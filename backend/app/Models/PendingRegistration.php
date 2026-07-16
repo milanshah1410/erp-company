@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class PendingRegistration extends Model
 {
-    protected $connection = 'central';
+    use \App\Models\Concerns\UsesCentralConnection;
 
     protected $fillable = [
         'company_name', 'admin_name', 'email', 'phone', 'password',
-        'plan_slug', 'verification_code', 'verification_token', 'verified_at',
+        'plan_slug', 'config', 'verification_code', 'verification_token', 'verified_at',
         'status', 'tenant_id', 'error',
     ];
 
@@ -23,6 +23,7 @@ class PendingRegistration extends Model
         return [
             'verified_at' => 'datetime',
             'password' => 'hashed',
+            'config' => 'array',
         ];
     }
 

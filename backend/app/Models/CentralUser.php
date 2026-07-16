@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesCentralConnection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -26,7 +27,7 @@ use Spatie\Permission\Traits\HasRoles;
  */
 class CentralUser extends Authenticatable
 {
-    use HasApiTokens, HasFactory, HasRoles, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable, UsesCentralConnection;
 
     /**
      * Reserved Spatie "team" id for platform operators. Not a real tenant
@@ -42,16 +43,6 @@ class CentralUser extends Authenticatable
     protected string $guard_name = 'central';
 
     protected $table = 'central_users';
-
-    /**
-     * Pin to the landlord connection. Driven by config so the test suite (a
-     * single shared sqlite connection) and any future split-DB deployment can
-     * both override it; production keeps the dedicated `central` connection.
-     */
-    public function getConnectionName(): ?string
-    {
-        return config('saas.central_connection', 'central');
-    }
 
     protected $fillable = ['name', 'email', 'password', 'is_active'];
 

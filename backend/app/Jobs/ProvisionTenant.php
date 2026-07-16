@@ -6,13 +6,17 @@ namespace App\Jobs;
 
 use App\Models\Branch;
 use App\Models\Company;
+use App\Models\FinancialYear;
 use App\Models\OnboardingProgress;
 use App\Models\PendingRegistration;
 use App\Models\Plan;
+use App\Models\Setting;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Notifications\TenantReadyEmail;
+use App\Services\DemoDataGenerator;
 use App\Support\TenantContext;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantDatabaseSeeder;
@@ -21,8 +25,11 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Throwable;
@@ -94,6 +101,10 @@ class ProvisionTenant implements ShouldQueue
                     'current_branch_id' => $branch->id,
                 ]);
             }
+
+            // Apply the onboarding-wizard choices (steps 1-6) on top of the
+            // baseline seed, then optionally load sample data (step 7).
+            $this->applyWizardConfig($registration->config ?? [], $admin, $company, $branch);
         });
 
         // 3. Trialing subscription (landlord, explicit tenant_id).
@@ -121,6 +132,131 @@ class ProvisionTenant implements ShouldQueue
         // 6. "Your account is ready" email.
         Notification::route('mail', $registration->email)
             ->notify(new TenantReadyEmail($registration->company_name));
+    }
+
+    /**
+     * Apply the onboarding-wizard payload to the freshly-seeded tenant. Runs
+     * inside the tenant context, so every write is tenant-scoped. Every section
+     * is optional — a bare signup (no wizard) leaves the baseline seed intact.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function applyWizardConfig(array $config, User $admin, ?Company $company, ?Branch $branch): void
+    {
+        if ($config === []) {
+            return;
+        }
+
+        // --- Step 1 / 5 / 6: company profile, currency, financial-year start ---
+        if ($company) {
+            $co = $config['company'] ?? [];
+            $currency = $config['currency'] ?? [];
+            $company->fill(array_filter([
+                'name' => $company->name,
+                'legal_name' => $co['legal_name'] ?? null,
+                'gstin' => $co['gstin'] ?? ($config['tax']['gstin'] ?? null),
+                'pan' => $co['pan'] ?? null,
+                'address' => $co['address'] ?? null,
+                'city' => $co['city'] ?? null,
+                'state' => $co['state'] ?? null,
+                'country' => $co['country'] ?? null,
+                'pincode' => $co['pincode'] ?? null,
+                'currency_code' => $currency['code'] ?? null,
+                'currency_symbol' => $currency['symbol'] ?? null,
+            ], fn ($v) => $v !== null && $v !== ''));
+            if (! empty($config['fy_start_month'])) {
+                $company->financial_year_start_month = (int) $config['fy_start_month'];
+            }
+            $company->save();
+        }
+
+        // --- Step 5: rename the default branch / warehouse ---
+        if ($branch && ! empty($config['branch']['name'])) {
+            $branch->update(['name' => $config['branch']['name']]);
+        }
+        if (! empty($config['warehouse']['name'])) {
+            Warehouse::where('code', 'WH-MAIN')->update(['name' => $config['warehouse']['name']]);
+        }
+
+        // --- Step 5: financial year ---
+        if ($company && ! empty($config['financial_year']['start_date']) && ! empty($config['financial_year']['end_date'])) {
+            $fy = $config['financial_year'];
+            FinancialYear::updateOrCreate(
+                ['company_id' => $company->id, 'name' => $fy['name'] ?? 'FY'],
+                [
+                    'start_date' => $fy['start_date'],
+                    'end_date' => $fy['end_date'],
+                    'is_current' => true,
+                    'is_closed' => false,
+                ],
+            );
+        }
+
+        // --- Steps 2 / 3 / 6: settings (industry, modules, tax, number series) ---
+        $settings = [];
+        if (! empty($config['industry'])) {
+            $settings['industry'] = (string) $config['industry'];
+        }
+        if (! empty($config['modules']) && is_array($config['modules'])) {
+            $settings['enabled_modules'] = json_encode(array_values($config['modules']));
+        }
+        if (isset($config['tax']['gst_enabled'])) {
+            $settings['gst_enabled'] = $config['tax']['gst_enabled'] ? '1' : '0';
+        }
+        if (isset($config['tax']['default_gst_rate'])) {
+            $settings['default_tax_rate'] = (string) $config['tax']['default_gst_rate'];
+        }
+        // Number-series prefixes — only accept known keys (Setting::NUMBER_PREFIX_DEFAULTS).
+        foreach ((array) ($config['number_prefixes'] ?? []) as $key => $val) {
+            if (array_key_exists($key, Setting::NUMBER_PREFIX_DEFAULTS) && is_string($val) && $val !== '') {
+                $settings[$key] = $val;
+            }
+        }
+        if (! empty($config['company']['logo_path'])) {
+            $settings['company_logo_url'] = Storage::disk('public')->url($config['company']['logo_path']);
+        }
+        foreach ($settings as $key => $value) {
+            Setting::updateOrCreate(['key' => $key], ['value' => $value]);
+        }
+
+        // --- Step 4: additional team members ---
+        foreach ($config['users'] ?? [] as $u) {
+            if (empty($u['email']) || empty($u['name'])) {
+                continue;
+            }
+            $user = new User();
+            $user->name = $u['name'];
+            $user->email = strtolower(trim($u['email']));
+            $user->password = Hash::make(Str::random(16));
+            $user->is_active = true;
+            $user->save();
+
+            $role = $this->resolveRole($u['role'] ?? null);
+            $user->assignRole($role);
+
+            if ($company && $branch) {
+                $user->companies()->syncWithoutDetaching([$company->id]);
+                $user->branches()->syncWithoutDetaching([$branch->id]);
+                $user->update(['current_company_id' => $company->id, 'current_branch_id' => $branch->id]);
+            }
+        }
+
+        // --- Step 7: optional sample data ---
+        if (! empty($config['load_demo'])) {
+            $count = (int) ($config['demo_count'] ?? 100);
+            (new DemoDataGenerator($admin->id))->generate(array_keys(DemoDataGenerator::MODULES), $count);
+        }
+    }
+
+    /** Map a requested role slug to an existing web role, defaulting to staff. */
+    private function resolveRole(?string $slug): string
+    {
+        $slug = $slug ? trim($slug) : '';
+        if ($slug !== '' && Role::where('guard_name', 'web')->where('name', $slug)->exists()) {
+            return $slug;
+        }
+
+        return 'staff';
     }
 
     /**

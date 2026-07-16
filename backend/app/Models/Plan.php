@@ -11,7 +11,7 @@ class Plan extends Model
 {
     // Central-DB model: pin to the landlord connection so it keeps resolving
     // to the central database even while a tenant connection is the default.
-    protected $connection = 'central';
+    use \App\Models\Concerns\UsesCentralConnection;
 
     protected $fillable = [
         'slug', 'name', 'price', 'billing_cycle', 'currency',

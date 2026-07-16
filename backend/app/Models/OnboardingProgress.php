@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OnboardingProgress extends Model
 {
-    protected $connection = 'central';
+    use \App\Models\Concerns\UsesCentralConnection;
 
     protected $table = 'onboarding_progress';
 

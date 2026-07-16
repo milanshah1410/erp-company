@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 
 class Subscription extends Model
 {
-    protected $connection = 'central';
+    use \App\Models\Concerns\UsesCentralConnection;
 
     protected $fillable = [
         'tenant_id', 'plan_id', 'status', 'trial_ends_at',

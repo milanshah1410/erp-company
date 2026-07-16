@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\MenuFavorite;
 use App\Models\MenuItem;
 use App\Models\MenuRecent;
+use App\Models\Setting;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Support\TenantContext;
@@ -36,6 +37,7 @@ class MenuController extends Controller
         $tenantId = app(TenantContext::class)->id();
         $user = $request->user();
         $planFeatures = $this->planFeatures($tenantId);
+        $enabledModules = $this->enabledModules();
 
         // Global catalogue rows (tenant_id NULL) plus any tenant-specific rows.
         $items = MenuItem::query()
@@ -51,7 +53,7 @@ class MenuController extends Controller
 
         $roots = $byParent->get(null, collect());
         $tree = $roots
-            ->map(fn (MenuItem $item) => $this->transform($item, $user, $byParent, $planFeatures, $favoriteIds))
+            ->map(fn (MenuItem $item) => $this->transform($item, $user, $byParent, $planFeatures, $enabledModules, $favoriteIds))
             ->filter()
             ->values();
 
@@ -120,14 +122,14 @@ class MenuController extends Controller
      * Recursively map a catalogue row into the payload shape, dropping anything
      * the user may not see. A group with no visible children is itself dropped.
      */
-    private function transform(MenuItem $item, User $user, Collection $byParent, array $planFeatures, array $favoriteIds): ?array
+    private function transform(MenuItem $item, User $user, Collection $byParent, array $planFeatures, ?array $enabledModules, array $favoriteIds): ?array
     {
-        if (! $this->visible($item, $user, $planFeatures)) {
+        if (! $this->visible($item, $user, $planFeatures, $enabledModules)) {
             return null;
         }
 
         $children = $byParent->get($item->id, collect())
-            ->map(fn (MenuItem $child) => $this->transform($child, $user, $byParent, $planFeatures, $favoriteIds))
+            ->map(fn (MenuItem $child) => $this->transform($child, $user, $byParent, $planFeatures, $enabledModules, $favoriteIds))
             ->filter()
             ->values();
 
@@ -149,10 +151,11 @@ class MenuController extends Controller
     }
 
     /**
-     * A leaf/group is visible when the user holds its permission (if any) and
-     * the tenant's plan includes its feature (if any).
+     * A leaf/group is visible when the user holds its permission (if any), the
+     * tenant's plan includes its feature (if any), and the module it belongs to
+     * is enabled for the tenant (if module gating is in effect).
      */
-    private function visible(MenuItem $item, User $user, array $planFeatures): bool
+    private function visible(MenuItem $item, User $user, array $planFeatures, ?array $enabledModules): bool
     {
         if ($item->permission && ! $user->can($item->permission)) {
             return false;
@@ -165,7 +168,32 @@ class MenuController extends Controller
             }
         }
 
+        // Module gating (onboarding wizard §3). $enabledModules === null means
+        // the tenant never chose a module set → fail open (show everything).
+        if ($item->module && $enabledModules !== null && ! in_array($item->module, $enabledModules, true)) {
+            return false;
+        }
+
         return true;
+    }
+
+    /**
+     * The tenant's chosen module set (onboarding wizard). Returns null when the
+     * `enabled_modules` setting is absent or empty so module gating is a no-op
+     * for existing tenants and any tenant that skipped module selection.
+     *
+     * @return array<int, string>|null
+     */
+    private function enabledModules(): ?array
+    {
+        $raw = Setting::where('key', 'enabled_modules')->value('value');
+        if (empty($raw)) {
+            return null;
+        }
+
+        $modules = is_array($raw) ? $raw : json_decode((string) $raw, true);
+
+        return is_array($modules) && $modules !== [] ? array_values($modules) : null;
     }
 
     /**

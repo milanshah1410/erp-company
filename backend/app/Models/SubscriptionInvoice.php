@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SubscriptionInvoice extends Model
 {
-    protected $connection = 'central';
+    use \App\Models\Concerns\UsesCentralConnection;
 
     protected $fillable = [
         'subscription_id', 'amount', 'currency', 'status',

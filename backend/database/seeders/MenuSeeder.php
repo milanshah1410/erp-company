@@ -34,6 +34,7 @@ class MenuSeeder extends Seeder
                 'route' => $entry['to'] ?? null,
                 'permission' => $entry['permission'] ?? null,
                 'feature' => $entry['feature'] ?? null,
+                'module' => $entry['module'] ?? null,
                 'sort_order' => $order,
                 'is_active' => true,
             ],
@@ -61,11 +62,11 @@ class MenuSeeder extends Seeder
                 ['label' => 'Warehouses', 'icon' => 'pi pi-building', 'to' => '/warehouses', 'permission' => 'warehouses.view'],
                 ['label' => 'Customers', 'icon' => 'pi pi-users', 'to' => '/customers', 'permission' => 'customers.view'],
                 ['label' => 'Customer Categories', 'icon' => 'pi pi-tags', 'to' => '/customer-categories', 'permission' => 'customer-categories.view'],
-                ['label' => 'Brokers', 'icon' => 'pi pi-user-plus', 'to' => '/brokers', 'permission' => 'brokers.view'],
-                ['label' => 'Broker Ledger', 'icon' => 'pi pi-book', 'to' => '/brokers/ledger', 'permission' => 'brokers.view'],
+                ['label' => 'Brokers', 'icon' => 'pi pi-user-plus', 'to' => '/brokers', 'permission' => 'brokers.view', 'module' => 'broker'],
+                ['label' => 'Broker Ledger', 'icon' => 'pi pi-book', 'to' => '/brokers/ledger', 'permission' => 'brokers.view', 'module' => 'broker'],
                 ['label' => 'Price Lists', 'icon' => 'pi pi-indian-rupee', 'to' => '/price-lists', 'permission' => 'price-lists.view'],
             ]],
-            ['label' => 'CRM', 'icon' => 'pi pi-heart', 'children' => [
+            ['label' => 'CRM', 'icon' => 'pi pi-heart', 'module' => 'crm', 'children' => [
                 ['label' => 'Leads', 'icon' => 'pi pi-filter', 'to' => '/leads', 'permission' => 'leads.view'],
                 ['label' => 'Follow-ups', 'icon' => 'pi pi-bell', 'to' => '/follow-ups', 'permission' => 'follow-ups.view'],
                 ['label' => 'Occasions', 'icon' => 'pi pi-calendar-plus', 'to' => '/crm/occasions', 'permission' => 'customers.view'],
@@ -76,10 +77,10 @@ class MenuSeeder extends Seeder
                 ['label' => 'Marketing Campaigns', 'icon' => 'pi pi-megaphone', 'to' => '/marketing-campaigns', 'permission' => 'marketing-campaigns.view'],
                 ['label' => 'Email Log', 'icon' => 'pi pi-envelope', 'to' => '/email-logs', 'permission' => 'email.view'],
             ]],
-            ['label' => 'Sales', 'icon' => 'pi pi-dollar', 'children' => [
+            ['label' => 'Sales', 'icon' => 'pi pi-dollar', 'module' => 'sales', 'children' => [
                 ['label' => 'Sales Quotations', 'icon' => 'pi pi-file', 'to' => '/sales-quotations', 'permission' => 'sales.view'],
                 ['label' => 'Sales Orders', 'icon' => 'pi pi-shopping-cart', 'to' => '/sales-orders', 'permission' => 'sales.view'],
-                ['label' => 'POS', 'icon' => 'pi pi-calculator', 'to' => '/pos', 'permission' => 'sales.create'],
+                ['label' => 'POS', 'icon' => 'pi pi-calculator', 'to' => '/pos', 'permission' => 'sales.create', 'module' => 'pos'],
                 ['label' => 'Sales Returns', 'icon' => 'pi pi-replay', 'to' => '/sales-returns', 'permission' => 'sales-returns.view'],
                 ['label' => 'B2B Orders', 'icon' => 'pi pi-check-square', 'to' => '/b2b-orders', 'permission' => 'b2b-orders.view'],
             ]],
@@ -89,7 +90,7 @@ class MenuSeeder extends Seeder
                 ['label' => 'Channel Listings', 'icon' => 'pi pi-tags', 'to' => '/channel-listings', 'permission' => 'channel-listings.view'],
                 ['label' => 'Sync History', 'icon' => 'pi pi-history', 'to' => '/channel-sync-logs', 'permission' => 'channel-sync-logs.view'],
             ]],
-            ['label' => 'Field Sales', 'icon' => 'pi pi-map', 'children' => [
+            ['label' => 'Field Sales', 'icon' => 'pi pi-map', 'module' => 'sales', 'children' => [
                 ['label' => 'Salesmen', 'icon' => 'pi pi-user', 'to' => '/salesmen', 'permission' => 'salesmen.view'],
                 ['label' => 'Targets & Incentive', 'icon' => 'pi pi-flag', 'to' => '/salesman-targets', 'permission' => 'salesman-targets.view'],
                 ['label' => 'Beat Plan & Routes', 'icon' => 'pi pi-directions', 'to' => '/beats', 'permission' => 'beats.view'],
@@ -99,19 +100,19 @@ class MenuSeeder extends Seeder
                 ['label' => 'Daily Expenses', 'icon' => 'pi pi-receipt', 'to' => '/salesman-expenses', 'permission' => 'salesman-expenses.view'],
                 ['label' => 'Reports', 'icon' => 'pi pi-chart-bar', 'to' => '/salesman-reports', 'permission' => 'salesmen.view'],
             ]],
-            ['label' => 'Manufacturing', 'icon' => 'pi pi-cog', 'children' => [
+            ['label' => 'Manufacturing', 'icon' => 'pi pi-cog', 'module' => 'manufacturing', 'children' => [
                 ['label' => 'Bills of Materials', 'icon' => 'pi pi-sitemap', 'to' => '/boms', 'permission' => 'boms.view'],
                 ['label' => 'Manufacturing Orders', 'icon' => 'pi pi-wrench', 'to' => '/manufacturing-orders', 'permission' => 'manufacturing-orders.view'],
                 ['label' => 'Colour Printing', 'icon' => 'pi pi-palette', 'to' => '/colour-printings', 'permission' => 'colour-printing.view'],
                 ['label' => 'Job Work (Outside)', 'icon' => 'pi pi-briefcase', 'to' => '/job-works', 'permission' => 'job-works.view'],
             ]],
-            ['label' => 'Textile', 'icon' => 'pi pi-th-large', 'children' => [
+            ['label' => 'Textile', 'icon' => 'pi pi-th-large', 'module' => 'manufacturing', 'children' => [
                 ['label' => 'Fabric Rolls', 'icon' => 'pi pi-clone', 'to' => '/fabric-rolls', 'permission' => 'textile.view'],
                 ['label' => 'Fabric Inspection', 'icon' => 'pi pi-search', 'to' => '/fabric-inspections', 'permission' => 'textile.view'],
                 ['label' => 'Shrinkage Records', 'icon' => 'pi pi-arrows-h', 'to' => '/shrinkage-records', 'permission' => 'textile.view'],
                 ['label' => 'Fabric Cutting', 'icon' => 'pi pi-scissors', 'to' => '/fabric-cuttings', 'permission' => 'textile.view'],
             ]],
-            ['label' => 'Tailoring', 'icon' => 'pi pi-th-large', 'children' => [
+            ['label' => 'Tailoring', 'icon' => 'pi pi-th-large', 'module' => 'manufacturing', 'children' => [
                 ['label' => 'Tailor Master', 'icon' => 'pi pi-user', 'to' => '/tailors', 'permission' => 'tailors.view'],
                 ['label' => 'Contractors', 'icon' => 'pi pi-users', 'to' => '/contractors', 'permission' => 'contractors.view'],
                 ['label' => 'Rate Card', 'icon' => 'pi pi-list', 'to' => '/rate-cards', 'permission' => 'rate-cards.view'],
@@ -124,14 +125,14 @@ class MenuSeeder extends Seeder
                 ['label' => 'Payment', 'icon' => 'pi pi-wallet', 'to' => '/tailor-payments', 'permission' => 'tailor-payments.view'],
                 ['label' => 'Tailor Ledger', 'icon' => 'pi pi-book', 'to' => '/tailors/ledger', 'permission' => 'tailors.view'],
             ]],
-            ['label' => 'Embroidery', 'icon' => 'pi pi-star', 'children' => [
+            ['label' => 'Embroidery', 'icon' => 'pi pi-star', 'module' => 'manufacturing', 'children' => [
                 ['label' => 'Vendor Master', 'icon' => 'pi pi-user', 'to' => '/embroidery-vendors', 'permission' => 'embroidery-vendors.view'],
                 ['label' => 'Pending Dispatch', 'icon' => 'pi pi-clock', 'to' => '/embroidery-works/pending', 'permission' => 'embroidery-works.view'],
                 ['label' => 'Received', 'icon' => 'pi pi-check-circle', 'to' => '/embroidery-works/received', 'permission' => 'embroidery-works.view'],
                 ['label' => 'Payment', 'icon' => 'pi pi-wallet', 'to' => '/embroidery-payments', 'permission' => 'embroidery-payments.view'],
                 ['label' => 'Vendor Ledger', 'icon' => 'pi pi-book', 'to' => '/embroidery-vendors/ledger', 'permission' => 'embroidery-vendors.view'],
             ]],
-            ['label' => 'Inventory', 'icon' => 'pi pi-warehouse', 'children' => [
+            ['label' => 'Inventory', 'icon' => 'pi pi-warehouse', 'module' => 'inventory', 'children' => [
                 ['label' => 'Current Stock', 'icon' => 'pi pi-database', 'to' => '/stock', 'permission' => 'stock.view'],
                 ['label' => 'Stock Ledger', 'icon' => 'pi pi-history', 'to' => '/stock-ledger', 'permission' => 'stock-ledger.view'],
                 ['label' => 'Stock Adjustments', 'icon' => 'pi pi-sliders-h', 'to' => '/stock-adjustments', 'permission' => 'stock-adjustments.view'],
@@ -149,7 +150,7 @@ class MenuSeeder extends Seeder
                 ['label' => 'Barcode Scan', 'icon' => 'pi pi-camera', 'to' => '/barcode-scan', 'permission' => 'barcodes.view'],
                 ['label' => 'Label Printing', 'icon' => 'pi pi-print', 'to' => '/label-printing', 'permission' => 'barcodes.view'],
             ]],
-            ['label' => 'Accounts', 'icon' => 'pi pi-wallet', 'children' => [
+            ['label' => 'Accounts', 'icon' => 'pi pi-wallet', 'module' => 'accounts', 'children' => [
                 ['label' => 'Bank & Cash Accounts', 'icon' => 'pi pi-building', 'to' => '/bank-accounts', 'permission' => 'bank-accounts.view'],
                 ['label' => 'Vouchers', 'icon' => 'pi pi-file-edit', 'to' => '/vouchers', 'permission' => 'vouchers.view'],
                 ['label' => 'Cash Book', 'icon' => 'pi pi-money-bill', 'to' => '/accounts/cash-book', 'permission' => 'accounts.view'],
@@ -168,14 +169,14 @@ class MenuSeeder extends Seeder
                 ['label' => 'Payment Links', 'icon' => 'pi pi-link', 'to' => '/payment-transactions', 'permission' => 'payments.view'],
                 ['label' => 'Payment Gateways', 'icon' => 'pi pi-credit-card', 'to' => '/payment-gateways', 'permission' => 'payment-gateways.view'],
             ]],
-            ['label' => 'Purchase', 'icon' => 'pi pi-shopping-bag', 'children' => [
+            ['label' => 'Purchase', 'icon' => 'pi pi-shopping-bag', 'module' => 'purchase', 'children' => [
                 ['label' => 'Purchase Indents', 'icon' => 'pi pi-clipboard', 'to' => '/purchase-indents', 'permission' => 'purchase-indents.view'],
                 ['label' => 'RFQ / Quotations', 'icon' => 'pi pi-send', 'to' => '/rfqs', 'permission' => 'rfqs.view'],
                 ['label' => 'Purchase Orders', 'icon' => 'pi pi-file-edit', 'to' => '/purchase-orders', 'permission' => 'purchases.view'],
                 ['label' => 'Vendor Ratings', 'icon' => 'pi pi-star', 'to' => '/vendor-ratings', 'permission' => 'vendor-ratings.view'],
                 ['label' => 'Vendor Invoices', 'icon' => 'pi pi-receipt', 'to' => '/purchase-invoices', 'permission' => 'purchase-invoices.view'],
             ]],
-            ['label' => 'Expenses', 'icon' => 'pi pi-wallet', 'children' => [
+            ['label' => 'Expenses', 'icon' => 'pi pi-wallet', 'module' => 'accounts', 'children' => [
                 ['label' => 'Expenses', 'icon' => 'pi pi-receipt', 'to' => '/expenses', 'permission' => 'expenses.view'],
                 ['label' => 'Expense Categories', 'icon' => 'pi pi-tags', 'to' => '/expense-categories', 'permission' => 'expense-categories.view'],
                 ['label' => 'Employee Claims', 'icon' => 'pi pi-user', 'to' => '/employee-claims', 'permission' => 'employee-claims.view'],
@@ -186,7 +187,7 @@ class MenuSeeder extends Seeder
                 ['label' => 'Asset Maintenance', 'icon' => 'pi pi-cog', 'to' => '/asset-maintenances', 'permission' => 'asset-maintenances.view'],
                 ['label' => 'Assets', 'icon' => 'pi pi-box', 'to' => '/assets', 'permission' => 'assets.view'],
             ]],
-            ['label' => 'Human Resources', 'icon' => 'pi pi-id-card', 'children' => [
+            ['label' => 'Human Resources', 'icon' => 'pi pi-id-card', 'module' => 'hrms', 'children' => [
                 ['label' => 'Departments', 'icon' => 'pi pi-sitemap', 'to' => '/departments', 'permission' => 'departments.view'],
                 ['label' => 'Employees', 'icon' => 'pi pi-users', 'to' => '/employees', 'permission' => 'employees.view'],
                 ['label' => 'Attendance', 'icon' => 'pi pi-calendar', 'to' => '/attendance', 'permission' => 'attendance.view'],
@@ -196,7 +197,7 @@ class MenuSeeder extends Seeder
                 ['label' => 'Leave Applications', 'icon' => 'pi pi-calendar-times', 'to' => '/leave-applications', 'permission' => 'leave-applications.view'],
                 ['label' => 'Overtime', 'icon' => 'pi pi-clock', 'to' => '/overtime', 'permission' => 'overtime.view'],
             ]],
-            ['label' => 'Payroll', 'icon' => 'pi pi-wallet', 'children' => [
+            ['label' => 'Payroll', 'icon' => 'pi pi-wallet', 'module' => 'hrms', 'children' => [
                 ['label' => 'Salary Structures', 'icon' => 'pi pi-sliders-h', 'to' => '/salary-structures', 'permission' => 'salary-structures.view'],
                 ['label' => 'Payroll Processing', 'icon' => 'pi pi-cog', 'to' => '/payroll', 'permission' => 'payroll.view'],
                 ['label' => 'Salary Register', 'icon' => 'pi pi-wallet', 'to' => '/salaries', 'permission' => 'salaries.view'],
@@ -242,7 +243,7 @@ class MenuSeeder extends Seeder
                 ['label' => 'Customer Ledger', 'icon' => 'pi pi-book', 'to' => '/reports/customer-ledger', 'permission' => 'reports.view'],
                 ['label' => 'Supplier Ledger', 'icon' => 'pi pi-book', 'to' => '/reports/supplier-ledger', 'permission' => 'reports.view'],
             ]],
-            ['label' => 'GST & Compliance', 'icon' => 'pi pi-verified', 'children' => [
+            ['label' => 'GST & Compliance', 'icon' => 'pi pi-verified', 'module' => 'accounts', 'children' => [
                 ['label' => 'GST Registrations', 'icon' => 'pi pi-id-card', 'to' => '/gst-registrations', 'permission' => 'gst-registrations.view'],
                 ['label' => 'HSN / SAC Master', 'icon' => 'pi pi-list', 'to' => '/hsn-codes', 'permission' => 'hsn-codes.view'],
                 ['label' => 'GST Tools', 'icon' => 'pi pi-search', 'to' => '/gst-tools', 'permission' => 'hsn-codes.view'],

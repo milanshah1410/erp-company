@@ -20,7 +20,7 @@ class MenuItem extends Model
 {
     protected $fillable = [
         'tenant_id', 'parent_id', 'label', 'icon', 'route',
-        'permission', 'feature', 'sort_order', 'is_active',
+        'permission', 'feature', 'module', 'sort_order', 'is_active',
     ];
 
     protected $casts = [

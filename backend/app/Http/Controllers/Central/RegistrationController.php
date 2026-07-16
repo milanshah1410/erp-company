@@ -14,6 +14,7 @@ use App\Notifications\VerifyTenantEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -52,6 +53,26 @@ class RegistrationController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'password' => ['required', 'string', 'min:8'],
             'plan_slug' => ['nullable', 'string', Rule::in(Plan::query()->pluck('slug')->all())],
+
+            // Onboarding-wizard payload (steps 1-6). Consumed by ProvisionTenant.
+            'config' => ['nullable', 'array'],
+            'config.industry' => ['nullable', 'string', 'max:50'],
+            'config.company' => ['nullable', 'array'],
+            'config.modules' => ['nullable', 'array'],
+            'config.modules.*' => ['string', 'max:30'],
+            'config.users' => ['nullable', 'array', 'max:20'],
+            'config.users.*.name' => ['required_with:config.users', 'string', 'max:255'],
+            'config.users.*.email' => ['required_with:config.users', 'email', 'max:255', 'distinct:ignore_case'],
+            'config.users.*.role' => ['nullable', 'string', 'max:50'],
+            'config.branch' => ['nullable', 'array'],
+            'config.warehouse' => ['nullable', 'array'],
+            'config.financial_year' => ['nullable', 'array'],
+            'config.currency' => ['nullable', 'array'],
+            'config.fy_start_month' => ['nullable', 'integer', 'between:1,12'],
+            'config.number_prefixes' => ['nullable', 'array'],
+            'config.tax' => ['nullable', 'array'],
+            'config.load_demo' => ['nullable', 'boolean'],
+            'config.demo_count' => ['nullable', 'integer'],
         ]);
 
         $email = strtolower(trim($data['email']));
@@ -60,6 +81,18 @@ class RegistrationController extends Controller
                 'message' => 'That email address is not available.',
                 'errors' => ['email' => [$reason]],
             ], 422);
+        }
+
+        // Extra-user emails must be free too (email is the global login identity)
+        // and must not clash with the owner's.
+        foreach ($data['config']['users'] ?? [] as $i => $u) {
+            $uEmail = strtolower(trim((string) ($u['email'] ?? '')));
+            if ($uEmail === $email || $this->emailError($uEmail)) {
+                return response()->json([
+                    'message' => 'A team member email is not available.',
+                    'errors' => ["config.users.{$i}.email" => ['This email is already in use.']],
+                ], 422);
+            }
         }
 
         $code = (string) random_int(100000, 999999);
@@ -71,6 +104,7 @@ class RegistrationController extends Controller
             'phone' => $data['phone'] ?? null,
             'password' => $data['password'], // hashed via cast
             'plan_slug' => $data['plan_slug'] ?? 'starter',
+            'config' => $data['config'] ?? null,
             'verification_code' => $code,
             'verification_token' => Str::random(48),
             'status' => 'pending_verification',
@@ -84,6 +118,25 @@ class RegistrationController extends Controller
             'registration_id' => $registration->id,
             // Surfaced only in local/dev so the flow is testable without real SMTP.
             'dev_code' => app()->environment('local') ? $code : null,
+        ], 201);
+    }
+
+    /**
+     * Stash a company logo chosen during signup (before any tenant exists) on
+     * the public disk. ProvisionTenant later records the URL as a tenant
+     * setting. Returns the stored path + a public URL for the wizard preview.
+     */
+    public function uploadLogo(Request $request): JsonResponse
+    {
+        $request->validate([
+            'logo' => ['required', 'image', 'max:2048'],
+        ]);
+
+        $path = $request->file('logo')->store('pending-logos', 'public');
+
+        return response()->json([
+            'logo_path' => $path,
+            'logo_url' => Storage::disk('public')->url($path),
         ], 201);
     }
 

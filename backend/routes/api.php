@@ -34,6 +34,7 @@ Route::get('/plans', [PlanController::class, 'index']);
 // Self-serve tenant registration + email verification + provisioning status.
 Route::get('/check-email', [RegistrationController::class, 'checkEmail']);
 Route::post('/register', [RegistrationController::class, 'register']);
+Route::post('/register/logo', [RegistrationController::class, 'uploadLogo']);
 Route::post('/verify-email', [RegistrationController::class, 'verifyEmail']);
 Route::post('/resend-verification', [RegistrationController::class, 'resendVerification']);
 Route::get('/provisioning-status/{registration}', [RegistrationController::class, 'provisioningStatus']);
