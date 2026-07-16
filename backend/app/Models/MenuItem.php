@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\InvalidatesTenantCache;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -18,6 +19,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class MenuItem extends Model
 {
+    // A MenuItem write (admin edit / reseed) invalidates the cached catalogue
+    // the MenuController serves. cacheGroup() is overridden below to match the
+    // 'menu_items' group used there. The catalogue spans tenants (NULL rows),
+    // but bumping the current tenant's version plus the 10-min TTL keeps every
+    // tenant's copy fresh enough.
+    use InvalidatesTenantCache;
+
+    public function cacheGroup(): string
+    {
+        return 'menu_items';
+    }
+
     protected $fillable = [
         'tenant_id', 'parent_id', 'label', 'icon', 'route',
         'permission', 'feature', 'module', 'sort_order', 'is_active',

@@ -386,7 +386,7 @@ async function submit() {
         <p v-if="errors.password" class="err">{{ errors.password[0] }}</p>
 
         <div class="section-label">Invite your team <span class="opt">(optional)</span></div>
-        <div v-for="(u, i) in form.team" :key="u.label" class="team-row">
+        <div v-for="u in form.team" :key="u.label" class="team-row">
           <span class="team-role">{{ u.label }}</span>
           <input v-model="u.name" type="text" placeholder="Name" />
           <input v-model="u.email" type="email" placeholder="email@company.com" />

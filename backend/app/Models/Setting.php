@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\InvalidatesTenantCache;
 use App\Models\Concerns\LogsAuditActivity;
+use App\Support\TenantCache;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -11,7 +13,10 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Setting extends Model
 {
-    use BelongsToTenant, LogsAuditActivity;
+    use BelongsToTenant, InvalidatesTenantCache, LogsAuditActivity;
+
+    /** Cache the settings map for 5 minutes; writes bust it via the version bump. */
+    private const CACHE_TTL = 300;
 
     public const COSTING_FIFO = 'fifo';
     public const COSTING_LIFO = 'lifo';
@@ -124,13 +129,32 @@ class Setting extends Model
 
     protected $fillable = ['key', 'value'];
 
+    /**
+     * The tenant's stored key => value map, cached (§17 Performance — Caching).
+     * Every read path below goes through here, so the settings table is queried
+     * at most once per tenant per 5-minute window; a create/update/delete on any
+     * Setting row bumps the cache version (InvalidatesTenantCache) and the next
+     * read rebuilds it. Settings are read on nearly every request, so this
+     * removes a query from the hot path without risking staleness.
+     */
+    protected static function stored(): array
+    {
+        return TenantCache::rememberVersioned(
+            'settings',
+            'map',
+            self::CACHE_TTL,
+            fn () => static::query()->pluck('value', 'key')->toArray(),
+        );
+    }
+
     public static function get(string $key, ?string $default = null): ?string
     {
-        return static::query()->where('key', $key)->value('value') ?? $default;
+        return static::stored()[$key] ?? $default;
     }
 
     public static function set(string $key, ?string $value): void
     {
+        // updateOrCreate fires saved(), which bumps the settings cache version.
         static::query()->updateOrCreate(['key' => $key], ['value' => $value]);
     }
 
@@ -138,9 +162,8 @@ class Setting extends Model
     public static function allWithDefaults(): array
     {
         $defaults = array_merge(self::NUMBER_PREFIX_DEFAULTS, self::OTHER_DEFAULTS);
-        $stored = static::query()->pluck('value', 'key')->toArray();
 
-        return array_merge($defaults, array_filter($stored, fn ($v) => $v !== null));
+        return array_merge($defaults, array_filter(static::stored(), fn ($v) => $v !== null));
     }
 
     /** The company's active inventory costing method. */
@@ -184,10 +207,7 @@ class Setting extends Model
     /** The tenant's mail settings as a flat map, defaults filled in for anything unset. */
     public static function mailConfig(): array
     {
-        $stored = static::query()
-            ->whereIn('key', self::MAIL_KEYS)
-            ->pluck('value', 'key')
-            ->toArray();
+        $stored = array_intersect_key(static::stored(), array_flip(self::MAIL_KEYS));
 
         return array_merge(
             array_intersect_key(self::OTHER_DEFAULTS, array_flip(self::MAIL_KEYS)),

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\DemoDataController;
 use App\Http\Controllers\Api\DataImportController;
+use App\Http\Controllers\Api\PerformanceController;
 use App\Http\Controllers\Api\WorkflowController;
 use App\Http\Controllers\Api\EcommerceIntegrationController;
 use App\Http\Controllers\Api\ChannelOrderController;
@@ -1078,6 +1079,12 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('system-tools/import/modules', [DataImportController::class, 'modules'])->middleware('permission:settings.view');
         Route::get('system-tools/import/{module}/template', [DataImportController::class, 'template'])->middleware('permission:settings.view');
         Route::post('system-tools/import/{module}', [DataImportController::class, 'store'])->middleware('permission:settings.edit');
+        // Poll a queued (large-file) import by its job id — §17 Performance (Queue).
+        Route::get('system-tools/import/status/{jobId}', [DataImportController::class, 'status'])->middleware('permission:settings.view');
+
+        // System Tools → Performance diagnostics (project-stack.md §17): cache /
+        // queue / index health for admins.
+        Route::get('system-tools/performance', [PerformanceController::class, 'metrics'])->middleware('permission:settings.view');
 
         // Workflow Builder (project-stack.md §11).
         Route::get('workflows/meta', [WorkflowController::class, 'meta'])->middleware('permission:workflows.view');

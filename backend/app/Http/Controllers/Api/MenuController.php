@@ -11,6 +11,7 @@ use App\Models\MenuRecent;
 use App\Models\Setting;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Support\TenantCache;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,13 +41,17 @@ class MenuController extends Controller
         $enabledModules = $this->enabledModules();
 
         // Global catalogue rows (tenant_id NULL) plus any tenant-specific rows.
-        $items = MenuItem::query()
+        // The catalogue is tenant-stable and read on every page load, so it is
+        // cached (§17 Performance — Caching); a MenuItem write bumps the version
+        // (InvalidatesTenantCache) and the 10-minute TTL is a staleness backstop.
+        // Per-user favorites/recents below stay live — they change too often.
+        $items = TenantCache::rememberVersioned('menu_items', 'catalogue', 600, fn () => MenuItem::query()
             ->where('is_active', true)
             ->where(function ($q) use ($tenantId) {
                 $q->whereNull('tenant_id')->orWhere('tenant_id', $tenantId);
             })
             ->orderBy('sort_order')
-            ->get();
+            ->get());
 
         $byParent = $items->groupBy('parent_id');
         $favoriteIds = MenuFavorite::where('user_id', $user->id)->pluck('menu_item_id')->all();

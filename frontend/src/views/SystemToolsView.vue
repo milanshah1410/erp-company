@@ -28,6 +28,40 @@ const importFile = ref<File | null>(null)
 const importing = ref(false)
 const importResult = ref<ImportResult | null>(null)
 
+// --- Performance diagnostics state (§17) ---
+interface PerfMetrics {
+  cache: { store: string; versions: Record<string, number | null> }
+  queue: {
+    connection: string
+    driver: string
+    pending: number | null
+    failed: number | null
+    by_queue: Record<string, number>
+  }
+  database: {
+    driver: string
+    connection_driver: string | null
+    tables: number | null
+    indexes: number | null
+    unindexed_tables: string[]
+  }
+  generated_at: string
+}
+const perf = ref<PerfMetrics | null>(null)
+const perfLoading = ref(false)
+
+async function loadPerformance() {
+  perfLoading.value = true
+  try {
+    const { data } = await http.get('/system-tools/performance')
+    perf.value = data
+  } catch {
+    toast.add({ severity: 'error', summary: 'Could not load performance metrics', life: 4000 })
+  } finally {
+    perfLoading.value = false
+  }
+}
+
 onMounted(async () => {
   try {
     const [demo, imp] = await Promise.all([
@@ -45,6 +79,8 @@ onMounted(async () => {
   } catch {
     toast.add({ severity: 'error', summary: 'Could not load system-tools options', life: 4000 })
   }
+
+  loadPerformance()
 })
 
 function onFileChange(e: Event) {
@@ -82,8 +118,19 @@ async function runImport() {
     const { data } = await http.post(`/system-tools/import/${importModule.value}`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
-    importResult.value = data
-    toast.add({ severity: data.failed ? 'warn' : 'success', summary: data.message, life: 5000 })
+
+    // Large files are processed on the queue (§17 Performance): the POST returns
+    // 202 + a job_id and we poll for the per-row summary. Small files come back
+    // with the result inline.
+    if (data.queued && data.job_id) {
+      toast.add({ severity: 'info', summary: data.message, life: 4000 })
+      const result = await pollImport(data.job_id)
+      importResult.value = result
+      toast.add({ severity: result.failed ? 'warn' : 'success', summary: result.message, life: 5000 })
+    } else {
+      importResult.value = data
+      toast.add({ severity: data.failed ? 'warn' : 'success', summary: data.message, life: 5000 })
+    }
   } catch (e: any) {
     toast.add({
       severity: 'error',
@@ -94,6 +141,23 @@ async function runImport() {
   } finally {
     importing.value = false
   }
+}
+
+/** Poll a queued import until it finishes (or a sane attempt cap is hit). */
+async function pollImport(jobId: string): Promise<ImportResult> {
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+  for (let attempt = 0; attempt < 150; attempt++) {
+    await wait(2000)
+    try {
+      const { data } = await http.get(`/system-tools/import/status/${jobId}`)
+      if (data.status && data.status !== 'processing') {
+        return data
+      }
+    } catch {
+      /* transient — keep polling */
+    }
+  }
+  return { message: 'Import is still running in the background.', created: 0, failed: 0, errors: [] }
 }
 
 function toggleAll() {
@@ -236,6 +300,70 @@ async function generate() {
           </li>
         </ul>
       </div>
+    </section>
+
+    <!-- Performance diagnostics (project-stack.md §17) -->
+    <section class="tool-card">
+      <div class="tool-head">
+        <div class="tool-icon"><i class="pi pi-gauge" /></div>
+        <div>
+          <h2>Performance</h2>
+          <p>Live health of the cache, queue and database indexing for this workspace.</p>
+        </div>
+        <Button
+          class="refresh-btn"
+          icon="pi pi-refresh"
+          text
+          rounded
+          :loading="perfLoading"
+          aria-label="Refresh"
+          @click="loadPerformance"
+        />
+      </div>
+
+      <div v-if="perf" class="perf-grid">
+        <!-- Cache -->
+        <div class="perf-panel">
+          <div class="perf-panel-head"><i class="pi pi-bolt" /> Cache</div>
+          <div class="perf-row"><span>Store</span><strong>{{ perf.cache.store }}</strong></div>
+          <div v-for="(v, g) in perf.cache.versions" :key="g" class="perf-row">
+            <span>{{ g }} version</span><strong>{{ v ?? '—' }}</strong>
+          </div>
+        </div>
+
+        <!-- Queue -->
+        <div class="perf-panel">
+          <div class="perf-panel-head"><i class="pi pi-inbox" /> Queue</div>
+          <div class="perf-row"><span>Driver</span><strong>{{ perf.queue.driver }}</strong></div>
+          <div class="perf-row">
+            <span>Pending jobs</span>
+            <strong :class="{ warn: (perf.queue.pending ?? 0) > 50 }">{{ perf.queue.pending ?? '—' }}</strong>
+          </div>
+          <div class="perf-row">
+            <span>Failed jobs</span>
+            <strong :class="{ fail: (perf.queue.failed ?? 0) > 0 }">{{ perf.queue.failed ?? '—' }}</strong>
+          </div>
+        </div>
+
+        <!-- Database / indexes -->
+        <div class="perf-panel">
+          <div class="perf-panel-head"><i class="pi pi-database" /> Indexes</div>
+          <div class="perf-row"><span>Driver</span><strong>{{ perf.database.connection_driver ?? perf.database.driver }}</strong></div>
+          <div class="perf-row"><span>Tables</span><strong>{{ perf.database.tables ?? '—' }}</strong></div>
+          <div class="perf-row"><span>Indexes</span><strong>{{ perf.database.indexes ?? '—' }}</strong></div>
+          <div class="perf-row">
+            <span>Tenant tables w/o secondary index</span>
+            <strong :class="{ warn: perf.database.unindexed_tables.length > 0 }">
+              {{ perf.database.unindexed_tables.length }}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      <p v-if="perf?.database.unindexed_tables.length" class="hint perf-hint">
+        Under-indexed: {{ perf.database.unindexed_tables.join(', ') }}
+      </p>
+      <p v-if="perf" class="perf-stamp">Updated {{ new Date(perf.generated_at).toLocaleTimeString() }}</p>
     </section>
   </div>
 </template>
@@ -394,5 +522,58 @@ async function generate() {
 }
 .error-list li {
   margin-bottom: 0.25rem;
+}
+
+/* --- Performance diagnostics --- */
+.refresh-btn {
+  margin-left: auto;
+}
+.perf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+.perf-panel {
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  background: var(--paper, #faf9f6);
+}
+.perf-panel-head {
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  color: var(--text, #23292f);
+}
+.perf-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.82rem;
+  padding: 0.2rem 0;
+  color: #6b7280;
+  text-transform: capitalize;
+}
+.perf-row strong {
+  color: var(--text, #23292f);
+  font-variant-numeric: tabular-nums;
+}
+.perf-row strong.warn {
+  color: #b45309;
+}
+.perf-row strong.fail {
+  color: #dc2626;
+}
+.perf-hint {
+  margin-top: 0.75rem;
+  word-break: break-word;
+}
+.perf-stamp {
+  margin-top: 0.75rem;
+  font-size: 0.72rem;
+  color: #9ca3af;
 }
 </style>

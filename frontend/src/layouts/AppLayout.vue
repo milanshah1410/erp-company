@@ -9,6 +9,7 @@ import { useTheme } from '../composables/useTheme'
 import http from '../api/http'
 import NotificationBell from '../components/NotificationBell.vue'
 import GlobalSearch from '../components/GlobalSearch.vue'
+import NavFlyoutNode from '../components/NavFlyoutNode.vue'
 
 // Subscription banner (trial countdown / suspended read-only notice).
 const subscription = ref<{ status: string; on_trial: boolean; trial_days_left: number } | null>(null)
@@ -85,12 +86,6 @@ const nav = computed<MenuNode[]>(() => {
   return [...extras, ...base]
 })
 
-async function toggleFavorite(e: MouseEvent, item: MenuNode) {
-  e.preventDefault()
-  e.stopPropagation()
-  if (item.id) await menuStore.toggleFavorite(item.id)
-}
-
 // --- Top-menu dropdown state ---
 // A single flyout, teleported to <body> and positioned below the clicked group,
 // so the horizontally-scrolling menu bar never clips it.
@@ -144,8 +139,14 @@ function closeMenu() {
   openGroup.value = null
 }
 
-function isGroupActive(entry: MenuNode) {
-  return entry.children.some((c) => !!c.to && (route.path === c.to || route.path.startsWith(c.to + '/')))
+// A top-level group is active when the current route lives anywhere in its
+// subtree — the tree is now several levels deep, so this recurses.
+function isGroupActive(entry: MenuNode): boolean {
+  const hit = (n: MenuNode): boolean => {
+    if (n.to && (route.path === n.to || route.path.startsWith(n.to + '/'))) return true
+    return (n.children ?? []).some(hit)
+  }
+  return (entry.children ?? []).some(hit)
 }
 
 // Close the dropdown whenever the route changes (e.g. after a click), and
@@ -254,21 +255,13 @@ async function logout() {
         @mouseleave="scheduleClose"
       >
         <div class="flyout-title">{{ openGroup }}</div>
-        <div v-for="child in openChildren" :key="child.to ?? child.label" class="flyout-row">
-          <RouterLink :to="child.to!" class="flyout-item" @click="closeMenu">
-            <i :class="child.icon" />
-            <span>{{ child.label }}</span>
-          </RouterLink>
-          <button
-            v-if="child.id"
-            class="fav-toggle"
-            :class="{ on: menuStore.isFavorite(child.id) }"
-            :title="menuStore.isFavorite(child.id) ? 'Remove from favorites' : 'Add to favorites'"
-            @click="toggleFavorite($event, child)"
-          >
-            <i :class="menuStore.isFavorite(child.id) ? 'pi pi-star-fill' : 'pi pi-star'" />
-          </button>
-        </div>
+        <NavFlyoutNode
+          v-for="child in openChildren"
+          :key="child.id ?? child.to ?? child.label"
+          :node="child"
+          :depth="0"
+          @navigate="closeMenu"
+        />
       </div>
     </Teleport>
 
@@ -498,55 +491,7 @@ async function logout() {
   letter-spacing: 0.04em;
   padding: 0.25rem 0.6rem 0.4rem;
 }
-.flyout-row {
-  display: flex;
-  align-items: center;
-}
-.flyout-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0.6rem;
-  border-radius: 6px;
-  color: #a9b2bc;
-  text-decoration: none;
-  font-size: 0.85rem;
-  white-space: nowrap;
-  flex: 1;
-}
-.fav-toggle {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #5f6b76;
-  padding: 0.35rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
-}
-.flyout-row:hover .fav-toggle {
-  opacity: 1;
-}
-.fav-toggle:hover {
-  color: var(--safety-amber, #e8a33d);
-}
-.fav-toggle.on {
-  opacity: 1;
-  color: var(--safety-amber, #e8a33d);
-}
-.flyout-item i {
-  width: 1.1rem;
-  text-align: center;
-}
-.flyout-item:hover {
-  background: rgba(61, 99, 124, 0.3);
-  color: #fff;
-}
-.flyout-item.router-link-exact-active {
-  color: var(--safety-amber, #e8a33d);
-  background: rgba(232, 163, 61, 0.12);
-}
+/* Flyout body rows/links now live in NavFlyoutNode.vue. */
 
 /* --- Content --- */
 .main {

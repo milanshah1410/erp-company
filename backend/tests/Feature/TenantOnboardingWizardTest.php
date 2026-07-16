@@ -164,12 +164,22 @@ class TenantOnboardingWizardTest extends TestCase
 
             Sanctum::actingAs($owner, ['*']);
 
-            $labels = collect($this->getJson('/api/menu')->assertOk()->json('menu'))->pluck('label');
+            $menu = $this->getJson('/api/menu')->assertOk()->json('menu');
+            $topLabels = collect($menu)->pluck('label');
 
-            $this->assertContains('CRM', $labels);      // enabled module
-            $this->assertContains('Masters', $labels);   // untagged → always shown
-            $this->assertNotContains('Sales', $labels);  // module not enabled
-            $this->assertNotContains('Purchase', $labels);
+            // Untagged umbrella groups always show. 'Sales' is now an untagged
+            // umbrella and survives because it still has a visible child (CRM);
+            // 'Purchase' carries the purchase module itself, so it disappears.
+            $this->assertContains('Masters', $topLabels);
+            $this->assertContains('Sales', $topLabels);
+            $this->assertNotContains('Purchase', $topLabels);
+
+            // Inside Sales only the CRM sub-group survives — the sales-module
+            // sub-groups (Sales, Field Sales) are gated away.
+            $salesChildren = collect(collect($menu)->firstWhere('label', 'Sales')['children'] ?? []);
+            $this->assertContains('CRM', $salesChildren->pluck('label'));
+            $this->assertNotContains('Sales', $salesChildren->pluck('label'));
+            $this->assertNotContains('Field Sales', $salesChildren->pluck('label'));
         });
     }
 }

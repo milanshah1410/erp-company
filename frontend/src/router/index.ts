@@ -2,136 +2,146 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usePortalAuthStore } from '../stores/portalAuth'
 import { useCentralAuthStore } from '../stores/centralAuth'
+import { useRouteProgress } from '../composables/useRouteProgress'
 import AppLayout from '../layouts/AppLayout.vue'
 import PortalLayout from '../layouts/PortalLayout.vue'
 import CentralAdminLayout from '../layouts/CentralAdminLayout.vue'
-import CentralLoginView from '../views/central/CentralLoginView.vue'
-import CentralDashboardView from '../views/central/CentralDashboardView.vue'
-import CentralOperatorsView from '../views/central/CentralOperatorsView.vue'
-import CentralRolesView from '../views/central/CentralRolesView.vue'
-import PortalLoginView from '../views/portal/PortalLoginView.vue'
-import PortalCatalogueView from '../views/portal/PortalCatalogueView.vue'
-import PortalCartView from '../views/portal/PortalCartView.vue'
-import PortalOrdersView from '../views/portal/PortalOrdersView.vue'
-import PortalPriceListView from '../views/portal/PortalPriceListView.vue'
 import LoginView from '../views/LoginView.vue'
-import CentralRegisterView from '../views/central/CentralRegisterView.vue'
-import CentralVerifyView from '../views/central/CentralVerifyView.vue'
-import CentralProvisioningView from '../views/central/CentralProvisioningView.vue'
-import BillingView from '../views/BillingView.vue'
-import DashboardView from '../views/DashboardView.vue'
-import CrudView from '../views/CrudView.vue'
-import CategoriesView from '../views/CategoriesView.vue'
-import ProductsView from '../views/ProductsView.vue'
-import PurchaseIndentsView from '../views/PurchaseIndentsView.vue'
-import RfqsView from '../views/RfqsView.vue'
-import PurchaseOrdersView from '../views/PurchaseOrdersView.vue'
-import VendorRatingsView from '../views/VendorRatingsView.vue'
-import PurchaseInvoicesView from '../views/PurchaseInvoicesView.vue'
-import StockView from '../views/StockView.vue'
-import StockLedgerView from '../views/StockLedgerView.vue'
-import StockAdjustmentsView from '../views/StockAdjustmentsView.vue'
-import StockTransfersView from '../views/StockTransfersView.vue'
-import StockReturnsView from '../views/StockReturnsView.vue'
-import GateEntriesView from '../views/GateEntriesView.vue'
-import UsersView from '../views/UsersView.vue'
-import RolesView from '../views/RolesView.vue'
-import SettingsView from '../views/SettingsView.vue'
-import WarehousesView from '../views/WarehousesView.vue'
-import SuppliersView from '../views/SuppliersView.vue'
-import CustomersView from '../views/CustomersView.vue'
-import BrokerLedgerView from '../views/BrokerLedgerView.vue'
-import TailorWorkView from '../views/TailorWorkView.vue'
-import TailorPaymentView from '../views/TailorPaymentView.vue'
-import TailorLedgerView from '../views/TailorLedgerView.vue'
-import TailorBonusView from '../views/TailorBonusView.vue'
-import TailorPerformanceView from '../views/TailorPerformanceView.vue'
-import EmbroideryWorkView from '../views/EmbroideryWorkView.vue'
-import EmbroideryPaymentView from '../views/EmbroideryPaymentView.vue'
-import EmbroideryLedgerView from '../views/EmbroideryLedgerView.vue'
-import CustomerCategoriesView from '../views/CustomerCategoriesView.vue'
-import LeadsView from '../views/LeadsView.vue'
-import FollowUpsView from '../views/FollowUpsView.vue'
-import ReferralsView from '../views/ReferralsView.vue'
-import OccasionsView from '../views/OccasionsView.vue'
-import WhatsAppView from '../views/WhatsAppView.vue'
-import SmsView from '../views/SmsView.vue'
-import MarketingCampaignsView from '../views/MarketingCampaignsView.vue'
-import EmailLogsView from '../views/EmailLogsView.vue'
-import SalesmanTargetsView from '../views/SalesmanTargetsView.vue'
-import BeatsView from '../views/BeatsView.vue'
-import SalesmanVisitsView from '../views/SalesmanVisitsView.vue'
-import SalesmanTrackingView from '../views/SalesmanTrackingView.vue'
-import SalesmanCollectionsView from '../views/SalesmanCollectionsView.vue'
-import SalesmanExpensesView from '../views/SalesmanExpensesView.vue'
-import SalesmanReportsView from '../views/SalesmanReportsView.vue'
-import SalesOrdersView from '../views/SalesOrdersView.vue'
-import SalesQuotationsView from '../views/SalesQuotationsView.vue'
-import PosView from '../views/PosView.vue'
-import SalesReturnsView from '../views/SalesReturnsView.vue'
-import B2bOrdersView from '../views/B2bOrdersView.vue'
-import EcommerceIntegrationsView from '../views/EcommerceIntegrationsView.vue'
-import ChannelOrdersView from '../views/ChannelOrdersView.vue'
-import ChannelListingsView from '../views/ChannelListingsView.vue'
-import ChannelSyncLogsView from '../views/ChannelSyncLogsView.vue'
-import BomsView from '../views/BomsView.vue'
-import ManufacturingOrdersView from '../views/ManufacturingOrdersView.vue'
-import JobWorksView from '../views/JobWorksView.vue'
-import FabricRollsView from '../views/FabricRollsView.vue'
-import FabricInspectionsView from '../views/FabricInspectionsView.vue'
-import ShrinkageRecordsView from '../views/ShrinkageRecordsView.vue'
-import FabricCuttingsView from '../views/FabricCuttingsView.vue'
-import ExpensesView from '../views/ExpensesView.vue'
-import EmployeeClaimsView from '../views/EmployeeClaimsView.vue'
-import VehicleExpensesView from '../views/VehicleExpensesView.vue'
-import FuelExpensesView from '../views/FuelExpensesView.vue'
-import ElectricityBillsView from '../views/ElectricityBillsView.vue'
-import FactoryMaintenanceView from '../views/FactoryMaintenanceView.vue'
-import AssetMaintenanceView from '../views/AssetMaintenanceView.vue'
-import DispatchPlansView from '../views/DispatchPlansView.vue'
-import ProofOfDeliveryView from '../views/ProofOfDeliveryView.vue'
-import VouchersView from '../views/VouchersView.vue'
-import CashBookView from '../views/CashBookView.vue'
-import PettyCashView from '../views/PettyCashView.vue'
-import TrialBalanceView from '../views/TrialBalanceView.vue'
-import ProfitLossView from '../views/ProfitLossView.vue'
-import BalanceSheetView from '../views/BalanceSheetView.vue'
-import BankBookView from '../views/BankBookView.vue'
-import JournalView from '../views/JournalView.vue'
-import DayBookView from '../views/DayBookView.vue'
-import CustomerLedgerView from '../views/CustomerLedgerView.vue'
-import SupplierLedgerView from '../views/SupplierLedgerView.vue'
-import ExpenseLedgerView from '../views/ExpenseLedgerView.vue'
-import PriceListsView from '../views/PriceListsView.vue'
-import CycleCountsView from '../views/CycleCountsView.vue'
-import BatchesView from '../views/BatchesView.vue'
-import SerialNumbersView from '../views/SerialNumbersView.vue'
-import InventoryAlertsView from '../views/InventoryAlertsView.vue'
-import DeadStockView from '../views/DeadStockView.vue'
-import ReorderView from '../views/ReorderView.vue'
-import ReportsView from '../views/ReportsView.vue'
-import BarcodeScanView from '../views/BarcodeScanView.vue'
-import LabelPrintingView from '../views/LabelPrintingView.vue'
-import AuditLogsView from '../views/AuditLogsView.vue'
-import BackupView from '../views/BackupView.vue'
-import GstToolsView from '../views/GstToolsView.vue'
-import EInvoicesView from '../views/EInvoicesView.vue'
-import SearchResultsView from '../views/SearchResultsView.vue'
-import EWayBillsView from '../views/EWayBillsView.vue'
-import NotificationsView from '../views/NotificationsView.vue'
-import LeaveApplicationsView from '../views/LeaveApplicationsView.vue'
-import OvertimeView from '../views/OvertimeView.vue'
-import EmployeeBonusesView from '../views/EmployeeBonusesView.vue'
-import SalaryAdvancesView from '../views/SalaryAdvancesView.vue'
-import EmployeeLoansView from '../views/EmployeeLoansView.vue'
-import BiometricPunchesView from '../views/BiometricPunchesView.vue'
-import PayrollView from '../views/PayrollView.vue'
-import CustomerDisplayView from '../views/CustomerDisplayView.vue'
-import PaymentGatewaysView from '../views/PaymentGatewaysView.vue'
-import PaymentTransactionsView from '../views/PaymentTransactionsView.vue'
-import PayView from '../views/PayView.vue'
-import AiInsightsView from '../views/AiInsightsView.vue'
-import AiAssistantView from '../views/AiAssistantView.vue'
+
+// Route-level code splitting (§17 Performance — Lazy Loading).
+//
+// Only the app shell (layouts + the primary staff LoginView, the most common
+// entry point) is bundled into the initial chunk. Every feature view below is a
+// dynamic `() => import()` so Vite emits it as a separate chunk that is fetched
+// on first navigation and cached thereafter — turning one ~130-view monolith
+// bundle into ~130 small on-demand chunks. Route definitions are unchanged; they
+// reference these lazy factories exactly as before.
+const CentralLoginView = () => import('../views/central/CentralLoginView.vue')
+const CentralDashboardView = () => import('../views/central/CentralDashboardView.vue')
+const CentralOperatorsView = () => import('../views/central/CentralOperatorsView.vue')
+const CentralRolesView = () => import('../views/central/CentralRolesView.vue')
+const PortalLoginView = () => import('../views/portal/PortalLoginView.vue')
+const PortalCatalogueView = () => import('../views/portal/PortalCatalogueView.vue')
+const PortalCartView = () => import('../views/portal/PortalCartView.vue')
+const PortalOrdersView = () => import('../views/portal/PortalOrdersView.vue')
+const PortalPriceListView = () => import('../views/portal/PortalPriceListView.vue')
+const CentralRegisterView = () => import('../views/central/CentralRegisterView.vue')
+const CentralVerifyView = () => import('../views/central/CentralVerifyView.vue')
+const CentralProvisioningView = () => import('../views/central/CentralProvisioningView.vue')
+const BillingView = () => import('../views/BillingView.vue')
+const DashboardView = () => import('../views/DashboardView.vue')
+const CrudView = () => import('../views/CrudView.vue')
+const CategoriesView = () => import('../views/CategoriesView.vue')
+const ProductsView = () => import('../views/ProductsView.vue')
+const PurchaseIndentsView = () => import('../views/PurchaseIndentsView.vue')
+const RfqsView = () => import('../views/RfqsView.vue')
+const PurchaseOrdersView = () => import('../views/PurchaseOrdersView.vue')
+const VendorRatingsView = () => import('../views/VendorRatingsView.vue')
+const PurchaseInvoicesView = () => import('../views/PurchaseInvoicesView.vue')
+const StockView = () => import('../views/StockView.vue')
+const StockLedgerView = () => import('../views/StockLedgerView.vue')
+const StockAdjustmentsView = () => import('../views/StockAdjustmentsView.vue')
+const StockTransfersView = () => import('../views/StockTransfersView.vue')
+const StockReturnsView = () => import('../views/StockReturnsView.vue')
+const GateEntriesView = () => import('../views/GateEntriesView.vue')
+const UsersView = () => import('../views/UsersView.vue')
+const RolesView = () => import('../views/RolesView.vue')
+const SettingsView = () => import('../views/SettingsView.vue')
+const WarehousesView = () => import('../views/WarehousesView.vue')
+const SuppliersView = () => import('../views/SuppliersView.vue')
+const CustomersView = () => import('../views/CustomersView.vue')
+const BrokerLedgerView = () => import('../views/BrokerLedgerView.vue')
+const TailorWorkView = () => import('../views/TailorWorkView.vue')
+const TailorPaymentView = () => import('../views/TailorPaymentView.vue')
+const TailorLedgerView = () => import('../views/TailorLedgerView.vue')
+const TailorBonusView = () => import('../views/TailorBonusView.vue')
+const TailorPerformanceView = () => import('../views/TailorPerformanceView.vue')
+const EmbroideryWorkView = () => import('../views/EmbroideryWorkView.vue')
+const EmbroideryPaymentView = () => import('../views/EmbroideryPaymentView.vue')
+const EmbroideryLedgerView = () => import('../views/EmbroideryLedgerView.vue')
+const CustomerCategoriesView = () => import('../views/CustomerCategoriesView.vue')
+const LeadsView = () => import('../views/LeadsView.vue')
+const FollowUpsView = () => import('../views/FollowUpsView.vue')
+const ReferralsView = () => import('../views/ReferralsView.vue')
+const OccasionsView = () => import('../views/OccasionsView.vue')
+const WhatsAppView = () => import('../views/WhatsAppView.vue')
+const SmsView = () => import('../views/SmsView.vue')
+const MarketingCampaignsView = () => import('../views/MarketingCampaignsView.vue')
+const EmailLogsView = () => import('../views/EmailLogsView.vue')
+const SalesmanTargetsView = () => import('../views/SalesmanTargetsView.vue')
+const BeatsView = () => import('../views/BeatsView.vue')
+const SalesmanVisitsView = () => import('../views/SalesmanVisitsView.vue')
+const SalesmanTrackingView = () => import('../views/SalesmanTrackingView.vue')
+const SalesmanCollectionsView = () => import('../views/SalesmanCollectionsView.vue')
+const SalesmanExpensesView = () => import('../views/SalesmanExpensesView.vue')
+const SalesmanReportsView = () => import('../views/SalesmanReportsView.vue')
+const SalesOrdersView = () => import('../views/SalesOrdersView.vue')
+const SalesQuotationsView = () => import('../views/SalesQuotationsView.vue')
+const PosView = () => import('../views/PosView.vue')
+const SalesReturnsView = () => import('../views/SalesReturnsView.vue')
+const B2bOrdersView = () => import('../views/B2bOrdersView.vue')
+const EcommerceIntegrationsView = () => import('../views/EcommerceIntegrationsView.vue')
+const ChannelOrdersView = () => import('../views/ChannelOrdersView.vue')
+const ChannelListingsView = () => import('../views/ChannelListingsView.vue')
+const ChannelSyncLogsView = () => import('../views/ChannelSyncLogsView.vue')
+const BomsView = () => import('../views/BomsView.vue')
+const ManufacturingOrdersView = () => import('../views/ManufacturingOrdersView.vue')
+const JobWorksView = () => import('../views/JobWorksView.vue')
+const FabricRollsView = () => import('../views/FabricRollsView.vue')
+const FabricInspectionsView = () => import('../views/FabricInspectionsView.vue')
+const ShrinkageRecordsView = () => import('../views/ShrinkageRecordsView.vue')
+const FabricCuttingsView = () => import('../views/FabricCuttingsView.vue')
+const ExpensesView = () => import('../views/ExpensesView.vue')
+const EmployeeClaimsView = () => import('../views/EmployeeClaimsView.vue')
+const VehicleExpensesView = () => import('../views/VehicleExpensesView.vue')
+const FuelExpensesView = () => import('../views/FuelExpensesView.vue')
+const ElectricityBillsView = () => import('../views/ElectricityBillsView.vue')
+const FactoryMaintenanceView = () => import('../views/FactoryMaintenanceView.vue')
+const AssetMaintenanceView = () => import('../views/AssetMaintenanceView.vue')
+const DispatchPlansView = () => import('../views/DispatchPlansView.vue')
+const ProofOfDeliveryView = () => import('../views/ProofOfDeliveryView.vue')
+const VouchersView = () => import('../views/VouchersView.vue')
+const CashBookView = () => import('../views/CashBookView.vue')
+const PettyCashView = () => import('../views/PettyCashView.vue')
+const TrialBalanceView = () => import('../views/TrialBalanceView.vue')
+const ProfitLossView = () => import('../views/ProfitLossView.vue')
+const BalanceSheetView = () => import('../views/BalanceSheetView.vue')
+const BankBookView = () => import('../views/BankBookView.vue')
+const JournalView = () => import('../views/JournalView.vue')
+const DayBookView = () => import('../views/DayBookView.vue')
+const CustomerLedgerView = () => import('../views/CustomerLedgerView.vue')
+const SupplierLedgerView = () => import('../views/SupplierLedgerView.vue')
+const ExpenseLedgerView = () => import('../views/ExpenseLedgerView.vue')
+const PriceListsView = () => import('../views/PriceListsView.vue')
+const CycleCountsView = () => import('../views/CycleCountsView.vue')
+const BatchesView = () => import('../views/BatchesView.vue')
+const SerialNumbersView = () => import('../views/SerialNumbersView.vue')
+const InventoryAlertsView = () => import('../views/InventoryAlertsView.vue')
+const DeadStockView = () => import('../views/DeadStockView.vue')
+const ReorderView = () => import('../views/ReorderView.vue')
+const ReportsView = () => import('../views/ReportsView.vue')
+const BarcodeScanView = () => import('../views/BarcodeScanView.vue')
+const LabelPrintingView = () => import('../views/LabelPrintingView.vue')
+const AuditLogsView = () => import('../views/AuditLogsView.vue')
+const BackupView = () => import('../views/BackupView.vue')
+const GstToolsView = () => import('../views/GstToolsView.vue')
+const EInvoicesView = () => import('../views/EInvoicesView.vue')
+const SearchResultsView = () => import('../views/SearchResultsView.vue')
+const EWayBillsView = () => import('../views/EWayBillsView.vue')
+const NotificationsView = () => import('../views/NotificationsView.vue')
+const LeaveApplicationsView = () => import('../views/LeaveApplicationsView.vue')
+const OvertimeView = () => import('../views/OvertimeView.vue')
+const EmployeeBonusesView = () => import('../views/EmployeeBonusesView.vue')
+const SalaryAdvancesView = () => import('../views/SalaryAdvancesView.vue')
+const EmployeeLoansView = () => import('../views/EmployeeLoansView.vue')
+const BiometricPunchesView = () => import('../views/BiometricPunchesView.vue')
+const PayrollView = () => import('../views/PayrollView.vue')
+const CustomerDisplayView = () => import('../views/CustomerDisplayView.vue')
+const PaymentGatewaysView = () => import('../views/PaymentGatewaysView.vue')
+const PaymentTransactionsView = () => import('../views/PaymentTransactionsView.vue')
+const PayView = () => import('../views/PayView.vue')
+const AiInsightsView = () => import('../views/AiInsightsView.vue')
+const AiAssistantView = () => import('../views/AiAssistantView.vue')
 
 // Single-domain app. Public routes (login + self-serve signup / verification /
 // provisioning status) sit alongside the authenticated tenant application; the
@@ -343,6 +353,16 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
 })
+
+// Drive the global top progress bar around each navigation so lazy route-chunk
+// fetches (see the dynamic imports above) show visible feedback instead of a
+// frozen screen. finish() runs on success, redirect, and failure alike.
+const routeProgress = useRouteProgress()
+router.beforeEach((to, from) => {
+  if (to.path !== from.path) routeProgress.start()
+})
+router.afterEach(() => routeProgress.finish())
+router.onError(() => routeProgress.finish())
 
 router.beforeEach(async (to) => {
   // SaaS-owner platform panel has its own token/session, separate from staff.

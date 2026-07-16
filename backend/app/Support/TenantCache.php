@@ -73,4 +73,42 @@ class TenantCache
     {
         Cache::forget(self::key($key));
     }
+
+    // -----------------------------------------------------------------------
+    // Version-tagged caching (§17 Performance — Caching + auto-invalidation).
+    //
+    // The database cache driver has no tag-based flush, so we invalidate whole
+    // groups of keys with a monotonic version counter instead of enumerating
+    // them. Every versioned key embeds the group's current version, so bumping
+    // the version orphans all prior keys at once — they simply stop being read
+    // and age out by TTL. Writers call bump($group); readers call
+    // rememberVersioned($group, ...). Always pass a real TTL to versioned
+    // entries so a (rare) lost bump self-heals rather than serving forever.
+    // -----------------------------------------------------------------------
+
+    /** Current cache version for a group (per tenant); starts at 1. */
+    public static function version(string $group): int
+    {
+        return (int) Cache::get(self::key('ver_'.$group), 1);
+    }
+
+    /** Invalidate every versioned key in a group for the current tenant. */
+    public static function bump(string $group): void
+    {
+        $k = self::key('ver_'.$group);
+        Cache::forever($k, self::version($group) + 1);
+    }
+
+    /**
+     * Remember a value under a key stamped with its group's current version, so
+     * bump($group) transparently invalidates it. $ttl is required (seconds).
+     *
+     * @template T
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public static function rememberVersioned(string $group, string $key, int $ttl, Closure $callback)
+    {
+        return self::remember($group.'_v'.self::version($group).'_'.$key, $ttl, $callback);
+    }
 }
