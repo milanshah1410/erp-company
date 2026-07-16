@@ -278,7 +278,7 @@ function fmt(dt: string | null) {
 .header h1 { font-size: 1.5rem; font-weight: 600; }
 .subtitle { color: #6b7280; margin: 0.25rem 0 1.25rem; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
-.card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem; background: #fff; display: flex; flex-direction: column; gap: 0.75rem; }
+.card { border: 1px solid var(--border, #e8e4da); border-radius: 12px; padding: 1rem; background: var(--surface, #fff); display: flex; flex-direction: column; gap: 0.75rem; }
 .card-head { display: flex; align-items: center; gap: 0.6rem; }
 .card-head > i { font-size: 1.4rem; color: #4b5563; }
 .card-title { display: flex; flex-direction: column; flex: 1; }
@@ -293,7 +293,7 @@ function fmt(dt: string | null) {
 .empty { padding: 2rem; text-align: center; color: #6b7280; border: 1px dashed #e5e7eb; border-radius: 12px; }
 .section { font-size: 1.1rem; font-weight: 600; margin: 1.75rem 0 0.75rem; }
 .platform-strip { display: flex; gap: 0.6rem; flex-wrap: wrap; }
-.platform-btn { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; width: 110px; padding: 1rem 0.5rem; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; cursor: pointer; transition: 0.15s; }
+.platform-btn { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; width: 110px; padding: 1rem 0.5rem; border: 1px solid var(--border, #e8e4da); border-radius: 10px; background: var(--surface, #fff); cursor: pointer; transition: 0.15s; }
 .platform-btn:hover:not(:disabled) { border-color: #6366f1; background: #f5f5ff; }
 .platform-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .platform-btn i { font-size: 1.5rem; color: #4b5563; }

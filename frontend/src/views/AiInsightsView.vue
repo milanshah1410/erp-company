@@ -354,13 +354,13 @@ onMounted(() => {
 }
 .tabbar { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .tab {
-  border: 1px solid #e8e4da; background: #fff; color: #374151; cursor: pointer;
+  border: 1px solid var(--border, #e8e4da); background: var(--surface, #fff); color: var(--graphite, #374151); cursor: pointer;
   padding: 0.5rem 0.9rem; border-radius: 8px; font-size: 0.88rem; font-weight: 500;
   display: inline-flex; align-items: center; gap: 0.4rem; transition: all 0.15s;
 }
 .tab:hover { border-color: #e8a33d; }
 .tab.active { background: #e8a33d; border-color: #e8a33d; color: #fff; }
-.panel { background: #fff; border: 1px solid #e8e4da; border-radius: 12px; padding: 1.25rem; }
+.panel { background: var(--surface, #fff); border: 1px solid var(--border, #e8e4da); border-radius: 12px; padding: 1.25rem; }
 .panel h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 0.75rem; }
 .panel h2 small, .panel h3 small { font-weight: 400; color: #9ca3af; font-size: 0.8rem; }
 .panel h3 { font-size: 0.95rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }

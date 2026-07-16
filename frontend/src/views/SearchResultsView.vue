@@ -183,9 +183,9 @@ watch(
   justify-content: space-between;
   gap: 0.6rem;
   text-align: left;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 12px;
   padding: 0.75rem 0.9rem;
   cursor: default;
 }

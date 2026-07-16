@@ -58,7 +58,7 @@ return [
     | The SPA/front-end origin users log in at. Used in provisioning + password
     | emails as the "log in" link. Falls back to APP_URL when unset.
     */
-    'frontend_url' => env('APP_FRONTEND_URL', env('APP_URL', 'http://localhost')),
+    'frontend_url' => env('APP_FRONTEND_URL', env('FRONTEND_URL', env('APP_URL', 'http://localhost'))),
 
     /*
     |--------------------------------------------------------------------------

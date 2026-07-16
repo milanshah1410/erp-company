@@ -224,7 +224,7 @@ onMounted(async () => {
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .header h1 { font-size: 1.5rem; font-weight: 600; }
-.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; }
+.card { background: var(--surface, #fff); border: 1px solid var(--border, #e8e4da); border-radius: 12px; padding: 1rem; }
 .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.6rem; }
 .ratings-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .ratings-tools { display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }

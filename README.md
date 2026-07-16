@@ -31,7 +31,8 @@ Master Data module, on top of a data model ready for the later inventory/purchas
 ```bash
 cd backend
 # .env is preconfigured for MySQL (DB_DATABASE=sims, root, no password)
-php artisan migrate --seed     # if starting fresh
+php artisan migrate --seed # if starting fresh
+php artisan migrate:fresh --seed # dropping with starting fresh  
 php artisan serve              # http://127.0.0.1:8000
 ```
 

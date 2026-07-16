@@ -221,6 +221,43 @@ onMounted(load)
     <h1>Company Settings</h1>
 
     <div class="card">
+      <h2>Document Numbering</h2>
+      <p class="card-note">
+        Prefix used when generating each document's next number, e.g. a "PO" prefix produces PO-000001. Only affects
+        numbers generated from now on — existing documents keep their numbers.
+      </p>
+
+      <div v-if="loading" class="loading">Loading…</div>
+      <div v-else class="form-grid">
+        <div v-for="item in NUMBER_PREFIX_KEYS" :key="item.key" class="fld">
+          <label>{{ item.label }}</label>
+          <InputText v-model="numberPrefixes[item.key]" :disabled="!canEdit" />
+        </div>
+      </div>
+
+      <div v-if="canEdit" class="actions">
+        <Button label="Save" icon="pi pi-check" :loading="saving" :disabled="loading" @click="save" />
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Default Tax Rate</h2>
+      <p class="card-note">
+        Suggested tax percentage pre-filled when creating a new product. Individual products can still override it.
+      </p>
+
+      <div v-if="loading" class="loading">Loading…</div>
+      <div v-else class="fld">
+        <label>Default tax %</label>
+        <InputNumber v-model="defaultTaxPercent" :min="0" :max="100" :minFractionDigits="0" :maxFractionDigits="2" suffix=" %" :disabled="!canEdit" />
+      </div>
+
+      <div v-if="canEdit" class="actions">
+        <Button label="Save" icon="pi pi-check" :loading="saving" :disabled="loading" @click="save" />
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Inventory Costing Method</h2>
       <p class="card-note">
         Determines how outward stock movements (sales, transfers, adjustments) are costed.
@@ -301,23 +338,6 @@ onMounted(load)
           <label>Currency symbol</label>
           <InputText v-model="currencySymbol" :disabled="!canEdit" placeholder="₹" />
         </div>
-      </div>
-
-      <div v-if="canEdit" class="actions">
-        <Button label="Save" icon="pi pi-check" :loading="saving" :disabled="loading" @click="save" />
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Default Tax Rate</h2>
-      <p class="card-note">
-        Suggested tax percentage pre-filled when creating a new product. Individual products can still override it.
-      </p>
-
-      <div v-if="loading" class="loading">Loading…</div>
-      <div v-else class="fld">
-        <label>Default tax %</label>
-        <InputNumber v-model="defaultTaxPercent" :min="0" :max="100" :minFractionDigits="0" :maxFractionDigits="2" suffix=" %" :disabled="!canEdit" />
       </div>
 
       <div v-if="canEdit" class="actions">
@@ -437,40 +457,22 @@ onMounted(load)
         <Button label="Save" icon="pi pi-check" :loading="savingMail" :disabled="loading" @click="saveMail" />
       </div>
     </div>
-
-    <div class="card">
-      <h2>Document Numbering</h2>
-      <p class="card-note">
-        Prefix used when generating each document's next number, e.g. a "PO" prefix produces PO-000001. Only affects
-        numbers generated from now on — existing documents keep their numbers.
-      </p>
-
-      <div v-if="loading" class="loading">Loading…</div>
-      <div v-else class="form-grid">
-        <div v-for="item in NUMBER_PREFIX_KEYS" :key="item.key" class="fld">
-          <label>{{ item.label }}</label>
-          <InputText v-model="numberPrefixes[item.key]" :disabled="!canEdit" />
-        </div>
-      </div>
-
-      <div v-if="canEdit" class="actions">
-        <Button label="Save" icon="pi pi-check" :loading="saving" :disabled="loading" @click="save" />
-      </div>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .settings-page h1 {
   font-size: 1.4rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  column-span: all;
 }
 .card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 12px;
   padding: 1.25rem 1.5rem;
-  max-width: 720px;
+  break-inside: avoid;
+  margin-bottom: 1.25rem;
 }
 .card h2 {
   font-size: 1.05rem;
@@ -491,13 +493,13 @@ onMounted(load)
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.75rem 0.9rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border, #e8e4da);
   border-radius: 8px;
   cursor: pointer;
 }
 .option.selected {
-  border-color: #2563eb;
-  background: #eff6ff;
+  border-color: var(--safety-amber, #e8a33d);
+  background: rgba(232, 163, 61, 0.1);
 }
 .option-text {
   display: flex;
@@ -540,11 +542,13 @@ onMounted(load)
   max-width: none;
 }
 .settings-page {
-  display: flex;
-  flex-direction: column;
+  columns: 2;
+  column-gap: 1.25rem;
 }
-.settings-page .card + .card {
-  margin-top: 1.25rem;
+@media (max-width: 900px) {
+  .settings-page {
+    columns: 1;
+  }
 }
 .subhead {
   font-size: 0.95rem;

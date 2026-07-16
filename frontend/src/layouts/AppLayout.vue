@@ -69,6 +69,16 @@ function isGroup(entry: MenuNode): boolean {
   return entry.to === null && Array.isArray(entry.children) && entry.children.length > 0
 }
 
+// Dashboard + the virtual Favorites/Recent groups are pinned to the left as
+// static, icon-only buttons (label hidden, hover tooltip); the rest of the menu
+// scrolls horizontally beside them.
+const PINNED_LABELS = new Set(['Favorites', 'Recent'])
+function isPinned(entry: MenuNode): boolean {
+  return entry.to === '/' || PINNED_LABELS.has(entry.label)
+}
+const pinnedNav = computed(() => nav.value.filter(isPinned))
+const scrollNav = computed(() => nav.value.filter((e) => !isPinned(e)))
+
 // Favorites and Recent are surfaced as virtual groups (project-stack.md §3),
 // inserted right after Dashboard when non-empty.
 const nav = computed<MenuNode[]>(() => {
@@ -224,25 +234,55 @@ async function logout() {
 
     <!-- Horizontal top menu bar -->
     <nav class="topnav">
-      <template v-for="entry in nav" :key="entry.label">
-        <RouterLink v-if="!isGroup(entry)" :to="entry.to!" class="topnav-item" @click="closeMenu">
-          <i :class="entry.icon" />
-          <span>{{ entry.label }}</span>
-        </RouterLink>
+      <!-- Pinned, static, icon-only cluster: Dashboard / Favorites / Recent. -->
+      <div class="topnav-pinned">
+        <template v-for="entry in pinnedNav" :key="entry.label">
+          <RouterLink
+            v-if="!isGroup(entry)"
+            :to="entry.to!"
+            class="topnav-item icon-only"
+            :title="entry.label"
+            @click="closeMenu"
+          >
+            <i :class="entry.icon" />
+          </RouterLink>
 
-        <button
-          v-else
-          class="topnav-item"
-          :class="{ active: isGroupActive(entry), open: openGroup === entry.label }"
-          @mouseenter="openGroupHover($event, entry.label)"
-          @mouseleave="scheduleClose"
-          @click="toggleGroup($event, entry.label)"
-        >
-          <i :class="entry.icon" />
-          <span>{{ entry.label }}</span>
-          <i class="pi pi-chevron-down chev" />
-        </button>
-      </template>
+          <button
+            v-else
+            class="topnav-item icon-only"
+            :class="{ active: isGroupActive(entry), open: openGroup === entry.label }"
+            :title="entry.label"
+            @mouseenter="openGroupHover($event, entry.label)"
+            @mouseleave="scheduleClose"
+            @click="toggleGroup($event, entry.label)"
+          >
+            <i :class="entry.icon" />
+          </button>
+        </template>
+      </div>
+
+      <!-- Scrolling cluster: the workspace groups (icon + label). -->
+      <div class="topnav-scroll">
+        <template v-for="entry in scrollNav" :key="entry.label">
+          <RouterLink v-if="!isGroup(entry)" :to="entry.to!" class="topnav-item" @click="closeMenu">
+            <i :class="entry.icon" />
+            <span>{{ entry.label }}</span>
+          </RouterLink>
+
+          <button
+            v-else
+            class="topnav-item"
+            :class="{ active: isGroupActive(entry), open: openGroup === entry.label }"
+            @mouseenter="openGroupHover($event, entry.label)"
+            @mouseleave="scheduleClose"
+            @click="toggleGroup($event, entry.label)"
+          >
+            <i :class="entry.icon" />
+            <span>{{ entry.label }}</span>
+            <i class="pi pi-chevron-down chev" />
+          </button>
+        </template>
+      </div>
     </nav>
 
     <!-- Dropdown flyout for the open group -->
@@ -392,28 +432,51 @@ async function logout() {
 .topnav {
   display: flex;
   align-items: stretch;
-  gap: 2px;
   padding: 0 0.75rem;
   background: linear-gradient(180deg, #2b333a 0%, #262c32 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
   flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 30;
 }
-.topnav::-webkit-scrollbar {
+/* Static, non-scrolling cluster (Dashboard / Favorites / Recent), always
+   visible on the left with a divider between it and the scrolling menu. */
+.topnav-pinned {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex-shrink: 0;
+  padding-right: 6px;
+  margin-right: 4px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+/* The workspace groups scroll horizontally beside the pinned cluster. */
+.topnav-scroll {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+.topnav-scroll::-webkit-scrollbar {
   height: 5px;
 }
-.topnav::-webkit-scrollbar-track {
+.topnav-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
-.topnav::-webkit-scrollbar-thumb {
+.topnav-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
+}
+/* Icon-only pinned items: hide the label, center the glyph. */
+.topnav-item.icon-only {
+  padding: 0.7rem 0.8rem;
+  justify-content: center;
 }
 .topnav-item {
   display: inline-flex;

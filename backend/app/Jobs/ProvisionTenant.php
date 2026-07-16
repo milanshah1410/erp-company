@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\FinancialYear;
+use App\Models\MenuItem;
 use App\Models\OnboardingProgress;
 use App\Models\PendingRegistration;
 use App\Models\Plan;
@@ -18,6 +19,7 @@ use App\Models\Warehouse;
 use App\Notifications\TenantReadyEmail;
 use App\Services\DemoDataGenerator;
 use App\Support\TenantContext;
+use Database\Seeders\MenuSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantDatabaseSeeder;
 use Illuminate\Bus\Queueable;
@@ -63,6 +65,7 @@ class ProvisionTenant implements ShouldQueue
         $plan = Plan::where('slug', $registration->plan_slug)->firstOrFail();
 
         $this->ensureGlobalRolesExist();
+        $this->ensureGlobalMenuExists();
 
         // 1. Central tenant record (landlord-owned, no tenant scope).
         $tenant = Tenant::create([
@@ -77,6 +80,13 @@ class ProvisionTenant implements ShouldQueue
             app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
 
             (new TenantDatabaseSeeder)->run();
+
+            // Give the tenant its own copy of the navigation catalogue, stamped
+            // with its tenant_id, so it can be reordered/customised per tenant
+            // without touching the shared template. The read-time permission /
+            // plan-feature / module gating in MenuController still applies on
+            // top of these rows.
+            $this->cloneMenuForTenant($tenant->id);
 
             $admin = new User();
             $admin->name = $registration->admin_name;
@@ -276,6 +286,53 @@ class ProvisionTenant implements ShouldQueue
         if (! $exists) {
             (new RolePermissionSeeder)->run();
         }
+    }
+
+    /**
+     * Ensure the shared (global) menu catalogue exists before we clone it for a
+     * new tenant. Idempotent — MenuSeeder only seeds/updates the NULL-tenant
+     * rows, so calling it on every provision is safe and self-heals a deploy
+     * whose menu was never seeded.
+     */
+    private function ensureGlobalMenuExists(): void
+    {
+        if (! MenuItem::whereNull('tenant_id')->exists()) {
+            (new MenuSeeder)->run();
+        }
+    }
+
+    /**
+     * Clone the global menu catalogue (tenant_id NULL) into rows owned by this
+     * tenant. Runs inside the tenant context. Parent links are remapped to the
+     * freshly-created tenant rows, and the whole thing is idempotent: if the
+     * tenant already has menu rows we leave them untouched.
+     */
+    private function cloneMenuForTenant(int $tenantId): void
+    {
+        if (MenuItem::where('tenant_id', $tenantId)->exists()) {
+            return; // already cloned
+        }
+
+        // Group the global rows by parent so we can walk the tree top-down and
+        // always know a child's new parent id before inserting the child.
+        $byParent = MenuItem::whereNull('tenant_id')
+            ->orderBy('sort_order')
+            ->get()
+            ->groupBy('parent_id');
+
+        $clone = function (?int $globalParentId, ?int $newParentId) use (&$clone, $byParent, $tenantId): void {
+            foreach ($byParent->get($globalParentId, collect()) as $row) {
+                /** @var MenuItem $copy */
+                $copy = $row->replicate();
+                $copy->tenant_id = $tenantId;
+                $copy->parent_id = $newParentId;
+                $copy->save();
+
+                $clone($row->id, $copy->id);
+            }
+        };
+
+        $clone(null, null);
     }
 
     public function failed(Throwable $e): void

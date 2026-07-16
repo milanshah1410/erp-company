@@ -40,19 +40,35 @@ class MenuController extends Controller
         $planFeatures = $this->planFeatures($tenantId);
         $enabledModules = $this->enabledModules();
 
-        // Global catalogue rows (tenant_id NULL) plus any tenant-specific rows.
+        // Each tenant owns a cloned copy of the navigation catalogue (stamped
+        // with its tenant_id at provisioning time), so it can be customised per
+        // tenant. Tenants provisioned before per-tenant menus have no rows of
+        // their own, so we fall back to the shared global catalogue (tenant_id
+        // NULL) for them.
+        //
         // The catalogue is tenant-stable and read on every page load, so it is
         // cached (§17 Performance — Caching); a MenuItem write bumps the version
         // (InvalidatesTenantCache) and the 10-minute TTL is a staleness backstop.
         // Per-user favorites/recents below stay live — they change too often.
-        $items = TenantCache::rememberVersioned('menu_items', 'catalogue', 600, fn () => MenuItem::query()
-            ->where('is_active', true)
-            ->where(function ($q) use ($tenantId) {
-                $q->whereNull('tenant_id')->orWhere('tenant_id', $tenantId);
-            })
-            ->orderBy('sort_order')
-            ->get());
+        //
+        // Cache plain attribute arrays, never the Eloquent Collection itself:
+        // serializing hydrated models and unserializing them later throws
+        // "incomplete object" errors under the database/file cache drivers. We
+        // rehydrate into MenuItem instances after the read so the tree logic
+        // below keeps working with real models.
+        $rows = TenantCache::rememberVersioned('menu_items', 'catalogue', 600, function () use ($tenantId) {
+            $base = fn (?int $tid) => MenuItem::query()
+                ->where('is_active', true)
+                ->when($tid === null, fn ($q) => $q->whereNull('tenant_id'), fn ($q) => $q->where('tenant_id', $tid))
+                ->orderBy('sort_order')
+                ->get();
 
+            $owned = $base($tenantId);
+
+            return ($owned->isNotEmpty() ? $owned : $base(null))->toArray();
+        });
+
+        $items = MenuItem::hydrate($rows);
         $byParent = $items->groupBy('parent_id');
         $favoriteIds = MenuFavorite::where('user_id', $user->id)->pluck('menu_item_id')->all();
 

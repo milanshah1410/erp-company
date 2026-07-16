@@ -96,7 +96,7 @@ async function lookupHsn() {
 h1 { font-size: 1.5rem; font-weight: 600; }
 .subtitle { color: #6b7280; margin-bottom: 1.25rem; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.25rem; }
-.card { background: var(--surface-card, #fff); border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.25rem; }
+.card { background: var(--surface, #fff); border: 1px solid var(--border, #e8e4da); border-radius: 12px; padding: 1.25rem; }
 .card h2 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.25rem; }
 .hint { color: #6b7280; font-size: 0.85rem; margin-bottom: 0.75rem; }
 .row { display: flex; gap: 0.5rem; align-items: center; }

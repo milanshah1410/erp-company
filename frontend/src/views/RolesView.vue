@@ -310,9 +310,9 @@ onMounted(async () => {
   align-items: start;
 }
 .panel {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 12px;
   padding: 0.5rem;
 }
 .role-list {
@@ -394,7 +394,7 @@ onMounted(async () => {
   margin-top: 0.5rem;
 }
 .module-card {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border, #e8e4da);
   border-radius: 8px;
   padding: 0.75rem;
 }

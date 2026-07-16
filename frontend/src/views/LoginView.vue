@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, RouterLink } from 'vue-router'
 import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
 import Button from 'primevue/button'
@@ -50,6 +50,11 @@ async function submit() {
 
         <Button type="submit" label="Sign In" :loading="loading" class="submit" />
       </form>
+
+      <p class="signup">
+        Don't have an account?
+        <RouterLink to="/register">Create one</RouterLink>
+      </p>
 
       <p class="hint">Default admin: <code>admin@sims.test</code> / <code>password</code></p>
     </div>
@@ -125,8 +130,22 @@ form :deep(.p-password input) {
 .submit {
   margin-top: 1.25rem;
 }
+.signup {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+.signup a {
+  color: #c98730;
+  font-weight: 600;
+  text-decoration: none;
+}
+.signup a:hover {
+  text-decoration: underline;
+}
 .hint {
-  margin-top: 1.25rem;
+  margin-top: 1rem;
   text-align: center;
   font-size: 0.78rem;
   color: #9ca3af;

@@ -87,9 +87,23 @@ class CentralRolePermissionSeeder extends Seeder
         try {
             $all = $this->buildPermissions();
 
+            // Ensure every permission exists via a DB-level firstOrCreate rather
+            // than Permission::findOrCreate(): the latter resolves through
+            // Spatie's cached permission collection, which can be stale on a
+            // re-run (or mid-seed) and then attempt to INSERT a name that already
+            // exists — a unique-constraint crash. firstOrCreate always hits the
+            // database, so the seeder is safely idempotent. (Permissions carry no
+            // team column, so name + guard is the whole identity.)
             foreach ($all as $name) {
-                Permission::findOrCreate($name, self::GUARD);
+                Permission::query()->firstOrCreate([
+                    'name' => $name,
+                    'guard_name' => self::GUARD,
+                ]);
             }
+
+            // Rebuild the cache so the role sync below resolves every permission
+            // just ensured, not a snapshot taken before this run.
+            $registrar->forgetCachedPermissions();
 
             foreach ($this->roleMap($all) as $roleName => $perms) {
                 $role = Role::findOrCreate($roleName, self::GUARD);

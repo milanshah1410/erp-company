@@ -211,7 +211,7 @@ class RegistrationController extends Controller
             'error' => $registration->error,
             'tenant_id' => $registration->tenant_id,
             'login_url' => $registration->status === 'active'
-                ? (string) config('app.frontend_url', config('app.url'))
+                ? rtrim((string) config('app.frontend_url', config('app.url')), '/') . '/login'
                 : null,
         ]);
     }

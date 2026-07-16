@@ -195,6 +195,70 @@ async function generate() {
     <h1>System Tools</h1>
     <p class="subtitle">Administrative utilities for this workspace.</p>
 
+    <!-- Performance diagnostics (project-stack.md §17) -->
+    <section class="tool-card">
+      <div class="tool-head">
+        <div class="tool-icon"><i class="pi pi-gauge" /></div>
+        <div>
+          <h2>Performance</h2>
+          <p>Live health of the cache, queue and database indexing for this workspace.</p>
+        </div>
+        <Button
+          class="refresh-btn"
+          icon="pi pi-refresh"
+          text
+          rounded
+          :loading="perfLoading"
+          aria-label="Refresh"
+          @click="loadPerformance"
+        />
+      </div>
+
+      <div v-if="perf" class="perf-grid">
+        <!-- Cache -->
+        <div class="perf-panel">
+          <div class="perf-panel-head"><i class="pi pi-bolt" /> Cache</div>
+          <div class="perf-row"><span>Store</span><strong>{{ perf.cache.store }}</strong></div>
+          <div v-for="(v, g) in perf.cache.versions" :key="g" class="perf-row">
+            <span>{{ g }} version</span><strong>{{ v ?? '—' }}</strong>
+          </div>
+        </div>
+
+        <!-- Queue -->
+        <div class="perf-panel">
+          <div class="perf-panel-head"><i class="pi pi-inbox" /> Queue</div>
+          <div class="perf-row"><span>Driver</span><strong>{{ perf.queue.driver }}</strong></div>
+          <div class="perf-row">
+            <span>Pending jobs</span>
+            <strong :class="{ warn: (perf.queue.pending ?? 0) > 50 }">{{ perf.queue.pending ?? '—' }}</strong>
+          </div>
+          <div class="perf-row">
+            <span>Failed jobs</span>
+            <strong :class="{ fail: (perf.queue.failed ?? 0) > 0 }">{{ perf.queue.failed ?? '—' }}</strong>
+          </div>
+        </div>
+
+        <!-- Database / indexes -->
+        <div class="perf-panel">
+          <div class="perf-panel-head"><i class="pi pi-database" /> Indexes</div>
+          <div class="perf-row"><span>Driver</span><strong>{{ perf.database.connection_driver ?? perf.database.driver }}</strong></div>
+          <div class="perf-row"><span>Tables</span><strong>{{ perf.database.tables ?? '—' }}</strong></div>
+          <div class="perf-row"><span>Indexes</span><strong>{{ perf.database.indexes ?? '—' }}</strong></div>
+          <div class="perf-row">
+            <span>Tenant tables w/o secondary index</span>
+            <strong :class="{ warn: perf.database.unindexed_tables.length > 0 }">
+              {{ perf.database.unindexed_tables.length }}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      <p v-if="perf?.database.unindexed_tables.length" class="hint perf-hint">
+        Under-indexed: {{ perf.database.unindexed_tables.join(', ') }}
+      </p>
+      <p v-if="perf" class="perf-stamp">Updated {{ new Date(perf.generated_at).toLocaleTimeString() }}</p>
+    </section>
+
     <!-- Demo Data (project-stack.md §7) -->
     <section class="tool-card">
       <div class="tool-head">
@@ -301,88 +365,36 @@ async function generate() {
         </ul>
       </div>
     </section>
-
-    <!-- Performance diagnostics (project-stack.md §17) -->
-    <section class="tool-card">
-      <div class="tool-head">
-        <div class="tool-icon"><i class="pi pi-gauge" /></div>
-        <div>
-          <h2>Performance</h2>
-          <p>Live health of the cache, queue and database indexing for this workspace.</p>
-        </div>
-        <Button
-          class="refresh-btn"
-          icon="pi pi-refresh"
-          text
-          rounded
-          :loading="perfLoading"
-          aria-label="Refresh"
-          @click="loadPerformance"
-        />
-      </div>
-
-      <div v-if="perf" class="perf-grid">
-        <!-- Cache -->
-        <div class="perf-panel">
-          <div class="perf-panel-head"><i class="pi pi-bolt" /> Cache</div>
-          <div class="perf-row"><span>Store</span><strong>{{ perf.cache.store }}</strong></div>
-          <div v-for="(v, g) in perf.cache.versions" :key="g" class="perf-row">
-            <span>{{ g }} version</span><strong>{{ v ?? '—' }}</strong>
-          </div>
-        </div>
-
-        <!-- Queue -->
-        <div class="perf-panel">
-          <div class="perf-panel-head"><i class="pi pi-inbox" /> Queue</div>
-          <div class="perf-row"><span>Driver</span><strong>{{ perf.queue.driver }}</strong></div>
-          <div class="perf-row">
-            <span>Pending jobs</span>
-            <strong :class="{ warn: (perf.queue.pending ?? 0) > 50 }">{{ perf.queue.pending ?? '—' }}</strong>
-          </div>
-          <div class="perf-row">
-            <span>Failed jobs</span>
-            <strong :class="{ fail: (perf.queue.failed ?? 0) > 0 }">{{ perf.queue.failed ?? '—' }}</strong>
-          </div>
-        </div>
-
-        <!-- Database / indexes -->
-        <div class="perf-panel">
-          <div class="perf-panel-head"><i class="pi pi-database" /> Indexes</div>
-          <div class="perf-row"><span>Driver</span><strong>{{ perf.database.connection_driver ?? perf.database.driver }}</strong></div>
-          <div class="perf-row"><span>Tables</span><strong>{{ perf.database.tables ?? '—' }}</strong></div>
-          <div class="perf-row"><span>Indexes</span><strong>{{ perf.database.indexes ?? '—' }}</strong></div>
-          <div class="perf-row">
-            <span>Tenant tables w/o secondary index</span>
-            <strong :class="{ warn: perf.database.unindexed_tables.length > 0 }">
-              {{ perf.database.unindexed_tables.length }}
-            </strong>
-          </div>
-        </div>
-      </div>
-
-      <p v-if="perf?.database.unindexed_tables.length" class="hint perf-hint">
-        Under-indexed: {{ perf.database.unindexed_tables.join(', ') }}
-      </p>
-      <p v-if="perf" class="perf-stamp">Updated {{ new Date(perf.generated_at).toLocaleTimeString() }}</p>
-    </section>
   </div>
 </template>
 
 <style scoped>
+.system-tools {
+  columns: 2;
+  column-gap: 1.5rem;
+}
+@media (max-width: 900px) {
+  .system-tools {
+    columns: 1;
+  }
+}
 .system-tools h1 {
   font-size: 1.6rem;
   font-weight: 600;
+  column-span: all;
 }
 .subtitle {
   color: #6b7280;
   margin-bottom: 1.5rem;
+  column-span: all;
 }
 .tool-card {
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e8e4da);
   border-radius: 12px;
   padding: 1.5rem;
-  max-width: 720px;
+  break-inside: avoid;
+  margin-bottom: 1.5rem;
 }
 .tool-head {
   display: flex;

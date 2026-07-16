@@ -131,10 +131,10 @@ onBeforeUnmount(() => timer && clearInterval(timer))
   gap: 1rem;
 }
 .card {
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 12px;
   padding: 1rem;
-  background: #fff;
+  background: var(--surface, #fff);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 .card.offline { opacity: 0.72; }

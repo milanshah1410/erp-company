@@ -261,17 +261,17 @@ h1 { font-size: 1.5rem; font-weight: 600; }
   flex-direction: column;
   align-items: flex-start;
   gap: 0.25rem;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 12px;
   padding: 0.85rem 1rem;
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.template-card:hover { border-color: #c7d2fe; }
-.template-card.active { border-color: #6366f1; box-shadow: 0 0 0 1px #6366f1 inset; }
-.template-card i { font-size: 1.15rem; color: #6366f1; }
+.template-card:hover { border-color: var(--safety-amber-light, #f2c274); }
+.template-card.active { border-color: var(--safety-amber, #e8a33d); box-shadow: 0 0 0 1px var(--safety-amber, #e8a33d) inset; }
+.template-card i { font-size: 1.15rem; color: var(--safety-amber, #e8a33d); }
 .tpl-label { font-weight: 600; font-size: 0.92rem; }
 .tpl-desc { font-size: 0.75rem; color: #6b7280; }
 
@@ -287,9 +287,9 @@ h1 { font-size: 1.5rem; font-weight: 600; }
   }
 }
 .panel {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 12px;
   padding: 1rem;
 }
 .search { position: relative; display: block; margin-bottom: 0.75rem; }
