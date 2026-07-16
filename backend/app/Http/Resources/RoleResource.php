@@ -12,6 +12,7 @@ class RoleResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'department' => $this->when(isset($this->department), fn () => $this->department),
             'permissions' => $this->whenLoaded('permissions', fn () => $this->permissions->pluck('name')),
             'permissions_count' => $this->when(isset($this->permissions_count), fn () => $this->permissions_count),
             'users_count' => $this->when(isset($this->users_count), fn () => $this->users_count),

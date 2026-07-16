@@ -34,6 +34,21 @@ const errors = ref<Record<string, string[]>>({})
 const selectedRole = computed(() => roles.value.find((r: any) => r.id === selectedId.value) ?? null)
 const isSystemRole = computed(() => !!selectedRole.value && SYSTEM_ROLES.includes(selectedRole.value.name))
 
+// Group roles by department (org chart), preserving the server's ordering.
+const groupedRoles = computed(() => {
+  const groups: { department: string; roles: any[] }[] = []
+  for (const role of roles.value) {
+    const dept = role.department || 'Other'
+    let group = groups.find((g) => g.department === dept)
+    if (!group) {
+      group = { department: dept, roles: [] }
+      groups.push(group)
+    }
+    group.roles.push(role)
+  }
+  return groups
+})
+
 function actionLabel(permission: string): string {
   return permission.slice(permission.lastIndexOf('.') + 1)
 }
@@ -189,32 +204,35 @@ onMounted(async () => {
     </div>
 
     <div class="panels">
-      <!-- Left: role list -->
+      <!-- Left: role list, grouped by department -->
       <div class="panel role-list">
-        <div
-          v-for="role in roles"
-          :key="role.id"
-          class="role-item"
-          :class="{ active: role.id === selectedId }"
-          @click="selectRole(role)"
-        >
-          <div class="role-info">
-            <div class="role-name">
-              {{ role.name }}
-              <Tag v-if="SYSTEM_ROLES.includes(role.name)" value="system role" severity="secondary" class="system-tag" />
+        <template v-for="group in groupedRoles" :key="group.department">
+          <div class="dept-label">{{ group.department }}</div>
+          <div
+            v-for="role in group.roles"
+            :key="role.id"
+            class="role-item"
+            :class="{ active: role.id === selectedId }"
+            @click="selectRole(role)"
+          >
+            <div class="role-info">
+              <div class="role-name">
+                {{ role.name }}
+                <Tag v-if="SYSTEM_ROLES.includes(role.name)" value="system role" severity="secondary" class="system-tag" />
+              </div>
+              <div class="role-sub">{{ role.permissions_count }} perms &middot; {{ role.users_count }} users</div>
             </div>
-            <div class="role-sub">{{ role.permissions_count }} perms &middot; {{ role.users_count }} users</div>
+            <Button
+              v-if="canDelete"
+              icon="pi pi-trash"
+              text
+              rounded
+              severity="danger"
+              size="small"
+              @click.stop="confirmDelete(role)"
+            />
           </div>
-          <Button
-            v-if="canDelete"
-            icon="pi pi-trash"
-            text
-            rounded
-            severity="danger"
-            size="small"
-            @click.stop="confirmDelete(role)"
-          />
-        </div>
+        </template>
         <div v-if="!rolesLoading && !roles.length" class="empty">No roles found.</div>
       </div>
 
@@ -301,6 +319,19 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+.dept-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+  padding: 0.75rem 0.75rem 0.3rem;
+}
+.dept-label:first-child {
+  padding-top: 0.25rem;
 }
 .role-item {
   display: flex;

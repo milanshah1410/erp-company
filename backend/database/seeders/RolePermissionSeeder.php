@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Support\TenantRoleCatalog;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -9,79 +10,21 @@ use Spatie\Permission\PermissionRegistrar;
 
 class RolePermissionSeeder extends Seeder
 {
-    /**
-     * Modules that get a full view/create/edit/delete permission set.
-     */
-    private array $modules = [
-        'products', 'categories', 'brands', 'units', 'warehouses',
-        'suppliers', 'customers', 'customer-categories', 'brokers', 'price-lists',
-        'leads', 'follow-ups', 'loyalty', 'coupons', 'referrals', 'whatsapp', 'sms', 'email', 'marketing-campaigns',
-        'salesmen', 'salesman-targets', 'beats', 'salesman-visits',
-        'salesman-locations', 'salesman-collections', 'salesman-expenses',
-        'stock', 'stock-ledger', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
-        'gate-entries', 'advanced-inventory', 'barcodes',
-        'purchase-indents', 'rfqs', 'vendor-ratings',
-        'purchases', 'purchase-invoices', 'sales', 'sales-returns', 'b2b-orders',
-        'ecommerce-integrations', 'channel-orders', 'channel-listings',
-        'reports', 'users', 'roles', 'settings',
-        'companies', 'branches', 'financial-years', 'gst-registrations', 'backups',
-        'hsn-codes', 'e-invoices', 'e-way-bills',
-        'departments', 'employees', 'attendance', 'salaries',
-        'leave-types', 'leave-applications', 'overtime', 'employee-bonuses',
-        'salary-advances', 'employee-loans', 'biometric-devices', 'biometric-punches',
-        'salary-structures', 'payroll',
-        'tailors', 'contractors', 'rate-cards', 'piece-rates', 'tailor-works', 'tailor-payments',
-        'tailor-alterations', 'tailor-bonuses',
-        'embroidery-vendors', 'embroidery-works', 'embroidery-payments',
-        'boms', 'manufacturing-orders', 'colour-printing', 'job-works',
-        'textile',
-        'expenses', 'expense-categories',
-        'vehicles', 'assets',
-        'employee-claims', 'vehicle-expenses', 'fuel-expenses',
-        'electricity-bills', 'factory-maintenances', 'asset-maintenances',
-        'drivers', 'delivery-routes', 'dispatch-plans', 'dispatch-pods', 'transport-charges',
-        'payments', 'payment-gateways',
-        'bank-accounts', 'vouchers', 'tds-tcs-rates',
-        'workflows',
-    ];
-
-    /**
-     * Modules that are view-only (no create/edit/delete) — e.g. an
-     * immutable log with no user-facing mutation actions.
-     */
-    private array $viewOnlyModules = [
-        'audit-logs', 'notifications', 'accounts', 'channel-sync-logs',
-        // AI Features (SRS §22) — read-only analytics + assistant.
-        'ai',
-    ];
-
-    /**
-     * Modules that also support an "approve" permission.
-     */
-    private array $approvable = [
-        'purchase-indents', 'purchases', 'purchase-invoices',
-        'sales', 'sales-returns', 'b2b-orders', 'channel-orders', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts',
-        'job-works', 'expenses',
-        'employee-claims', 'vehicle-expenses', 'fuel-expenses',
-        'electricity-bills', 'factory-maintenances', 'asset-maintenances',
-        'leave-applications', 'overtime', 'employee-bonuses', 'salary-advances', 'employee-loans',
-    ];
-
     public function run(): void
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        // --- Build permissions ---
+        // --- Build permissions (vocabulary lives in TenantRoleCatalog) ---
         $permissions = [];
-        foreach ($this->modules as $module) {
+        foreach (TenantRoleCatalog::MODULES as $module) {
             foreach (['view', 'create', 'edit', 'delete'] as $action) {
                 $permissions[] = "{$module}.{$action}";
             }
-            if (in_array($module, $this->approvable, true)) {
+            if (in_array($module, TenantRoleCatalog::APPROVABLE, true)) {
                 $permissions[] = "{$module}.approve";
             }
         }
-        foreach ($this->viewOnlyModules as $module) {
+        foreach (TenantRoleCatalog::VIEW_ONLY_MODULES as $module) {
             $permissions[] = "{$module}.view";
         }
 
@@ -213,6 +156,16 @@ class RolePermissionSeeder extends Seeder
             } else {
                 $role->syncPermissions($perms);
             }
+        }
+
+        // --- Level-2 departmental roles (TenantRoleCatalog) ---
+        // The org-chart roles beyond the hand-tuned ones above. A null expansion
+        // means "grant everything" (owner / MD / CEO).
+        $allPermissions = Permission::all();
+        foreach (TenantRoleCatalog::newRoles() as $roleName => $def) {
+            $role = Role::findOrCreate($roleName, 'web');
+            $expanded = TenantRoleCatalog::expand($def['spec']);
+            $role->syncPermissions($expanded === null ? $allPermissions : $expanded);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

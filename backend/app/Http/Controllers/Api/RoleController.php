@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RoleResource;
+use App\Support\TenantRoleCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,21 @@ class RoleController extends Controller
             ->groupBy('role_id')
             ->pluck('total', 'role_id');
 
-        $roles->each(fn ($role) => $role->users_count = (int) ($userCounts[$role->id] ?? 0));
+        // Tag each role with its department (Level-2 org chart) so the UI can
+        // group them. Custom roles fall into "Other".
+        $order = array_keys(TenantRoleCatalog::departments());
+        $roles->each(function ($role) use ($userCounts) {
+            $role->users_count = (int) ($userCounts[$role->id] ?? 0);
+            $role->department = TenantRoleCatalog::departmentOf($role->name) ?? 'Other';
+        });
+
+        // Order by department (org-chart order), then name — the UI groups in
+        // encounter order, so this drives the section ordering too.
+        $roles = $roles->sortBy(function ($role) use ($order) {
+            $idx = array_search($role->department, $order, true);
+
+            return sprintf('%03d:%s', $idx === false ? 999 : $idx, $role->name);
+        })->values();
 
         return RoleResource::collection($roles);
     }
