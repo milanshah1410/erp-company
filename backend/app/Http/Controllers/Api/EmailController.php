@@ -46,7 +46,12 @@ class EmailController extends Controller
                 ->orWhere('subject', 'like', "%{$search}%"));
         }
 
-        $query->orderByDesc('id');
+        $sort = $request->query('sort');
+        if ($sort && in_array($sort, ['to_email', 'subject', 'mailable', 'status', 'sent_at', 'created_at'], true)) {
+            $query->orderBy($sort, $request->query('direction') === 'asc' ? 'asc' : 'desc');
+        } else {
+            $query->orderByDesc('id');
+        }
         $perPage = min((int) $request->query('per_page', 15), 100);
 
         $page = $query->paginate($perPage);

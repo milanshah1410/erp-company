@@ -31,6 +31,8 @@ const canDelete = computed(() => auth.can('referrals.delete'))
 const crud = ref(useCrud('/referrals'))
 const search = ref('')
 const statusFilter = ref<string | null>(null)
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 const statusOptions = [
   { label: 'Pending', value: 'pending' },
@@ -56,12 +58,20 @@ function reload() {
   const params: Record<string, any> = {}
   if (search.value) params.search = search.value
   if (statusFilter.value) params.status = statusFilter.value
+  if (sortField.value && sortOrder.value) { params.sort = sortField.value; params.direction = sortOrder.value === 1 ? 'asc' : 'desc' }
   crud.value.fetch(params)
 }
 
 function onPage(e: any) {
   crud.value.currentPage = e.page + 1
   crud.value.perPage = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
   reload()
 }
 
@@ -223,11 +233,12 @@ onMounted(() => {
       :value="crud.items" :loading="crud.loading" lazy paginator
       :rows="crud.perPage" :totalRecords="crud.total" :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id" @page="onPage" class="p-datatable-sm"
+      removableSort :sortField="sortField ?? undefined" :sortOrder="sortOrder ?? undefined" @sort="onSort"
     >
       <Column header="Referrer">
         <template #body="{ data }">{{ data.referrer?.name ?? '—' }}</template>
       </Column>
-      <Column header="Referred">
+      <Column field="referred_name" header="Referred" sortable>
         <template #body="{ data }">
           <span>{{ data.referred_name }}</span>
           <span v-if="data.referred_phone" class="muted-sub">{{ data.referred_phone }}</span>
@@ -237,7 +248,7 @@ onMounted(() => {
         <template #body="{ data }">{{ data.referred_customer?.name ?? '—' }}</template>
       </Column>
       <Column field="reward_points" header="Reward Pts" style="text-align: right" />
-      <Column header="Status">
+      <Column field="status" header="Status" sortable>
         <template #body="{ data }">
           <Tag :severity="statusColors[data.status]" :value="data.status" />
         </template>

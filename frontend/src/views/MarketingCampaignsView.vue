@@ -33,6 +33,8 @@ const currentPage = ref(1)
 const perPage = ref(15)
 const search = ref('')
 const statusFilter = ref<string | null>(null)
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 const statusColors: Record<string, string> = {
   draft: 'secondary', sending: 'info', sent: 'success', failed: 'danger',
@@ -68,7 +70,10 @@ async function reload() {
   loading.value = true
   try {
     const { data } = await http.get('/marketing-campaigns', {
-      params: { per_page: perPage.value, page: currentPage.value, search: search.value || undefined, status: statusFilter.value || undefined },
+      params: {
+        per_page: perPage.value, page: currentPage.value, search: search.value || undefined, status: statusFilter.value || undefined,
+        ...(sortField.value && sortOrder.value ? { sort: sortField.value, direction: sortOrder.value === 1 ? 'asc' : 'desc' } : {}),
+      },
     })
     items.value = data.data ?? []
     total.value = data.total ?? items.value.length
@@ -83,6 +88,13 @@ async function reload() {
 function onPage(e: any) {
   currentPage.value = e.page + 1
   perPage.value = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  currentPage.value = 1
   reload()
 }
 
@@ -260,22 +272,23 @@ onMounted(() => {
     <DataTable
       :value="items" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
       :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm"
+      removableSort :sortField="sortField ?? undefined" :sortOrder="sortOrder ?? undefined" @sort="onSort"
     >
-      <Column field="name" header="Name" />
-      <Column field="subject" header="Subject" />
+      <Column field="name" header="Name" sortable />
+      <Column field="subject" header="Subject" sortable />
       <Column header="Audience" style="width: 12rem">
         <template #body="{ data }">
           {{ audienceLabels[data.audience] ?? data.audience }}
           <span v-if="data.customer_category" class="cat">· {{ data.customer_category }}</span>
         </template>
       </Column>
-      <Column header="Recipients" style="width: 9rem">
+      <Column field="recipient_count" header="Recipients" style="width: 9rem" sortable>
         <template #body="{ data }">
           <span v-if="data.status === 'draft'">—</span>
           <span v-else>{{ data.sent_count }} / {{ data.recipient_count }}<span v-if="data.failed_count" class="fail"> ({{ data.failed_count }} failed)</span></span>
         </template>
       </Column>
-      <Column header="Status" style="width: 8rem">
+      <Column field="status" header="Status" style="width: 8rem" sortable>
         <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="data.status" /></template>
       </Column>
       <Column header="Actions" style="width: 12rem">

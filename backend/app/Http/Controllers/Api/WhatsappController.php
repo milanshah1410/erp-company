@@ -33,7 +33,12 @@ class WhatsappController extends Controller
             $query->where(fn ($q) => $q->where('phone', 'like', "%{$search}%")->orWhere('body', 'like', "%{$search}%"));
         }
 
-        $query->orderByDesc('id');
+        $sort = $request->query('sort');
+        if ($sort && in_array($sort, ['phone', 'template', 'status', 'created_at'], true)) {
+            $query->orderBy($sort, $request->query('direction') === 'asc' ? 'asc' : 'desc');
+        } else {
+            $query->orderByDesc('id');
+        }
 
         $perPage = min((int) $request->query('per_page', 15), 100);
 

@@ -30,7 +30,12 @@ class MarketingCampaignController extends Controller
             $query->where('status', $request->query('status'));
         }
 
-        $query->orderByDesc('id');
+        $sort = $request->query('sort');
+        if ($sort && in_array($sort, ['name', 'subject', 'status', 'recipient_count', 'sent_at', 'created_at'], true)) {
+            $query->orderBy($sort, $request->query('direction') === 'asc' ? 'asc' : 'desc');
+        } else {
+            $query->orderByDesc('id');
+        }
         $perPage = min((int) $request->query('per_page', 15), 100);
 
         $page = $query->paginate($perPage);

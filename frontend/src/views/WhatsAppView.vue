@@ -24,6 +24,8 @@ const canDelete = computed(() => auth.can('whatsapp.delete'))
 const crud = ref(useCrud('/whatsapp/messages'))
 const search = ref('')
 const templateFilter = ref<string | null>(null)
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 const templateColors: Record<string, string> = {
   manual: 'secondary', invoice: 'info', 'payment-reminder': 'warn',
@@ -41,12 +43,20 @@ function reload() {
   const params: Record<string, any> = {}
   if (search.value) params.search = search.value
   if (templateFilter.value) params.template = templateFilter.value
+  if (sortField.value && sortOrder.value) { params.sort = sortField.value; params.direction = sortOrder.value === 1 ? 'asc' : 'desc' }
   crud.value.fetch(params)
 }
 
 function onPage(e: any) {
   crud.value.currentPage = e.page + 1
   crud.value.perPage = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
   reload()
 }
 
@@ -170,15 +180,16 @@ onMounted(() => {
       :value="crud.items" :loading="crud.loading" lazy paginator
       :rows="crud.perPage" :totalRecords="crud.total" :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id" @page="onPage" class="p-datatable-sm"
+      removableSort :sortField="sortField ?? undefined" :sortOrder="sortOrder ?? undefined" @sort="onSort"
     >
-      <Column header="Date" style="width: 11rem">
+      <Column field="created_at" header="Date" style="width: 11rem" sortable>
         <template #body="{ data }">{{ new Date(data.created_at).toLocaleString() }}</template>
       </Column>
       <Column header="Customer">
         <template #body="{ data }">{{ data.customer?.name ?? '—' }}</template>
       </Column>
-      <Column field="phone" header="Phone" />
-      <Column header="Template" style="width: 9rem">
+      <Column field="phone" header="Phone" sortable />
+      <Column field="template" header="Template" style="width: 9rem" sortable>
         <template #body="{ data }">
           <Tag :severity="templateColors[data.template] ?? 'secondary'" :value="data.template" />
         </template>

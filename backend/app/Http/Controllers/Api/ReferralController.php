@@ -33,7 +33,12 @@ class ReferralController extends Controller
             $query->where('referrer_customer_id', $request->query('referrer_customer_id'));
         }
 
-        $query->orderByDesc('id');
+        $sort = $request->query('sort');
+        if ($sort && in_array($sort, ['referred_name', 'status', 'joined_at', 'created_at'], true)) {
+            $query->orderBy($sort, $request->query('direction') === 'asc' ? 'asc' : 'desc');
+        } else {
+            $query->orderByDesc('id');
+        }
 
         $perPage = min((int) $request->query('per_page', 15), 100);
 

@@ -26,6 +26,8 @@ const crud = ref(useCrud('/sms/messages'))
 const search = ref('')
 const statusFilter = ref<string | null>(null)
 const templateFilter = ref<string | null>(null)
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 const templateColors: Record<string, string> = {
   manual: 'secondary', otp: 'contrast', invoice: 'info', dispatch: 'help',
@@ -54,12 +56,20 @@ function reload() {
   if (search.value) params.search = search.value
   if (statusFilter.value) params.status = statusFilter.value
   if (templateFilter.value) params.template = templateFilter.value
+  if (sortField.value && sortOrder.value) { params.sort = sortField.value; params.direction = sortOrder.value === 1 ? 'asc' : 'desc' }
   crud.value.fetch(params)
 }
 
 function onPage(e: any) {
   crud.value.currentPage = e.page + 1
   crud.value.perPage = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  crud.value.currentPage = 1
   reload()
 }
 
@@ -257,21 +267,22 @@ onMounted(() => {
       :value="crud.items" :loading="crud.loading" lazy paginator
       :rows="crud.perPage" :totalRecords="crud.total" :rowsPerPageOptions="[15, 30, 50, 100]"
       dataKey="id" @page="onPage" class="p-datatable-sm"
+      removableSort :sortField="sortField ?? undefined" :sortOrder="sortOrder ?? undefined" @sort="onSort"
     >
-      <Column header="Date" style="width: 11rem">
+      <Column field="created_at" header="Date" style="width: 11rem" sortable>
         <template #body="{ data }">{{ new Date(data.created_at).toLocaleString() }}</template>
       </Column>
       <Column header="Customer">
         <template #body="{ data }">{{ data.customer?.name ?? '—' }}</template>
       </Column>
-      <Column field="phone" header="Phone" style="width: 10rem" />
-      <Column header="Type" style="width: 9rem">
+      <Column field="phone" header="Phone" style="width: 10rem" sortable />
+      <Column field="template" header="Type" style="width: 9rem" sortable>
         <template #body="{ data }">
           <Tag :severity="templateColors[data.template] ?? 'secondary'" :value="data.template" />
         </template>
       </Column>
       <Column field="body" header="Message" />
-      <Column header="Status" style="width: 8rem">
+      <Column field="status" header="Status" style="width: 8rem" sortable>
         <template #body="{ data }">
           <Tag :severity="statusColors[data.status] ?? 'secondary'" :value="data.status" />
           <i v-if="data.error" class="pi pi-exclamation-circle err-icon" :title="data.error" />

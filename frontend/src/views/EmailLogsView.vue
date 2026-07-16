@@ -20,6 +20,8 @@ const perPage = ref(15)
 const search = ref('')
 const mailableFilter = ref<string | null>(null)
 const statusFilter = ref<string | null>(null)
+const sortField = ref<string | null>(null)
+const sortOrder = ref<1 | -1 | null>(null)
 
 const statusColors: Record<string, string> = {
   queued: 'secondary', sent: 'success', failed: 'danger',
@@ -51,6 +53,7 @@ async function reload() {
         search: search.value || undefined,
         mailable: mailableFilter.value || undefined,
         status: statusFilter.value || undefined,
+        ...(sortField.value && sortOrder.value ? { sort: sortField.value, direction: sortOrder.value === 1 ? 'asc' : 'desc' } : {}),
       },
     })
     items.value = data.data ?? []
@@ -66,6 +69,13 @@ async function reload() {
 function onPage(e: any) {
   currentPage.value = e.page + 1
   perPage.value = e.rows
+  reload()
+}
+
+function onSort(e: any) {
+  sortField.value = e.sortField || null
+  sortOrder.value = e.sortOrder || null
+  currentPage.value = 1
   reload()
 }
 
@@ -112,21 +122,22 @@ onMounted(reload)
     <DataTable
       :value="items" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
       :rowsPerPageOptions="[15, 30, 50, 100]" dataKey="id" @page="onPage" class="p-datatable-sm"
+      removableSort :sortField="sortField ?? undefined" :sortOrder="sortOrder ?? undefined" @sort="onSort"
     >
       <Column header="Date" style="width: 12rem">
         <template #body="{ data }">{{ new Date(data.created_at).toLocaleString() }}</template>
       </Column>
-      <Column header="Type" style="width: 9rem">
+      <Column field="mailable" header="Type" style="width: 9rem" sortable>
         <template #body="{ data }"><Tag severity="info" :value="mailableLabels[data.mailable] ?? data.mailable" /></template>
       </Column>
-      <Column header="To">
+      <Column field="to_email" header="To" sortable>
         <template #body="{ data }">
           <div>{{ data.to_name || data.to_email }}</div>
           <div v-if="data.to_name" class="sub">{{ data.to_email }}</div>
         </template>
       </Column>
-      <Column field="subject" header="Subject" />
-      <Column header="Status" style="width: 8rem">
+      <Column field="subject" header="Subject" sortable />
+      <Column field="status" header="Status" style="width: 8rem" sortable>
         <template #body="{ data }">
           <Tag :severity="statusColors[data.status]" :value="data.status" />
           <i v-if="data.error" class="pi pi-exclamation-circle err-icon" :title="data.error" />
