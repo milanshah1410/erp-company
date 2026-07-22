@@ -8,6 +8,7 @@ import GettingStarted from '../components/GettingStarted.vue'
 
 interface TopProduct { sku: string; name: string; qty_sold: number }
 interface Activity { description: string; event: string | null; log_name: string | null; causer: string | null; at: string | null }
+interface TrendPoint { date: string; label: string; total: number; count: number }
 
 interface Kpis {
   today_sales: { total: number; count: number }
@@ -20,6 +21,7 @@ interface Kpis {
   products_count: number
   top_products: TopProduct[]
   recent_activities: Activity[]
+  sales_trend: TrendPoint[]
 }
 
 interface WidgetState { key: string; visible: boolean }
@@ -51,6 +53,7 @@ const kpis = ref<Kpis>({
   products_count: 0,
   top_products: [],
   recent_activities: [],
+  sales_trend: [],
 })
 const layout = ref<WidgetState[]>([])
 const loading = ref(true)
@@ -82,9 +85,59 @@ function timeAgo(iso: string | null) {
 
 const chartData = computed(() => ({
   labels: kpis.value.top_products.map((s) => s.sku),
-  datasets: [{ label: 'Qty Sold (30d)', backgroundColor: '#e8a33d', data: kpis.value.top_products.map((s) => s.qty_sold) }],
+  datasets: [{ label: 'Qty Sold (30d)', backgroundColor: '#e8a33d', borderRadius: 6, data: kpis.value.top_products.map((s) => s.qty_sold) }],
 }))
-const chartOptions = { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+const chartOptions = { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } }, maintainAspectRatio: false }
+
+// --- Sales-trend line/area chart (last 14 days) ---
+const trendChartData = computed(() => ({
+  labels: kpis.value.sales_trend.map((d) => d.label),
+  datasets: [
+    {
+      label: 'Sales',
+      data: kpis.value.sales_trend.map((d) => d.total),
+      borderColor: '#e8a33d',
+      backgroundColor: (ctx: any) => {
+        const { chart } = ctx
+        const { ctx: c, chartArea } = chart
+        if (!chartArea) return 'rgba(232, 163, 61, 0.15)'
+        const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+        g.addColorStop(0, 'rgba(232, 163, 61, 0.35)')
+        g.addColorStop(1, 'rgba(232, 163, 61, 0.02)')
+        return g
+      },
+      fill: true,
+      tension: 0.4,
+      borderWidth: 2.5,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      pointBackgroundColor: '#e8a33d',
+    },
+  ],
+}))
+const trendChartOptions = computed(() => ({
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: (item: any) => `  ${money(item.parsed.y)}`,
+      },
+    },
+  },
+  scales: {
+    x: { grid: { display: false }, ticks: { color: '#9ca3af', maxRotation: 0, autoSkipPadding: 12 } },
+    y: {
+      beginAtZero: true,
+      grid: { color: 'rgba(148, 163, 184, 0.15)' },
+      ticks: { color: '#9ca3af', callback: (v: number) => money(v) },
+    },
+  },
+}))
+
+// 14-day headline totals shown beside the trend chart.
+const trendTotal = computed(() => kpis.value.sales_trend.reduce((s, d) => s + d.total, 0))
+const trendCount = computed(() => kpis.value.sales_trend.reduce((s, d) => s + d.count, 0))
 
 onMounted(async () => {
   try {
@@ -257,6 +310,21 @@ async function saveLayout() {
         </div>
       </div>
 
+      <!-- Sales trend — always-on hero chart so the dashboard never looks empty. -->
+      <div class="trend-card">
+        <div class="trend-head">
+          <div>
+            <h2>Sales Trend <small>last 14 days</small></h2>
+            <div class="trend-total">{{ money(trendTotal) }}</div>
+            <div class="trend-sub">{{ trendCount }} invoice(s) · today {{ money(kpis.today_sales.total) }}</div>
+          </div>
+          <div class="trend-badge"><i class="pi pi-chart-line" /></div>
+        </div>
+        <div class="trend-chart-wrap">
+          <Chart type="line" :data="trendChartData" :options="trendChartOptions" class="trend-chart" />
+        </div>
+      </div>
+
       <div class="panel-row">
         <div v-for="w in visiblePanels" :key="w.key" class="panel">
           <!-- Top Selling Products -->
@@ -354,39 +422,55 @@ async function saveLayout() {
 }
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.4rem;
+  margin-bottom: 1.75rem;
 }
 .stat-card {
+  position: relative;
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e8e4da);
-  border-radius: 12px;
-  padding: 1.25rem;
+  border-radius: 18px;
+  padding: 2.1rem 1.9rem;
+  min-height: 130px;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  transition: box-shadow 0.15s, transform 0.15s;
+  gap: 1.5rem;
+  overflow: hidden;
+  transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
+}
+.stat-card::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--safety-amber, #e8a33d);
+  opacity: 0.85;
 }
 .stat-card:hover {
-  box-shadow: 0 6px 20px rgba(30, 35, 40, 0.08);
-  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(30, 35, 40, 0.12);
+  transform: translateY(-3px);
+  border-color: rgba(232, 163, 61, 0.4);
 }
 .stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
+  width: 88px;
+  height: 88px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 1.25rem;
-  box-shadow: 0 4px 12px rgba(30, 35, 40, 0.18);
+  font-size: 2.75rem;
+  box-shadow: 0 6px 16px rgba(30, 35, 40, 0.22);
   flex-shrink: 0;
+}
+.stat-icon i {
+  font-size: inherit;
 }
 .stat-value {
   font-family: 'Space Grotesk', 'Inter', sans-serif;
-  font-size: 1.5rem;
+  font-size: 2.5rem;
+  line-height: 1.1;
   font-weight: 700;
   color: var(--graphite, #1e2328);
 }
@@ -395,13 +479,14 @@ async function saveLayout() {
 }
 .stat-label {
   color: var(--graphite-light, #374151);
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin-top: 0.35rem;
 }
 .stat-sub {
   color: #9ca3af;
-  font-size: 0.75rem;
-  margin-top: 0.1rem;
+  font-size: 0.82rem;
+  margin-top: 0.25rem;
 }
 .panel-row {
   display: grid;
@@ -434,8 +519,57 @@ async function saveLayout() {
   text-align: right;
 }
 .chart {
-  max-height: 240px;
+  height: 240px;
   margin-top: 1rem;
+}
+
+/* --- Sales-trend hero chart --- */
+.trend-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 16px;
+  padding: 1.5rem 1.6rem;
+  margin-bottom: 1.75rem;
+  box-shadow: 0 4px 18px rgba(30, 35, 40, 0.05);
+}
+.trend-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.trend-total {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-size: 2.3rem;
+  font-weight: 700;
+  color: var(--graphite, #1e2328);
+  line-height: 1.1;
+  margin-top: 0.35rem;
+}
+.trend-sub {
+  color: #9ca3af;
+  font-size: 0.82rem;
+  margin-top: 0.25rem;
+}
+.trend-badge {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.4rem;
+  background: linear-gradient(135deg, #e8a33d, #c98730);
+  box-shadow: 0 6px 16px rgba(232, 163, 61, 0.35);
+  flex-shrink: 0;
+}
+.trend-chart-wrap {
+  height: 260px;
+  margin-top: 1rem;
+}
+.trend-chart {
+  height: 260px;
 }
 .activity {
   list-style: none;

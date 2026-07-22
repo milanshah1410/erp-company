@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\GenerateDemoData;
 use App\Services\DemoDataGenerator;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -31,7 +30,11 @@ class DemoDataController extends Controller
     }
 
     /**
-     * Queue a demo-data generation run for the selected modules + volume.
+     * Generate demo records for the selected modules + volume.
+     *
+     * The volumes are small (a few dozen rows), so this runs inline within the
+     * request and returns the per-module counts created — no queue worker needed,
+     * and the new records are visible the moment the call returns.
      */
     public function generate(Request $request): JsonResponse
     {
@@ -42,17 +45,18 @@ class DemoDataController extends Controller
         ]);
 
         $tenantId = app(TenantContext::class)->id();
+        $userId = $request->user()->id;
 
-        GenerateDemoData::dispatch(
-            tenantId: $tenantId,
-            userId: $request->user()->id,
-            modules: array_values($data['modules']),
-            count: $data['count'],
-        );
+        // Re-establish the tenant context (queue-tenancy convention) so every
+        // generated row is tenant-stamped, exactly as the old job did.
+        $created = app(TenantContext::class)->runWith($tenantId, fn () => (new DemoDataGenerator($userId))
+            ->generate(array_values($data['modules']), $data['count']));
+
+        $total = array_sum($created);
 
         return response()->json([
-            'message' => "Generating {$data['count']} record(s) for " . count($data['modules'])
-                . ' module(s). This runs in the background and will appear shortly.',
-        ], 202);
+            'message' => "Created {$total} record(s) across " . count($data['modules']) . ' module(s).',
+            'created' => $created,
+        ]);
     }
 }

@@ -110,7 +110,7 @@ class CentralRolePermissionSeeder extends Seeder
                 $role->syncPermissions($perms);
             }
 
-            $this->bootstrapSuperAdmin();
+            $this->bootstrapOperators();
         } finally {
             $registrar->setPermissionsTeamId($previousTeam);
             $registrar->forgetCachedPermissions();
@@ -221,22 +221,45 @@ class CentralRolePermissionSeeder extends Seeder
     }
 
     /**
-     * Ensure a bootstrap Super Admin operator exists so the platform panel is
-     * reachable on a fresh install. Credentials come from env; the defaults are
-     * dev-only and should be overridden in production.
+     * Seed a default login account for each SaaS Owner Portal persona so the
+     * platform panel (admin.yourerp.com) is usable on a fresh install:
+     * Super Admin, Billing, Support and Developer. These operators are not
+     * tenant users — they run the SaaS itself and can see every tenant.
+     *
+     * The Super Admin credentials come from env; every default here is dev-only
+     * and should be changed/disabled in production.
      */
-    private function bootstrapSuperAdmin(): void
+    private function bootstrapOperators(): void
     {
-        $email = (string) env('CENTRAL_SUPER_ADMIN_EMAIL', 'owner@saas.test');
+        // Super Admin — the primary owner login, env-overridable.
+        $this->bootstrapOperator(
+            (string) env('CENTRAL_SUPER_ADMIN_EMAIL', 'owner@saas.test'),
+            (string) env('CENTRAL_SUPER_ADMIN_NAME', 'SaaS Owner'),
+            'super-admin',
+            (string) env('CENTRAL_SUPER_ADMIN_PASSWORD', 'password'),
+        );
 
+        // Billing, Support and Developer — dev-only portal persona logins.
+        $this->bootstrapOperator('billing@saas.test', 'Billing Operator', 'billing-executive');
+        $this->bootstrapOperator('support@saas.test', 'Support Operator', 'support-executive');
+        $this->bootstrapOperator('developer@saas.test', 'Developer Operator', 'developer');
+    }
+
+    /**
+     * Idempotently create/refresh a single platform operator and pin it to its
+     * role. Existing accounts keep their current password (never reset on
+     * re-seed); only brand-new accounts get the supplied default.
+     */
+    private function bootstrapOperator(string $email, string $name, string $role, string $password = 'password'): void
+    {
         $operator = CentralUser::firstOrNew(['email' => $email]);
-        $operator->name = $operator->name ?: (string) env('CENTRAL_SUPER_ADMIN_NAME', 'SaaS Owner');
+        $operator->name = $operator->name ?: $name;
         $operator->is_active = true;
         if (! $operator->exists) {
-            $operator->password = Hash::make((string) env('CENTRAL_SUPER_ADMIN_PASSWORD', 'password'));
+            $operator->password = Hash::make($password);
         }
         $operator->save();
 
-        $operator->syncRoles(['super-admin']);
+        $operator->syncRoles([$role]);
     }
 }

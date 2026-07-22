@@ -92,9 +92,15 @@ class GlobalSearchController extends Controller
     /** @return Collection<int, array<string, mixed>> */
     private function invoices(string $q, ?int $tenantId, int $limit): Collection
     {
+        // Meilisearch sorts on the indexed integer `invoice_date_ts` (a computed
+        // field, not a column). The collection/database drivers apply orderBy as
+        // real SQL, so they must sort on the actual `invoice_date` column — ISO
+        // date strings sort chronologically either way.
+        $dateSort = config('scout.driver') === 'meilisearch' ? 'invoice_date_ts' : 'invoice_date';
+
         return Invoice::search($q)
             ->where('tenant_id', $tenantId)
-            ->orderBy('invoice_date_ts', 'desc')
+            ->orderBy($dateSort, 'desc')
             ->take($limit)
             ->get()
             ->map(fn (Invoice $i) => [

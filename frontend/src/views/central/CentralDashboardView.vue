@@ -10,17 +10,17 @@ const auth = useCentralAuthStore()
 const operator = computed(() => auth.operator)
 
 // The four Level-1 control surfaces. Each shows whether this operator has
-// access (via a representative permission). The admin surfaces below link to
-// live pages; the business surfaces are gated placeholders until their APIs ship.
+// access (via a representative permission). Surfaces with a `to` link to their
+// live panel; the rest are gated placeholders until their APIs ship.
 const surfaces = [
   { key: 'tenants', label: 'Tenant Management', icon: 'pi pi-building', permission: 'tenants.view',
-    desc: 'Create, suspend & impersonate tenant workspaces.' },
+    to: '/platform/tenants', desc: 'Create, suspend & impersonate tenant workspaces.' },
   { key: 'billing', label: 'Billing & Subscriptions', icon: 'pi pi-credit-card', permission: 'plans.view',
-    desc: 'Plans, subscriptions, invoices, refunds & revenue.' },
+    to: '/platform/billing', desc: 'Plans, subscriptions, invoices, refunds & revenue.' },
   { key: 'support', label: 'Support & Customer Success', icon: 'pi pi-comments', permission: 'support.view',
-    desc: 'Tenant health, tickets & troubleshooting.' },
+    to: '/platform/support', desc: 'Tenant health, tickets & troubleshooting.' },
   { key: 'ops', label: 'Ops (DevOps / Developer)', icon: 'pi pi-server', permission: 'ops-health.view',
-    desc: 'System health, queues, backups, logs & flags.' },
+    to: '/platform/ops', desc: 'System health, queues, backups, logs & flags.' },
 ]
 
 const adminCards = computed(() => [
@@ -49,8 +49,11 @@ function go(to: string) {
 
     <h2 class="section-title">Control surfaces</h2>
     <div class="grid">
-      <div v-for="s in surfaces" :key="s.key" class="card surface" :class="{ locked: !auth.can(s.permission) }">
-        <div class="card-icon"><i :class="s.icon" /></div>
+      <component :is="s.to && auth.can(s.permission) ? 'button' : 'div'"
+        v-for="s in surfaces" :key="s.key" class="card surface"
+        :class="{ locked: !auth.can(s.permission), admin: s.to && auth.can(s.permission) }"
+        @click="s.to && auth.can(s.permission) && go(s.to)">
+        <div class="card-icon" :class="{ accent: s.to && auth.can(s.permission) }"><i :class="s.icon" /></div>
         <div class="card-body">
           <div class="card-head">
             <h3>{{ s.label }}</h3>
@@ -58,9 +61,10 @@ function go(to: string) {
               :severity="auth.can(s.permission) ? 'success' : 'secondary'" class="access-tag" />
           </div>
           <p>{{ s.desc }}</p>
-          <span class="soon-note">Panel coming soon</span>
+          <span v-if="!s.to" class="soon-note">Panel coming soon</span>
+          <span v-else-if="auth.can(s.permission)" class="open-note">Open panel <i class="pi pi-arrow-right" /></span>
         </div>
-      </div>
+      </component>
     </div>
 
     <template v-if="adminCards.length">
@@ -107,5 +111,6 @@ function go(to: string) {
 .card-body p { color: #6b7280; font-size: 0.83rem; margin-top: 0.25rem; }
 .access-tag :deep(.p-tag-label), .access-tag { font-size: 0.68rem; }
 .soon-note { display: inline-block; margin-top: 0.55rem; font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.04em; }
+.open-note { display: inline-flex; align-items: center; gap: 0.3rem; margin-top: 0.55rem; font-size: 0.75rem; font-weight: 600; color: #c98730; }
 .go { color: #c98730; }
 </style>

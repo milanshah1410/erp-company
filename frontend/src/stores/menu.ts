@@ -1,5 +1,9 @@
 import { defineStore } from 'pinia'
 import http from '../api/http'
+import { useAuthStore } from './auth'
+
+/** localStorage namespace for the persisted menu (per user/company/branch). */
+const CACHE_PREFIX = 'sims_menu_cache'
 
 /** A clickable navigation leaf. */
 export interface MenuLeaf {
@@ -23,6 +27,13 @@ export interface MenuNode {
   children: MenuNode[]
 }
 
+/** The shape persisted to / read from localStorage. */
+interface MenuPayload {
+  menu: MenuNode[]
+  favorites: MenuLeaf[]
+  recents: MenuLeaf[]
+}
+
 /**
  * Dynamic navigation (project-stack.md §3). The sidebar/top-menu, favorites and
  * recents all come from the backend `/menu` endpoint — nothing is hard-coded.
@@ -34,6 +45,9 @@ export const useMenuStore = defineStore('menu', {
     recents: [] as MenuLeaf[],
     loaded: false,
     loading: false,
+    // Cache key for the context currently held in memory; used to detect a
+    // user/company/branch switch and to write the correct localStorage entry.
+    cacheKey: '' as string,
   }),
 
   getters: {
@@ -55,8 +69,63 @@ export const useMenuStore = defineStore('menu', {
   },
 
   actions: {
-    async fetchMenu() {
+    /** localStorage key scoped to the current user + company + branch context. */
+    _cacheKey(): string {
+      const u = useAuthStore().user
+      return `${CACHE_PREFIX}:${u?.id ?? 0}:${u?.current_company?.id ?? 0}:${u?.current_branch?.id ?? 0}`
+    },
+
+    /** Load the persisted copy for `key` into state. Returns true if it painted. */
+    _hydrateFromCache(key: string): boolean {
+      try {
+        const raw = localStorage.getItem(key)
+        if (!raw) return false
+        const data = JSON.parse(raw) as MenuPayload
+        this.menu = data.menu ?? []
+        this.favorites = data.favorites ?? []
+        this.recents = data.recents ?? []
+        return this.menu.length > 0
+      } catch {
+        return false
+      }
+    },
+
+    /** Persist the current menu so the next page load can paint instantly. */
+    _writeCache(): void {
+      try {
+        const payload: MenuPayload = { menu: this.menu, favorites: this.favorites, recents: this.recents }
+        localStorage.setItem(this.cacheKey || this._cacheKey(), JSON.stringify(payload))
+      } catch {
+        /* quota exceeded / storage disabled — the cache is best-effort */
+      }
+    },
+
+    /**
+     * Stale-while-revalidate. The `/menu` API can be slow, so instead of
+     * blocking the sidebar on the network every page load, we paint instantly
+     * from the last persisted copy and refresh in the background. A cached menu
+     * survives full page reloads; the in-memory copy survives SPA navigation
+     * (project-stack.md §3).
+     */
+    async fetchMenu(opts: { force?: boolean } = {}): Promise<void> {
       if (this.loading) return
+      const key = this._cacheKey()
+
+      // User/company/branch changed → discard the previous context's menu.
+      if (key !== this.cacheKey) {
+        this.cacheKey = key
+        this.loaded = false
+        this.menu = []
+        this.favorites = []
+        this.recents = []
+      }
+
+      // Already have this context's menu in memory this session — done.
+      if (this.loaded && !opts.force) return
+
+      // Instant paint from the persisted copy while we revalidate over the wire.
+      if (this._hydrateFromCache(key)) this.loaded = true
+
       this.loading = true
       try {
         const { data } = await http.get('/menu')
@@ -64,6 +133,11 @@ export const useMenuStore = defineStore('menu', {
         this.favorites = data.favorites
         this.recents = data.recents
         this.loaded = true
+        this._writeCache()
+      } catch (e) {
+        // API/network failure: keep whatever we hydrated from cache; only
+        // surface the error if there was nothing to fall back on.
+        if (!this.loaded) throw e
       } finally {
         this.loading = false
       }
@@ -81,12 +155,14 @@ export const useMenuStore = defineStore('menu', {
         }
       }
       walk(this.menu)
+      this._writeCache()
     },
 
     async trackRecent(route: string, label: string, icon: string | null) {
       try {
         const { data } = await http.post('/menu/recents', { route, label, icon })
         this.recents = data.recents
+        this._writeCache()
       } catch {
         /* recents are best-effort; never block navigation */
       }
@@ -97,6 +173,7 @@ export const useMenuStore = defineStore('menu', {
       this.favorites = []
       this.recents = []
       this.loaded = false
+      this.cacheKey = ''
     },
   },
 })

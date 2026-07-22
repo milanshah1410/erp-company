@@ -16,23 +16,18 @@ interface NavItem {
 }
 
 // The platform panel navigation. Items are hidden unless the operator holds the
-// gating permission (super-admin implicitly holds all). "Coming soon" surfaces
-// (Level-1 business panels) are listed but disabled until their APIs land.
+// gating permission (super-admin implicitly holds all).
 const adminNav: NavItem[] = [
   { label: 'Dashboard', icon: 'pi pi-th-large', to: '/platform' },
+  { label: 'Tenants', icon: 'pi pi-building', to: '/platform/tenants', permission: 'tenants.view' },
+  { label: 'Billing', icon: 'pi pi-credit-card', to: '/platform/billing', permission: 'plans.view' },
+  { label: 'Support', icon: 'pi pi-comments', to: '/platform/support', permission: 'support.view' },
   { label: 'Operators', icon: 'pi pi-users', to: '/platform/operators', permission: 'operators.view' },
   { label: 'Roles & Permissions', icon: 'pi pi-shield', to: '/platform/roles', permission: 'roles.view' },
-]
-
-const upcomingNav: NavItem[] = [
-  { label: 'Tenants', icon: 'pi pi-building', to: '', permission: 'tenants.view' },
-  { label: 'Billing', icon: 'pi pi-credit-card', to: '', permission: 'plans.view' },
-  { label: 'Support', icon: 'pi pi-comments', to: '', permission: 'support.view' },
-  { label: 'Ops', icon: 'pi pi-server', to: '', permission: 'ops-health.view' },
+  { label: 'Ops', icon: 'pi pi-server', to: '/platform/ops', permission: 'ops-health.view' },
 ]
 
 const visibleAdminNav = computed(() => adminNav.filter((i) => !i.permission || auth.can(i.permission)))
-const visibleUpcomingNav = computed(() => upcomingNav.filter((i) => !i.permission || auth.can(i.permission)))
 
 const initials = computed(() => {
   const name = auth.operator?.name ?? '?'
@@ -67,15 +62,6 @@ async function logout() {
           <i :class="item.icon" />
           <span>{{ item.label }}</span>
         </RouterLink>
-
-        <template v-if="visibleUpcomingNav.length">
-          <div class="nav-group-label">Coming soon</div>
-          <div v-for="item in visibleUpcomingNav" :key="item.label" class="nav-item disabled" :title="'Not available yet'">
-            <i :class="item.icon" />
-            <span>{{ item.label }}</span>
-            <span class="soon">soon</span>
-          </div>
-        </template>
       </nav>
     </aside>
 
@@ -120,10 +106,6 @@ async function logout() {
 .nav-item i { width: 1.1rem; text-align: center; }
 .nav-item:hover { background: #374151; color: #fff; }
 .nav-item.exact-active { background: #e8a33d; color: #1f2937; }
-.nav-item.disabled { opacity: 0.5; cursor: not-allowed; }
-.nav-item.disabled:hover { background: transparent; color: #d1d5db; }
-.soon { margin-left: auto; font-size: 0.62rem; text-transform: uppercase; background: #374151; padding: 0.1rem 0.35rem; border-radius: 4px; color: #9ca3af; }
-.nav-group-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; padding: 0.9rem 0.75rem 0.35rem; }
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .topbar {
   display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.5rem;

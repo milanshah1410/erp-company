@@ -28,9 +28,20 @@ class RolePermissionSeeder extends Seeder
             $permissions[] = "{$module}.view";
         }
 
+        // DB-level firstOrCreate (not Permission::findOrCreate, which resolves
+        // through Spatie's cached collection and can INSERT a duplicate on a
+        // re-run). Name + guard is the whole identity — permissions carry no team.
         foreach ($permissions as $name) {
-            Permission::findOrCreate($name, 'web');
+            Permission::query()->firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
+
+        // Rebuild the cache so the name-based syncPermissions() calls below see
+        // what we just ensured, then take the web-guard permission set ONCE.
+        // Central + web permissions share one table, so every reuse must be
+        // guard-scoped or a central permission leaks into a web role and Spatie
+        // throws GuardDoesNotMatch.
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $webPermissions = Permission::where('guard_name', 'web')->get();
 
         // --- Build roles with their permission sets ---
         $roleMap = [
@@ -149,9 +160,9 @@ class RolePermissionSeeder extends Seeder
             $role = Role::findOrCreate($roleName, 'web');
 
             if ($perms === '*') {
-                $role->syncPermissions(Permission::all());
+                $role->syncPermissions($webPermissions);
             } elseif ($roleName === 'auditor') {
-                $viewOnly = Permission::where('name', 'like', '%.view')->get();
+                $viewOnly = $webPermissions->filter(fn ($p) => str_ends_with($p->name, '.view'));
                 $role->syncPermissions($viewOnly);
             } else {
                 $role->syncPermissions($perms);
@@ -161,7 +172,7 @@ class RolePermissionSeeder extends Seeder
         // --- Level-2 departmental roles (TenantRoleCatalog) ---
         // The org-chart roles beyond the hand-tuned ones above. A null expansion
         // means "grant everything" (owner / MD / CEO).
-        $allPermissions = Permission::all();
+        $allPermissions = $webPermissions;
         foreach (TenantRoleCatalog::newRoles() as $roleName => $def) {
             $role = Role::findOrCreate($roleName, 'web');
             $expanded = TenantRoleCatalog::expand($def['spec']);

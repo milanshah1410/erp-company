@@ -20,6 +20,10 @@ const CentralLoginView = () => import('../views/central/CentralLoginView.vue')
 const CentralDashboardView = () => import('../views/central/CentralDashboardView.vue')
 const CentralOperatorsView = () => import('../views/central/CentralOperatorsView.vue')
 const CentralRolesView = () => import('../views/central/CentralRolesView.vue')
+const CentralTenantsView = () => import('../views/central/CentralTenantsView.vue')
+const CentralBillingView = () => import('../views/central/CentralBillingView.vue')
+const CentralOpsView = () => import('../views/central/CentralOpsView.vue')
+const CentralSupportView = () => import('../views/central/CentralSupportView.vue')
 const PortalLoginView = () => import('../views/portal/PortalLoginView.vue')
 const PortalCatalogueView = () => import('../views/portal/PortalCatalogueView.vue')
 const PortalCartView = () => import('../views/portal/PortalCartView.vue')
@@ -342,8 +346,12 @@ const routes: RouteRecordRaw[] = [
     meta: { central: true },
     children: [
       { path: '', name: 'central-dashboard', component: CentralDashboardView },
+      { path: 'tenants', name: 'central-tenants', component: CentralTenantsView, meta: { permission: 'tenants.view' } },
+      { path: 'billing', name: 'central-billing', component: CentralBillingView, meta: { permission: 'plans.view' } },
       { path: 'operators', name: 'central-operators', component: CentralOperatorsView, meta: { permission: 'operators.view' } },
       { path: 'roles', name: 'central-roles', component: CentralRolesView, meta: { permission: 'roles.view' } },
+      { path: 'ops', name: 'central-ops', component: CentralOpsView, meta: { permission: 'ops-health.view' } },
+      { path: 'support', name: 'central-support', component: CentralSupportView, meta: { permission: 'support.view' } },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/' },

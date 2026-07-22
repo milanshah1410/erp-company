@@ -198,6 +198,32 @@ class DashboardController extends Controller
             ->selectRaw('SUM(quantity * average_cost) as total')
             ->value('total');
 
+        // 11. Sales Trend — billed revenue per day for the last 14 days. Days
+        //     with no invoices are backfilled with 0 so the chart is a full,
+        //     continuous series (never a broken/empty line for a new tenant).
+        $trendStart = now()->subDays(13)->startOfDay();
+        $trendRows = Invoice::query()
+            ->whereDate('invoice_date', '>=', $trendStart->toDateString())
+            ->selectRaw('DATE(invoice_date) as d, SUM(total) as t, COUNT(*) as c')
+            ->groupBy('d')
+            ->pluck('t', 'd');
+        $trendCounts = Invoice::query()
+            ->whereDate('invoice_date', '>=', $trendStart->toDateString())
+            ->selectRaw('DATE(invoice_date) as d, COUNT(*) as c')
+            ->groupBy('d')
+            ->pluck('c', 'd');
+        $salesTrend = [];
+        for ($i = 0; $i < 14; $i++) {
+            $day = $trendStart->copy()->addDays($i);
+            $key = $day->toDateString();
+            $salesTrend[] = [
+                'date' => $key,
+                'label' => $day->format('d M'),
+                'total' => round((float) ($trendRows[$key] ?? 0), 2),
+                'count' => (int) ($trendCounts[$key] ?? 0),
+            ];
+        }
+
         return [
             'today_sales' => ['total' => round($todaySalesTotal, 2), 'count' => $todaySalesCount],
             'purchase_summary' => [
@@ -220,6 +246,7 @@ class DashboardController extends Controller
             ],
             'top_products' => $topProducts,
             'recent_activities' => $recentActivities,
+            'sales_trend' => $salesTrend,
 
             // Retained headline metrics.
             'total_stock_value' => round($totalStockValue, 2),

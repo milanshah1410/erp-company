@@ -1,25 +1,240 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import Button from 'primevue/button'
-import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import { useMenuStore, type MenuNode } from '../stores/menu'
 
 const toast = useToast()
 const auth = useAuthStore()
+const menuStore = useMenuStore()
 const canGenerate = computed(() => auth.can('settings.edit'))
 
 interface ModuleOption { key: string; label: string }
+interface ModuleGroup { label: string; modules: ModuleOption[] }
 interface ImportError { row: number; message: string }
 interface ImportResult { message: string; created: number; failed: number; errors: ImportError[] }
 
 const modules = ref<ModuleOption[]>([])
-const counts = ref<number[]>([100, 500, 1000, 10000])
-const selectedModules = ref<string[]>([])
-const selectedCount = ref<number>(100)
-const generating = ref(false)
+const counts = ref<number[]>([10, 20, 50])
+const selectedCount = ref<number>(10)
+// Which module is currently generating (for the per-button spinner), or null.
+const generatingModule = ref<string | null>(null)
+
+// Icon per module so each button is visually distinct.
+const MODULE_ICONS: Record<string, string> = {
+  categories: 'pi pi-sitemap',
+  brands: 'pi pi-tag',
+  units: 'pi pi-percentage',
+  products: 'pi pi-box',
+  price_lists: 'pi pi-indian-rupee',
+  customers: 'pi pi-users',
+  customer_categories: 'pi pi-tags',
+  suppliers: 'pi pi-truck',
+  brokers: 'pi pi-user',
+  warehouses: 'pi pi-building',
+  sales_quotations: 'pi pi-file-edit',
+  sales_orders: 'pi pi-shopping-cart',
+  pos_sales: 'pi pi-calculator',
+  b2b_orders: 'pi pi-check-square',
+  invoices: 'pi pi-file',
+  sales_returns: 'pi pi-replay',
+  leads: 'pi pi-filter',
+  follow_ups: 'pi pi-bell',
+  referrals: 'pi pi-share-alt',
+  coupons: 'pi pi-ticket',
+  marketing_campaigns: 'pi pi-megaphone',
+  whatsapp_messages: 'pi pi-whatsapp',
+  sms_messages: 'pi pi-comment',
+  email_logs: 'pi pi-envelope',
+  salesmen: 'pi pi-user-plus',
+  beats: 'pi pi-map',
+  vendor_ratings: 'pi pi-star',
+  stock_adjustments: 'pi pi-sliders-h',
+  gate_entries: 'pi pi-sign-in',
+  batches: 'pi pi-clone',
+  serial_numbers: 'pi pi-hashtag',
+  colour_printings: 'pi pi-palette',
+  fabric_rolls: 'pi pi-scroll',
+  shrinkage_records: 'pi pi-arrows-h',
+  contractors: 'pi pi-briefcase',
+  tailors: 'pi pi-user',
+  rate_cards: 'pi pi-list',
+  tailor_alterations: 'pi pi-pencil',
+  tailor_bonuses: 'pi pi-gift',
+  tailor_payments: 'pi pi-money-bill',
+  embroidery_vendors: 'pi pi-users',
+  embroidery_payments: 'pi pi-money-bill',
+  bank_accounts: 'pi pi-building-columns',
+  vouchers: 'pi pi-book',
+  expense_categories: 'pi pi-tags',
+  assets: 'pi pi-desktop',
+  employee_claims: 'pi pi-receipt',
+  vehicle_expenses: 'pi pi-car',
+  fuel_expenses: 'pi pi-bolt',
+  electricity_bills: 'pi pi-flash',
+  factory_maintenances: 'pi pi-wrench',
+  asset_maintenances: 'pi pi-cog',
+  gst_registrations: 'pi pi-id-card',
+  hsn_codes: 'pi pi-hashtag',
+  tds_tcs_rates: 'pi pi-percentage',
+  departments: 'pi pi-sitemap',
+  biometric_devices: 'pi pi-desktop',
+  attendance: 'pi pi-calendar',
+  biometric_punches: 'pi pi-clock',
+  leave_types: 'pi pi-tag',
+  leave_applications: 'pi pi-calendar-times',
+  overtime_records: 'pi pi-clock',
+  salary_structures: 'pi pi-sliders-h',
+  salaries: 'pi pi-wallet',
+  employee_bonuses: 'pi pi-gift',
+  salary_advances: 'pi pi-money-bill',
+  employee_loans: 'pi pi-credit-card',
+  vehicles: 'pi pi-truck',
+  drivers: 'pi pi-id-card',
+  delivery_routes: 'pi pi-map-marker',
+  transport_charges: 'pi pi-send',
+  channel_integrations: 'pi pi-globe',
+  channel_orders: 'pi pi-inbox',
+  channel_listings: 'pi pi-list',
+  channel_sync_logs: 'pi pi-sync',
+  payment_gateway_accounts: 'pi pi-credit-card',
+  payment_transactions: 'pi pi-wallet',
+  employees: 'pi pi-id-card',
+  expenses: 'pi pi-wallet',
+}
+function moduleIcon(key: string) {
+  return MODULE_ICONS[key] ?? 'pi pi-database'
+}
+
+// Each demo module's nav route, used only to resolve which top-bar section it
+// belongs to (see `groupedModules`). Modules without a route of their own point
+// at a representative sibling so they still land in the right section.
+const MODULE_ROUTES: Record<string, string> = {
+  // Masters
+  categories: '/categories',
+  brands: '/brands',
+  units: '/units',
+  products: '/products',
+  price_lists: '/price-lists',
+  customers: '/customers',
+  customer_categories: '/customer-categories',
+  suppliers: '/suppliers',
+  brokers: '/brokers',
+  warehouses: '/warehouses',
+  // Sales (incl. CRM, Field Sales, E-Commerce — top-bar sub-groups of Sales)
+  sales_quotations: '/sales-quotations',
+  sales_orders: '/sales-orders',
+  pos_sales: '/pos',
+  b2b_orders: '/b2b-orders',
+  invoices: '/sales-orders',
+  sales_returns: '/sales-returns',
+  leads: '/leads',
+  follow_ups: '/follow-ups',
+  referrals: '/referrals',
+  coupons: '/coupons',
+  marketing_campaigns: '/marketing-campaigns',
+  whatsapp_messages: '/whatsapp',
+  sms_messages: '/sms',
+  email_logs: '/email-logs',
+  salesmen: '/salesmen',
+  beats: '/beats',
+  channel_integrations: '/ecommerce-integrations',
+  channel_orders: '/channel-orders',
+  channel_listings: '/channel-listings',
+  channel_sync_logs: '/channel-sync-logs',
+  // Purchase
+  vendor_ratings: '/vendor-ratings',
+  // Inventory
+  stock_adjustments: '/stock-adjustments',
+  gate_entries: '/gate-entries',
+  batches: '/batches',
+  serial_numbers: '/serial-numbers',
+  // Manufacturing (incl. Textile, Tailoring, Embroidery)
+  colour_printings: '/colour-printings',
+  fabric_rolls: '/fabric-rolls',
+  shrinkage_records: '/shrinkage-records',
+  contractors: '/contractors',
+  tailors: '/tailors',
+  rate_cards: '/rate-cards',
+  tailor_alterations: '/tailor-alterations',
+  tailor_bonuses: '/tailor-bonuses',
+  tailor_payments: '/tailor-payments',
+  embroidery_vendors: '/embroidery-vendors',
+  embroidery_payments: '/embroidery-payments',
+  // Finance (incl. GST, Payments — top-bar sub-groups of Finance)
+  bank_accounts: '/bank-accounts',
+  vouchers: '/vouchers',
+  expenses: '/expenses',
+  expense_categories: '/expense-categories',
+  assets: '/assets',
+  employee_claims: '/employee-claims',
+  vehicle_expenses: '/vehicle-expenses',
+  fuel_expenses: '/fuel-expenses',
+  electricity_bills: '/electricity-bills',
+  factory_maintenances: '/factory-maintenances',
+  asset_maintenances: '/asset-maintenances',
+  gst_registrations: '/gst-registrations',
+  hsn_codes: '/hsn-codes',
+  tds_tcs_rates: '/tds-tcs-rates',
+  payment_gateway_accounts: '/payment-gateways',
+  payment_transactions: '/payment-transactions',
+  // HR & Payroll
+  departments: '/departments',
+  employees: '/employees',
+  attendance: '/attendance',
+  biometric_devices: '/biometric-devices',
+  biometric_punches: '/biometric-punches',
+  leave_types: '/leave-types',
+  leave_applications: '/leave-applications',
+  overtime_records: '/overtime',
+  salary_structures: '/salary-structures',
+  salaries: '/salaries',
+  employee_bonuses: '/employee-bonuses',
+  salary_advances: '/salary-advances',
+  employee_loans: '/employee-loans',
+  // Logistics
+  vehicles: '/vehicles',
+  drivers: '/drivers',
+  delivery_routes: '/delivery-routes',
+  transport_charges: '/transport-charges',
+}
+
+// Flat map of route → the label of its top-level top-bar section, built from the
+// live (role/plan-filtered) menu so the demo groups mirror the nav exactly.
+const routeToSection = computed<Record<string, string>>(() => {
+  const map: Record<string, string> = {}
+  for (const top of menuStore.menu) {
+    if (top.to) map[top.to] = top.label
+    const walk = (n: MenuNode) => {
+      if (n.to) map[n.to] = top.label
+      n.children?.forEach(walk)
+    }
+    top.children?.forEach(walk)
+  }
+  return map
+})
+
+// Group the demo modules under top-bar section headers, in top-bar order.
+// Only modules whose route is present in the current (role/plan/module-gated)
+// top-bar menu are shown — anything not in the live menu is hidden, so the
+// Demo Data box mirrors exactly what the user can navigate to.
+const groupedModules = computed<ModuleGroup[]>(() => {
+  const r2s = routeToSection.value
+  const buckets: Record<string, ModuleOption[]> = {}
+  for (const m of modules.value) {
+    const route = MODULE_ROUTES[m.key]
+    const section = route ? r2s[route] : undefined
+    if (!section) continue // not in the current top-bar menu → hide it
+    ;(buckets[section] ??= []).push(m)
+  }
+  return menuStore.menu
+    .map((m) => m.label)
+    .filter((label) => buckets[label]?.length)
+    .map((label) => ({ label, modules: buckets[label] }))
+})
 
 // --- Data import state ---
 const importModules = ref<ModuleOption[]>([])
@@ -63,6 +278,10 @@ async function loadPerformance() {
 }
 
 onMounted(async () => {
+  // The demo modules are grouped by the top-bar menu; make sure it's loaded
+  // (cached/no-op if the shell already fetched it this session).
+  menuStore.fetchMenu()
+
   try {
     const [demo, imp] = await Promise.all([
       http.get('/system-tools/demo-data/options'),
@@ -70,9 +289,7 @@ onMounted(async () => {
     ])
     modules.value = demo.data.modules
     counts.value = demo.data.counts
-    selectedModules.value = demo.data.modules
-      .filter((m: ModuleOption) => ['customers', 'products', 'suppliers'].includes(m.key))
-      .map((m: ModuleOption) => m.key)
+    if (counts.value.length) selectedCount.value = counts.value[0]
 
     importModules.value = imp.data.modules
     importModule.value = imp.data.modules[0]?.key ?? null
@@ -160,23 +377,16 @@ async function pollImport(jobId: string): Promise<ImportResult> {
   return { message: 'Import is still running in the background.', created: 0, failed: 0, errors: [] }
 }
 
-function toggleAll() {
-  selectedModules.value =
-    selectedModules.value.length === modules.value.length ? [] : modules.value.map((m) => m.key)
-}
-
-async function generate() {
-  if (!selectedModules.value.length) {
-    toast.add({ severity: 'warn', summary: 'Pick at least one module', life: 3000 })
-    return
-  }
-  generating.value = true
+/** Queue a demo-data run for a single module at the selected volume. */
+async function generateModule(key: string) {
+  if (!canGenerate.value) return
+  generatingModule.value = key
   try {
     const { data } = await http.post('/system-tools/demo-data', {
-      modules: selectedModules.value,
+      modules: [key],
       count: selectedCount.value,
     })
-    toast.add({ severity: 'success', summary: 'Generation started', detail: data.message, life: 6000 })
+    toast.add({ severity: 'success', summary: 'Demo data created', detail: data.message, life: 5000 })
   } catch (e: any) {
     toast.add({
       severity: 'error',
@@ -185,7 +395,7 @@ async function generate() {
       life: 5000,
     })
   } finally {
-    generating.value = false
+    generatingModule.value = null
   }
 }
 </script>
@@ -259,59 +469,6 @@ async function generate() {
       <p v-if="perf" class="perf-stamp">Updated {{ new Date(perf.generated_at).toLocaleTimeString() }}</p>
     </section>
 
-    <!-- Demo Data (project-stack.md §7) -->
-    <section class="tool-card">
-      <div class="tool-head">
-        <div class="tool-icon"><i class="pi pi-database" /></div>
-        <div>
-          <h2>Demo Data</h2>
-          <p>Populate the ERP with realistic sample records to explore features.</p>
-        </div>
-      </div>
-
-      <div class="field">
-        <div class="field-head">
-          <label>Modules</label>
-          <button class="link" type="button" @click="toggleAll">
-            {{ selectedModules.length === modules.length ? 'Clear all' : 'Select all' }}
-          </button>
-        </div>
-        <div class="module-grid">
-          <label v-for="m in modules" :key="m.key" class="module-check">
-            <Checkbox v-model="selectedModules" :value="m.key" :inputId="'mod-' + m.key" />
-            <span>{{ m.label }}</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Records per module</label>
-        <div class="count-row">
-          <button
-            v-for="c in counts"
-            :key="c"
-            type="button"
-            class="count-btn"
-            :class="{ active: selectedCount === c }"
-            @click="selectedCount = c"
-          >
-            {{ c.toLocaleString() }}
-          </button>
-        </div>
-      </div>
-
-      <div class="actions">
-        <Button
-          label="Generate Demo Data"
-          icon="pi pi-bolt"
-          :loading="generating"
-          :disabled="!canGenerate || !selectedModules.length"
-          @click="generate"
-        />
-        <span v-if="!canGenerate" class="hint">You need the “settings.edit” permission to generate data.</span>
-      </div>
-    </section>
-
     <!-- Import Data (project-stack.md §8) -->
     <section class="tool-card">
       <div class="tool-head">
@@ -365,36 +522,90 @@ async function generate() {
         </ul>
       </div>
     </section>
+
+    <!-- Demo Data (project-stack.md §7) — spans the full width below the row above -->
+    <section class="tool-card tool-card--wide">
+      <div class="tool-head">
+        <div class="tool-icon"><i class="pi pi-database" /></div>
+        <div>
+          <h2>Demo Data</h2>
+          <p>Generate realistic sample records per module. Pick a volume, then click a module to populate it.</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Records per module</label>
+        <div class="count-row">
+          <button
+            v-for="c in counts"
+            :key="c"
+            type="button"
+            class="count-btn"
+            :class="{ active: selectedCount === c }"
+            @click="selectedCount = c"
+          >
+            {{ c.toLocaleString() }}
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Modules</label>
+        <div v-for="group in groupedModules" :key="group.label" class="demo-group">
+          <div class="demo-group-head">{{ group.label }}</div>
+          <div class="demo-module-grid">
+            <button
+              v-for="m in group.modules"
+              :key="m.key"
+              type="button"
+              class="demo-module-btn"
+              :disabled="!canGenerate || (generatingModule !== null && generatingModule !== m.key)"
+              @click="generateModule(m.key)"
+            >
+              <i v-if="generatingModule === m.key" class="pi pi-spin pi-spinner demo-mod-icon" />
+              <i v-else :class="moduleIcon(m.key)" class="demo-mod-icon" />
+              <span class="demo-mod-label">{{ m.label }}</span>
+              <span class="demo-mod-count">+{{ selectedCount.toLocaleString() }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <span v-if="!canGenerate" class="hint">You need the “settings.edit” permission to generate data.</span>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .system-tools {
-  columns: 2;
-  column-gap: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  align-items: start;
 }
 @media (max-width: 900px) {
   .system-tools {
-    columns: 1;
+    grid-template-columns: 1fr;
   }
 }
 .system-tools h1 {
   font-size: 1.6rem;
   font-weight: 600;
-  column-span: all;
+  grid-column: 1 / -1;
+  margin-bottom: -0.5rem;
 }
 .subtitle {
   color: #6b7280;
-  margin-bottom: 1.5rem;
-  column-span: all;
+  grid-column: 1 / -1;
 }
 .tool-card {
   background: var(--surface, #fff);
   border: 1px solid var(--border, #e8e4da);
   border-radius: 12px;
   padding: 1.5rem;
-  break-inside: avoid;
-  margin-bottom: 1.5rem;
+}
+.tool-card--wide {
+  grid-column: 1 / -1;
 }
 .tool-head {
   display: flex;
@@ -444,18 +655,62 @@ async function generate() {
   font-size: 0.82rem;
   font-weight: 600;
 }
-.module-grid {
+.demo-group + .demo-group {
+  margin-top: 1.25rem;
+}
+.demo-group-head {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-blue, #2c4a5e);
+  padding-bottom: 0.4rem;
+  margin-top: 0.6rem;
+  border-bottom: 1px solid var(--border, #e8e4da);
+}
+.demo-module-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0.6rem;
+  gap: 0.7rem;
   margin-top: 0.6rem;
 }
-.module-check {
+.demo-module-btn {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
+  gap: 0.35rem;
+  padding: 1rem 0.75rem;
+  border: 1px solid var(--border, #e3ded3);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--graphite, #1e2328);
   cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.demo-module-btn:hover:not(:disabled) {
+  border-color: var(--safety-amber, #e8a33d);
+  box-shadow: 0 6px 16px rgba(232, 163, 61, 0.18);
+  transform: translateY(-2px);
+}
+.demo-module-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.demo-mod-icon {
+  font-size: 1.5rem;
+  color: var(--ink-blue, #2c4a5e);
+}
+.demo-mod-label {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.demo-mod-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--safety-amber, #e8a33d);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
 }
 .count-row {
   display: flex;

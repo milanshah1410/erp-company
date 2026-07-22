@@ -50,6 +50,9 @@ async function applyContext(companyId: number, branchId: number | null) {
     await auth.switchContext(companyId, branchId)
     switchingCompany.value = auth.user?.current_company?.id ?? null
     switchingBranch.value = auth.user?.current_branch?.id ?? null
+    // The menu is filtered per company/branch (roles + plan features), so the
+    // context switch changes the cache key and reloads the correct menu.
+    await menuStore.fetchMenu()
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not switch context', detail: e.response?.data?.message || 'Unexpected error', life: 4000 })
   }
@@ -61,7 +64,9 @@ async function applyContext(companyId: number, branchId: number | null) {
 const menuStore = useMenuStore()
 
 onMounted(() => {
-  if (!menuStore.loaded) menuStore.fetchMenu()
+  // Paints instantly from the localStorage cache, then revalidates in the
+  // background; a no-op if the menu is already in memory this session.
+  menuStore.fetchMenu()
 })
 
 // A group has no route of its own and carries children.
