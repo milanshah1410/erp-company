@@ -13,7 +13,7 @@ class SubscriptionInvoice extends Model
 
     protected $fillable = [
         'subscription_id', 'amount', 'currency', 'status',
-        'payment_gateway_ref', 'paid_at',
+        'payment_gateway_ref', 'payment_method', 'notes', 'paid_at',
         'refund_amount', 'refund_reason', 'refunded_at',
     ];
 

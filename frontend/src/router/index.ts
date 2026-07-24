@@ -33,6 +33,7 @@ const CentralRegisterView = () => import('../views/central/CentralRegisterView.v
 const CentralVerifyView = () => import('../views/central/CentralVerifyView.vue')
 const CentralProvisioningView = () => import('../views/central/CentralProvisioningView.vue')
 const BillingView = () => import('../views/BillingView.vue')
+const SuspendedView = () => import('../views/SuspendedView.vue')
 const DashboardView = () => import('../views/DashboardView.vue')
 const CrudView = () => import('../views/CrudView.vue')
 const CategoriesView = () => import('../views/CategoriesView.vue')
@@ -152,6 +153,9 @@ const AiAssistantView = () => import('../views/AiAssistantView.vue')
 // tenant is resolved server-side from the logged-in user, not from the host.
 const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
+  // Hard-locked workspace (suspended by SaaS operator) — reachable while
+  // authenticated; the http interceptor redirects here on 403 tenant_suspended.
+  { path: '/suspended', name: 'suspended', component: SuspendedView, meta: { public: true } },
   { path: '/register', name: 'register', component: CentralRegisterView, meta: { public: true } },
   { path: '/verify', name: 'central-verify', component: CentralVerifyView, meta: { public: true } },
   { path: '/provisioning', name: 'central-provisioning', component: CentralProvisioningView, meta: { public: true } },
@@ -428,7 +432,14 @@ router.beforeEach(async (to) => {
   if (!auth.user) {
     try {
       await auth.fetchUser()
-    } catch {
+    } catch (e) {
+      // Workspace hard-locked by the SaaS operator: every API call (incl.
+      // /me) answers 403 tenant_suspended — park the session on the
+      // suspended screen instead of bouncing to login.
+      const resp = (e as { response?: { status?: number; data?: { error?: string } } }).response
+      if (resp?.status === 403 && resp.data?.error === 'tenant_suspended') {
+        return { name: 'suspended' }
+      }
       return { name: 'login' }
     }
   }

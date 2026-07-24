@@ -134,9 +134,12 @@ onMounted(load)
           <Tag :value="data.status" :severity="invoiceSeverity[data.status] ?? 'secondary'" class="cap" />
         </template>
       </Column>
-      <Column header="Gateway ref">
+      <Column header="Method / Ref">
         <template #body="{ data }">
-          <span class="mono">{{ data.payment_gateway_ref ?? '—' }}</span>
+          <div class="cell-2line">
+            <span class="cap">{{ data.payment_method ? data.payment_method.replace('_', ' ') : 'gateway' }}</span>
+            <span v-if="data.payment_gateway_ref" class="mono muted-sm">{{ data.payment_gateway_ref }}</span>
+          </div>
         </template>
       </Column>
       <Column header="Paid at" style="width: 8rem">
@@ -195,6 +198,7 @@ onMounted(load)
 .strong { font-weight: 600; }
 .muted { color: #9ca3af; font-size: 0.8rem; }
 .mono { font-family: ui-monospace, monospace; font-size: 0.8rem; }
+.muted-sm { color: #9ca3af; }
 .cap { text-transform: capitalize; }
 .cell-2line { display: flex; flex-direction: column; }
 .ellipsis { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

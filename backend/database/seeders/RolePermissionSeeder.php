@@ -4,16 +4,22 @@ namespace Database\Seeders;
 
 use App\Support\TenantRoleCatalog;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * Seeds the web-guard permission vocabulary and the global role templates
+ * (tenant_id NULL). Deliberately set-based: it writes the permission/role/pivot
+ * tables directly in a handful of bulk statements instead of going through
+ * Spatie's models — Role::syncPermissions() flushes the package cache per call,
+ * so seeding ~50 roles that way rebuilds the full cache ~50 times and takes
+ * minutes. Semantics are unchanged: each managed role ends up with exactly its
+ * defined permission set (extras are detached, like syncPermissions).
+ */
 class RolePermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
         // --- Build permissions (vocabulary lives in TenantRoleCatalog) ---
         $permissions = [];
         foreach (TenantRoleCatalog::MODULES as $module) {
@@ -28,20 +34,27 @@ class RolePermissionSeeder extends Seeder
             $permissions[] = "{$module}.view";
         }
 
-        // DB-level firstOrCreate (not Permission::findOrCreate, which resolves
-        // through Spatie's cached collection and can INSERT a duplicate on a
-        // re-run). Name + guard is the whole identity — permissions carry no team.
-        foreach ($permissions as $name) {
-            Permission::query()->firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+        $now = now();
+
+        // Bulk-ensure the vocabulary: one SELECT for what exists, one INSERT
+        // for the rest. Name + guard is the whole identity — permissions carry
+        // no team. Central + web permissions share one table, so everything
+        // below is guard-scoped or a central permission would leak into a web
+        // role.
+        $existingNames = DB::table('permissions')->where('guard_name', 'web')->pluck('name')->all();
+        $missing = array_values(array_diff($permissions, $existingNames));
+        if ($missing !== []) {
+            DB::table('permissions')->insert(array_map(fn (string $name) => [
+                'name' => $name, 'guard_name' => 'web', 'created_at' => $now, 'updated_at' => $now,
+            ], $missing));
         }
 
-        // Rebuild the cache so the name-based syncPermissions() calls below see
-        // what we just ensured, then take the web-guard permission set ONCE.
-        // Central + web permissions share one table, so every reuse must be
-        // guard-scoped or a central permission leaks into a web role and Spatie
-        // throws GuardDoesNotMatch.
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-        $webPermissions = Permission::where('guard_name', 'web')->get();
+        // name → id for the FULL web-guard set (may hold more than the
+        // vocabulary, e.g. admin-created custom permissions — '*' roles get
+        // those too, exactly as the old syncPermissions($webPermissions) did).
+        $permissionIds = DB::table('permissions')->where('guard_name', 'web')->pluck('id', 'name');
+        $allIds = $permissionIds->values()->all();
+        $viewIds = $permissionIds->filter(fn ($id, string $name) => str_ends_with($name, '.view'))->values()->all();
 
         // --- Build roles with their permission sets ---
         $roleMap = [
@@ -156,29 +169,103 @@ class RolePermissionSeeder extends Seeder
             ],
         ];
 
+        // --- Desired permission-id set per role ---
+        $desired = [];
         foreach ($roleMap as $roleName => $perms) {
-            $role = Role::findOrCreate($roleName, 'web');
-
             if ($perms === '*') {
-                $role->syncPermissions($webPermissions);
+                $desired[$roleName] = $allIds;
             } elseif ($roleName === 'auditor') {
-                $viewOnly = $webPermissions->filter(fn ($p) => str_ends_with($p->name, '.view'));
-                $role->syncPermissions($viewOnly);
+                $desired[$roleName] = $viewIds;
             } else {
-                $role->syncPermissions($perms);
+                $desired[$roleName] = $this->idsFor($perms, $permissionIds);
             }
         }
 
-        // --- Level-2 departmental roles (TenantRoleCatalog) ---
-        // The org-chart roles beyond the hand-tuned ones above. A null expansion
-        // means "grant everything" (owner / MD / CEO).
-        $allPermissions = $webPermissions;
+        // Level-2 departmental roles (TenantRoleCatalog) — the org-chart roles
+        // beyond the hand-tuned ones above. A null expansion means "grant
+        // everything" (owner / MD / CEO).
         foreach (TenantRoleCatalog::newRoles() as $roleName => $def) {
-            $role = Role::findOrCreate($roleName, 'web');
             $expanded = TenantRoleCatalog::expand($def['spec']);
-            $role->syncPermissions($expanded === null ? $allPermissions : $expanded);
+            $desired[$roleName] = $expanded === null ? $allIds : $this->idsFor($expanded, $permissionIds);
         }
 
+        // --- Bulk-ensure the global role templates (tenant_id NULL, web) ---
+        $teamKey = config('permission.column_names.team_foreign_key'); // tenant_id
+        $roleNames = array_keys($desired);
+
+        $roleIds = $this->globalRoleIds($teamKey, $roleNames);
+        $missingRoles = array_values(array_diff($roleNames, $roleIds->keys()->all()));
+        if ($missingRoles !== []) {
+            DB::table('roles')->insert(array_map(fn (string $name) => [
+                $teamKey => null, 'name' => $name, 'guard_name' => 'web',
+                'created_at' => $now, 'updated_at' => $now,
+            ], $missingRoles));
+            $roleIds = $this->globalRoleIds($teamKey, $roleNames);
+        }
+
+        // --- Diff-sync role_has_permissions against the desired sets ---
+        // Current pivot rows for the managed roles only (custom tenant roles
+        // are never touched), grouped role_id => [permission ids].
+        $current = DB::table('role_has_permissions')
+            ->whereIn('role_id', $roleIds->values()->all())
+            ->get()
+            ->groupBy('role_id')
+            ->map(fn ($rows) => $rows->pluck('permission_id')->flip());
+
+        $toInsert = [];
+        foreach ($desired as $roleName => $ids) {
+            $roleId = $roleIds[$roleName];
+            $have = $current->get($roleId, collect());
+
+            foreach ($ids as $pid) {
+                if (! isset($have[$pid])) {
+                    $toInsert[] = ['role_id' => $roleId, 'permission_id' => $pid];
+                }
+            }
+
+            // syncPermissions semantics: drop grants no longer in the set.
+            $stale = $have->keys()->diff($ids);
+            if ($stale->isNotEmpty()) {
+                DB::table('role_has_permissions')
+                    ->where('role_id', $roleId)
+                    ->whereIn('permission_id', $stale->all())
+                    ->delete();
+            }
+        }
+
+        foreach (array_chunk($toInsert, 2000) as $chunk) {
+            DB::table('role_has_permissions')->insert($chunk);
+        }
+
+        // One cache flush at the end (the whole point: not one per role).
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /** id-by-name map of the global (tenant_id NULL) web-guard role templates. */
+    private function globalRoleIds(string $teamKey, array $roleNames): \Illuminate\Support\Collection
+    {
+        return DB::table('roles')
+            ->where('guard_name', 'web')
+            ->whereNull($teamKey)
+            ->whereIn('name', $roleNames)
+            ->pluck('id', 'name');
+    }
+
+    /**
+     * Resolve permission names to ids, failing loudly on a name outside the
+     * seeded vocabulary (same outcome as Spatie's PermissionDoesNotExist).
+     *
+     * @param  array<int, string>  $names
+     * @return array<int, int>
+     */
+    private function idsFor(array $names, \Illuminate\Support\Collection $map): array
+    {
+        $ids = [];
+        foreach (array_unique($names) as $name) {
+            $ids[] = $map[$name]
+                ?? throw new \RuntimeException("RolePermissionSeeder references unknown permission [{$name}].");
+        }
+
+        return $ids;
     }
 }

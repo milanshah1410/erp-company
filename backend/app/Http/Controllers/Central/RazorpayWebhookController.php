@@ -66,25 +66,38 @@ class RazorpayWebhookController extends Controller
     {
         $periodEnd = $payload['payload']['subscription']['entity']['current_end'] ?? null;
 
-        $subscription->update([
+        $update = [
             'status' => 'active',
             'current_period_start' => now(),
             'current_period_end' => $periodEnd ? Carbon::createFromTimestamp($periodEnd) : now()->addMonth(),
-        ]);
+        ];
 
-        Tenant::where('id', $subscription->tenant_id)->update(['status' => 'active']);
+        // A plan change parked at change-plan time takes effect on payment.
+        if ($subscription->pending_plan_id) {
+            $update['plan_id'] = $subscription->pending_plan_id;
+            $update['pending_plan_id'] = null;
+        }
+
+        $subscription->update($update);
+
+        Tenant::where('id', $subscription->tenant_id)->update(['status' => 'active', 'suspended_by' => null]);
 
         $amount = $payload['payload']['payment']['entity']['amount'] ?? null;
         $paymentId = $payload['payload']['payment']['entity']['id'] ?? null;
 
         if ($amount !== null) {
-            SubscriptionInvoice::create([
+            $values = [
                 'subscription_id' => $subscription->id,
                 'amount' => $amount / 100,
                 'status' => 'paid',
-                'payment_gateway_ref' => $paymentId,
                 'paid_at' => now(),
-            ]);
+            ];
+
+            // Keyed by payment id so the in-app checkout confirmation and this
+            // webhook can't record the same charge twice.
+            $paymentId
+                ? SubscriptionInvoice::firstOrCreate(['payment_gateway_ref' => $paymentId], $values)
+                : SubscriptionInvoice::create($values + ['payment_gateway_ref' => null]);
         }
     }
 

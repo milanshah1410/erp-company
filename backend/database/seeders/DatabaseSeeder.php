@@ -41,11 +41,11 @@ class DatabaseSeeder extends Seeder
         // (NULL) team context internally.
         $this->call(CentralRolePermissionSeeder::class);
 
-        // 2. A dev tenant — seeded on a trial so the trial banner + onboarding
-        //    "Getting Started" widget are visible on first login.
-        $tenant = Tenant::firstOrCreate(
+        // 2. The dev tenant — seeded active (not on a trial) so it can never be
+        //    swept up by the daily lapse/suspension processing.
+        $tenant = Tenant::updateOrCreate(
             ['email' => 'admin@sims.test'],
-            ['company_name' => 'Demo Company', 'status' => 'trial'],
+            ['company_name' => 'Demo Company', 'status' => 'active', 'suspended_by' => null],
         );
 
         // 3. Tenant-scoped data: admin user + baseline, inside the tenant context.
@@ -78,13 +78,18 @@ class DatabaseSeeder extends Seeder
         });
 
         // 4. Landlord records (explicit tenant_id, no tenant scope).
-        Subscription::firstOrCreate(
+        //    Unlimited subscription: Enterprise plan (null feature limits =
+        //    unlimited) as an active sub with NO current_period_end — the
+        //    subscriptions:process lapse sweep only suspends subs whose trial
+        //    or paid period has an end date in the past, so this never lapses.
+        Subscription::updateOrCreate(
             ['tenant_id' => $tenant->id],
             [
-                'plan_id' => Plan::where('slug', 'starter')->value('id'),
-                'status' => 'trialing',
-                'trial_ends_at' => now()->addDays((int) config('saas.trial_days', 14)),
+                'plan_id' => Plan::where('slug', 'enterprise')->value('id'),
+                'status' => 'active',
+                'trial_ends_at' => null,
                 'current_period_start' => now(),
+                'current_period_end' => null,
             ],
         );
         OnboardingProgress::firstOrCreate(['tenant_id' => $tenant->id], ['steps' => []]);

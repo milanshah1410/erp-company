@@ -99,7 +99,7 @@ class ProcessSubscriptions extends Command
         foreach ($lapsedTrials->concat($lapsedPaid) as $sub) {
             $sub->update(['status' => 'suspended']);
             if ($sub->tenant) {
-                $sub->tenant->update(['status' => 'suspended']);
+                $sub->tenant->update(['status' => 'suspended', 'suspended_by' => 'billing']);
                 $this->warn("Suspended tenant {$sub->tenant->company_name} ({$sub->tenant_id})");
             }
         }

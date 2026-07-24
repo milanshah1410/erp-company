@@ -16,7 +16,9 @@ http.interceptors.request.use((config) => {
   return config
 })
 
-// On 401, clear the session and bounce to login.
+// On 401, clear the session and bounce to login. On a 403 tenant_suspended
+// (workspace hard-locked by the SaaS operator) land on the suspended screen —
+// the token is kept so the user can still sign out from there.
 http.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -25,6 +27,13 @@ http.interceptors.response.use(
       if (window.location.pathname !== '/login') {
         window.location.href = '/login'
       }
+    }
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.error === 'tenant_suspended' &&
+      window.location.pathname !== '/suspended'
+    ) {
+      window.location.href = '/suspended'
     }
     return Promise.reject(error)
   },

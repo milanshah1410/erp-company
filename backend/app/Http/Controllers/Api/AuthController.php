@@ -44,6 +44,19 @@ class AuthController extends Controller
             ]);
         }
 
+        // Operator-suspended workspaces are hard-locked: no fresh sessions.
+        // (Billing-suspended tenants may still log in — the workspace is
+        // read-only and they need access to the billing screen to recover.)
+        $tenant = \App\Models\Tenant::find($user->tenant_id);
+        if ($tenant && $tenant->isOperatorSuspended()) {
+            activity('auth')->withProperties(['ip' => request()->ip(), 'email' => $user->email, 'tenant_id' => $tenant->id])
+                ->event('login_blocked')->log('Login rejected: workspace suspended by operator');
+
+            throw ValidationException::withMessages([
+                'email' => ['This workspace has been suspended by the platform administrator. Please contact support.'],
+            ]);
+        }
+
         // Establish the tenant so the session payload (roles/permissions,
         // companies/branches — all tenant-scoped) resolves correctly.
         app(TenantContext::class)->set($user->tenant_id);

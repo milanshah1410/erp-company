@@ -120,6 +120,7 @@ Route::prefix('central')->group(function () {
             Route::get('/subscriptions/{subscription}', [BillingSubscriptionController::class, 'show'])->middleware('permission:subscriptions.view,central');
             Route::match(['put', 'patch'], '/subscriptions/{subscription}', [BillingSubscriptionController::class, 'update'])->middleware('permission:subscriptions.edit,central');
             Route::post('/subscriptions/{subscription}/cancel', [BillingSubscriptionController::class, 'cancel'])->middleware('permission:subscriptions.cancel,central');
+            Route::post('/subscriptions/{subscription}/record-payment', [BillingSubscriptionController::class, 'recordPayment'])->middleware('permission:subscriptions.edit,central');
 
             Route::get('/invoices', [BillingInvoiceController::class, 'index'])->middleware('permission:invoices.view,central');
             Route::post('/invoices/{invoice}/refund', [BillingInvoiceController::class, 'refund'])->middleware('permission:invoices.refund,central');

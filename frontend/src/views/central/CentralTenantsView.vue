@@ -137,7 +137,7 @@ function pollProvisioning(registrationId: number) {
 async function confirmSuspend(row: any) {
   const res = await Swal.fire({
     title: `Suspend "${row.company_name}"?`,
-    text: 'The workspace becomes read-only for every user until reactivated.',
+    text: 'The workspace is fully locked: logins are rejected and all API access is blocked until reactivated.',
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
@@ -220,6 +220,7 @@ onBeforeUnmount(() => {
       <Column header="Status" style="width: 8rem">
         <template #body="{ data }">
           <Tag :severity="statusSeverity(data.status)" :value="data.status" />
+          <small v-if="data.status === 'suspended' && data.suspended_by" class="muted"> by {{ data.suspended_by }}</small>
         </template>
       </Column>
       <Column field="plan" header="Plan" sortable>

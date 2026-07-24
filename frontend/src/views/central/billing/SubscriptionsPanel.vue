@@ -5,6 +5,8 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import InputNumber from 'primevue/inputnumber'
+import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
 import Tag from 'primevue/tag'
@@ -171,6 +173,65 @@ async function saveEdit() {
   }
 }
 
+// ---- Record offline payment --------------------------------------------------
+const payVisible = ref(false)
+const payRow = ref<any>(null)
+const paySaving = ref(false)
+const payErrors = ref<Record<string, string[]>>({})
+const payForm = ref<any>({})
+
+const methodOptions = [
+  { label: 'Bank transfer', value: 'bank_transfer' },
+  { label: 'UPI', value: 'upi' },
+  { label: 'Cheque', value: 'cheque' },
+  { label: 'Cash', value: 'cash' },
+  { label: 'Other', value: 'other' },
+]
+
+function payFieldError(key: string): string | null {
+  return payErrors.value[key]?.[0] ?? null
+}
+
+function openRecordPayment(row: any) {
+  payRow.value = row
+  payForm.value = {
+    amount: row.plan_price != null ? Number(row.plan_price) : null,
+    method: 'bank_transfer',
+    reference: '',
+    paid_at: new Date(),
+    notes: '',
+    extend_period: true,
+  }
+  payErrors.value = {}
+  payVisible.value = true
+}
+
+async function saveRecordPayment() {
+  paySaving.value = true
+  payErrors.value = {}
+  try {
+    const { data } = await centralHttp.post(`/billing/subscriptions/${payRow.value.id}/record-payment`, {
+      amount: payForm.value.amount,
+      method: payForm.value.method,
+      reference: payForm.value.reference || null,
+      paid_at: toApiDate(payForm.value.paid_at),
+      notes: payForm.value.notes || null,
+      extend_period: payForm.value.extend_period,
+    })
+    toast.add({ severity: 'success', summary: 'Payment recorded', detail: data.message, life: 4000 })
+    payVisible.value = false
+    await load()
+  } catch (e: any) {
+    if (e.response?.status === 422 && e.response.data.errors) {
+      payErrors.value = e.response.data.errors
+    } else {
+      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Could not record the payment', life: 4000 })
+    }
+  } finally {
+    paySaving.value = false
+  }
+}
+
 // ---- Cancel ------------------------------------------------------------------
 async function confirmCancel(row: any) {
   const res = await Swal.fire({
@@ -249,10 +310,12 @@ onMounted(load)
           <span v-else class="muted">—</span>
         </template>
       </Column>
-      <Column header="Actions" style="width: 9rem">
+      <Column header="Actions" style="width: 11rem">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" title="Details & invoices" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
+          <Button v-if="canEdit" icon="pi pi-wallet" text rounded severity="success" size="small"
+            title="Record offline payment" @click="openRecordPayment(data)" />
           <Button v-if="canCancel && data.status !== 'cancelled'" icon="pi pi-ban" text rounded severity="danger" size="small"
             title="Cancel subscription" @click="confirmCancel(data)" />
         </template>
@@ -284,6 +347,14 @@ onMounted(load)
           <Column header="Status" style="width: 7rem">
             <template #body="{ data }">
               <Tag :value="data.status" :severity="invoiceSeverity[data.status] ?? 'secondary'" class="cap" />
+            </template>
+          </Column>
+          <Column header="Method / Ref">
+            <template #body="{ data }">
+              <div class="cell-2line">
+                <span class="cap">{{ data.payment_method ? data.payment_method.replace('_', ' ') : 'gateway' }}</span>
+                <span v-if="data.payment_gateway_ref" class="muted">{{ data.payment_gateway_ref }}</span>
+              </div>
             </template>
           </Column>
           <Column header="Paid at" style="width: 8rem">
@@ -337,6 +408,50 @@ onMounted(load)
         <Button label="Save" :loading="saving" @click="saveEdit" />
       </template>
     </Dialog>
+
+    <!-- Record offline payment -->
+    <Dialog v-model:visible="payVisible" modal :style="{ width: '520px' }"
+      :header="`Record payment — ${payRow?.tenant_name ?? ''}`">
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Amount ({{ payRow?.currency ?? 'INR' }})</label>
+          <InputNumber v-model="payForm.amount" :minFractionDigits="2" :maxFractionDigits="2" :min="0.01" />
+          <small v-if="payFieldError('amount')" class="error-text">{{ payFieldError('amount') }}</small>
+        </div>
+        <div class="form-field">
+          <label>Method</label>
+          <Select v-model="payForm.method" :options="methodOptions" optionLabel="label" optionValue="value" />
+          <small v-if="payFieldError('method')" class="error-text">{{ payFieldError('method') }}</small>
+        </div>
+        <div class="form-field">
+          <label>Reference (UTR / cheque no.)</label>
+          <InputText v-model="payForm.reference" placeholder="Optional" />
+          <small v-if="payFieldError('reference')" class="error-text">{{ payFieldError('reference') }}</small>
+        </div>
+        <div class="form-field">
+          <label>Received on</label>
+          <DatePicker v-model="payForm.paid_at" showTime hourFormat="24" dateFormat="yy-mm-dd" showIcon :maxDate="new Date()" />
+          <small v-if="payFieldError('paid_at')" class="error-text">{{ payFieldError('paid_at') }}</small>
+        </div>
+        <div class="form-field full">
+          <label>Notes</label>
+          <InputText v-model="payForm.notes" placeholder="Optional" />
+          <small v-if="payFieldError('notes')" class="error-text">{{ payFieldError('notes') }}</small>
+        </div>
+        <div class="form-field full check-row">
+          <Checkbox v-model="payForm.extend_period" binary inputId="extend-period" />
+          <label for="extend-period" class="check-label">Renew the billing period &amp; reactivate the workspace</label>
+        </div>
+        <small class="hint full">
+          A paid invoice is created either way. An operator-suspended workspace stays locked until it is unsuspended explicitly.
+        </small>
+      </div>
+
+      <template #footer>
+        <Button label="Cancel" text @click="payVisible = false" />
+        <Button label="Record payment" :loading="paySaving" @click="saveRecordPayment" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -361,5 +476,8 @@ onMounted(load)
 .form-field label { font-size: 0.85rem; font-weight: 500; color: #374151; }
 .form-field :deep(.p-inputtext), .form-field :deep(.p-select), .form-field :deep(.p-datepicker) { width: 100%; }
 .hint { color: #6b7280; font-size: 0.75rem; }
+.check-row { flex-direction: row; align-items: center; gap: 0.5rem; }
+.check-label { font-size: 0.85rem; color: #374151; cursor: pointer; }
+.full { grid-column: 1 / -1; }
 .error-text { color: #dc2626; font-size: 0.78rem; }
 </style>

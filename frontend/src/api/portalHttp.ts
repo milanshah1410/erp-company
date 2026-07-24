@@ -21,7 +21,13 @@ portalHttp.interceptors.request.use((config) => {
 portalHttp.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // 403 tenant_suspended: the supplier's workspace was hard-locked by the
+    // SaaS operator — end the portal session (login is blocked server-side
+    // with an explanatory message).
+    if (
+      error.response?.status === 401 ||
+      (error.response?.status === 403 && error.response?.data?.error === 'tenant_suspended')
+    ) {
       localStorage.removeItem('sims_portal_token')
       if (window.location.pathname !== '/portal/login') {
         window.location.href = '/portal/login'

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import http from '../api/http'
+import { openPdfBlob } from '../utils/blob'
 
 interface Plan {
   slug: string
@@ -18,25 +19,157 @@ interface Sub {
   trial_days_left: number
   current_period_end: string | null
 }
+interface SubInvoice {
+  id: number
+  number: string
+  plan: string | null
+  amount: number
+  currency: string
+  status: string
+  paid_at: string | null
+  refund_amount: number | null
+  refunded_at: string | null
+  created_at: string
+}
 
 const sub = ref<Sub | null>(null)
 const plans = ref<Plan[]>([])
+const invoices = ref<SubInvoice[]>([])
 const loading = ref(true)
 const changing = ref('')
 const message = ref('')
+const pdfBusy = ref(0)
 
 async function load() {
   loading.value = true
   try {
-    const [{ data: s }, { data: p }] = await Promise.all([
+    const [{ data: s }, { data: p }, { data: inv }] = await Promise.all([
       http.get('/subscription'),
       http.get('/subscription/plans'),
+      http.get('/subscription/invoices'),
     ])
     sub.value = s.data
     plans.value = p.data
+    invoices.value = inv.data
   } finally {
     loading.value = false
   }
+}
+
+function fmtDate(v: string | null): string {
+  return v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+}
+
+async function viewInvoice(inv: SubInvoice) {
+  pdfBusy.value = inv.id
+  try {
+    const { data } = await http.get(`/subscription/invoices/${inv.id}/pdf`, { responseType: 'blob' })
+    openPdfBlob(new Blob([data], { type: 'application/pdf' }))
+  } finally {
+    pdfBusy.value = 0
+  }
+}
+
+async function downloadInvoice(inv: SubInvoice) {
+  pdfBusy.value = inv.id
+  try {
+    const { data } = await http.get(`/subscription/invoices/${inv.id}/pdf`, {
+      params: { download: 1 },
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `subscription-invoice-${inv.number}.pdf`
+    a.click()
+    setTimeout(() => window.URL.revokeObjectURL(url), 60_000)
+  } finally {
+    pdfBusy.value = 0
+  }
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => RazorpayInstance
+  }
+}
+interface RazorpayInstance {
+  open: () => void
+  on: (event: string, cb: (resp: any) => void) => void
+}
+interface CheckoutResponse {
+  razorpay_payment_id: string
+  razorpay_subscription_id: string
+  razorpay_signature: string
+}
+
+let checkoutScript: Promise<boolean> | null = null
+
+/** Load Razorpay's checkout.js once; resolves false if the CDN is unreachable. */
+function loadCheckoutScript(): Promise<boolean> {
+  if (window.Razorpay) return Promise.resolve(true)
+  if (!checkoutScript) {
+    checkoutScript = new Promise((resolve) => {
+      const s = document.createElement('script')
+      s.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      s.onload = () => resolve(true)
+      s.onerror = () => resolve(false)
+      document.head.appendChild(s)
+    })
+  }
+  return checkoutScript
+}
+
+async function confirmPayment(resp: CheckoutResponse) {
+  try {
+    const { data } = await http.post('/subscription/confirm-payment', {
+      razorpay_payment_id: resp.razorpay_payment_id,
+      razorpay_subscription_id: resp.razorpay_subscription_id,
+      razorpay_signature: resp.razorpay_signature,
+    })
+    message.value = data.message
+  } catch (e: any) {
+    message.value =
+      e.response?.data?.message ||
+      'Could not confirm the payment. If you were charged, your plan will activate automatically within a few minutes.'
+  }
+  await load()
+}
+
+/** Open the in-app Razorpay Checkout modal; returns false if the script failed to load. */
+async function openCheckout(data: {
+  razorpay_key: string
+  razorpay_subscription_id: string
+  plan_name?: string
+  prefill?: Record<string, string | null>
+}): Promise<boolean> {
+  const ok = await loadCheckoutScript()
+  if (!ok || !window.Razorpay) return false
+
+  const rzp = new window.Razorpay({
+    key: data.razorpay_key,
+    subscription_id: data.razorpay_subscription_id,
+    name: 'SIMS',
+    description: data.plan_name ? `${data.plan_name} plan subscription` : 'Plan subscription',
+    prefill: data.prefill ?? {},
+    theme: { color: '#e8a33d' },
+    handler: (resp: CheckoutResponse) => {
+      message.value = 'Verifying payment…'
+      void confirmPayment(resp)
+    },
+    modal: {
+      ondismiss: () => {
+        message.value = 'Payment window closed — your plan has not changed. Pick a plan again whenever you are ready.'
+      },
+    },
+  })
+  rzp.on('payment.failed', (resp: any) => {
+    message.value = resp?.error?.description
+      ? `Payment failed: ${resp.error.description}`
+      : 'Payment failed. Please try again or use a different method.'
+  })
+  rzp.open()
+  return true
 }
 
 async function changePlan(slug: string) {
@@ -44,13 +177,91 @@ async function changePlan(slug: string) {
   message.value = ''
   try {
     const { data } = await http.post('/subscription/change-plan', { plan_slug: slug })
-    message.value = data.message
-    if (data.short_url) window.open(data.short_url, '_blank')
+    if (data.razorpay_subscription_id && data.razorpay_key) {
+      const opened = await openCheckout(data)
+      if (!opened) {
+        // Checkout script unavailable — fall back to Razorpay's hosted page.
+        message.value = data.message
+        if (data.short_url) {
+          window.open(data.short_url, '_blank')
+          startActivationPolling()
+        }
+      }
+    } else {
+      message.value = data.message
+    }
     await load()
   } catch (e: any) {
     message.value = e.response?.data?.message || 'Could not change plan.'
   } finally {
     changing.value = ''
+  }
+}
+
+const paying = ref(false)
+let pollTimer: number | undefined
+
+function stopActivationPolling() {
+  if (pollTimer) {
+    window.clearInterval(pollTimer)
+    pollTimer = undefined
+  }
+}
+
+/**
+ * Hosted Razorpay pages (dues invoice / short_url fallback) can't call us
+ * back, so after opening one we watch the subscription until the webhook
+ * flips it to active (checked every 5s for up to 2 minutes).
+ */
+function startActivationPolling() {
+  stopActivationPolling()
+  let attempts = 0
+  pollTimer = window.setInterval(async () => {
+    attempts++
+    try {
+      const { data } = await http.get('/subscription')
+      if (data.data?.status === 'active') {
+        stopActivationPolling()
+        message.value = 'Payment received — your subscription is active again.'
+        await load()
+        return
+      }
+    } catch {
+      /* transient — keep polling */
+    }
+    if (attempts >= 24) stopActivationPolling()
+  }, 5000)
+}
+
+onUnmounted(stopActivationPolling)
+
+/** Clear past_due/suspended dues without going through a plan change. */
+async function payNow() {
+  paying.value = true
+  message.value = ''
+  try {
+    const { data } = await http.post('/subscription/pay-now')
+    if (data.razorpay_subscription_id && data.razorpay_key) {
+      // Nothing left to retry on the old subscription — fresh in-app checkout.
+      const opened = await openCheckout(data)
+      if (!opened && data.short_url) {
+        message.value = data.message
+        window.open(data.short_url, '_blank')
+        startActivationPolling()
+      }
+    } else if (data.payment_url) {
+      // Open dues invoice on Razorpay's hosted page; webhook reactivates us.
+      message.value = data.message
+      window.open(data.payment_url, '_blank')
+      startActivationPolling()
+    } else {
+      message.value = data.message
+      await load()
+    }
+  } catch (e: any) {
+    message.value = e.response?.data?.message || 'Could not start the payment.'
+  } finally {
+    paying.value = false
   }
 }
 
@@ -78,6 +289,21 @@ onMounted(load)
           <span class="badge" :class="sub.status">{{ sub.status }}</span>
           <span v-if="sub.on_trial" class="trial">{{ sub.trial_days_left }} days left in trial</span>
         </div>
+      </div>
+
+      <div v-if="sub && (sub.status === 'past_due' || sub.status === 'suspended')" class="due-banner">
+        <div>
+          <div class="due-title">
+            <i class="pi pi-exclamation-triangle" />
+            {{ sub.status === 'past_due' ? 'Payment overdue' : 'Subscription suspended' }}
+          </div>
+          <div class="due-text">
+            Clear the pending payment to reactivate your workspace — no plan change needed.
+          </div>
+        </div>
+        <button class="pay-now" :disabled="paying" @click="payNow">
+          {{ paying ? 'Starting…' : 'Pay Now' }}
+        </button>
       </div>
 
       <div v-if="message" class="notice">{{ message }}</div>
@@ -112,6 +338,49 @@ onMounted(load)
             <template v-else>Choose {{ p.name }}</template>
           </button>
         </div>
+      </div>
+
+      <div class="barcode-divider" />
+
+      <h2 class="section-heading">Invoice History</h2>
+      <div v-if="!invoices.length" class="empty">No subscription invoices yet.</div>
+      <div v-else class="invoice-table-wrap">
+        <table class="invoice-table">
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Date</th>
+              <th>Plan</th>
+              <th class="num">Amount</th>
+              <th>Status</th>
+              <th>Paid On</th>
+              <th class="actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="inv in invoices" :key="inv.id">
+              <td class="mono">{{ inv.number }}</td>
+              <td>{{ fmtDate(inv.created_at) }}</td>
+              <td>{{ inv.plan || '—' }}</td>
+              <td class="num">₹{{ inv.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }) }}</td>
+              <td>
+                <span class="badge" :class="inv.status">{{ inv.status }}</span>
+                <span v-if="inv.refund_amount" class="refund-note">
+                  ₹{{ inv.refund_amount.toLocaleString('en-IN') }} refunded
+                </span>
+              </td>
+              <td>{{ fmtDate(inv.paid_at) }}</td>
+              <td class="actions">
+                <button class="icon-btn" title="View PDF" :disabled="pdfBusy === inv.id" @click="viewInvoice(inv)">
+                  <i class="pi pi-eye" />
+                </button>
+                <button class="icon-btn" title="Download PDF" :disabled="pdfBusy === inv.id" @click="downloadInvoice(inv)">
+                  <i class="pi pi-download" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </template>
   </div>
@@ -177,6 +446,47 @@ onMounted(load)
   margin-top: 0.35rem;
   font-size: 0.8rem;
   color: #a06a27;
+}
+.due-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  background: rgba(193, 80, 46, 0.08);
+  border: 1px solid rgba(193, 80, 46, 0.35);
+  border-left: 4px solid #c1502e;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+.due-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: #c1502e;
+}
+.due-text {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+.pay-now {
+  background: #c1502e;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pay-now:hover {
+  background: #a84427;
+}
+.pay-now:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .notice {
   margin-top: 1rem;
@@ -265,5 +575,81 @@ onMounted(load)
 }
 .empty {
   color: #6b7280;
+}
+.section-heading {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.invoice-table-wrap {
+  background: #fff;
+  border: 1px solid #e8e4da;
+  border-radius: 12px;
+  overflow-x: auto;
+}
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.invoice-table th {
+  text-align: left;
+  padding: 0.7rem 1rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  border-bottom: 1px solid #e8e4da;
+}
+.invoice-table td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #f1efe9;
+  color: #374151;
+  white-space: nowrap;
+}
+.invoice-table tr:last-child td {
+  border-bottom: none;
+}
+.invoice-table .num {
+  text-align: right;
+}
+.invoice-table .mono {
+  font-family: 'Space Grotesk', monospace;
+  font-weight: 600;
+  color: #1e2328;
+}
+.badge.paid {
+  background: rgba(76, 139, 108, 0.18);
+  color: #3a6b53;
+}
+.badge.refunded,
+.badge.failed {
+  background: rgba(193, 80, 46, 0.15);
+  color: #c1502e;
+}
+.refund-note {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: #c1502e;
+}
+.invoice-table .actions {
+  text-align: right;
+}
+.icon-btn {
+  background: none;
+  border: 1px solid #e8e4da;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  margin-left: 0.35rem;
+  cursor: pointer;
+  color: #2c4a5e;
+}
+.icon-btn:hover {
+  background: #f6f4ee;
+}
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 </style>

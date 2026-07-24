@@ -26,6 +26,12 @@ class RazorpayService
         return ! empty(config('saas.razorpay.key')) && ! empty(config('saas.razorpay.secret'));
     }
 
+    /** Public key id — safe to expose to the browser for Checkout. */
+    public function keyId(): ?string
+    {
+        return config('saas.razorpay.key');
+    }
+
     private function client(): PendingRequest
     {
         if (! $this->configured()) {
@@ -90,6 +96,48 @@ class RazorpayService
         return $this->client()->post("/subscriptions/{$subscriptionId}/cancel", [
             'cancel_at_cycle_end' => $atCycleEnd ? 1 : 0,
         ])->throw()->json();
+    }
+
+    /**
+     * The most recent unpaid invoice on a Razorpay subscription, if any.
+     * When a recurring charge fails the subscription goes pending/halted and
+     * Razorpay keeps an issued invoice open — paying it (via its short_url)
+     * settles the dues and resumes the subscription, so a "Pay Now" retry
+     * should surface this instead of spinning up a new subscription.
+     */
+    public function latestUnpaidInvoice(string $subscriptionId): ?array
+    {
+        $items = $this->client()
+            ->get('/invoices', ['subscription_id' => $subscriptionId])
+            ->throw()
+            ->json('items') ?? [];
+
+        return collect($items)
+            ->whereIn('status', ['issued', 'overdue', 'partially_paid'])
+            ->sortByDesc('created_at')
+            ->first();
+    }
+
+    /** Fetch a payment so amount/status come from Razorpay, not the browser. */
+    public function fetchPayment(string $paymentId): array
+    {
+        return $this->client()->get("/payments/{$paymentId}")->throw()->json();
+    }
+
+    /**
+     * Verify the signature Razorpay Checkout hands back after a subscription
+     * payment: HMAC-SHA256 of "payment_id|subscription_id" with the key secret.
+     */
+    public function verifyCheckoutSignature(string $paymentId, string $subscriptionId, string $signature): bool
+    {
+        $secret = config('saas.razorpay.secret');
+        if (empty($secret)) {
+            return false;
+        }
+
+        $expected = hash_hmac('sha256', $paymentId.'|'.$subscriptionId, $secret);
+
+        return hash_equals($expected, $signature);
     }
 
     /**

@@ -14,7 +14,7 @@ class Subscription extends Model
     use \App\Models\Concerns\UsesCentralConnection;
 
     protected $fillable = [
-        'tenant_id', 'plan_id', 'status', 'trial_ends_at',
+        'tenant_id', 'plan_id', 'pending_plan_id', 'status', 'trial_ends_at',
         'current_period_start', 'current_period_end', 'cancelled_at',
         'razorpay_subscription_id', 'razorpay_customer_id',
     ];
@@ -34,6 +34,12 @@ class Subscription extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
+    }
+
+    /** The plan awaiting payment confirmation (set at change-plan time). */
+    public function pendingPlan(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class, 'pending_plan_id');
     }
 
     public function invoices(): HasMany

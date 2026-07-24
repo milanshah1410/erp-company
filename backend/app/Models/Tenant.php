@@ -20,7 +20,17 @@ class Tenant extends Model
         'email',
         'phone',
         'status',
+        'suspended_by',
     ];
+
+    /**
+     * Suspended by a SaaS-operator action (hard lock: no login, no API access),
+     * as opposed to a billing lapse (read-only grace so the tenant can pay).
+     */
+    public function isOperatorSuspended(): bool
+    {
+        return $this->status === 'suspended' && $this->suspended_by === 'operator';
+    }
 
     public function users(): HasMany
     {

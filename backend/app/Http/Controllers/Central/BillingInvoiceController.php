@@ -52,6 +52,8 @@ class BillingInvoiceController extends Controller
                 'currency' => $i->currency,
                 'status' => $i->status,
                 'payment_gateway_ref' => $i->payment_gateway_ref,
+                'payment_method' => $i->payment_method,
+                'notes' => $i->notes,
                 'paid_at' => $i->paid_at?->toDateTimeString(),
                 'refund_amount' => $i->refund_amount,
                 'refund_reason' => $i->refund_reason,

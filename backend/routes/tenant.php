@@ -1201,6 +1201,10 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         Route::get('subscription', [SubscriptionController::class, 'show']);
         Route::get('subscription/plans', [SubscriptionController::class, 'plans']);
+        Route::get('subscription/invoices', [SubscriptionController::class, 'invoices']);
+        Route::get('subscription/invoices/{invoice}/pdf', [SubscriptionController::class, 'invoicePdf']);
         Route::post('subscription/change-plan', [SubscriptionController::class, 'changePlan']);
+        Route::post('subscription/confirm-payment', [SubscriptionController::class, 'confirmPayment']);
+        Route::post('subscription/pay-now', [SubscriptionController::class, 'payNow']);
     });
 });

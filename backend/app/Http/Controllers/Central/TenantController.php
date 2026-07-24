@@ -56,6 +56,7 @@ class TenantController extends Controller
                 'email' => $t->email,
                 'phone' => $t->phone,
                 'status' => $t->status,
+                'suspended_by' => $t->suspended_by,
                 'plan' => $t->subscription?->plan?->name,
                 'subscription_status' => $t->subscription?->status,
                 'trial_ends_at' => $t->subscription?->trial_ends_at?->toDateString(),
@@ -130,8 +131,10 @@ class TenantController extends Controller
     }
 
     /**
-     * Suspend a workspace: writes are rejected tenant-wide (EnsureTenantActive
-     * makes it read-only), scheduled jobs skip it (IteratesTenants).
+     * Suspend a workspace by operator action: a hard lock. Logins are rejected,
+     * every tenant API route returns 403 (EnsureTenantActive), the SPA lands on
+     * the suspended screen, and scheduled jobs skip it (IteratesTenants).
+     * Unlike a billing suspension there is no read-only grace period.
      */
     public function suspend(Request $request, Tenant $tenant): JsonResponse
     {
@@ -139,7 +142,7 @@ class TenantController extends Controller
             return response()->json(['message' => 'Tenant is already suspended.'], 422);
         }
 
-        $tenant->update(['status' => 'suspended']);
+        $tenant->update(['status' => 'suspended', 'suspended_by' => 'operator']);
 
         activity('central-tenants')->causedBy($request->user())
             ->withProperties(['ip' => $request->ip(), 'tenant_id' => $tenant->id])
@@ -163,7 +166,7 @@ class TenantController extends Controller
             && $subscription->status === 'trialing'
             && $subscription->trial_ends_at?->isFuture()) ? 'trial' : 'active';
 
-        $tenant->update(['status' => $status]);
+        $tenant->update(['status' => $status, 'suspended_by' => null]);
 
         activity('central-tenants')->causedBy($request->user())
             ->withProperties(['ip' => $request->ip(), 'tenant_id' => $tenant->id, 'restored_to' => $status])

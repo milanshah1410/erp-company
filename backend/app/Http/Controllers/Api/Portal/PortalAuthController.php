@@ -50,6 +50,8 @@ class PortalAuthController extends Controller
             ]);
         }
 
+        $this->ensureTenantNotLocked($customer);
+
         // Establish the tenant so tenant-scoped reads (settings, products,
         // stock, pricing) resolve for the rest of the request.
         app(TenantContext::class)->set($customer->tenant_id);
@@ -91,6 +93,8 @@ class PortalAuthController extends Controller
             ]);
         }
 
+        $this->ensureTenantNotLocked($customer);
+
         app(TenantContext::class)->set($customer->tenant_id);
         app(PermissionRegistrar::class)->setPermissionsTeamId($customer->tenant_id);
 
@@ -123,6 +127,8 @@ class PortalAuthController extends Controller
                 'email' => ['The provided credentials are incorrect.'],
             ]);
         }
+
+        $this->ensureTenantNotLocked($customer);
 
         app(TenantContext::class)->set($customer->tenant_id);
         app(PermissionRegistrar::class)->setPermissionsTeamId($customer->tenant_id);
@@ -174,6 +180,26 @@ class PortalAuthController extends Controller
             ->where('email', $email)
             ->where('portal_enabled', true)
             ->first();
+    }
+
+    /**
+     * Reject portal sign-in when the owning workspace is hard-locked by an
+     * operator suspension. (Billing suspension keeps portal reads working, so
+     * it does not block login.)
+     */
+    private function ensureTenantNotLocked(Customer $customer): void
+    {
+        $tenant = Tenant::find($customer->tenant_id);
+
+        if ($tenant && $tenant->isOperatorSuspended()) {
+            activity('portal-auth')
+                ->withProperties(['ip' => request()->ip(), 'email' => $customer->email, 'tenant_id' => $tenant->id])
+                ->event('login_blocked')->log('Portal login rejected: workspace suspended by operator');
+
+            throw ValidationException::withMessages([
+                'email' => ['This portal is currently unavailable. Please contact your supplier.'],
+            ]);
+        }
     }
 
     /** Mask a phone number for display, e.g. "9812345678" -> "••••••5678". */

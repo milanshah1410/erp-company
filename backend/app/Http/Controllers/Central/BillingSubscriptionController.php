@@ -7,10 +7,12 @@ namespace App\Http\Controllers\Central;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\SubscriptionInvoice;
 use App\Models\Tenant;
 use App\Services\RazorpayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -120,6 +122,88 @@ class BillingSubscriptionController extends Controller
     }
 
     /**
+     * Record an offline payment (bank transfer, UPI, cheque, cash) received
+     * outside the gateway. Creates a real paid SubscriptionInvoice — so the
+     * money shows up in revenue and in the tenant's invoice history — and,
+     * unless the operator opts out, renews the billing period and reactivates
+     * the subscription/tenant. An operator hard-lock is never lifted by this.
+     */
+    public function recordPayment(Request $request, Subscription $subscription): JsonResponse
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'method' => ['required', Rule::in(['bank_transfer', 'upi', 'cheque', 'cash', 'other'])],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'paid_at' => ['nullable', 'date', 'before_or_equal:now'],
+            'notes' => ['nullable', 'string', 'max:255'],
+            'extend_period' => ['sometimes', 'boolean'],
+        ]);
+
+        $extend = (bool) ($data['extend_period'] ?? true);
+
+        $invoice = SubscriptionInvoice::create([
+            'subscription_id' => $subscription->id,
+            'amount' => $data['amount'],
+            'currency' => $subscription->plan?->currency ?? 'INR',
+            'status' => 'paid',
+            'payment_gateway_ref' => $data['reference'] ?? null,
+            'payment_method' => $data['method'],
+            'notes' => $data['notes'] ?? null,
+            'paid_at' => isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
+        ]);
+
+        if ($extend) {
+            // A plan change parked at change-plan time takes effect on payment,
+            // same as the gateway paths.
+            $plan = $subscription->pendingPlan ?: $subscription->plan;
+
+            // Paying early extends from the current period end; a lapsed
+            // period restarts from now.
+            $base = $subscription->current_period_end?->isFuture()
+                ? $subscription->current_period_end
+                : now();
+
+            $subscription->update([
+                'plan_id' => $plan->id,
+                'pending_plan_id' => null,
+                'status' => 'active',
+                'cancelled_at' => null,
+                'current_period_start' => now(),
+                'current_period_end' => $plan->billing_cycle === 'yearly' ? $base->copy()->addYear() : $base->copy()->addMonth(),
+            ]);
+
+            // Reactivate the workspace — unless it is operator-locked, which
+            // only an explicit unsuspend may lift.
+            $tenant = $subscription->tenant;
+            if ($tenant && ! $tenant->isOperatorSuspended()) {
+                $tenant->update(['status' => 'active', 'suspended_by' => null]);
+            }
+        }
+
+        activity('central-billing')->causedBy($request->user())
+            ->withProperties([
+                'ip' => $request->ip(),
+                'subscription_id' => $subscription->id,
+                'invoice_id' => $invoice->id,
+                'amount' => $data['amount'],
+                'method' => $data['method'],
+                'reference' => $data['reference'] ?? null,
+                'extend_period' => $extend,
+            ])
+            ->event('offline-payment-recorded')
+            ->log('Operator recorded an offline payment for "'.($subscription->tenant?->company_name ?? '?').'"');
+
+        $subscription->load(['tenant', 'plan', 'invoices' => fn ($q) => $q->orderByDesc('created_at')]);
+
+        return response()->json([
+            'message' => $extend
+                ? 'Payment recorded and subscription renewed.'
+                : 'Payment recorded (subscription left unchanged).',
+            'data' => $this->payload($subscription, withInvoices: true),
+        ]);
+    }
+
+    /**
      * Cancel a subscription. `at_cycle_end` (default true) lets the tenant run
      * out the paid period — the daily subscriptions:process sweep suspends the
      * workspace once it lapses. Immediate cancellation suspends right away.
@@ -200,6 +284,8 @@ class BillingSubscriptionController extends Controller
                 'currency' => $i->currency,
                 'status' => $i->status,
                 'payment_gateway_ref' => $i->payment_gateway_ref,
+                'payment_method' => $i->payment_method,
+                'notes' => $i->notes,
                 'paid_at' => $i->paid_at?->toDateTimeString(),
                 'refund_amount' => $i->refund_amount,
                 'refund_reason' => $i->refund_reason,
