@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMS — Stock &amp; Inventory Management System</title>
+<style>
+  :root {
+    --bg: #f6f8fb;
+    --surface: #ffffff;
+    --text: #1c2430;
+    --muted: #5b6b7f;
+    --border: #e3e9f1;
+    --accent: #2563eb;
+    --accent-soft: #eff4ff;
+    --green: #16a34a;
+    --green-soft: #ecfdf3;
+    --amber: #b45309;
+    --amber-soft: #fffbeb;
+    --code-bg: #0f172a;
+    --code-text: #dbe7ff;
+    --shadow: 0 1px 3px rgba(16, 30, 54, .06), 0 8px 24px rgba(16, 30, 54, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1320;
+      --surface: #141c2c;
+      --text: #e6ecf5;
+      --muted: #93a3b8;
+      --border: #23304a;
+      --accent: #60a5fa;
+      --accent-soft: #172642;
+      --green: #4ade80;
+      --green-soft: #10251a;
+      --amber: #fbbf24;
+      --amber-soft: #2a2110;
+      --code-bg: #0a0f1a;
+      --code-text: #cfe0ff;
+      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero */
+  header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+    color: #fff;
+    padding: 64px 0 56px;
+  }
+  header .eyebrow {
+    display: inline-block;
+    font-size: .78rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.25);
+    border-radius: 999px;
+    padding: 4px 14px;
+    margin-bottom: 18px;
+  }
+  header h1 { font-size: clamp(1.9rem, 4vw, 2.8rem); line-height: 1.2; margin-bottom: 12px; }
+  header p.lede { font-size: 1.1rem; max-width: 720px; color: rgba(255,255,255,.88); }
+  .hero-actions { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: .95rem;
+    text-decoration: none;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-light { background: #fff; color: #1e3a8a; }
+  .btn-ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.5); }
+
+  /* Stat strip */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin-top: -30px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+  }
+  .stat b { display: block; font-size: 1.35rem; color: var(--accent); }
+  .stat span { font-size: .85rem; color: var(--muted); }
+
+  /* Sections */
+  section { padding: 44px 0 8px; }
+  h2 { font-size: 1.45rem; margin-bottom: 6px; }
+  .sub { color: var(--muted); margin-bottom: 22px; max-width: 760px; }
+
+  .grid { display: grid; gap: 16px; }
+  .grid-3 { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card h3 { font-size: 1.02rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .card p { font-size: .9rem; color: var(--muted); }
+  .icon {
+    width: 32px; height: 32px; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: var(--accent-soft); font-size: 1rem;
+  }
+
+  /* Stack badges */
+  .badges { display: flex; flex-wrap: wrap; gap: 10px; }
+  .badge {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: .88rem;
+    box-shadow: var(--shadow);
+  }
+  .badge b { color: var(--accent); }
+
+  /* Tenancy table */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; min-width: 560px; }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  tr:last-child td { border-bottom: none; }
+  code.inline {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-size: .85em;
+    font-family: Consolas, "Courier New", monospace;
+  }
+
+  /* Quick start */
+  .qs { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: .84rem;
+    line-height: 1.7;
+    overflow-x: auto;
+  }
+  pre .c { color: #7d93b8; }
+  .pill {
+    display: inline-block;
+    font-size: .75rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 2px 10px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .pill-green { background: var(--green-soft); color: var(--green); }
+  .pill-amber { background: var(--amber-soft); color: var(--amber); }
+
+  .cred {
+    background: var(--amber-soft);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--amber);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: .9rem;
+    margin-top: 18px;
+  }
+
+  footer {
+    margin-top: 56px;
+    padding: 26px 0;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: .85rem;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="eyebrow">Multi-Tenant SaaS ERP</span>
+    <h1>Stock &amp; Inventory Management System</h1>
+    <p class="lede">
+      A full-scale, multi-warehouse ERP built as a database-per-tenant SaaS platform —
+      inventory, purchasing, sales, billing, GST compliance, integrations and AI insights,
+      with a central platform-owner portal for subscriptions and operations.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-light" href="http://localhost:5173" target="_blank" rel="noopener">Open App (Vite dev · :5173)</a>
+      <a class="btn btn-ghost" href="http://127.0.0.1:8000/api" target="_blank" rel="noopener">Backend API (:8000)</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><b>20+</b><span>ERP modules</span></div>
+    <div class="stat"><b>DB / tenant</b><span>isolated MySQL per company</span></div>
+    <div class="stat"><b>60+ roles</b><span>two-level RBAC (platform + tenant)</span></div>
+    <div class="stat"><b>7</b><span>e-commerce connectors</span></div>
+    <div class="stat"><b>3 plans</b><span>Razorpay recurring billing</span></div>
+  </div>
+
+  <section>
+    <h2>Technology Stack</h2>
+    <p class="sub">Laravel API backend with a Vue 3 single-page frontend, served locally via WAMP / Vite.</p>
+    <div class="badges">
+      <span class="badge"><b>Laravel 13</b> · PHP 8.3</span>
+      <span class="badge"><b>MySQL 9</b> (central + per-tenant DBs)</span>
+      <span class="badge"><b>Vue 3</b> + TypeScript + Vite 7</span>
+      <span class="badge"><b>PrimeVue 4</b> (Aura) + Pinia + Vue Router</span>
+      <span class="badge"><b>Sanctum</b> token auth</span>
+      <span class="badge"><b>spatie/permission</b> RBAC</span>
+      <span class="badge"><b>stancl/tenancy</b> v3</span>
+      <span class="badge"><b>Scout + Meilisearch</b> global search</span>
+      <span class="badge"><b>Razorpay</b> subscriptions &amp; payments</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Core ERP Modules</h2>
+    <p class="sub">Everything runs per tenant on its own database, gated by granular <code class="inline">module.action</code> permissions.</p>
+    <div class="grid grid-3">
+      <div class="card"><h3><span class="icon">📦</span>Master Data</h3><p>Products (variants, images, batch/expiry/serial tracking), category hierarchy with typed attributes, brands, units, warehouses with zone→rack→shelf→bin locations, suppliers, customers, price lists.</p></div>
+      <div class="card"><h3><span class="icon">🛒</span>Purchasing</h3><p>Purchase orders with approval workflow, goods receipt (partial &amp; over-receipt guarded), put-away to bin locations, batch/expiry/serial capture, supplier purchase history &amp; exposure.</p></div>
+      <div class="card"><h3><span class="icon">💰</span>Sales &amp; Invoicing</h3><p>Sales orders: draft → confirm (credit + stock checks) → deliver with atomic stock-out and auto invoicing; multi-mode payments with partial/paid rollups and overpay guard.</p></div>
+      <div class="card"><h3><span class="icon">📊</span>Inventory Engine</h3><p>Immutable stock ledger with weighted-average costing, stock adjustments (reason-coded), inter-warehouse transfers with in-transit state, cycle counts, returns inward, low-stock alerts.</p></div>
+      <div class="card"><h3><span class="icon">🏢</span>B2B Customer Portal</h3><p>Customers log in (Sanctum tokens or SMS OTP) to place B2B orders that flow through a sales-order approval pipeline.</p></div>
+      <div class="card"><h3><span class="icon">🌐</span>E-commerce Integrations</h3><p>Unified marketplace-connector framework for 7 platforms — channel-order inbox that imports into ERP sales orders.</p></div>
+      <div class="card"><h3><span class="icon">💳</span>Payment Gateway</h3><p>Config-driven gateway drivers with shareable <code class="inline">/pay/{token}</code> links; transactions reconcile into accounting vouchers.</p></div>
+      <div class="card"><h3><span class="icon">🧾</span>GST Compliance</h3><p>GSTIN validation, HSN master, e-invoice &amp; e-way bill generation (offline mode + GSP seam), GSTR-2 and GSTN JSON exports.</p></div>
+      <div class="card"><h3><span class="icon">🏷️</span>Barcode &amp; Labels</h3><p>Barcode, QR, sticker and price-tag label templates with a print picker; scanning and RFID support in receiving flows.</p></div>
+      <div class="card"><h3><span class="icon">🤖</span>AI Insights &amp; Assistant</h3><p>Statistical sales forecasting, demand &amp; low-stock prediction, purchase suggestions, plus a bilingual chat/voice assistant for ERP search (local or LLM-backed narration).</p></div>
+      <div class="card"><h3><span class="icon">🔍</span>Global Search</h3><p>Meilisearch-powered omni-search across products, customers and invoices — one shared index per model, filtered by tenant.</p></div>
+      <div class="card"><h3><span class="icon">⚙️</span>Workflow Builder</h3><p>IF/THEN/ELSE automation engine fired from model events — approvals, notifications and field updates without code.</p></div>
+      <div class="card"><h3><span class="icon">📱</span>SMS &amp; Notifications</h3><p>Driver-based SMS service (log/MSG91) with templated sends and hashed OTPs, powering portal OTP login and alerts.</p></div>
+      <div class="card"><h3><span class="icon">📥</span>Data Import / Export</h3><p>Generic Excel/CSV/JSON importer, demo-data generator, client-side CSV export and print on every listing screen.</p></div>
+      <div class="card"><h3><span class="icon">🧭</span>Dynamic Menus &amp; UX</h3><p>DB-driven navigation with favorites &amp; recents, dashboard widgets, dark mode, responsive layout throughout.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Multi-Tenant Architecture</h2>
+    <p class="sub">
+      Built on <code class="inline">stancl/tenancy</code>: the central database holds tenants, domains, plans,
+      subscriptions and platform users; each signed-up company gets its own MySQL database, resolved by subdomain
+      before auth runs.
+    </p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Host</th><th>Context</th><th>Serves</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code class="inline">localhost</code></td>
+            <td>Central</td>
+            <td>Signup &amp; email verification, tenant provisioning, plan catalogue, Razorpay webhooks</td>
+          </tr>
+          <tr>
+            <td><code class="inline">{tenant}.localhost</code></td>
+            <td>Tenant</td>
+            <td>The full ERP — login and all business APIs against that tenant's database</td>
+          </tr>
+          <tr>
+            <td><code class="inline">/platform</code></td>
+            <td>SaaS owner</td>
+            <td>Platform portal: billing &amp; subscriptions, tenant management &amp; suspension, ops (health, queues, backups, logs, feature flags)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid grid-3" style="margin-top:16px">
+      <div class="card"><h3><span class="icon">🚀</span>Self-Serve Onboarding</h3><p>Register → verify e-mail code → queued job provisions the database, seeds roles &amp; masters, creates the owner admin and starts a 14-day trial.</p></div>
+      <div class="card"><h3><span class="icon">📈</span>Plans &amp; Limits</h3><p>Starter ₹999 / Growth ₹2,999 / Enterprise. Plan-limit middleware returns HTTP 402 with an upgrade prompt; lapsed tenants go read-only, operator suspension hard-locks.</p></div>
+      <div class="card"><h3><span class="icon">🔐</span>Shared-Infra Isolation</h3><p>One shared queue, cache, search index and file bucket — every job, cache key, index document and folder is tenant-scoped by convention.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Quick Start (Local · WAMP)</h2>
+    <p class="sub">Default admin: <code class="inline">admin@sims.test</code> / <code class="inline">password</code> — demo tenant at <code class="inline">demo1.localhost:5173</code>.</p>
+    <div class="qs">
+      <div>
+        <h3 style="margin-bottom:10px">Backend <span class="pill pill-green">:8000</span></h3>
+<pre>cd backend
+php artisan migrate --seed
+php artisan serve
+<span class="c"># required — runs tenant provisioning</span>
+php artisan queue:work</pre>
+      </div>
+      <div>
+        <h3 style="margin-bottom:10px">Frontend <span class="pill pill-green">:5173</span></h3>
+<pre>cd frontend
+npm install
+npm run dev
+<span class="c"># proxies /api -&gt; 127.0.0.1:8000</span>
+<span class="c"># signup: http://localhost:5173</span>
+<span class="c"># tenant: http://{sub}.localhost:5173</span></pre>
+      </div>
+    </div>
+    <div class="cred">
+      ⚠️ <b>Dev notes:</b> mail uses the <code class="inline">log</code> driver (verification codes echo back as
+      <code class="inline">dev_code</code> locally); queues/cache run on the database driver;
+      <code class="inline">*.localhost</code> resolves to 127.0.0.1 with no hosts-file edits.
+    </div>
+  </section>
+
+  <footer>
+    SIMS — Stock &amp; Inventory Management System · Laravel + Vue multi-tenant SaaS ERP ·
+    See <code class="inline">README.md</code> for full setup and module documentation.
+  </footer>
+</div>
+
+</body>
+</html>
