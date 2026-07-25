@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputNumber from 'primevue/inputnumber'
+import Select from 'primevue/select'
 import Button from 'primevue/button'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
@@ -11,11 +12,20 @@ import TableExportButtons from '../components/TableExportButtons.vue'
 const rows = ref<any[]>([])
 const loading = ref(false)
 const days = ref(90)
+const warehouseId = ref<number | null>(null)
+const warehouses = ref<{ label: string; value: number }[]>([])
+
+async function loadWarehouses() {
+  const { data } = await http.get('/warehouses', { params: { per_page: 100, is_active: true } })
+  warehouses.value = (data.data ?? data).map((w: any) => ({ label: w.name, value: w.id }))
+}
 
 async function load() {
   loading.value = true
   try {
-    const { data } = await http.get('/reports/dead-stock', { params: { days: days.value } })
+    const { data } = await http.get('/reports/dead-stock', {
+      params: { days: days.value, warehouse_id: warehouseId.value || undefined },
+    })
     rows.value = data.data
   } finally {
     loading.value = false
@@ -26,7 +36,10 @@ function money(v: any) {
   return formatCurrency(v)
 }
 
-onMounted(load)
+onMounted(() => {
+  loadWarehouses()
+  load()
+})
 </script>
 
 <template>
@@ -37,6 +50,8 @@ onMounted(load)
     <div class="toolbar">
       <label>Idle for at least</label>
       <InputNumber v-model="days" :min="1" :max="3650" suffix=" days" />
+      <Select v-model="warehouseId" :options="warehouses" optionLabel="label" optionValue="value" showClear
+        placeholder="All warehouses" class="wh-filter" @change="load" />
       <Button label="Refresh" icon="pi pi-refresh" @click="load" />
       <TableExportButtons title="Dead Stock" filenameBase="dead-stock" :rows="rows"
         :columns="[
@@ -71,4 +86,5 @@ h1 { font-size: 1.5rem; font-weight: 600; }
 .subtitle { color: #6b7280; margin-bottom: 1rem; }
 .toolbar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; }
 .toolbar label { font-size: 0.9rem; color: #374151; }
+.wh-filter { width: 220px; }
 </style>

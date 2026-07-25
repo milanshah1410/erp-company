@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <title>{{ $docTitle ?? 'Document' }}</title>
     <style>
-        @page { margin: 14mm 12mm; }
+        /* Bottom margin reserves room for the pinned signature + footer. */
+        @page { margin: 14mm 12mm 30mm; }
         * { box-sizing: border-box; }
         body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #1f2937; margin: 0; }
         .muted { color: #6b7280; }
@@ -32,7 +33,8 @@
         .parties td { vertical-align: top; width: 50%; padding: 0 6px; }
         .parties td:first-child { padding-left: 0; }
         .parties td:last-child { padding-right: 0; }
-        .party { border: 1px solid #e5e7eb; border-radius: 4px; padding: 8px 10px; height: 100%; }
+        /* No height:100% here — dompdf treats it as full PAGE height and pads every document out to extra pages. */
+        .party { border: 1px solid #e5e7eb; border-radius: 4px; padding: 8px 10px; }
         .party-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: #9ca3af; margin-bottom: 3px; }
         .party-name { font-weight: bold; font-size: 12px; color: #111827; }
         .party-line { font-size: 10px; color: #4b5563; line-height: 1.45; }
@@ -59,11 +61,16 @@
         .notes { font-size: 10px; color: #4b5563; border: 1px solid #e5e7eb; border-radius: 4px; padding: 8px 10px; }
         .badge { display: inline-block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px;
             padding: 2px 8px; border-radius: 10px; background: #e5e7eb; color: #374151; }
-        .sign-row { width: 100%; margin-top: 40px; }
+        /* Signature + footer are pinned to the bottom of every page: dompdf
+           repeats fixed elements per page, and the negative bottom offsets
+           place them inside the reserved @page bottom margin. */
+        .sign-row { width: 100%; position: fixed; bottom: -2mm; left: 0; right: 0; }
         .sign-row td { width: 50%; vertical-align: bottom; font-size: 10px; color: #4b5563; }
         .sign-line { border-top: 1px solid #9ca3af; padding-top: 4px; }
-        .foot { margin-top: 22px; padding-top: 8px; border-top: 1px solid #e5e7eb; font-size: 9px; color: #9ca3af; text-align: center; }
+        .foot { position: fixed; bottom: -24mm; left: 0; right: 0; padding-top: 5px; font-size: 9px; color: #9ca3af; text-align: center; }
     </style>
+    {{-- Per-document style overrides (e.g. compact one-page layouts) --}}
+    @yield('styles')
 </head>
 <body>
     {{-- Letterhead --}}

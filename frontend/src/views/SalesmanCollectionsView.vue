@@ -257,11 +257,10 @@ onMounted(async () => {
       <Column field="mode" header="Mode">
         <template #body="{ data }"><span class="cap">{{ data.mode }}</span></template>
       </Column>
-      <Column field="reference_no" header="Reference" />
       <Column header="Status">
         <template #body="{ data }"><Tag :value="data.status" :severity="statusSeverity(data.status)" /></template>
       </Column>
-      <Column header="Actions" style="width: 13rem">
+      <Column header="Actions" class="actions-col" style="width: 22rem; white-space: nowrap">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canEdit && data.status === 'collected'" label="Deposit" icon="pi pi-download" text size="small" @click="deposit(data)" />
@@ -335,6 +334,14 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* Center the Actions column header + cells. */
+:deep(th.actions-col .p-datatable-column-header-content) {
+  justify-content: center;
+}
+:deep(td.actions-col) {
+  text-align: center;
+}
+
 .header {
   display: flex;
   justify-content: space-between;

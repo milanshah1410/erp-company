@@ -264,7 +264,7 @@ onMounted(async () => {
           <Tag :severity="data.achievement?.target_met ? 'success' : 'warn'" :value="data.achievement?.target_met ? 'Met' : 'In progress'" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 6rem">
+      <Column header="Actions" style="width: 10rem; white-space: nowrap">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />

@@ -30,6 +30,7 @@ class InventoryReportController extends Controller
         $stocks = WarehouseStock::query()
             ->with(['product:id,sku,name', 'warehouse:id,name'])
             ->where('quantity', '>', 0)
+            ->when($request->filled('warehouse_id'), fn ($q) => $q->where('warehouse_id', $request->query('warehouse_id')))
             ->get();
 
         if ($stocks->isEmpty()) {

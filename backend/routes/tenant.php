@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\B2bOrderController;
 use App\Http\Controllers\Api\GlobalSearchController;
+use App\Http\Controllers\Api\GoogleMapsController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\DemoDataController;
 use App\Http\Controllers\Api\DataImportController;
@@ -225,6 +226,12 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('/menu', [MenuController::class, 'index']);
         Route::post('/menu/favorites', [MenuController::class, 'toggleFavorite']);
         Route::post('/menu/recents', [MenuController::class, 'trackRecent']);
+
+        // Google Places proxy (address autocomplete on warehouse/customer
+        // forms). Key stays server-side; no permission gate — any signed-in
+        // tenant user filling an address form may use it.
+        Route::get('/google/place-autocomplete', [GoogleMapsController::class, 'autocomplete']);
+        Route::get('/google/place-details', [GoogleMapsController::class, 'placeDetails']);
 
         /**
          * CRUD helper: each action guarded by a "<module>.<action>" permission.

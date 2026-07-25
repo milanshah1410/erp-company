@@ -242,7 +242,7 @@ onMounted(async () => {
       <Column header="Active">
         <template #body="{ data }"><Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? 'Yes' : 'No'" /></template>
       </Column>
-      <Column header="Actions" style="width: 6rem">
+      <Column header="Actions" style="width: 10rem; white-space: nowrap">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />

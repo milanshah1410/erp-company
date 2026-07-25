@@ -43,4 +43,13 @@ return [
         'key' => env('MSG91_AUTH_KEY'),
     ],
 
+    /*
+    | Google Maps Platform (Places / Place Details / Geocoding). The key is
+    | server-side only — the frontend talks to /api/google/* proxy endpoints
+    | and never sees it. Restrict the key by IP + API in the Google console.
+    */
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
 ];

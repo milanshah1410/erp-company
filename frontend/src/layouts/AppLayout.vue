@@ -107,6 +107,7 @@ const nav = computed<MenuNode[]>(() => {
 const route = useRoute()
 const openGroup = ref<string | null>(null)
 const flyoutPos = ref<{ top: number; left: number } | null>(null)
+const flyoutEl = ref<HTMLElement | null>(null)
 
 const openChildren = computed<MenuNode[]>(() => {
   const entry = nav.value.find((e) => isGroup(e) && e.label === openGroup.value)
@@ -128,7 +129,10 @@ function cancelClose() {
 function openGroupHover(e: MouseEvent, label: string) {
   cancelClose()
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  flyoutPos.value = { top: rect.bottom, left: rect.left }
+  // Clamp so the dropdown (and the submenus cascading from it) never opens
+  // off the right edge of the viewport (clientWidth: excludes the scrollbar).
+  const left = Math.max(8, Math.min(rect.left, document.documentElement.clientWidth - 260))
+  flyoutPos.value = { top: rect.bottom, left }
   openGroup.value = label
 }
 
@@ -152,6 +156,13 @@ function scheduleClose() {
 function closeMenu() {
   cancelClose()
   openGroup.value = null
+}
+
+// A modified click (Ctrl/Cmd/Shift/Alt or non-left button) opens the link in
+// another tab/window — this tab doesn't navigate, so keep the menu open.
+function onNavLinkClick(e: MouseEvent) {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return
+  closeMenu()
 }
 
 // A top-level group is active when the current route lives anywhere in its
@@ -178,8 +189,26 @@ watch(
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') closeMenu()
 }
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+
+// The dropdown is position:fixed, so scrolling the page or the menu bar moves
+// its anchor button out from under it. Close it on any outside scroll —
+// scrolling inside the dropdown itself (or a cascading sub-panel, which is a
+// DOM descendant of it) stays open.
+function onAnyScroll(e: Event) {
+  if (!openGroup.value) return
+  const t = e.target as Node | null
+  if (flyoutEl.value && t instanceof Node && flyoutEl.value.contains(t)) return
+  closeMenu()
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('scroll', onAnyScroll, true)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('scroll', onAnyScroll, true)
+})
 
 async function logout() {
   await auth.logout()
@@ -247,7 +276,7 @@ async function logout() {
             :to="entry.to!"
             class="topnav-item icon-only"
             :title="entry.label"
-            @click="closeMenu"
+            @click="onNavLinkClick"
           >
             <i :class="entry.icon" />
           </RouterLink>
@@ -269,7 +298,7 @@ async function logout() {
       <!-- Scrolling cluster: the workspace groups (icon + label). -->
       <div class="topnav-scroll">
         <template v-for="entry in scrollNav" :key="entry.label">
-          <RouterLink v-if="!isGroup(entry)" :to="entry.to!" class="topnav-item" @click="closeMenu">
+          <RouterLink v-if="!isGroup(entry)" :to="entry.to!" class="topnav-item" @click="onNavLinkClick">
             <i :class="entry.icon" />
             <span>{{ entry.label }}</span>
           </RouterLink>
@@ -294,6 +323,7 @@ async function logout() {
     <Teleport to="body">
       <div
         v-if="openGroup && flyoutPos"
+        ref="flyoutEl"
         class="nav-flyout"
         :style="{ top: flyoutPos.top + 'px', left: flyoutPos.left + 'px' }"
         @mouseenter="cancelClose"
@@ -501,6 +531,7 @@ async function logout() {
 }
 .topnav-item i:first-child {
   font-size: 0.95rem;
+  color: var(--safety-amber, #e8a33d);
 }
 .topnav-item .chev {
   font-size: 0.65rem;
@@ -511,12 +542,14 @@ async function logout() {
   transform: rotate(180deg);
 }
 .topnav-item:hover {
-  background: rgba(61, 99, 124, 0.3);
+  background: linear-gradient(180deg, rgba(232, 163, 61, 0.14), rgba(232, 163, 61, 0.04));
   color: #fff;
+  border-bottom-color: rgba(232, 163, 61, 0.45);
 }
 .topnav-item.open {
-  background: rgba(61, 99, 124, 0.4);
+  background: linear-gradient(180deg, rgba(232, 163, 61, 0.2), rgba(232, 163, 61, 0.06));
   color: #fff;
+  border-bottom-color: var(--safety-amber, #e8a33d);
 }
 .topnav-item.active,
 .topnav-item.router-link-exact-active {
@@ -534,15 +567,26 @@ async function logout() {
   min-width: 220px;
   max-height: calc(100vh - 130px);
   overflow-y: auto;
-  background: #23292f;
+  /* NOTE: no backdrop-filter here — it would turn this dropdown into the
+     containing block for the fixed-position submenu panels nested inside it,
+     which then get clipped by this panel's overflow and never show up. */
+  background: linear-gradient(180deg, rgba(38, 45, 52, 0.98), rgba(30, 36, 42, 0.98));
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
+  border-top: 2px solid var(--safety-amber, #e8a33d);
+  border-radius: 0;
   padding: 0.5rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.5), 0 3px 10px rgba(0, 0, 0, 0.35);
   z-index: 41;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  animation: flyout-drop 0.16s ease-out;
+}
+/* Margin-based (not transform) so the dropdown never becomes the containing
+   block for the fixed-position submenu panels nested inside it. */
+@keyframes flyout-drop {
+  from { opacity: 0; margin-top: -6px; }
+  to { opacity: 1; margin-top: 0; }
 }
 .nav-flyout::-webkit-scrollbar {
   width: 6px;
@@ -552,12 +596,24 @@ async function logout() {
   border-radius: 3px;
 }
 .flyout-title {
-  color: #7c8894;
-  font-size: 0.72rem;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #8b96a2;
+  font-size: 0.7rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.25rem 0.6rem 0.4rem;
+  letter-spacing: 0.08em;
+  padding: 0.35rem 0.75rem 0.5rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.flyout-title::before {
+  content: '';
+  width: 14px;
+  height: 2px;
+  background: var(--safety-amber, #e8a33d);
+  flex-shrink: 0;
 }
 /* Flyout body rows/links now live in NavFlyoutNode.vue. */
 

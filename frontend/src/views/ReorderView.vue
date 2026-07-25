@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Button from 'primevue/button'
+import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import { RouterLink } from 'vue-router'
@@ -22,11 +23,21 @@ const createdOrders = ref<any[]>([])
 const canGenerate = computed(() => auth.can('advanced-inventory.create'))
 const needsSupplierCount = computed(() => rows.value.filter((r) => !r.supplier).length)
 
+const warehouseId = ref<number | null>(null)
+const warehouses = ref<{ label: string; value: number }[]>([])
+
+async function loadWarehouses() {
+  const { data } = await http.get('/warehouses', { params: { per_page: 100, is_active: true } })
+  warehouses.value = (data.data ?? data).map((w: any) => ({ label: w.name, value: w.id }))
+}
+
 async function load() {
   loading.value = true
   createdOrders.value = []
   try {
-    const { data } = await http.get('/reorder/suggestions')
+    const { data } = await http.get('/reorder/suggestions', {
+      params: { warehouse_id: warehouseId.value || undefined },
+    })
     rows.value = data.data
   } finally {
     loading.value = false
@@ -52,7 +63,10 @@ async function generate() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  loadWarehouses()
+  load()
+})
 </script>
 
 <template>
@@ -60,6 +74,8 @@ onMounted(load)
     <div class="header">
       <h1>Reorder Suggestions</h1>
       <div class="header-actions">
+        <Select v-model="warehouseId" :options="warehouses" optionLabel="label" optionValue="value" showClear
+          placeholder="All warehouses" class="wh-filter" @change="load" />
         <TableExportButtons title="Reorder Suggestions" :rows="rows" :columns="[
           { key: 'product.name', label: 'Product' },
           { key: 'product.sku', label: 'SKU' },
@@ -110,6 +126,7 @@ onMounted(load)
 <style scoped>
 .header { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .header-actions { display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.wh-filter { width: 220px; }
 h1 { font-size: 1.5rem; font-weight: 600; }
 .subtitle { color: #6b7280; margin-bottom: 0.5rem; }
 .warning-note { color: #b45309; font-size: 0.85rem; margin-bottom: 1rem; }

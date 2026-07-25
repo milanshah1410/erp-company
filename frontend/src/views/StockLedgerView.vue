@@ -16,6 +16,13 @@ const page = ref(1)
 const perPage = ref(20)
 const typeFilter = ref<string | null>(null)
 const search = ref('')
+const warehouseId = ref<number | null>(null)
+const warehouses = ref<{ label: string; value: number }[]>([])
+
+async function loadWarehouses() {
+  const { data } = await http.get('/warehouses', { params: { per_page: 100, is_active: true } })
+  warehouses.value = (data.data ?? data).map((w: any) => ({ label: w.name, value: w.id }))
+}
 
 const types = [
   { label: 'All types', value: null },
@@ -32,7 +39,13 @@ async function load() {
   loading.value = true
   try {
     const { data } = await http.get('/stock-ledger', {
-      params: { page: page.value, per_page: perPage.value, type: typeFilter.value || undefined, search: search.value || undefined },
+      params: {
+        page: page.value,
+        per_page: perPage.value,
+        type: typeFilter.value || undefined,
+        search: search.value || undefined,
+        warehouse_id: warehouseId.value || undefined,
+      },
     })
     rows.value = data.data
     total.value = data.meta?.total ?? data.data.length
@@ -50,7 +63,10 @@ function fmt(d: string) {
   return d ? new Date(d).toLocaleString() : ''
 }
 
-onMounted(load)
+onMounted(() => {
+  loadWarehouses()
+  load()
+})
 </script>
 
 <template>
@@ -64,9 +80,11 @@ onMounted(load)
         <InputText v-model="search" placeholder="Search product / reference..." @keyup.enter="page = 1; load()" />
       </span>
       <Select v-model="typeFilter" :options="types" optionLabel="label" optionValue="value" placeholder="Type" @change="page = 1; load()" />
+      <Select v-model="warehouseId" :options="warehouses" optionLabel="label" optionValue="value" showClear
+        placeholder="All warehouses" class="wh-filter" @change="page = 1; load()" />
       <Button label="Search" outlined @click="page = 1; load()" />
       <TableExportButtons title="Stock Ledger" endpoint="/stock-ledger"
-        :params="() => ({ type: typeFilter || undefined, search: search || undefined })"
+        :params="() => ({ type: typeFilter || undefined, search: search || undefined, warehouse_id: warehouseId || undefined })"
         :columns="[
           { key: 'created_at', label: 'Date' },
           { key: 'type', label: 'Type' },
@@ -104,6 +122,7 @@ h1 { font-size: 1.5rem; font-weight: 600; }
 .search-box { position: relative; display: inline-flex; align-items: center; }
 .search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search-box :deep(input) { padding-left: 2.25rem; }
+.wh-filter { width: 220px; }
 .in { color: #059669; font-weight: 600; }
 .out { color: #dc2626; font-weight: 600; }
 </style>

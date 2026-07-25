@@ -5,7 +5,8 @@ import Column from 'primevue/column'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
+import GoogleAddressAutocomplete from '../components/GoogleAddressAutocomplete.vue'
+import type { PlaceResult } from '../components/GoogleAddressAutocomplete.vue'
 import Select from 'primevue/select'
 import Checkbox from 'primevue/checkbox'
 import Tag from 'primevue/tag'
@@ -95,9 +96,16 @@ function blankForm() {
     phone: '',
     email: '',
     address: '',
+    address_line2: '',
+    landmark: '',
+    area: '',
     city: '',
     state: '',
+    country: '',
     pincode: '',
+    latitude: null,
+    longitude: null,
+    google_place_id: '',
     is_active: true,
   }
 }
@@ -119,13 +127,33 @@ function openEdit(row: any) {
     phone: row.phone || '',
     email: row.email || '',
     address: row.address || '',
+    address_line2: row.address_line2 || '',
+    landmark: row.landmark || '',
+    area: row.area || '',
     city: row.city || '',
     state: row.state || '',
+    country: row.country || '',
     pincode: row.pincode || '',
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
+    google_place_id: row.google_place_id || '',
     is_active: !!row.is_active,
   }
   errors.value = {}
   dialogVisible.value = true
+}
+
+// Google Places selection → auto-fill the address block (user can still edit).
+function onPlaceSelected(place: PlaceResult) {
+  form.value.address = place.formatted_address || form.value.address
+  form.value.area = place.area || form.value.area
+  form.value.city = place.city || form.value.city
+  form.value.state = place.state || form.value.state
+  form.value.country = place.country || form.value.country
+  form.value.pincode = place.postal_code || form.value.pincode
+  form.value.latitude = place.latitude ?? form.value.latitude
+  form.value.longitude = place.longitude ?? form.value.longitude
+  form.value.google_place_id = place.place_id || form.value.google_place_id
 }
 
 async function save() {
@@ -466,7 +494,7 @@ onMounted(reload)
     </DataTable>
 
     <!-- Warehouse create / edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editing ? 'Edit Warehouse' : 'New Warehouse'" :style="{ width: '600px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editing ? 'Edit Warehouse' : 'New Warehouse'" :style="{ width: '640px' }">
       <div class="form-grid">
         <div class="fld">
           <label>Code <span class="req">*</span></label>
@@ -493,7 +521,7 @@ onMounted(reload)
         </div>
 
         <div class="fld">
-          <label>Phone</label>
+          <label>Mobile</label>
           <InputText v-model="form.phone" :class="{ invalid: fieldError('phone') }" />
           <small v-if="fieldError('phone')" class="error-text">{{ fieldError('phone') }}</small>
         </div>
@@ -505,27 +533,68 @@ onMounted(reload)
         </div>
 
         <div class="fld full">
-          <label>Address</label>
-          <Textarea v-model="form.address" rows="2" :class="{ invalid: fieldError('address') }" />
+          <label>Address Line 1 <span class="req">*</span></label>
+          <GoogleAddressAutocomplete
+            v-model="form.address"
+            placeholder="Start typing to search address..."
+            :invalid="!!fieldError('address')"
+            @place-selected="onPlaceSelected"
+          />
           <small v-if="fieldError('address')" class="error-text">{{ fieldError('address') }}</small>
         </div>
 
+        <div class="fld full">
+          <label>Address Line 2</label>
+          <InputText v-model="form.address_line2" :class="{ invalid: fieldError('address_line2') }" />
+          <small v-if="fieldError('address_line2')" class="error-text">{{ fieldError('address_line2') }}</small>
+        </div>
+
         <div class="fld">
-          <label>City</label>
+          <label>Landmark</label>
+          <InputText v-model="form.landmark" :class="{ invalid: fieldError('landmark') }" />
+          <small v-if="fieldError('landmark')" class="error-text">{{ fieldError('landmark') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Area / Locality</label>
+          <InputText v-model="form.area" :class="{ invalid: fieldError('area') }" />
+          <small v-if="fieldError('area')" class="error-text">{{ fieldError('area') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>City <span class="req">*</span></label>
           <InputText v-model="form.city" :class="{ invalid: fieldError('city') }" />
           <small v-if="fieldError('city')" class="error-text">{{ fieldError('city') }}</small>
         </div>
 
         <div class="fld">
-          <label>State</label>
+          <label>State <span class="req">*</span></label>
           <InputText v-model="form.state" :class="{ invalid: fieldError('state') }" />
           <small v-if="fieldError('state')" class="error-text">{{ fieldError('state') }}</small>
         </div>
 
         <div class="fld">
-          <label>Pincode</label>
+          <label>Country <span class="req">*</span></label>
+          <InputText v-model="form.country" :class="{ invalid: fieldError('country') }" />
+          <small v-if="fieldError('country')" class="error-text">{{ fieldError('country') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Pincode <span class="req">*</span></label>
           <InputText v-model="form.pincode" :class="{ invalid: fieldError('pincode') }" />
           <small v-if="fieldError('pincode')" class="error-text">{{ fieldError('pincode') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Latitude</label>
+          <InputText v-model="form.latitude" :class="{ invalid: fieldError('latitude') }" />
+          <small v-if="fieldError('latitude')" class="error-text">{{ fieldError('latitude') }}</small>
+        </div>
+
+        <div class="fld">
+          <label>Longitude</label>
+          <InputText v-model="form.longitude" :class="{ invalid: fieldError('longitude') }" />
+          <small v-if="fieldError('longitude')" class="error-text">{{ fieldError('longitude') }}</small>
         </div>
 
         <div class="fld">

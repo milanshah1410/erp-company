@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
@@ -17,12 +18,25 @@ const page = ref(1)
 const perPage = ref(15)
 const search = ref('')
 const lowOnly = ref(false)
+const warehouseId = ref<number | null>(null)
+const warehouses = ref<{ label: string; value: number }[]>([])
+
+async function loadWarehouses() {
+  const { data } = await http.get('/warehouses', { params: { per_page: 100, is_active: true } })
+  warehouses.value = (data.data ?? data).map((w: any) => ({ label: w.name, value: w.id }))
+}
 
 async function load() {
   loading.value = true
   try {
     const { data } = await http.get('/stock', {
-      params: { page: page.value, per_page: perPage.value, search: search.value || undefined, low_stock: lowOnly.value || undefined },
+      params: {
+        page: page.value,
+        per_page: perPage.value,
+        search: search.value || undefined,
+        low_stock: lowOnly.value || undefined,
+        warehouse_id: warehouseId.value || undefined,
+      },
     })
     rows.value = data.data
     total.value = data.meta?.total ?? data.data.length
@@ -40,7 +54,10 @@ function money(v: any) {
   return formatCurrency(v)
 }
 
-onMounted(load)
+onMounted(() => {
+  loadWarehouses()
+  load()
+})
 </script>
 
 <template>
@@ -51,9 +68,11 @@ onMounted(load)
     <div class="toolbar">
       <span class="search"><i class="pi pi-search" /><InputText v-model="search" placeholder="Search product..." @keyup.enter="page = 1; load()" /></span>
       <Button label="Search" outlined @click="page = 1; load()" />
+      <Select v-model="warehouseId" :options="warehouses" optionLabel="label" optionValue="value" showClear
+        placeholder="All warehouses" class="wh-filter" @change="page = 1; load()" />
       <label class="low"><ToggleSwitch v-model="lowOnly" @change="page = 1; load()" /> Low stock only</label>
       <TableExportButtons title="Current Stock" endpoint="/stock"
-        :params="() => ({ search: search || undefined, low_stock: lowOnly || undefined })"
+        :params="() => ({ search: search || undefined, low_stock: lowOnly || undefined, warehouse_id: warehouseId || undefined })"
         :columns="[
           { key: 'product.name', label: 'Product' },
           { key: 'product.sku', label: 'SKU' },
@@ -93,4 +112,5 @@ h1 { font-size: 1.5rem; font-weight: 600; }
 .search i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search :deep(input) { padding-left: 2.25rem; width: 260px; }
 .low { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #374151; margin-left: auto; }
+.wh-filter { width: 220px; }
 </style>

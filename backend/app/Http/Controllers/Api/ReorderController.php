@@ -13,7 +13,9 @@ class ReorderController extends Controller
     /** Products at or below their reorder level, per warehouse, with a suggested order quantity. */
     public function suggestions(Request $request)
     {
-        return response()->json(['data' => $this->computeSuggestions()->values()]);
+        $warehouseId = $request->filled('warehouse_id') ? (int) $request->query('warehouse_id') : null;
+
+        return response()->json(['data' => $this->computeSuggestions($warehouseId)->values()]);
     }
 
     /**
@@ -81,10 +83,11 @@ class ReorderController extends Controller
     }
 
     /** @return \Illuminate\Support\Collection */
-    private function computeSuggestions()
+    private function computeSuggestions(?int $warehouseId = null)
     {
         return WarehouseStock::query()
             ->with(['product.preferredSupplier', 'warehouse:id,name'])
+            ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
             ->get()
             ->filter(fn (WarehouseStock $s) => $s->product
                 && (float) $s->product->reorder_level > 0

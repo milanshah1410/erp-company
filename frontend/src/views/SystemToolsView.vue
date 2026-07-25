@@ -25,6 +25,9 @@ const generatingModule = ref<string | null>(null)
 
 // Icon per module so each button is visually distinct.
 const MODULE_ICONS: Record<string, string> = {
+  companies: 'pi pi-sitemap',
+  branches: 'pi pi-map-marker',
+  users: 'pi pi-user',
   categories: 'pi pi-sitemap',
   brands: 'pi pi-tag',
   units: 'pi pi-percentage',
@@ -51,6 +54,10 @@ const MODULE_ICONS: Record<string, string> = {
   email_logs: 'pi pi-envelope',
   salesmen: 'pi pi-user-plus',
   beats: 'pi pi-map',
+  purchase_indents: 'pi pi-clipboard',
+  rfqs: 'pi pi-send',
+  purchase_orders: 'pi pi-file-edit',
+  vendor_invoices: 'pi pi-receipt',
   vendor_ratings: 'pi pi-star',
   stock_adjustments: 'pi pi-sliders-h',
   gate_entries: 'pi pi-sign-in',
@@ -113,6 +120,10 @@ function moduleIcon(key: string) {
 // belongs to (see `groupedModules`). Modules without a route of their own point
 // at a representative sibling so they still land in the right section.
 const MODULE_ROUTES: Record<string, string> = {
+  // Organisation structure + staff logins (Settings section)
+  companies: '/companies',
+  branches: '/branches',
+  users: '/users',
   // Masters
   categories: '/categories',
   brands: '/brands',
@@ -146,6 +157,10 @@ const MODULE_ROUTES: Record<string, string> = {
   channel_listings: '/channel-listings',
   channel_sync_logs: '/channel-sync-logs',
   // Purchase
+  purchase_indents: '/purchase-indents',
+  rfqs: '/rfqs',
+  purchase_orders: '/purchase-orders',
+  vendor_invoices: '/purchase-invoices',
   vendor_ratings: '/vendor-ratings',
   // Inventory
   stock_adjustments: '/stock-adjustments',

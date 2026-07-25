@@ -12,6 +12,7 @@ use App\Models\Batch;
 use App\Models\Beat;
 use App\Models\BiometricDevice;
 use App\Models\BiometricPunch;
+use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Broker;
 use App\Models\Category;
@@ -20,6 +21,7 @@ use App\Models\ChannelListing;
 use App\Models\ChannelOrder;
 use App\Models\ChannelSyncLog;
 use App\Models\ColourPrinting;
+use App\Models\Company;
 use App\Models\Contractor;
 use App\Models\Coupon;
 use App\Models\Customer;
@@ -55,7 +57,11 @@ use App\Models\PaymentGatewayAccount;
 use App\Models\PaymentTransaction;
 use App\Models\PriceList;
 use App\Models\Product;
+use App\Models\PurchaseIndent;
+use App\Models\PurchaseInvoice;
+use App\Models\PurchaseOrder;
 use App\Models\RateCard;
+use App\Models\Rfq;
 use App\Models\Referral;
 use App\Models\Salary;
 use App\Models\SalaryAdvance;
@@ -76,14 +82,18 @@ use App\Models\TailorPayment;
 use App\Models\TdsTcsRate;
 use App\Models\TransportCharge;
 use App\Models\Unit;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleExpense;
 use App\Models\VendorRating;
 use App\Models\Voucher;
 use App\Models\Warehouse;
 use App\Models\WhatsappMessage;
+use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
 
 /**
  * Generates realistic demo records for a tenant (project-stack.md §7).
@@ -103,6 +113,9 @@ class DemoDataGenerator
      * then business partners, then the rest.
      */
     public const MODULES = [
+        // Organisation structure
+        'companies' => 'Companies',
+        'branches' => 'Branches',
         // Masters → Products
         'categories' => 'Categories',
         'brands' => 'Brands',
@@ -136,6 +149,10 @@ class DemoDataGenerator
         'salesmen' => 'Salesmen',
         'beats' => 'Beats',
         // Purchase
+        'purchase_indents' => 'Purchase Indents',
+        'rfqs' => 'RFQs',
+        'purchase_orders' => 'Purchase Orders',
+        'vendor_invoices' => 'Vendor Invoices',
         'vendor_ratings' => 'Vendor Ratings',
         // Inventory
         'stock_adjustments' => 'Stock Adjustments',
@@ -198,6 +215,7 @@ class DemoDataGenerator
         'payment_gateway_accounts' => 'Payment Gateways',
         'payment_transactions' => 'Payment Transactions',
         // Other operational modules
+        'users' => 'Users (Staff Logins)',
         'employees' => 'Employees',
         'expenses' => 'Expenses',
     ];
@@ -227,6 +245,11 @@ class DemoDataGenerator
 
     private array $categoryNames = ['Apparel', 'Footwear', 'Accessories', 'Home Textiles', 'Fabrics', 'Winter Wear', 'Ethnic Wear', 'Sportswear', 'Kids Wear', 'Formal Wear'];
 
+    /** Level-2 / level-3 name pools for the 3-level demo category tree. */
+    private array $categoryLevel2 = ['Men', 'Women', 'Kids', 'Unisex'];
+
+    private array $categoryLevel3 = ['Shirts', 'T-Shirts', 'Trousers', 'Jeans', 'Sarees', 'Kurtas', 'Sweaters', 'Jackets'];
+
     private array $brandNames = ['Raymond', 'Arvind', 'Vardhman', 'Bombay Dyeing', 'Fabindia', 'Peter England', 'Allen Solly', 'Van Heusen', 'Manyavar', 'Biba'];
 
     /** [name, short_name] pairs for units of measure. */
@@ -247,7 +270,9 @@ class DemoDataGenerator
 
         foreach ($modules as $module) {
             $created[$module] = match ($module) {
-                'categories' => $this->make($count, fn (int $i) => $this->categoryRow($i), Category::class),
+                'companies' => $this->make($count, fn (int $i) => $this->companyRow($i), Company::class),
+                'branches' => $this->makeBranches($count),
+                'categories' => $this->makeCategories($count),
                 'brands' => $this->make($count, fn (int $i) => $this->brandRow($i), Brand::class),
                 'units' => $this->make($count, fn (int $i) => $this->unitRow($i), Unit::class),
                 'price_lists' => $this->makePriceLists($count),
@@ -263,6 +288,7 @@ class DemoDataGenerator
                 'b2b_orders' => $this->makeSalesDocuments($count, SalesOrder::class, 'b2b'),
                 'invoices' => $this->makeInvoices($count, 'standard'),
                 'sales_returns' => $this->makeSalesReturns($count),
+                'users' => $this->makeUsers($count),
                 'employees' => $this->makeEmployees($count),
                 'expenses' => $this->makeExpenses($count),
                 'leads' => $this->make($count, fn (int $i) => $this->leadRow($i), Lead::class),
@@ -277,6 +303,10 @@ class DemoDataGenerator
                 'salesmen' => $this->make($count, fn (int $i) => $this->salesmanRow($i), Salesman::class),
                 'beats' => $this->makeBeats($count),
                 // Purchase
+                'purchase_indents' => $this->makePurchaseIndents($count),
+                'rfqs' => $this->makeRfqs($count),
+                'purchase_orders' => $this->makePurchaseOrders($count),
+                'vendor_invoices' => $this->makeVendorInvoices($count),
                 'vendor_ratings' => $this->makeVendorRatings($count),
                 // Inventory
                 'stock_adjustments' => $this->makeStockAdjustments($count),
@@ -315,7 +345,7 @@ class DemoDataGenerator
                 // HR & payroll
                 'departments' => $this->make($count, fn (int $i) => $this->departmentRow($i), Department::class),
                 'biometric_devices' => $this->make($count, fn (int $i) => $this->biometricDeviceRow($i), BiometricDevice::class),
-                'leave_types' => $this->make($count, fn (int $i) => $this->leaveTypeRow($i), LeaveType::class),
+                'leave_types' => $this->makeLeaveTypes($count),
                 'attendance' => $this->makeEmployeeDocs($count, 'attendance'),
                 'overtime_records' => $this->makeEmployeeDocs($count, 'overtime'),
                 'employee_bonuses' => $this->makeEmployeeDocs($count, 'bonus'),
@@ -353,12 +383,17 @@ class DemoDataGenerator
      */
     private function make(int $count, callable $rowFn, string $model): int
     {
+        // Continue $i from the model's existing row count, so re-running the
+        // generator keeps numbering forward ("Raymond 11") instead of
+        // restarting at 1 and creating duplicate-looking records.
+        $offset = (int) $model::count();
+
         $made = 0;
         for ($start = 0; $start < $count; $start += self::CHUNK) {
             $batch = min(self::CHUNK, $count - $start);
-            DB::transaction(function () use ($rowFn, $model, $start, $batch, &$made) {
+            DB::transaction(function () use ($rowFn, $model, $offset, $start, $batch, &$made) {
                 for ($i = 0; $i < $batch; $i++) {
-                    $model::create($rowFn($start + $i));
+                    $model::create($rowFn($offset + $start + $i));
                     $made++;
                 }
             });
@@ -375,7 +410,13 @@ class DemoDataGenerator
 
     private function person(int $i): string
     {
-        return $this->first[$i % count($this->first)] . ' ' . $this->last[($i * 7) % count($this->last)];
+        // Enumerate first/last pairs without repeats (first×last = 400 unique
+        // names) instead of a stride that cycles after only 20.
+        $pair = $i % (count($this->first) * count($this->last));
+        $first = $this->first[$pair % count($this->first)];
+        $last = $this->last[(intdiv($pair, count($this->first)) + $pair) % count($this->last)];
+
+        return $first . ' ' . $last;
     }
 
     private function company(int $i): string
@@ -453,16 +494,60 @@ class DemoDataGenerator
         ];
     }
 
-    private function categoryRow(int $i): array
+    /**
+     * Generate a 3-level category tree instead of a flat list. Every 7 rows
+     * form one family — 1 root ("Apparel 1"), 2 children ("Apparel 1 Men"),
+     * 4 grandchildren ("Apparel 1 Men Shirts") — so any count ≥ 4 exercises
+     * all three levels. Explicit slugs keep the (tenant_id, slug) unique
+     * index safe across runs.
+     */
+    private function makeCategories(int $count): int
     {
-        $base = $this->categoryNames[$i % count($this->categoryNames)];
-        $name = $base . ' ' . ($i + 1);
+        $made = 0;
+        $rootId = null;
+        $rootName = '';
+        $children = []; // id => name, for the current family
+        // Continue family numbering from the existing roots so re-runs
+        // produce "Apparel 4", not a duplicate "Apparel 1".
+        $familyOffset = (int) Category::whereNull('parent_id')->count();
 
+        for ($start = 0; $start < $count; $start += self::CHUNK) {
+            $batch = min(self::CHUNK, $count - $start);
+            DB::transaction(function () use ($start, $batch, $familyOffset, &$made, &$rootId, &$rootName, &$children) {
+                for ($k = 0; $k < $batch; $k++) {
+                    $i = $start + $k;
+                    $slot = $i % 7;
+
+                    if ($slot === 0 || $rootId === null) {
+                        $family = intdiv($i, 7) + $familyOffset;
+                        $rootName = $this->categoryNames[$family % count($this->categoryNames)] . ' ' . ($family + 1);
+                        $root = Category::create($this->categoryPayload($rootName, null, $i));
+                        $rootId = $root->id;
+                        $children = [];
+                    } elseif ($slot <= 2 || empty($children)) {
+                        $name = $rootName . ' ' . $this->categoryLevel2[$i % count($this->categoryLevel2)];
+                        $child = Category::create($this->categoryPayload($name, $rootId, $i));
+                        $children[$child->id] = $name;
+                    } else {
+                        $parentId = array_keys($children)[$i % count($children)];
+                        $name = $children[$parentId] . ' ' . $this->categoryLevel3[$i % count($this->categoryLevel3)];
+                        Category::create($this->categoryPayload($name, $parentId, $i));
+                    }
+                    $made++;
+                }
+            });
+        }
+
+        return $made;
+    }
+
+    private function categoryPayload(string $name, ?int $parentId, int $i): array
+    {
         return [
+            'parent_id' => $parentId,
             'name' => $name,
-            // Explicit slug keeps the (tenant_id, slug) unique index safe across runs.
             'slug' => Str::slug($name) . '-' . strtolower($this->suffix($i)),
-            'description' => 'Demo category for ' . $base,
+            'description' => 'Demo category for ' . $name,
             'is_active' => true,
         ];
     }
@@ -495,8 +580,9 @@ class DemoDataGenerator
     private function customerCategoryRow(int $i): array
     {
         $base = $this->customerCategoryNames[$i % count($this->customerCategoryNames)];
-        // Name carries the (tenant_id, name) unique index, so keep it distinct.
-        $name = $base . ' ' . ($i + 1);
+        // Name carries the (tenant_id, name) unique index — the time-based
+        // suffix keeps it distinct across runs, not just within one.
+        $name = $base . ' ' . ($i + 1) . ' ' . $this->suffix($i);
 
         return [
             'name' => $name,
@@ -525,6 +611,56 @@ class DemoDataGenerator
             'pincode' => (string) (380000 + ($i * 7) % 99999),
             'is_active' => true,
         ];
+    }
+
+    private function companyRow(int $i): array
+    {
+        $name = $this->company($i);
+        $city = $this->cities[$i % count($this->cities)];
+
+        return [
+            'code' => 'DCO-' . $this->suffix($i) . '-' . $i,
+            'name' => $name,
+            'legal_name' => $name . ' Pvt. Ltd.',
+            'email' => 'company' . $i . '.' . strtolower($this->suffix($i)) . '@example.com',
+            'phone' => $this->phone($i),
+            'address' => ($i + 1) . ', ' . $this->last[$i % count($this->last)] . ' Complex',
+            'city' => $city,
+            'state' => $this->states[$i % count($this->states)],
+            'country' => 'India',
+            'pincode' => (string) (380000 + ($i * 7) % 99999),
+            'financial_year_start_month' => 4,
+            'currency_code' => 'INR',
+            'currency_symbol' => '₹',
+            'is_active' => true,
+        ];
+    }
+
+    /** Branch rows hang off existing companies; returns 0 if none exist yet. */
+    private function makeBranches(int $count): int
+    {
+        $companyIds = Company::pluck('id')->all();
+        if (empty($companyIds)) {
+            return 0;
+        }
+
+        return $this->make($count, function (int $i) use ($companyIds) {
+            $city = $this->cities[$i % count($this->cities)];
+
+            return [
+                'company_id' => $companyIds[$i % count($companyIds)],
+                'code' => 'DBR-' . $this->suffix($i) . '-' . $i,
+                'name' => $city . ' Branch ' . ($i + 1),
+                'address' => ($i + 1) . ', ' . $this->last[($i * 3) % count($this->last)] . ' Road',
+                'city' => $city,
+                'state' => $this->states[$i % count($this->states)],
+                'country' => 'India',
+                'pincode' => (string) (380000 + ($i * 11) % 99999),
+                'phone' => $this->phone($i),
+                'email' => 'branch' . $i . '.' . strtolower($this->suffix($i)) . '@example.com',
+                'is_active' => true,
+            ];
+        }, Branch::class);
     }
 
     /** Price-list rows reference existing products; returns 0 if none exist yet. */
@@ -705,9 +841,10 @@ class DemoDataGenerator
         $numberField = $isOrder ? 'so_number' : 'quote_number';
         $dateField = $isOrder ? 'order_date' : 'quote_date';
         $prefix = $isB2b ? 'DB2B-' : ($isOrder ? 'DSO-' : 'DSQ-');
-        // B2B orders sit in the pending-approval state (draft + not yet approved).
+        // B2B orders: mostly awaiting approval (the queue's working state), plus
+        // some already approved (confirmed) / rejected (cancelled) for history.
         $statuses = $isB2b
-            ? ['draft']
+            ? ['pending_approval', 'pending_approval', 'confirmed', 'cancelled']
             : ($isOrder
                 ? ['draft', 'confirmed', 'delivered', 'cancelled']
                 : ['draft', 'sent', 'accepted', 'rejected', 'expired']);
@@ -1001,7 +1138,8 @@ class DemoDataGenerator
     private function bankAccountRow(int $i): array
     {
         return [
-            'name' => 'Demo Bank A/C ' . ($i + 1),
+            // (tenant_id, name) is unique — suffix keeps re-runs collision-free.
+            'name' => 'Demo Bank A/C ' . ($i + 1) . ' ' . $this->suffix($i),
             'type' => 'bank',
             'bank_name' => ['HDFC Bank', 'ICICI Bank', 'State Bank of India', 'Axis Bank'][$i % 4],
             'account_number' => (string) (50100000000 + $i),
@@ -1027,7 +1165,8 @@ class DemoDataGenerator
     private function expenseCategoryRow(int $i): array
     {
         return [
-            'name' => 'Demo Expense Category ' . ($i + 1),
+            // (tenant_id, name) is unique — suffix keeps re-runs collision-free.
+            'name' => 'Demo Expense Category ' . ($i + 1) . ' ' . $this->suffix($i),
             'is_active' => true,
         ];
     }
@@ -1120,16 +1259,32 @@ class DemoDataGenerator
         ];
     }
 
-    private function leaveTypeRow(int $i): array
+    /**
+     * Leave types are a small fixed vocabulary — create only the ones that
+     * don't exist yet (max 5), never duplicates. $count only caps the batch.
+     */
+    private function makeLeaveTypes(int $count): int
     {
-        return [
-            'code' => 'DLT-' . $this->suffix($i) . '-' . $i,
-            'name' => ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Maternity Leave', 'Comp Off'][$i % 5],
-            'annual_quota' => [6, 12, 15][$i % 3],
-            'is_paid' => true,
-            'carry_forward' => $i % 2 === 0,
-            'is_active' => true,
-        ];
+        $pool = ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Maternity Leave', 'Comp Off'];
+        $existing = LeaveType::pluck('name')->flip();
+
+        $made = 0;
+        foreach ($pool as $i => $name) {
+            if ($made >= $count || isset($existing[$name])) {
+                continue;
+            }
+            LeaveType::create([
+                'code' => 'DLT-' . $this->suffix($i) . '-' . $i,
+                'name' => $name,
+                'annual_quota' => [6, 12, 15][$i % 3],
+                'is_paid' => true,
+                'carry_forward' => $i % 2 === 0,
+                'is_active' => true,
+            ]);
+            $made++;
+        }
+
+        return $made;
     }
 
     private function vehicleRow(int $i): array
@@ -1266,6 +1421,229 @@ class DemoDataGenerator
             'area' => $this->cities[$i % count($this->cities)],
             'is_active' => true,
         ], Beat::class);
+    }
+
+    /**
+     * Build 1–3 purchase line items for product-based purchase documents.
+     * Unit cost is derived from the selling price (≈70%) so margins look sane.
+     *
+     * @return array{lines: array<int,array>, subtotal: float, tax: float, total: float}
+     */
+    private function buildPurchaseLines(int $i, $products, int $productCount): array
+    {
+        $lines = [];
+        $subtotal = 0.0;
+        $taxTotal = 0.0;
+        $lineCount = 1 + ($i % 3);
+
+        for ($l = 0; $l < $lineCount; $l++) {
+            $product = $products[($i * 3 + $l * 11) % $productCount];
+            $qty = 5 + (($i + $l) * 7) % 46;
+            $unitCost = round((float) $product->selling_price * 0.7, 2) ?: 100.0;
+            $taxPercent = (float) $product->tax_percent;
+            $amount = round($qty * $unitCost, 2);
+            $tax = round($amount * $taxPercent / 100, 2);
+
+            $lines[] = [
+                'product_id' => $product->id,
+                'quantity' => $qty,
+                'unit_cost' => $unitCost,
+                'tax_percent' => $taxPercent,
+                'tax_amount' => $tax,
+                'line_total' => round($amount + $tax, 2),
+            ];
+            $subtotal += $amount;
+            $taxTotal += $tax;
+        }
+
+        return [
+            'lines' => $lines,
+            'subtotal' => round($subtotal, 2),
+            'tax' => round($taxTotal, 2),
+            'total' => round($subtotal + $taxTotal, 2),
+        ];
+    }
+
+    /** Purchase indents with 1–3 requested items; mostly awaiting approval. */
+    private function makePurchaseIndents(int $count): int
+    {
+        $products = Product::select('id', 'selling_price', 'tax_percent')->get();
+        if ($products->isEmpty()) {
+            return 0;
+        }
+        $warehouseIds = Warehouse::pluck('id')->all() ?: [null];
+        $departmentIds = Department::pluck('id')->all() ?: [null];
+        $productCount = $products->count();
+        $statuses = ['pending_approval', 'pending_approval', 'approved', 'draft', 'rejected'];
+
+        return $this->makeChunked($count, function (int $i) use ($products, $productCount, $warehouseIds, $departmentIds, $statuses) {
+            $status = $statuses[$i % count($statuses)];
+            $indent = PurchaseIndent::create([
+                'indent_number' => 'DPI-' . $this->suffix($i) . '-' . $i,
+                'department_id' => $departmentIds[$i % count($departmentIds)],
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'status' => $status,
+                'priority' => ['low', 'normal', 'normal', 'high', 'urgent'][$i % 5],
+                'indent_date' => now()->subDays($i % 60)->toDateString(),
+                'required_date' => now()->addDays(7 + $i % 21)->toDateString(),
+                'notes' => 'Demo purchase indent',
+                'rejection_reason' => $status === 'rejected' ? 'Budget not available this month' : null,
+                'created_by' => $this->createdBy,
+            ]);
+            $built = $this->buildPurchaseLines($i, $products, $productCount);
+            $indent->items()->createMany(array_map(fn ($l) => [
+                'product_id' => $l['product_id'],
+                'quantity' => $l['quantity'],
+                'estimated_cost' => $l['unit_cost'],
+            ], $built['lines']));
+        });
+    }
+
+    /** RFQs with 1–3 items and 2–3 invited suppliers (some responded with quotes). */
+    private function makeRfqs(int $count): int
+    {
+        $products = Product::select('id', 'selling_price', 'tax_percent')->get();
+        $supplierIds = Supplier::pluck('id')->all();
+        if ($products->isEmpty() || count($supplierIds) < 2) {
+            return 0;
+        }
+        $warehouseIds = Warehouse::pluck('id')->all() ?: [null];
+        $productCount = $products->count();
+        $statuses = ['draft', 'sent', 'sent', 'awarded', 'closed'];
+
+        return $this->makeChunked($count, function (int $i) use ($products, $productCount, $supplierIds, $warehouseIds, $statuses) {
+            $status = $statuses[$i % count($statuses)];
+            $built = $this->buildPurchaseLines($i, $products, $productCount);
+
+            // 2–3 invited suppliers; past-draft RFQs have some responses.
+            $invited = [];
+            $inviteCount = 2 + ($i % 2);
+            for ($s = 0; $s < $inviteCount; $s++) {
+                $invited[] = $supplierIds[($i + $s * 3) % count($supplierIds)];
+            }
+            $invited = array_values(array_unique($invited));
+
+            $rfq = Rfq::create([
+                'rfq_number' => 'DRFQ-' . $this->suffix($i) . '-' . $i,
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'status' => $status,
+                'rfq_date' => now()->subDays($i % 45)->toDateString(),
+                'response_deadline' => now()->addDays(5 + $i % 10)->toDateString(),
+                'awarded_supplier_id' => in_array($status, ['awarded', 'closed'], true) ? $invited[0] : null,
+                'notes' => 'Demo RFQ',
+                'created_by' => $this->createdBy,
+            ]);
+            $rfq->items()->createMany(array_map(fn ($l) => [
+                'product_id' => $l['product_id'],
+                'quantity' => $l['quantity'],
+            ], $built['lines']));
+
+            foreach ($invited as $idx => $supplierId) {
+                $responded = $status !== 'draft' && ($idx === 0 || ($i + $idx) % 2 === 0);
+                $rfq->suppliers()->create([
+                    'supplier_id' => $supplierId,
+                    'status' => $responded ? 'responded' : 'invited',
+                    'quoted_total' => $responded ? round($built['total'] * (0.92 + 0.05 * $idx), 2) : 0,
+                    'lead_time_days' => $responded ? 5 + ($idx * 3) : null,
+                    'responded_at' => $responded ? now()->subDays($i % 10) : null,
+                ]);
+            }
+        });
+    }
+
+    /** Purchase orders with 1–3 line items across the status lifecycle. */
+    private function makePurchaseOrders(int $count): int
+    {
+        $products = Product::select('id', 'selling_price', 'tax_percent')->get();
+        $supplierIds = Supplier::pluck('id')->all();
+        $warehouseIds = Warehouse::pluck('id')->all();
+        if ($products->isEmpty() || empty($supplierIds) || empty($warehouseIds)) {
+            return 0;
+        }
+        $productCount = $products->count();
+        $statuses = ['draft', 'pending_approval', 'approved', 'partially_received', 'received'];
+
+        return $this->makeChunked($count, function (int $i) use ($products, $productCount, $supplierIds, $warehouseIds, $statuses) {
+            $status = $statuses[$i % count($statuses)];
+            $built = $this->buildPurchaseLines($i, $products, $productCount);
+
+            $po = PurchaseOrder::create([
+                'po_number' => 'DPO-' . $this->suffix($i) . '-' . $i,
+                'supplier_id' => $supplierIds[$i % count($supplierIds)],
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'status' => $status,
+                'order_date' => now()->subDays($i % 90)->toDateString(),
+                'expected_date' => now()->addDays(7 + $i % 14)->toDateString(),
+                'subtotal' => $built['subtotal'],
+                'tax_amount' => $built['tax'],
+                'total' => $built['total'],
+                'notes' => 'Demo purchase order',
+                'created_by' => $this->createdBy,
+            ]);
+            $received = ['received' => 1.0, 'partially_received' => 0.5][$status] ?? 0.0;
+            $po->items()->createMany(array_map(fn ($l) => $l + [
+                'received_quantity' => round($l['quantity'] * $received, 3),
+            ], $built['lines']));
+        });
+    }
+
+    /**
+     * Vendor invoices (purchase invoices) billed against existing POs with
+     * items — one invoice per PO round-robin; returns 0 if no POs exist yet.
+     */
+    private function makeVendorInvoices(int $count): int
+    {
+        $pos = PurchaseOrder::with('items')->has('items')->latest('id')->limit(200)->get()->values();
+        if ($pos->isEmpty()) {
+            return 0;
+        }
+
+        return $this->makeChunked($count, function (int $i) use ($pos) {
+            $po = $pos[$i % $pos->count()];
+            $status = ['pending', 'pending', 'approved'][$i % 3];
+
+            $invoice = PurchaseInvoice::create([
+                'invoice_number' => 'DVI-' . $this->suffix($i) . '-' . $i,
+                'purchase_order_id' => $po->id,
+                'supplier_id' => $po->supplier_id,
+                'invoice_date' => now()->subDays($i % 30)->toDateString(),
+                'due_date' => now()->addDays(15 + $i % 30)->toDateString(),
+                'subtotal' => $po->subtotal,
+                'tax_amount' => $po->tax_amount,
+                'total' => $po->total,
+                'status' => $status,
+                'match_status' => $i % 5 === 4 ? 'exception' : 'matched',
+                'notes' => 'Demo vendor invoice',
+                'created_by' => $this->createdBy,
+            ]);
+            $invoice->items()->createMany($po->items->map(fn ($item) => [
+                'purchase_item_id' => $item->id,
+                'product_id' => $item->product_id,
+                'variant_id' => $item->variant_id,
+                'quantity' => $item->quantity,
+                'unit_cost' => $item->unit_cost,
+                'tax_percent' => $item->tax_percent,
+                'tax_amount' => $item->tax_amount,
+                'line_total' => $item->line_total,
+            ])->all());
+        });
+    }
+
+    /** Run $rowFn once per record inside chunked transactions; returns rows made. */
+    private function makeChunked(int $count, callable $rowFn): int
+    {
+        $made = 0;
+        for ($start = 0; $start < $count; $start += self::CHUNK) {
+            $batch = min(self::CHUNK, $count - $start);
+            DB::transaction(function () use ($rowFn, $start, $batch, &$made) {
+                for ($k = 0; $k < $batch; $k++) {
+                    $rowFn($start + $k);
+                    $made++;
+                }
+            });
+        }
+
+        return $made;
     }
 
     private function makeVendorRatings(int $count): int
@@ -1832,6 +2210,88 @@ class DemoDataGenerator
                 'is_active' => true,
             ];
         }, Product::class);
+    }
+
+    /**
+     * Generate basic (non-admin) staff login users, password "password".
+     *
+     * Names are unique: first/last pairs are enumerated without repeats (400
+     * combos), and any name already present for the tenant gets a numeric
+     * suffix ("Amit Sharma 2"). Emails derive from the final name plus the
+     * tenant id (users.email unique index spans tenants), so they are unique
+     * and readable; a clashing row is skipped rather than crashing the run.
+     * Each user gets 1–3 of the tenant's non-admin roles.
+     */
+    private function makeUsers(int $count): int
+    {
+        $tenantId = app(TenantContext::class)->id();
+
+        // Assignable roles, minus top-level ones — these are "basic" users.
+        // Tenant roles are seeded as global templates (tenant_id NULL) under
+        // spatie teams; also accept any roles created just for this tenant.
+        $roleNames = Role::query()
+            ->where('guard_name', 'web')
+            ->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $tenantId))
+            ->pluck('name')
+            ->reject(fn ($name) => preg_match('/admin|owner|ceo|director/i', $name))
+            ->values()
+            ->all();
+        $roleCount = count($roleNames);
+
+        $password = Hash::make('password');
+        $firstCount = count($this->first);
+        $lastCount = count($this->last);
+        // Names already taken for this tenant (users + earlier demo runs).
+        $takenNames = User::pluck('name')->flip()->all();
+
+        $made = 0;
+        for ($start = 0; $start < $count; $start += self::CHUNK) {
+            $batch = min(self::CHUNK, $count - $start);
+            DB::transaction(function () use (
+                $tenantId, $roleNames, $roleCount, $password, $firstCount, $lastCount, &$takenNames, $start, $batch, &$made
+            ) {
+                for ($k = 0; $k < $batch; $k++) {
+                    $i = $start + $k;
+
+                    // Enumerate first/last pairs without repeating: unique for
+                    // the first first×last (400) users in a run.
+                    $pair = $i % ($firstCount * $lastCount);
+                    $base = $this->first[$pair % $firstCount] . ' '
+                        . $this->last[(intdiv($pair, $firstCount) + $pair) % $lastCount];
+                    $name = $base;
+                    for ($n = 2; isset($takenNames[$name]); $n++) {
+                        $name = $base . ' ' . $n;
+                    }
+                    $takenNames[$name] = true;
+
+                    $email = Str::slug($name, '.') . ".t{$tenantId}@example.com";
+                    if (User::withoutGlobalScopes()->where('email', $email)->exists()) {
+                        continue;
+                    }
+
+                    $user = User::create([
+                        'name' => $name,
+                        'email' => $email,
+                        'phone' => $this->phone($i),
+                        'password' => $password,
+                        'is_active' => true,
+                    ]);
+
+                    // 1–3 roles per user, spread across the role list.
+                    if ($roleCount > 0) {
+                        $roles = [];
+                        $take = min(1 + ($i % 3), $roleCount);
+                        for ($r = 0; $r < $take; $r++) {
+                            $roles[] = $roleNames[($i * 3 + $r * 7) % $roleCount];
+                        }
+                        $user->syncRoles(array_values(array_unique($roles)));
+                    }
+                    $made++;
+                }
+            });
+        }
+
+        return $made;
     }
 
     private function makeEmployees(int $count): int

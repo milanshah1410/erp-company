@@ -53,6 +53,7 @@ const referenceTypeOptions = [
 const search = ref('')
 const directionFilter = ref<string | null>(null)
 const statusFilter = ref<string | null>(null)
+const warehouseFilter = ref<number | null>(null)
 const statusOptions = [
   { label: 'Open', value: 'open' },
   { label: 'Closed', value: 'closed' },
@@ -144,6 +145,7 @@ function reload() {
   if (search.value) params.search = search.value
   if (statusFilter.value) params.status = statusFilter.value
   if (directionFilter.value) params.direction = directionFilter.value
+  if (warehouseFilter.value) params.warehouse_id = warehouseFilter.value
   crud.fetch(params)
 }
 function onPage(e: any) {
@@ -173,8 +175,10 @@ onMounted(async () => {
           placeholder="All directions" @change="reload" class="status-filter" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <Select v-model="warehouseFilter" :options="warehouses" optionLabel="name" optionValue="id" showClear
+          placeholder="All warehouses" @change="reload" class="status-filter" />
         <TableExportButtons title="Gate Entries" endpoint="/gate-entries"
-          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}), ...(directionFilter ? { direction: directionFilter } : {}) })"
+          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}), ...(directionFilter ? { direction: directionFilter } : {}), ...(warehouseFilter ? { warehouse_id: warehouseFilter } : {}) })"
           :columns="[
             { key: 'entry_number', label: 'Entry #' },
             { key: 'warehouse.name', label: 'Warehouse' },

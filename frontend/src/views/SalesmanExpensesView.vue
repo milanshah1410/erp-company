@@ -240,7 +240,7 @@ onMounted(async () => {
       <Column header="Status">
         <template #body="{ data }"><Tag :value="data.status" :severity="statusSeverity(data.status)" /></template>
       </Column>
-      <Column header="Actions" style="width: 13rem">
+      <Column header="Actions" class="actions-col" style="width: 19rem; white-space: nowrap">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canEdit && data.status === 'pending'" label="Approve" icon="pi pi-check" text severity="success" size="small" @click="approve(data)" />
@@ -299,6 +299,14 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* Center the Actions column header + cells (matches Collection Entry). */
+:deep(th.actions-col .p-datatable-column-header-content) {
+  justify-content: center;
+}
+:deep(td.actions-col) {
+  text-align: center;
+}
+
 .header {
   display: flex;
   justify-content: space-between;

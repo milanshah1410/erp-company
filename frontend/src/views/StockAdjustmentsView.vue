@@ -47,6 +47,7 @@ const reasons = [
 const reasonLabel = (v: string) => reasons.find((r) => r.value === v)?.label ?? v
 
 const statusFilter = ref<string | null>(null)
+const warehouseFilter = ref<number | null>(null)
 const statusOptions = [
   { label: 'Draft', value: 'draft' },
   { label: 'Approved', value: 'approved' },
@@ -178,7 +179,11 @@ async function removeAdjustment(row: any) {
 }
 
 function reload() {
-  crud.fetch({ status: statusFilter.value || undefined, search: search.value || undefined })
+  crud.fetch({
+    status: statusFilter.value || undefined,
+    search: search.value || undefined,
+    warehouse_id: warehouseFilter.value || undefined,
+  })
 }
 function onPage(e: any) {
   crud.currentPage.value = e.page + 1
@@ -209,8 +214,10 @@ onMounted(async () => {
         <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
           placeholder="All statuses" @change="reload" class="status-filter" />
+        <Select v-model="warehouseFilter" :options="warehouses" optionLabel="name" optionValue="id" showClear
+          placeholder="All warehouses" @change="reload" class="status-filter" />
         <TableExportButtons title="Stock Adjustments" endpoint="/stock-adjustments"
-          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+          :params="() => ({ status: statusFilter || undefined, search: search || undefined, warehouse_id: warehouseFilter || undefined })"
           :columns="[
             { key: 'adjustment_number', label: 'Adjustment #' },
             { key: 'warehouse.name', label: 'Warehouse' },

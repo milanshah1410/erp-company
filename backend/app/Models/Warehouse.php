@@ -14,11 +14,14 @@ class Warehouse extends Model
 
     protected $fillable = [
         'company_id', 'branch_id', 'code', 'name', 'type', 'contact_person', 'phone', 'email',
-        'address', 'city', 'state', 'country', 'pincode', 'is_active',
+        'address', 'address_line2', 'landmark', 'area', 'city', 'state', 'country', 'pincode',
+        'latitude', 'longitude', 'google_place_id', 'is_active',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
     ];
 
     public function company(): BelongsTo

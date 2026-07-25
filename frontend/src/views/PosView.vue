@@ -980,7 +980,16 @@ onBeforeUnmount(() => {
 .balance { margin-top: 0.75rem; font-size: 1rem; padding: 0.5rem; border-radius: 6px; background: #f8fafc; }
 .balance.due { color: #b45309; background: #fffbeb; }
 .balance.over { color: #047857; background: #ecfdf5; }
-.complete-btn { margin-top: 1rem; }
+.complete-btn {
+  margin-top: 1rem;
+  width: 100%;
+  justify-content: center;
+  padding: 0.95rem 1.25rem;
+  font-size: 1.15rem;
+  border-radius: 10px;
+}
+.complete-btn :deep(.p-button-label) { font-weight: 700; letter-spacing: 0.02em; }
+.complete-btn :deep(.p-button-icon) { font-size: 1.2rem; }
 .err { color: #dc2626; font-size: 0.78rem; }
 .err.block { display: block; margin-top: 0.3rem; }
 .muted { color: #6b7280; }

@@ -43,6 +43,9 @@ class StockReturnController extends Controller
         if ($request->filled('return_type')) {
             $query->where('return_type', $request->query('return_type'));
         }
+        if ($request->filled('warehouse_id')) {
+            $query->where('warehouse_id', $request->query('warehouse_id'));
+        }
 
         $query->orderByDesc('id');
         $perPage = min((int) $request->query('per_page', 15), 100);
