@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -180,10 +181,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Salesman Targets &amp; Incentive</h1>
-      <Button v-if="canCreate" label="New Target" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Salesman Targets &amp; Incentive">
+      <template #actions>
+        <Button v-if="canCreate" label="New Target" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <Select v-model="filters.salesman_id" :options="salesmen" optionLabel="label" optionValue="value" filter showClear

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import InputText from 'primevue/inputtext'
 import http from '../api/http'
+import { usePt } from '../i18n/pt'
 
 interface ResultItem {
   id: number
@@ -19,6 +20,7 @@ interface Group {
 }
 
 const router = useRouter()
+const pt = usePt()
 
 const q = ref('')
 const groups = ref<Group[]>([])
@@ -89,7 +91,7 @@ onClickOutside(rootEl, () => {
       <i class="pi pi-search" />
       <InputText
         v-model="q"
-        placeholder="Search products, customers, invoices…"
+        :placeholder="pt('Search products, customers, invoices…')"
         @input="runSearch"
         @focus="onFocus"
         @keyup.enter="submitAll"
@@ -98,10 +100,10 @@ onClickOutside(rootEl, () => {
     </span>
 
     <div v-if="open" class="gs-dropdown">
-      <div v-if="loading" class="gs-state">Searching…</div>
+      <div v-if="loading" class="gs-state">{{ pt('Searching…') }}</div>
       <template v-else-if="hasResults">
         <div v-for="g in groups" :key="g.type" class="gs-group">
-          <div class="gs-group-head"><i :class="iconMap[g.type]" /> {{ g.label }}</div>
+          <div class="gs-group-head"><i :class="iconMap[g.type]" /> {{ pt(g.label) }}</div>
           <button
             v-for="item in g.items"
             :key="g.type + '-' + item.id"
@@ -115,9 +117,9 @@ onClickOutside(rootEl, () => {
             <span v-if="item.badge" class="gs-badge">{{ item.badge }}</span>
           </button>
         </div>
-        <button class="gs-viewall" @click="submitAll">View all results →</button>
+        <button class="gs-viewall" @click="submitAll">{{ pt('View all results') }} →</button>
       </template>
-      <div v-else class="gs-state">No matches for “{{ q }}”.</div>
+      <div v-else class="gs-state">{{ pt('No matches for “{q}”.', { q }) }}</div>
     </div>
   </div>
 </template>

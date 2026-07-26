@@ -16,8 +16,11 @@ import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
+const pt = usePt()
 const auth = useAuthStore()
 
 const detailVisible = ref(false)
@@ -34,12 +37,12 @@ const statusFilter = ref<string | null>(null)
 const sortField = ref<string | null>(null)
 const sortOrder = ref<1 | -1 | null>(null)
 
-const statusOptions = [
-  { label: 'Pending', value: 'pending' },
-  { label: 'Joined', value: 'joined' },
-  { label: 'Rewarded', value: 'rewarded' },
-  { label: 'Cancelled', value: 'cancelled' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Pending'), value: 'pending' },
+  { label: pt('Joined'), value: 'joined' },
+  { label: pt('Rewarded'), value: 'rewarded' },
+  { label: pt('Cancelled'), value: 'cancelled' },
+])
 const statusColors: Record<string, string> = {
   pending: 'secondary', joined: 'info', rewarded: 'success', cancelled: 'danger',
 }
@@ -112,16 +115,16 @@ async function save() {
   try {
     if (editing.value) {
       await crud.value.update(editing.value.id, form.value)
-      toast.add({ severity: 'success', summary: 'Referral updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Referral updated'), life: 2500 })
     } else {
       await crud.value.create(form.value)
-      toast.add({ severity: 'success', summary: 'Referral created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Referral created'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Request failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -149,11 +152,11 @@ async function doJoin() {
   joining.value = true
   try {
     await http.post(`/referrals/${joinRow.value.id}/joined`, { referred_customer_id: joinCustomerId.value })
-    toast.add({ severity: 'success', summary: 'Marked joined', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Marked joined'), life: 2500 })
     joinVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     joining.value = false
   }
@@ -161,35 +164,36 @@ async function doJoin() {
 
 async function reward(row: any) {
   const res = await Swal.fire({
-    title: 'Reward the referrer?',
-    text: `${row.reward_points} loyalty points will be credited to ${row.referrer?.name ?? 'the referrer'}.`,
+    title: pt('Reward the referrer?'),
+    text: pt('{points} loyalty points will be credited to {name}.', { points: row.reward_points, name: row.referrer?.name ?? pt('the referrer') }),
     icon: 'question',
     showCancelButton: true,
-    confirmButtonText: 'Reward',
+    confirmButtonText: pt('Reward'),
+    cancelButtonText: pt('Cancel'),
     confirmButtonColor: '#16a34a',
   })
   if (!res.isConfirmed) return
   try {
     await http.post(`/referrals/${row.id}/reward`)
-    toast.add({ severity: 'success', summary: 'Referrer rewarded', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Referrer rewarded'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
 async function confirmDelete(row: any) {
   const res = await Swal.fire({
-    title: 'Delete this referral?', icon: 'warning', showCancelButton: true,
-    confirmButtonColor: '#dc2626', confirmButtonText: 'Delete',
+    title: pt('Delete this referral?'), icon: 'warning', showCancelButton: true,
+    confirmButtonColor: '#dc2626', confirmButtonText: pt('Delete'), cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await crud.value.remove(row.id)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -201,31 +205,32 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Referrals</h1>
-      <Button v-if="canCreate" label="New Referral" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Referrals')">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Referral')" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <span class="search">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search referred / referrer..." @keyup.enter="reload" />
+        <InputText v-model="search" :placeholder="pt('Search referred / referrer...')" @keyup.enter="reload" />
       </span>
       <Select
         v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value"
-        placeholder="All statuses" showClear class="filter" @change="reload"
+        :placeholder="pt('All statuses')" showClear class="filter" @change="reload"
       />
-      <Button label="Search" outlined @click="reload" />
+      <Button :label="pt('Search')" outlined @click="reload" />
       <span class="toolbar-spacer" />
-      <TableExportButtons title="Referrals" endpoint="/referrals"
+      <TableExportButtons :title="pt('Referrals')" endpoint="/referrals"
         :params="() => ({ search: search || undefined, status: statusFilter || undefined })"
         :columns="[
-          { key: 'referrer.name', label: 'Referrer' },
-          { key: 'referred_name', label: 'Referred' },
-          { key: 'referred_phone', label: 'Phone' },
-          { key: 'referred_customer.name', label: 'Became Customer' },
-          { key: 'reward_points', label: 'Reward Pts' },
-          { key: 'status', label: 'Status' },
+          { key: 'referrer.name', label: pt('Referrer') },
+          { key: 'referred_name', label: pt('Referred') },
+          { key: 'referred_phone', label: pt('Phone') },
+          { key: 'referred_customer.name', label: pt('Became Customer') },
+          { key: 'reward_points', label: pt('Reward Pts') },
+          { key: 'status', label: pt('Status') },
         ]" />
     </div>
 
@@ -235,101 +240,101 @@ onMounted(() => {
       dataKey="id" @page="onPage" class="p-datatable-sm"
       removableSort :sortField="sortField ?? undefined" :sortOrder="sortOrder ?? undefined" @sort="onSort"
     >
-      <Column header="Referrer">
+      <Column :header="pt('Referrer')">
         <template #body="{ data }">{{ data.referrer?.name ?? '—' }}</template>
       </Column>
-      <Column field="referred_name" header="Referred" sortable>
+      <Column field="referred_name" :header="pt('Referred')" sortable>
         <template #body="{ data }">
           <span>{{ data.referred_name }}</span>
           <span v-if="data.referred_phone" class="muted-sub">{{ data.referred_phone }}</span>
         </template>
       </Column>
-      <Column header="Became Customer">
+      <Column :header="pt('Became Customer')">
         <template #body="{ data }">{{ data.referred_customer?.name ?? '—' }}</template>
       </Column>
-      <Column field="reward_points" header="Reward Pts" style="text-align: right" />
-      <Column field="status" header="Status" sortable>
+      <Column field="reward_points" :header="pt('Reward Pts')" style="text-align: right" />
+      <Column field="status" :header="pt('Status')" sortable>
         <template #body="{ data }">
-          <Tag :severity="statusColors[data.status]" :value="data.status" />
+          <Tag :severity="statusColors[data.status]" :value="pt(data.status)" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 12rem">
+      <Column :header="pt('Actions')" style="width: 12rem">
         <template #body="{ data }">
-          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" :title="pt('View')" @click="openDetail(data)" />
           <Button
             v-if="canEdit && data.status === 'pending'"
             icon="pi pi-user-plus" text rounded size="small" severity="info"
-            title="Mark joined" @click="openJoin(data)"
+            :title="pt('Mark joined')" @click="openJoin(data)"
           />
           <Button
             v-if="canEdit && data.status === 'joined'"
             icon="pi pi-gift" text rounded size="small" severity="success"
-            title="Reward referrer" @click="reward(data)"
+            :title="pt('Reward referrer')" @click="reward(data)"
           />
-          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
-          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
+          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" :title="pt('Edit')" @click="openEdit(data)" />
+          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" :title="pt('Delete')" @click="confirmDelete(data)" />
         </template>
       </Column>
-      <template #empty>No referrals found.</template>
+      <template #empty>{{ pt('No referrals found.') }}</template>
     </DataTable>
 
     <!-- Create / edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editing ? 'Edit Referral' : 'New Referral'" :style="{ width: '520px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editing ? pt('Edit Referral') : pt('New Referral')" :style="{ width: '520px' }">
       <div class="form-grid">
         <div class="fld full">
-          <label>Referrer (existing customer) <span class="req">*</span></label>
+          <label>{{ pt('Referrer (existing customer)') }} <span class="req">*</span></label>
           <Select
             v-model="form.referrer_customer_id" :options="customerOptions"
-            optionLabel="label" optionValue="value" filter placeholder="Select customer"
+            optionLabel="label" optionValue="value" filter :placeholder="pt('Select customer')"
             :class="{ invalid: fieldError('referrer_customer_id') }"
           />
           <small v-if="fieldError('referrer_customer_id')" class="error-text">{{ fieldError('referrer_customer_id') }}</small>
         </div>
         <div class="fld">
-          <label>Referred Name <span class="req">*</span></label>
+          <label>{{ pt('Referred Name') }} <span class="req">*</span></label>
           <InputText v-model="form.referred_name" :class="{ invalid: fieldError('referred_name') }" />
           <small v-if="fieldError('referred_name')" class="error-text">{{ fieldError('referred_name') }}</small>
         </div>
         <div class="fld">
-          <label>Referred Phone</label>
+          <label>{{ pt('Referred Phone') }}</label>
           <InputText v-model="form.referred_phone" />
         </div>
         <div class="fld">
-          <label>Reward Points</label>
+          <label>{{ pt('Reward Points') }}</label>
           <InputNumber v-model="form.reward_points" :min="0" />
         </div>
         <div class="fld full">
-          <label>Notes</label>
+          <label>{{ pt('Notes') }}</label>
           <Textarea v-model="form.notes" rows="2" />
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editing ? pt('Update') : pt('Create')" :loading="saving" @click="save" />
       </template>
     </Dialog>
 
     <!-- Mark joined dialog -->
-    <Dialog v-model:visible="joinVisible" modal header="Referral Joined" :style="{ width: '440px' }">
-      <p class="muted small">Link this referral to the customer created from <strong>{{ joinRow?.referred_name }}</strong>.</p>
+    <Dialog v-model:visible="joinVisible" modal :header="pt('Referral Joined')" :style="{ width: '440px' }">
+      <p class="muted small">{{ pt('Link this referral to the customer created from') }} <strong>{{ joinRow?.referred_name }}</strong>.</p>
       <div class="fld full">
-        <label>Customer <span class="req">*</span></label>
-        <Select v-model="joinCustomerId" :options="customerOptions" optionLabel="label" optionValue="value" filter placeholder="Select customer" />
+        <label>{{ pt('Customer') }} <span class="req">*</span></label>
+        <Select v-model="joinCustomerId" :options="customerOptions" optionLabel="label" optionValue="value" filter :placeholder="pt('Select customer')" />
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="joinVisible = false" />
-        <Button label="Mark Joined" :disabled="!joinCustomerId" :loading="joining" @click="doJoin" />
+        <Button :label="pt('Cancel')" text @click="joinVisible = false" />
+        <Button :label="pt('Mark Joined')" :disabled="!joinCustomerId" :loading="joining" @click="doJoin" />
       </template>
     </Dialog>
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Referral Details" :fields="[
-      { key: 'referrer.name', label: 'Referrer' },
-      { key: 'referred_name', label: 'Referred' },
-      { key: 'referred_phone', label: 'Referred Phone' },
-      { key: 'referred_customer.name', label: 'Became Customer' },
-      { key: 'reward_points', label: 'Reward Points' },
-      { key: 'status', label: 'Status' },
-      { key: 'notes', label: 'Notes', full: true },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('Referral Details')" :fields="[
+      { key: 'referrer.name', label: pt('Referrer') },
+      { key: 'referred_name', label: pt('Referred') },
+      { key: 'referred_phone', label: pt('Referred Phone') },
+      { key: 'referred_customer.name', label: pt('Became Customer') },
+      { key: 'reward_points', label: pt('Reward Points') },
+      { key: 'status', label: pt('Status') },
+      { key: 'notes', label: pt('Notes'), full: true },
     ]" />
   </div>
 </template>

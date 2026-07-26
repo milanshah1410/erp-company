@@ -16,9 +16,12 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 const crud = useCrud('/expenses')
 
 const categories = ref<any[]>([])
@@ -36,20 +39,20 @@ const statusColors: Record<string, string> = {
   approved: 'success',
   rejected: 'danger',
 }
-const statusOptions = [
-  { label: 'Draft', value: 'draft' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Rejected', value: 'rejected' },
-]
-const paymentMethods = [
-  { label: 'Cash', value: 'cash' },
-  { label: 'Bank Transfer', value: 'bank' },
-  { label: 'UPI', value: 'upi' },
-  { label: 'Card', value: 'card' },
-  { label: 'Cheque', value: 'cheque' },
-  { label: 'Other', value: 'other' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Draft'), value: 'draft' },
+  { label: pt('Pending'), value: 'pending' },
+  { label: pt('Approved'), value: 'approved' },
+  { label: pt('Rejected'), value: 'rejected' },
+])
+const paymentMethods = computed(() => [
+  { label: pt('Cash'), value: 'cash' },
+  { label: pt('Bank Transfer'), value: 'bank' },
+  { label: pt('UPI'), value: 'upi' },
+  { label: pt('Card'), value: 'card' },
+  { label: pt('Cheque'), value: 'cheque' },
+  { label: pt('Other'), value: 'other' },
+])
 
 function currency(v: any) {
   return `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -60,13 +63,13 @@ function today() {
 
 // --- Tabs ---
 const tab = ref<'expenses' | 'ledger' | 'monthly' | 'branch' | 'category'>('expenses')
-const tabs = [
-  { key: 'expenses', label: 'Expenses', icon: 'pi pi-receipt' },
-  { key: 'ledger', label: 'Ledger', icon: 'pi pi-book' },
-  { key: 'monthly', label: 'Monthly', icon: 'pi pi-calendar' },
-  { key: 'branch', label: 'Branch-wise', icon: 'pi pi-map-marker' },
-  { key: 'category', label: 'Category-wise', icon: 'pi pi-tags' },
-] as const
+const tabs = computed(() => [
+  { key: 'expenses', label: pt('Expenses'), icon: 'pi pi-receipt' },
+  { key: 'ledger', label: pt('Ledger'), icon: 'pi pi-book' },
+  { key: 'monthly', label: pt('Monthly'), icon: 'pi pi-calendar' },
+  { key: 'branch', label: pt('Branch-wise'), icon: 'pi pi-map-marker' },
+  { key: 'category', label: pt('Category-wise'), icon: 'pi pi-tags' },
+] as const)
 
 // --- List filters ---
 const search = ref('')
@@ -299,26 +302,27 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Company Expenses</h1>
-      <div class="header-actions">
+    <PageHeader title="Company Expenses" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
         </span>
         <Button label="Search" outlined @click="reload" />
         <TableExportButtons title="Company Expenses" endpoint="/expenses" :params="() => activeParams()" :columns="[
-          { key: 'expense_number', label: 'Expense #' },
-          { key: 'expense_date', label: 'Date' },
-          { key: 'category', label: 'Category' },
-          { key: 'branch', label: 'Branch' },
-          { key: 'payee', label: 'Payee' },
-          { key: 'amount', label: 'Amount' },
-          { key: 'status', label: 'Status' },
+        { key: 'expense_number', label: 'Expense #' },
+        { key: 'expense_date', label: 'Date' },
+        { key: 'category', label: 'Category' },
+        { key: 'branch', label: 'Branch' },
+        { key: 'payee', label: 'Payee' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'status', label: 'Status' },
         ]" />
         <Button v-if="canCreate" label="New Expense" icon="pi pi-plus" @click="openCreate" />
-      </div>
-    </div>
+        </div>
+      </template>
+    </PageHeader>
 
     <div class="tabbar">
       <button v-for="t in tabs" :key="t.key" class="tab" :class="{ active: tab === t.key }" @click="switchTab(t.key)">

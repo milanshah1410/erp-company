@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import http from '../../api/http'
+import PlanPicker from '../../components/PlanPicker.vue'
 
 interface Plan {
   slug: string
@@ -10,24 +11,38 @@ interface Plan {
   currency: string
   is_custom: boolean
   feature_limits: Record<string, unknown>
+  // Module keys this plan sells; `modules_all` is true for Enterprise, which
+  // unlocks the whole catalogue. Both come resolved from the plans API.
+  modules?: string[]
+  modules_all?: boolean
+}
+
+interface ModuleOption {
+  key: string
+  label: string
+  icon: string
+  description: string
+  // Screen names this module unlocks, straight from the menu catalogue.
+  menus?: string[]
 }
 
 const router = useRouter()
 
-const STEPS = ['Company', 'Industry', 'Modules', 'Users', 'Setup', 'Tax & Numbering', 'Generate']
+// Three steps on purpose: pick a package, say who you are, create the account.
+// Everything optional (address, team invites, numbering/tax defaults) sits inside
+// collapsible sections so the visible surface per step stays short.
+const STEPS = ['Package', 'Company', 'Account']
 const step = ref(1)
 
 const INDUSTRIES = ['Garment', 'FMCG', 'Manufacturing', 'Retail', 'Wholesale', 'Pharma', 'Custom']
-const MODULES = [
-  { key: 'crm', label: 'CRM', icon: 'pi pi-heart' },
-  { key: 'sales', label: 'Sales', icon: 'pi pi-dollar' },
-  { key: 'purchase', label: 'Purchase', icon: 'pi pi-shopping-bag' },
-  { key: 'inventory', label: 'Inventory', icon: 'pi pi-warehouse' },
-  { key: 'manufacturing', label: 'Manufacturing', icon: 'pi pi-cog' },
-  { key: 'accounts', label: 'Accounts', icon: 'pi pi-wallet' },
-  { key: 'hrms', label: 'HRMS', icon: 'pi pi-id-card' },
-  { key: 'pos', label: 'POS', icon: 'pi pi-calculator' },
-  { key: 'broker', label: 'Broker', icon: 'pi pi-user-plus' },
+// Fallback catalogue, used only if GET /modules fails — the real list comes from
+// the backend (App\Support\Modules), which is also what tags the menu rows.
+const FALLBACK_MODULES: ModuleOption[] = [
+  { key: 'sales', label: 'Sales', icon: 'pi pi-shopping-cart', description: '' },
+  { key: 'pos', label: 'POS', icon: 'pi pi-calculator', description: '' },
+  { key: 'purchase', label: 'Purchase', icon: 'pi pi-shopping-bag', description: '' },
+  { key: 'inventory', label: 'Inventory', icon: 'pi pi-warehouse', description: '' },
+  { key: 'accounts', label: 'Accounts', icon: 'pi pi-wallet', description: '' },
 ]
 const CURRENCIES = [
   { code: 'INR', symbol: '₹', label: 'Indian Rupee (₹)' },
@@ -39,6 +54,7 @@ const CURRENCIES = [
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
 const plans = ref<Plan[]>([])
+const moduleCatalogue = ref<ModuleOption[]>(FALLBACK_MODULES)
 const logoUploading = ref(false)
 const logoUrl = ref<string | null>(null)
 
@@ -90,10 +106,12 @@ const serverError = ref('')
 
 onMounted(async () => {
   try {
-    const { data } = await http.get('/plans')
-    plans.value = data.data
+    const [planRes, moduleRes] = await Promise.all([http.get('/plans'), http.get('/modules')])
+    plans.value = planRes.data.data
+    if (moduleRes.data.data?.length) moduleCatalogue.value = moduleRes.data.data
+    pruneModules()
   } catch {
-    /* pricing is best-effort */
+    /* pricing + catalogue are best-effort; the fallback list keeps step 3 usable */
   }
 })
 
@@ -110,11 +128,73 @@ const financialYear = computed(() => {
 
 const currency = computed(() => CURRENCIES.find((c) => c.code === form.value.currency_code) ?? CURRENCIES[0])
 
+// --- Modules gated by the chosen package (step 1 plan → step 3 grid) ---
+const selectedPlan = computed(() => plans.value.find((p) => p.slug === form.value.plan_slug) ?? null)
+
+// Until the plans API answers, treat everything as allowed rather than showing a
+// grid of locks that the server would then contradict.
+const allowedModules = computed<string[]>(() => {
+  const plan = selectedPlan.value
+  if (!plan || plan.modules_all || !plan.modules?.length) return moduleCatalogue.value.map((m) => m.key)
+  return plan.modules
+})
+const planAllowsAll = computed(() => allowedModules.value.length >= moduleCatalogue.value.length)
+const enterprisePlanName = computed(() => plans.value.find((p) => p.is_custom)?.name ?? 'Enterprise')
+
+// What the chosen package includes, and what it does not.
+const includedModules = computed(() => moduleCatalogue.value.filter((m) => moduleAllowed(m.key)))
+const lockedModules = computed(() => moduleCatalogue.value.filter((m) => !moduleAllowed(m.key)))
+
+function moduleAllowed(key: string) {
+  return allowedModules.value.includes(key)
+}
+
+/** Module names for a package card / the review row, e.g. "Sales, POS, Purchase". */
+function moduleNames(keys: string[]): string {
+  const byKey = new Map(moduleCatalogue.value.map((m) => [m.key, m.label]))
+  return keys.map((k) => byKey.get(k) ?? k).join(', ')
+}
+
+const selectedModuleNames = computed(() => moduleNames(form.value.modules))
+
+/** First few screen names, e.g. "Leads · Follow-ups · Coupons +6 more". */
+function menuPreview(m: ModuleOption): string {
+  const menus = m.menus ?? []
+  if (!menus.length) return m.description
+  const head = menus.slice(0, 6).join(' · ')
+  return menus.length > 6 ? `${head} +${menus.length - 6} more` : head
+}
+
+/**
+ * Only Enterprise (a package with no module restriction) lets the buyer pick and
+ * choose — on the smaller packages the module set *is* the package, so step 3
+ * just lists what comes with it.
+ */
 function toggleModule(key: string) {
+  if (!planAllowsAll.value || !moduleAllowed(key)) return
   const i = form.value.modules.indexOf(key)
   if (i >= 0) form.value.modules.splice(i, 1)
   else form.value.modules.push(key)
 }
+
+function selectAllModules() {
+  form.value.modules = [...allowedModules.value]
+}
+
+function clearModules() {
+  form.value.modules = []
+}
+
+/** Keep the selection inside the package; default to everything it includes. */
+function pruneModules() {
+  form.value.modules = form.value.modules.filter((k) => moduleAllowed(k))
+  if (!planAllowsAll.value || !form.value.modules.length) {
+    form.value.modules = [...allowedModules.value]
+  }
+}
+
+// Switching package re-scopes the selection (a downgrade drops locked modules).
+watch(() => form.value.plan_slug, pruneModules)
 
 // Live owner-email availability check (the tenant owner's unique login).
 let checkTimer: ReturnType<typeof setTimeout>
@@ -158,10 +238,10 @@ async function onLogoChange(e: Event) {
 const stepValid = computed(() => {
   switch (step.value) {
     case 1:
+      return form.value.modules.length > 0
+    case 2:
       return !!form.value.company_name.trim()
     case 3:
-      return form.value.modules.length > 0
-    case 4:
       return (
         !!form.value.admin_name.trim() &&
         form.value.password.length >= 8 &&
@@ -231,8 +311,9 @@ async function submit() {
       errors.value = e.response.data.errors || {}
       serverError.value = e.response.data.message || 'Please review the highlighted fields.'
       // Jump back to the step that owns the first error.
-      if (errors.value.email || Object.keys(errors.value).some((k) => k.startsWith('config.users'))) step.value = 4
-      else if (errors.value.company_name) step.value = 1
+      if (errors.value['config.modules']) step.value = 1
+      else if (errors.value.company_name) step.value = 2
+      else if (errors.value.email || Object.keys(errors.value).some((k) => k.startsWith('config.users'))) step.value = 3
     } else {
       serverError.value = 'Something went wrong. Please try again.'
     }
@@ -265,66 +346,70 @@ async function submit() {
         </div>
       </div>
 
-      <!-- STEP 1: Company -->
+      <!-- STEP 1: Package — what it unlocks, menu by menu -->
       <div v-if="step === 1" class="form">
-        <div class="plans">
-          <button
-            v-for="p in plans"
-            :key="p.slug"
-            type="button"
-            class="plan"
-            :class="{ active: form.plan_slug === p.slug }"
-            @click="form.plan_slug = p.slug"
-          >
-            <span class="plan-name">{{ p.name }}</span>
-            <span class="plan-price">
-              <template v-if="p.is_custom">Custom</template>
-              <template v-else>₹{{ p.price.toLocaleString('en-IN') }}<small>/mo</small></template>
-            </span>
-          </button>
+        <label>Your package <span class="req">*</span></label>
+        <p class="hint muted">Each package unlocks the menus listed below. You can change this later.</p>
+
+        <PlanPicker v-model="form.plan_slug" :plans="plans" :modules="moduleCatalogue" />
+
+        <div class="pkg-bar">
+          <span class="pkg-title">
+            <i class="pi pi-box" />
+            {{ selectedPlan?.name ?? 'Package' }} includes
+            <strong>{{ includedModules.length }}</strong> of {{ moduleCatalogue.length }} modules
+          </span>
+          <span v-if="planAllowsAll" class="modules-tools">
+            <button type="button" class="link-btn" @click="selectAllModules">Select all</button>
+            <button type="button" class="link-btn" @click="clearModules">Clear</button>
+          </span>
+          <span v-else class="pkg-fixed">Fixed for this package</span>
         </div>
 
+        <ul class="menu-listing">
+          <li
+            v-for="m in includedModules"
+            :key="m.key"
+            :class="{ picked: form.modules.includes(m.key), selectable: planAllowsAll }"
+            @click="toggleModule(m.key)"
+          >
+            <div class="ml-head">
+              <i :class="m.icon" class="ml-icon" />
+              <span class="ml-title">{{ m.label }}</span>
+              <i v-if="form.modules.includes(m.key)" class="pi pi-check-circle ml-state on" />
+              <i v-else-if="planAllowsAll" class="pi pi-circle ml-state" />
+              <span v-else class="ml-tag">Included</span>
+            </div>
+            <p class="ml-menus">{{ menuPreview(m) }}</p>
+          </li>
+        </ul>
+
+        <template v-if="lockedModules.length">
+          <div class="locked-head">
+            <i class="pi pi-lock" />
+            Not in {{ selectedPlan?.name ?? 'this package' }} — available on {{ enterprisePlanName }}
+          </div>
+          <ul class="menu-listing locked">
+            <li v-for="m in lockedModules" :key="m.key">
+              <div class="ml-head">
+                <i :class="m.icon" class="ml-icon" />
+                <span class="ml-title">{{ m.label }}</span>
+                <i class="pi pi-lock ml-state" />
+              </div>
+              <p class="ml-menus">{{ menuPreview(m) }}</p>
+            </li>
+          </ul>
+        </template>
+
+        <p v-if="errors['config.modules']" class="err">{{ errors['config.modules'][0] }}</p>
+      </div>
+
+      <!-- STEP 2: Company — name + industry up front, the rest optional -->
+      <div v-else-if="step === 2" class="form">
         <label>Company name <span class="req">*</span></label>
         <input v-model="form.company_name" type="text" placeholder="Acme Traders" />
         <p v-if="errors.company_name" class="err">{{ errors.company_name[0] }}</p>
 
-        <div class="row">
-          <div class="col">
-            <label>GSTIN</label>
-            <input v-model="form.gstin" type="text" placeholder="24ABCDE1234F1Z5" />
-          </div>
-          <div class="col">
-            <label>PAN</label>
-            <input v-model="form.pan" type="text" placeholder="ABCDE1234F" />
-          </div>
-        </div>
-
-        <label>Logo</label>
-        <div class="logo-row">
-          <div class="logo-preview">
-            <img v-if="logoUrl" :src="logoUrl" alt="logo" />
-            <i v-else class="pi pi-image" />
-          </div>
-          <label class="upload-btn">
-            <input type="file" accept="image/*" hidden @change="onLogoChange" />
-            {{ logoUploading ? 'Uploading…' : (logoUrl ? 'Change logo' : 'Upload logo') }}
-          </label>
-        </div>
-
-        <label>Address</label>
-        <input v-model="form.address" type="text" placeholder="Street, area" />
-        <div class="row">
-          <div class="col"><label>City</label><input v-model="form.city" type="text" /></div>
-          <div class="col"><label>State</label><input v-model="form.state" type="text" /></div>
-        </div>
-        <div class="row">
-          <div class="col"><label>Country</label><input v-model="form.country" type="text" /></div>
-          <div class="col"><label>Pincode</label><input v-model="form.pincode" type="text" /></div>
-        </div>
-      </div>
-
-      <!-- STEP 2: Industry -->
-      <div v-else-if="step === 2" class="form">
         <label>What does your company do?</label>
         <div class="grid-choice">
           <button
@@ -338,33 +423,52 @@ async function submit() {
             {{ ind }}
           </button>
         </div>
+
+        <details class="more">
+          <summary>Tax IDs, logo &amp; address <span class="opt">(optional)</span></summary>
+          <div class="more-body">
+            <div class="row">
+              <div class="col">
+                <label>GSTIN</label>
+                <input v-model="form.gstin" type="text" placeholder="24ABCDE1234F1Z5" />
+              </div>
+              <div class="col">
+                <label>PAN</label>
+                <input v-model="form.pan" type="text" placeholder="ABCDE1234F" />
+              </div>
+            </div>
+
+            <label>Logo</label>
+            <div class="logo-row">
+              <div class="logo-preview">
+                <img v-if="logoUrl" :src="logoUrl" alt="logo" />
+                <i v-else class="pi pi-image" />
+              </div>
+              <label class="upload-btn">
+                <input type="file" accept="image/*" hidden @change="onLogoChange" />
+                {{ logoUploading ? 'Uploading…' : (logoUrl ? 'Change logo' : 'Upload logo') }}
+              </label>
+            </div>
+
+            <label>Address</label>
+            <input v-model="form.address" type="text" placeholder="Street, area" />
+            <div class="row">
+              <div class="col"><label>City</label><input v-model="form.city" type="text" /></div>
+              <div class="col"><label>State</label><input v-model="form.state" type="text" /></div>
+            </div>
+            <div class="row">
+              <div class="col"><label>Country</label><input v-model="form.country" type="text" /></div>
+              <div class="col"><label>Pincode</label><input v-model="form.pincode" type="text" /></div>
+            </div>
+          </div>
+        </details>
       </div>
 
-      <!-- STEP 3: Modules -->
+      <!-- STEP 3: Account — owner login, then optional extras + review -->
       <div v-else-if="step === 3" class="form">
-        <label>Which modules do you need? <span class="req">*</span></label>
-        <p class="hint muted">Unselected modules stay hidden from the menu. You can change this later.</p>
-        <div class="grid-choice modules">
-          <button
-            v-for="m in MODULES"
-            :key="m.key"
-            type="button"
-            class="choice module"
-            :class="{ active: form.modules.includes(m.key) }"
-            @click="toggleModule(m.key)"
-          >
-            <i :class="m.icon" />
-            <span>{{ m.label }}</span>
-            <i v-if="form.modules.includes(m.key)" class="pi pi-check check" />
-          </button>
-        </div>
-      </div>
-
-      <!-- STEP 4: Users -->
-      <div v-else-if="step === 4" class="form">
-        <div class="section-label">Company Owner <span class="req">*</span></div>
-        <label>Full name <span class="req">*</span></label>
+        <label>Your full name <span class="req">*</span></label>
         <input v-model="form.admin_name" type="text" placeholder="Jane Doe" />
+
         <label>Work email <span class="req">*</span></label>
         <input v-model="form.email" type="email" placeholder="you@company.com" />
         <p class="hint" :class="emailState">
@@ -373,6 +477,7 @@ async function submit() {
           <template v-else-if="emailState === 'taken'">{{ emailReason }}</template>
         </p>
         <p v-if="errors.email" class="err">{{ errors.email[0] }}</p>
+
         <div class="row">
           <div class="col">
             <label>Phone</label>
@@ -385,84 +490,92 @@ async function submit() {
         </div>
         <p v-if="errors.password" class="err">{{ errors.password[0] }}</p>
 
-        <div class="section-label">Invite your team <span class="opt">(optional)</span></div>
-        <div v-for="u in form.team" :key="u.label" class="team-row">
-          <span class="team-role">{{ u.label }}</span>
-          <input v-model="u.name" type="text" placeholder="Name" />
-          <input v-model="u.email" type="email" placeholder="email@company.com" />
-        </div>
-      </div>
+        <details class="more">
+          <summary>Invite your team <span class="opt">(optional)</span></summary>
+          <div class="more-body">
+            <div v-for="u in form.team" :key="u.label" class="team-row">
+              <span class="team-role">{{ u.label }}</span>
+              <input v-model="u.name" type="text" placeholder="Name" />
+              <input v-model="u.email" type="email" placeholder="email@company.com" />
+            </div>
+          </div>
+        </details>
 
-      <!-- STEP 5: Branch / Warehouse / FY / Currency -->
-      <div v-else-if="step === 5" class="form">
-        <div class="row">
-          <div class="col"><label>Branch name</label><input v-model="form.branch_name" type="text" /></div>
-          <div class="col"><label>Warehouse name</label><input v-model="form.warehouse_name" type="text" /></div>
-        </div>
-        <label>Financial year starts in</label>
-        <select v-model.number="form.fy_start_month">
-          <option v-for="(mn, i) in MONTHS" :key="mn" :value="i + 1">{{ mn }}</option>
-        </select>
-        <p class="hint muted">Financial year: {{ financialYear.name }} ({{ financialYear.start_date }} → {{ financialYear.end_date }})</p>
+        <details class="more">
+          <summary>
+            Setup defaults
+            <span class="opt">{{ form.branch_name }} · {{ currency.code }} · FY {{ financialYear.name }}</span>
+          </summary>
+          <div class="more-body">
+            <div class="row">
+              <div class="col"><label>Branch name</label><input v-model="form.branch_name" type="text" /></div>
+              <div class="col"><label>Warehouse name</label><input v-model="form.warehouse_name" type="text" /></div>
+            </div>
+            <div class="row">
+              <div class="col">
+                <label>Financial year starts in</label>
+                <select v-model.number="form.fy_start_month">
+                  <option v-for="(mn, i) in MONTHS" :key="mn" :value="i + 1">{{ mn }}</option>
+                </select>
+              </div>
+              <div class="col">
+                <label>Currency</label>
+                <select v-model="form.currency_code">
+                  <option v-for="c in CURRENCIES" :key="c.code" :value="c.code">{{ c.label }}</option>
+                </select>
+              </div>
+            </div>
+            <p class="hint muted">{{ financialYear.start_date }} → {{ financialYear.end_date }}</p>
 
-        <label>Currency</label>
-        <select v-model="form.currency_code">
-          <option v-for="c in CURRENCIES" :key="c.code" :value="c.code">{{ c.label }}</option>
-        </select>
-      </div>
+            <div class="row">
+              <div class="col">
+                <label>Invoice prefix</label>
+                <input v-model="form.invoice_prefix" type="text" placeholder="INV" />
+              </div>
+              <div class="col">
+                <label>Default GST rate</label>
+                <select v-model.number="form.default_gst_rate" :disabled="!form.gst_enabled">
+                  <option :value="0">0%</option>
+                  <option :value="5">5%</option>
+                  <option :value="12">12%</option>
+                  <option :value="18">18%</option>
+                  <option :value="28">28%</option>
+                </select>
+              </div>
+            </div>
+            <label class="check-inline">
+              <input v-model="form.gst_enabled" type="checkbox" />
+              <span>Enable GST — invoices numbered {{ form.invoice_prefix || 'INV' }}-0001</span>
+            </label>
+          </div>
+        </details>
 
-      <!-- STEP 6: Numbering & Tax -->
-      <div v-else-if="step === 6" class="form">
-        <label>Invoice number prefix</label>
-        <input v-model="form.invoice_prefix" type="text" placeholder="INV" />
-        <p class="hint muted">Invoices will be numbered like {{ form.invoice_prefix || 'INV' }}-0001.</p>
-
-        <label class="check-inline">
-          <input v-model="form.gst_enabled" type="checkbox" />
-          <span>Enable GST</span>
-        </label>
-
-        <div v-if="form.gst_enabled">
-          <label>Default GST rate (%)</label>
-          <select v-model.number="form.default_gst_rate">
-            <option :value="0">0%</option>
-            <option :value="5">5%</option>
-            <option :value="12">12%</option>
-            <option :value="18">18%</option>
-            <option :value="28">28%</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- STEP 7: Generate / Review -->
-      <div v-else-if="step === 7" class="form">
         <div class="review">
-          <div class="rev"><span>Company</span><b>{{ form.company_name || '—' }}</b></div>
-          <div class="rev"><span>Industry</span><b>{{ form.industry }}</b></div>
-          <div class="rev"><span>Modules</span><b>{{ form.modules.length }} selected</b></div>
-          <div class="rev"><span>Owner</span><b>{{ form.admin_name || '—' }}</b></div>
-          <div class="rev"><span>Team invites</span><b>{{ form.team.filter((u) => u.name && u.email).length }}</b></div>
-          <div class="rev"><span>Currency</span><b>{{ currency.code }}</b></div>
-          <div class="rev"><span>Financial year</span><b>{{ financialYear.name }}</b></div>
-          <div class="rev"><span>GST</span><b>{{ form.gst_enabled ? form.default_gst_rate + '%' : 'Off' }}</b></div>
+          <div class="rev"><span>Package</span><b>{{ selectedPlan?.name ?? form.plan_slug }}</b></div>
+          <div class="rev rev-wrap">
+            <span>Modules ({{ form.modules.length }})</span>
+            <b class="rev-list">{{ selectedModuleNames || '—' }}</b>
+          </div>
+          <div class="rev"><span>Company</span><b>{{ form.company_name || '—' }} · {{ form.industry }}</b></div>
         </div>
 
         <label class="check-inline">
           <input v-model="form.load_demo" type="checkbox" />
-          <span>Load sample data (customers, products, invoices…) so I can explore</span>
+          <span>Load sample data so I can explore</span>
         </label>
-        <div v-if="form.load_demo">
-          <label>How many sample records per type?</label>
-          <select v-model.number="form.demo_count">
-            <option :value="100">100</option>
-            <option :value="500">500</option>
-            <option :value="1000">1,000</option>
-          </select>
+        <div v-if="form.load_demo" class="row">
+          <div class="col">
+            <label>Sample records per type</label>
+            <select v-model.number="form.demo_count">
+              <option :value="100">100</option>
+              <option :value="500">500</option>
+              <option :value="1000">1,000</option>
+            </select>
+          </div>
         </div>
 
         <p class="hint muted">
-          On the next screen we'll verify your email, then generate your company, roles, permissions, menus,
-          users, settings and dashboard.
+          Next we'll verify your email, then generate your company, roles, permissions, menus, users and dashboard.
         </p>
       </div>
 
@@ -508,12 +621,7 @@ input:focus, select:focus { border-color: #e8a33d; background: #fff; box-shadow:
 select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L2 4h8z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.85rem center; padding-right: 2rem; cursor: pointer; }
 .row { display: flex; gap: 0.75rem; }
 .col { flex: 1; display: flex; flex-direction: column; }
-.plans { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
-.plan { flex: 1; border: 1px solid #e8e4da; background: #fbfaf7; border-radius: 10px; padding: 0.6rem 0.5rem; cursor: pointer; display: flex; flex-direction: column; gap: 0.1rem; }
-.plan.active { border-color: #e8a33d; background: rgba(232, 163, 61, 0.1); box-shadow: 0 0 0 1px #e8a33d inset; }
-.plan-name { font-weight: 600; font-size: 0.82rem; }
-.plan-price { font-weight: 700; color: #1e2328; }
-.plan-price small { font-weight: 400; color: #9ca3af; font-size: 0.68rem; }
+/* Package cards live in components/PlanPicker.vue (used by step 1 and step 3). */
 .logo-row { display: flex; align-items: center; gap: 0.75rem; }
 .logo-preview { width: 52px; height: 52px; border-radius: 10px; border: 1px dashed #d8d3c8; display: grid; place-items: center; overflow: hidden; color: #b8b2a5; }
 .logo-preview img { width: 100%; height: 100%; object-fit: cover; }
@@ -524,7 +632,39 @@ select { appearance: none; -webkit-appearance: none; background-image: url("data
 .choice.module { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; position: relative; }
 .choice.module i { font-size: 1.1rem; }
 .choice .check { position: absolute; top: 0.35rem; right: 0.35rem; color: #4c8b6c; font-size: 0.7rem; }
+/* Step 3 — package summary + the menus each module unlocks. */
+.rev.rev-wrap { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+.rev-list { font-weight: 600; color: #374151; font-size: 0.8rem; line-height: 1.35; }
+.pkg-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin: 0.9rem 0 0.5rem; padding: 0.55rem 0.75rem; border: 1px solid #e8e4da; border-radius: 10px; background: #fbfaf7; }
+.pkg-title { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: #374151; }
+.pkg-title strong { color: #1e2328; }
+.pkg-fixed { font-size: 0.72rem; font-weight: 600; color: #9ca3af; }
+.modules-tools { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.link-btn { background: none; border: none; padding: 0; font-size: 0.78rem; font-weight: 600; color: #2c4a5e; cursor: pointer; text-decoration: underline; }
+.menu-listing { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.menu-listing li { border: 1px solid #e8e4da; border-radius: 10px; background: #fbfaf7; padding: 0.55rem 0.7rem; }
+.menu-listing li.selectable { cursor: pointer; }
+.menu-listing li.selectable:hover { border-color: #e8c489; }
+.menu-listing li.picked { border-color: #e8a33d; background: rgba(232, 163, 61, 0.1); box-shadow: 0 0 0 1px #e8a33d inset; }
+.menu-listing.locked li { opacity: 0.6; border-style: dashed; background: #f6f4ef; }
+.ml-head { display: flex; align-items: center; gap: 0.45rem; }
+.ml-icon { font-size: 0.95rem; color: #8a5a12; }
+.ml-title { font-size: 0.86rem; font-weight: 700; color: #1e2328; }
+.ml-state { margin-left: auto; font-size: 0.85rem; color: #cfc8b8; }
+.ml-state.on { color: #4c8b6c; }
+.ml-tag { margin-left: auto; font-size: 0.68rem; font-weight: 700; color: #4c8b6c; background: rgba(76, 139, 108, 0.13); border-radius: 999px; padding: 0.12rem 0.45rem; }
+.ml-menus { margin: 0.2rem 0 0 1.4rem; font-size: 0.74rem; color: #6b7280; line-height: 1.35; }
+.locked-head { display: flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; font-weight: 700; color: #8a5a12; margin: 1rem 0 0.4rem; }
 .section-label { font-size: 0.9rem; font-weight: 700; color: #1e2328; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #f0ede6; }
+/* Optional groups: collapsed by default so each step stays short. */
+.more { margin-top: 0.9rem; border: 1px solid #e8e4da; border-radius: 12px; background: #fbfaf7; }
+.more > summary { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding: 0.65rem 0.85rem; font-size: 0.82rem; font-weight: 700; color: #374151; cursor: pointer; list-style: none; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::after { content: '\e902'; font-family: 'primeicons'; margin-left: auto; font-size: 0.7rem; font-weight: 400; color: #9ca3af; transition: transform 0.15s; }
+.more[open] > summary::after { transform: rotate(180deg); }
+.more[open] > summary { border-bottom: 1px solid #f0ede6; }
+.more-body { padding: 0.2rem 0.85rem 0.85rem; display: flex; flex-direction: column; }
+.more-body > label:first-child { margin-top: 0.5rem; }
 .team-row { display: grid; grid-template-columns: 80px 1fr 1fr; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
 .team-role { font-size: 0.8rem; font-weight: 600; color: #6b7280; }
 .check-inline { display: flex; align-items: center; gap: 0.7rem; font-weight: 500; font-size: 0.88rem; color: #374151; margin-top: 1rem; padding: 0.85rem 1rem; border: 1px solid #e8e4da; border-radius: 12px; background: #fbfaf7; cursor: pointer; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; }

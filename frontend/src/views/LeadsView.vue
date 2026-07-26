@@ -17,8 +17,11 @@ import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
+const pt = usePt()
 const auth = useAuthStore()
 
 const detailVisible = ref(false)
@@ -40,14 +43,14 @@ function money(v: number | string | null | undefined) {
   return formatCurrency(v)
 }
 
-const statusOptions = [
-  { label: 'New', value: 'new' },
-  { label: 'Contacted', value: 'contacted' },
-  { label: 'Qualified', value: 'qualified' },
-  { label: 'Proposal', value: 'proposal' },
-  { label: 'Won', value: 'won' },
-  { label: 'Lost', value: 'lost' },
-]
+const statusOptions = computed(() => [
+  { label: pt('New'), value: 'new' },
+  { label: pt('Contacted'), value: 'contacted' },
+  { label: pt('Qualified'), value: 'qualified' },
+  { label: pt('Proposal'), value: 'proposal' },
+  { label: pt('Won'), value: 'won' },
+  { label: pt('Lost'), value: 'lost' },
+])
 
 const statusColors: Record<string, string> = {
   new: 'secondary',
@@ -58,21 +61,21 @@ const statusColors: Record<string, string> = {
   lost: 'danger',
 }
 
-const sourceOptions = [
-  { label: 'Walk-in', value: 'walk-in' },
-  { label: 'Referral', value: 'referral' },
-  { label: 'WhatsApp', value: 'whatsapp' },
-  { label: 'Website', value: 'website' },
-  { label: 'Phone', value: 'phone' },
-  { label: 'Exhibition', value: 'exhibition' },
-  { label: 'Other', value: 'other' },
-]
+const sourceOptions = computed(() => [
+  { label: pt('Walk-in'), value: 'walk-in' },
+  { label: pt('Referral'), value: 'referral' },
+  { label: pt('WhatsApp'), value: 'whatsapp' },
+  { label: pt('Website'), value: 'website' },
+  { label: pt('Phone'), value: 'phone' },
+  { label: pt('Exhibition'), value: 'exhibition' },
+  { label: pt('Other'), value: 'other' },
+])
 
-const stateOptions = [
-  { label: 'Open pipeline', value: 'open' },
-  { label: 'Converted', value: 'converted' },
-  { label: 'All', value: null },
-]
+const stateOptions = computed(() => [
+  { label: pt('Open pipeline'), value: 'open' },
+  { label: pt('Converted'), value: 'converted' },
+  { label: pt('All'), value: null },
+])
 
 // Users for the "assigned to" dropdown.
 const users = ref<any[]>([])
@@ -159,16 +162,16 @@ async function save() {
     if (!payload.expected_close_date) delete payload.expected_close_date
     if (editing.value) {
       await crud.value.update(editing.value.id, payload)
-      toast.add({ severity: 'success', summary: 'Lead updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Lead updated'), life: 2500 })
     } else {
       await crud.value.create(payload)
-      toast.add({ severity: 'success', summary: 'Lead created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Lead created'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Request failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -176,20 +179,21 @@ async function save() {
 
 async function confirmDelete(row: any) {
   const res = await Swal.fire({
-    title: `Delete lead "${row.name}"?`,
-    text: 'This action cannot be undone.',
+    title: pt('Delete lead "{name}"?', { name: row.name }),
+    text: pt('This action cannot be undone.'),
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Delete',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await crud.value.remove(row.id)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -204,11 +208,11 @@ const convertLead = ref<any>(null)
 const convertForm = ref<any>({ type: 'retail', customer_category_id: null, credit_limit: 0 })
 const categories = ref<any[]>([])
 
-const typeOptions = [
-  { label: 'Retail', value: 'retail' },
-  { label: 'Wholesale', value: 'wholesale' },
-  { label: 'Distributor', value: 'distributor' },
-]
+const typeOptions = computed(() => [
+  { label: pt('Retail'), value: 'retail' },
+  { label: pt('Wholesale'), value: 'wholesale' },
+  { label: pt('Distributor'), value: 'distributor' },
+])
 
 async function loadCategories() {
   try {
@@ -231,11 +235,11 @@ async function doConvert() {
   converting.value = true
   try {
     const { data } = await http.post(`/leads/${convertLead.value.id}/convert`, convertForm.value)
-    toast.add({ severity: 'success', summary: 'Converted to customer', detail: data.data?.code, life: 3000 })
+    toast.add({ severity: 'success', summary: pt('Converted to customer'), detail: data.data?.code, life: 3000 })
     convertVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Conversion failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Conversion failed'), life: 4000 })
   } finally {
     converting.value = false
   }
@@ -249,37 +253,38 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Leads</h1>
-      <Button v-if="canCreate" label="New Lead" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Leads')">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Lead')" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <span class="search">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search name / phone / code..." @keyup.enter="reload" />
+        <InputText v-model="search" :placeholder="pt('Search name / phone / code...')" @keyup.enter="reload" />
       </span>
       <Select
         v-model="stateFilter" :options="stateOptions" optionLabel="label" optionValue="value"
-        placeholder="Pipeline" class="filter" @change="reload"
+        :placeholder="pt('Pipeline')" class="filter" @change="reload"
       />
       <Select
         v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value"
-        placeholder="All statuses" showClear class="filter" @change="reload"
+        :placeholder="pt('All statuses')" showClear class="filter" @change="reload"
       />
-      <Button label="Search" outlined @click="reload" />
+      <Button :label="pt('Search')" outlined @click="reload" />
       <span class="toolbar-spacer" />
-      <TableExportButtons title="Leads" endpoint="/leads"
+      <TableExportButtons :title="pt('Leads')" endpoint="/leads"
         :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}), ...(stateFilter ? { state: stateFilter } : {}) })"
         :columns="[
-          { key: 'code', label: 'Code' },
-          { key: 'name', label: 'Name' },
-          { key: 'company_name', label: 'Company' },
-          { key: 'phone', label: 'Phone' },
-          { key: 'source', label: 'Source' },
-          { key: 'estimated_value', label: 'Est. Value' },
-          { key: 'status', label: 'Status' },
-          { key: 'assignee.name', label: 'Assigned' },
+          { key: 'code', label: pt('Code') },
+          { key: 'name', label: pt('Name') },
+          { key: 'company_name', label: pt('Company') },
+          { key: 'phone', label: pt('Phone') },
+          { key: 'source', label: pt('Source') },
+          { key: 'estimated_value', label: pt('Est. Value') },
+          { key: 'status', label: pt('Status') },
+          { key: 'assignee.name', label: pt('Assigned') },
         ]" />
     </div>
 
@@ -299,137 +304,137 @@ onMounted(() => {
       @sort="onSort"
       class="p-datatable-sm"
     >
-      <Column field="code" header="Code" sortable style="width: 8rem" />
-      <Column field="name" header="Name" sortable>
+      <Column field="code" :header="pt('Code')" sortable style="width: 8rem" />
+      <Column field="name" :header="pt('Name')" sortable>
         <template #body="{ data }">
           <span>{{ data.name }}</span>
           <span v-if="data.company_name" class="muted-sub">{{ data.company_name }}</span>
         </template>
       </Column>
-      <Column field="phone" header="Phone" />
-      <Column field="source" header="Source" />
-      <Column header="Est. Value" style="text-align: right">
+      <Column field="phone" :header="pt('Phone')" />
+      <Column field="source" :header="pt('Source')" />
+      <Column :header="pt('Est. Value')" style="text-align: right">
         <template #body="{ data }">{{ money(data.estimated_value) }}</template>
       </Column>
-      <Column field="status" header="Status" sortable>
+      <Column field="status" :header="pt('Status')" sortable>
         <template #body="{ data }">
-          <Tag :severity="statusColors[data.status]" :value="data.status" />
-          <span v-if="data.is_converted" class="muted-sub">→ customer</span>
+          <Tag :severity="statusColors[data.status]" :value="pt(data.status)" />
+          <span v-if="data.is_converted" class="muted-sub">{{ pt('→ customer') }}</span>
         </template>
       </Column>
-      <Column header="Assigned">
+      <Column :header="pt('Assigned')">
         <template #body="{ data }">{{ data.assignee?.name ?? '—' }}</template>
       </Column>
-      <Column header="Actions" style="width: 11rem">
+      <Column :header="pt('Actions')" style="width: 11rem">
         <template #body="{ data }">
-          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" :title="pt('View')" @click="openDetail(data)" />
           <Button
             v-if="canEdit && !data.is_converted"
             icon="pi pi-user-plus" text rounded size="small" severity="success"
-            title="Convert to customer" @click="openConvert(data)"
+            :title="pt('Convert to customer')" @click="openConvert(data)"
           />
-          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
-          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
+          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" :title="pt('Edit')" @click="openEdit(data)" />
+          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" :title="pt('Delete')" @click="confirmDelete(data)" />
         </template>
       </Column>
-      <template #empty>No leads found.</template>
+      <template #empty>{{ pt('No leads found.') }}</template>
     </DataTable>
 
     <!-- Create / edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editing ? 'Edit Lead' : 'New Lead'" :style="{ width: '620px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editing ? pt('Edit Lead') : pt('New Lead')" :style="{ width: '620px' }">
       <div class="form-grid">
         <div class="fld">
-          <label>Name <span class="req">*</span></label>
+          <label>{{ pt('Name') }} <span class="req">*</span></label>
           <InputText v-model="form.name" :class="{ invalid: fieldError('name') }" />
           <small v-if="fieldError('name')" class="error-text">{{ fieldError('name') }}</small>
         </div>
         <div class="fld">
-          <label>Company Name</label>
+          <label>{{ pt('Company Name') }}</label>
           <InputText v-model="form.company_name" />
         </div>
         <div class="fld">
-          <label>Email</label>
+          <label>{{ pt('Email') }}</label>
           <InputText v-model="form.email" :class="{ invalid: fieldError('email') }" />
           <small v-if="fieldError('email')" class="error-text">{{ fieldError('email') }}</small>
         </div>
         <div class="fld">
-          <label>Phone</label>
+          <label>{{ pt('Phone') }}</label>
           <InputText v-model="form.phone" />
         </div>
         <div class="fld">
-          <label>Source</label>
-          <Select v-model="form.source" :options="sourceOptions" optionLabel="label" optionValue="value" placeholder="Select source" showClear />
+          <label>{{ pt('Source') }}</label>
+          <Select v-model="form.source" :options="sourceOptions" optionLabel="label" optionValue="value" :placeholder="pt('Select source')" showClear />
         </div>
         <div class="fld">
-          <label>Status</label>
+          <label>{{ pt('Status') }}</label>
           <Select v-model="form.status" :options="statusOptions" optionLabel="label" optionValue="value" />
         </div>
         <div class="fld">
-          <label>Estimated Value</label>
+          <label>{{ pt('Estimated Value') }}</label>
           <InputNumber v-model="form.estimated_value" :minFractionDigits="2" :maxFractionDigits="2" />
         </div>
         <div class="fld">
-          <label>Expected Close Date</label>
+          <label>{{ pt('Expected Close Date') }}</label>
           <InputText type="date" v-model="form.expected_close_date" />
         </div>
         <div class="fld">
-          <label>Assigned To</label>
-          <Select v-model="form.assigned_to" :options="users" optionLabel="label" optionValue="value" placeholder="Unassigned" showClear filter />
+          <label>{{ pt('Assigned To') }}</label>
+          <Select v-model="form.assigned_to" :options="users" optionLabel="label" optionValue="value" :placeholder="pt('Unassigned')" showClear filter />
         </div>
         <div v-if="form.status === 'lost'" class="fld">
-          <label>Lost Reason</label>
+          <label>{{ pt('Lost Reason') }}</label>
           <InputText v-model="form.lost_reason" />
         </div>
         <div class="fld full">
-          <label>Notes</label>
+          <label>{{ pt('Notes') }}</label>
           <Textarea v-model="form.notes" rows="2" />
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editing ? pt('Update') : pt('Create')" :loading="saving" @click="save" />
       </template>
     </Dialog>
 
     <!-- Convert dialog -->
-    <Dialog v-model:visible="convertVisible" modal header="Convert Lead to Customer" :style="{ width: '440px' }">
+    <Dialog v-model:visible="convertVisible" modal :header="pt('Convert Lead to Customer')" :style="{ width: '440px' }">
       <p class="muted small">
-        Creating a customer from <strong>{{ convertLead?.name }}</strong>. The lead will be marked
-        <strong>won</strong> and any open follow-ups move to the new customer.
+        {{ pt('Creating a customer from') }} <strong>{{ convertLead?.name }}</strong>. {{ pt('The lead will be marked') }}
+        <strong>{{ pt('won') }}</strong> {{ pt('and any open follow-ups move to the new customer.') }}
       </p>
       <div class="form-grid">
         <div class="fld">
-          <label>Customer Type</label>
+          <label>{{ pt('Customer Type') }}</label>
           <Select v-model="convertForm.type" :options="typeOptions" optionLabel="label" optionValue="value" />
         </div>
         <div class="fld">
-          <label>Category</label>
-          <Select v-model="convertForm.customer_category_id" :options="categories" optionLabel="label" optionValue="value" placeholder="None" showClear />
+          <label>{{ pt('Category') }}</label>
+          <Select v-model="convertForm.customer_category_id" :options="categories" optionLabel="label" optionValue="value" :placeholder="pt('None')" showClear />
         </div>
         <div class="fld full">
-          <label>Credit Limit</label>
+          <label>{{ pt('Credit Limit') }}</label>
           <InputNumber v-model="convertForm.credit_limit" :minFractionDigits="2" :maxFractionDigits="2" />
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="convertVisible = false" />
-        <Button label="Convert" icon="pi pi-user-plus" :loading="converting" @click="doConvert" />
+        <Button :label="pt('Cancel')" text @click="convertVisible = false" />
+        <Button :label="pt('Convert')" icon="pi pi-user-plus" :loading="converting" @click="doConvert" />
       </template>
     </Dialog>
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Lead Details" :fields="[
-      { key: 'code', label: 'Code' },
-      { key: 'name', label: 'Name' },
-      { key: 'company_name', label: 'Company' },
-      { key: 'email', label: 'Email' },
-      { key: 'phone', label: 'Phone' },
-      { key: 'source', label: 'Source' },
-      { key: 'status', label: 'Status' },
-      { key: 'estimated_value', label: 'Estimated Value', format:(v)=>v==null||v===''?'—':'₹'+Number(v).toLocaleString('en-IN',{minimumFractionDigits:2}) },
-      { key: 'expected_close_date', label: 'Expected Close' },
-      { key: 'assignee.name', label: 'Assigned To' },
-      { key: 'lost_reason', label: 'Lost Reason' },
-      { key: 'notes', label: 'Notes', full: true },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('Lead Details')" :fields="[
+      { key: 'code', label: pt('Code') },
+      { key: 'name', label: pt('Name') },
+      { key: 'company_name', label: pt('Company') },
+      { key: 'email', label: pt('Email') },
+      { key: 'phone', label: pt('Phone') },
+      { key: 'source', label: pt('Source') },
+      { key: 'status', label: pt('Status') },
+      { key: 'estimated_value', label: pt('Estimated Value'), format:(v)=>v==null||v===''?'—':'₹'+Number(v).toLocaleString('en-IN',{minimumFractionDigits:2}) },
+      { key: 'expected_close_date', label: pt('Expected Close') },
+      { key: 'assignee.name', label: pt('Assigned To') },
+      { key: 'lost_reason', label: pt('Lost Reason') },
+      { key: 'notes', label: pt('Notes'), full: true },
     ]" />
   </div>
 </template>

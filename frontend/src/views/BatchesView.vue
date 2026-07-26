@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
@@ -7,7 +7,11 @@ import Select from 'primevue/select'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import http from '../api/http'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
+
+const pt = usePt()
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -19,12 +23,12 @@ const search = ref('')
 const warehouses = ref<{ label: string; value: number }[]>([])
 const warehouseFilter = ref<number | null>(null)
 const expiryFilter = ref<string>('')
-const expiryOptions = [
-  { label: 'Any expiry', value: '' },
-  { label: 'Expiring ≤ 30 days', value: '30' },
-  { label: 'Expiring ≤ 90 days', value: '90' },
-  { label: 'Already expired', value: 'expired' },
-]
+const expiryOptions = computed(() => [
+  { label: pt('Any expiry'), value: '' },
+  { label: pt('Expiring ≤ 30 days'), value: '30' },
+  { label: pt('Expiring ≤ 90 days'), value: '90' },
+  { label: pt('Already expired'), value: 'expired' },
+])
 
 /** Translate the expiry window filter into the API's `expiring_before` date. */
 function expiringBefore(): string | undefined {
@@ -84,43 +88,42 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Batches / Lots</h1>
-    <p class="subtitle">On-hand quantity per batch, with expiry tracking</p>
+    <PageHeader :title="pt('Batches / Lots')" :subtitle="pt('On-hand quantity per batch, with expiry tracking')" />
 
     <div class="toolbar">
-      <span class="search"><i class="pi pi-search" /><InputText v-model="search" placeholder="Filter (client-side)..." /></span>
+      <span class="search"><i class="pi pi-search" /><InputText v-model="search" :placeholder="pt('Filter (client-side)...')" /></span>
       <Select v-model="warehouseFilter" :options="warehouses" optionLabel="label" optionValue="value" filter showClear
-        placeholder="All warehouses" class="flt" @change="applyFilters" />
+        :placeholder="pt('All warehouses')" class="flt" @change="applyFilters" />
       <Select v-model="expiryFilter" :options="expiryOptions" optionLabel="label" optionValue="value"
         class="flt" @change="applyFilters" />
-      <Button label="Refresh" outlined icon="pi pi-refresh" @click="load" />
-      <TableExportButtons title="Batches" endpoint="/batches" :params="() => listParams()"
+      <Button :label="pt('Refresh')" outlined icon="pi pi-refresh" @click="load" />
+      <TableExportButtons :title="pt('Batches')" endpoint="/batches" :params="() => listParams()"
         :columns="[
-          { key: 'product.name', label: 'Product' },
-          { key: 'batch_number', label: 'Batch #' },
-          { key: 'warehouse.name', label: 'Warehouse' },
-          { key: 'quantity', label: 'Quantity' },
-          { key: 'expiry_date', label: 'Expiry' },
+          { key: 'product.name', label: pt('Product') },
+          { key: 'batch_number', label: pt('Batch #') },
+          { key: 'warehouse.name', label: pt('Warehouse') },
+          { key: 'quantity', label: pt('Quantity') },
+          { key: 'expiry_date', label: pt('Expiry') },
         ]" />
     </div>
 
     <DataTable :value="rows.filter(r => !search || r.product?.name?.toLowerCase().includes(search.toLowerCase()) || r.batch_number?.toLowerCase().includes(search.toLowerCase()))"
       :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
       :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column header="Product">
+      <Column :header="pt('Product')">
         <template #body="{ data }"><strong>{{ data.product?.name }}</strong><br /><small style="color: #6b7280">{{ data.product?.sku }}</small></template>
       </Column>
-      <Column field="batch_number" header="Batch #" />
-      <Column header="Warehouse"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
-      <Column header="Quantity"><template #body="{ data }">{{ data.quantity }}</template></Column>
-      <Column header="Expiry">
+      <Column field="batch_number" :header="pt('Batch #')" />
+      <Column :header="pt('Warehouse')"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
+      <Column :header="pt('Quantity')"><template #body="{ data }">{{ data.quantity }}</template></Column>
+      <Column :header="pt('Expiry')">
         <template #body="{ data }">
           <span v-if="data.expiry_date">{{ data.expiry_date }}</span>
-          <span v-else class="muted">No expiry</span>
-          <Tag v-if="expirySeverity(data)" :severity="expirySeverity(data)" :value="data.is_expired ? 'EXPIRED' : `${data.days_to_expiry}d left`" style="margin-left: 6px" />
+          <span v-else class="muted">{{ pt('No expiry') }}</span>
+          <Tag v-if="expirySeverity(data)" :severity="expirySeverity(data)" :value="data.is_expired ? pt('EXPIRED') : pt('{n}d left', { n: data.days_to_expiry })" style="margin-left: 6px" />
         </template>
       </Column>
-      <template #empty>No batches found.</template>
+      <template #empty>{{ pt('No batches found.') }}</template>
     </DataTable>
   </div>
 </template>

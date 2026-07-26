@@ -15,6 +15,7 @@ import { useCrud } from '../composables/useCrud'
 import { useExpenseWorkflow } from '../composables/useExpenseWorkflow'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 const crud = useCrud('/employee-claims')
@@ -165,10 +166,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Employee Expense Claims</h1>
-      <Button v-if="canCreate" label="New Claim" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Employee Expense Claims" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" label="New Claim" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="filters">
       <Select v-model="filters.status" :options="statusOptions" optionLabel="label" optionValue="value" showClear placeholder="All statuses" class="flt" @change="reload" />

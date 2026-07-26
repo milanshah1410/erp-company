@@ -6,6 +6,7 @@ import Tag from 'primevue/tag'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import http from '../api/http'
+import PageHeader from '../components/PageHeader.vue'
 
 // --- GSTIN validation ---
 const gstin = ref('')
@@ -42,8 +43,7 @@ async function lookupHsn() {
 
 <template>
   <div>
-    <h1>GST Tools</h1>
-    <p class="subtitle">Validate a GSTIN and search the HSN / SAC master.</p>
+    <PageHeader title="GST Tools" subtitle="Validate a GSTIN and search the HSN / SAC master." />
 
     <div class="grid">
       <!-- GSTIN validator -->

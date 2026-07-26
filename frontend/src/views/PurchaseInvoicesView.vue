@@ -16,8 +16,11 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
+const pt = usePt()
 const auth = useAuthStore()
 const crud = useCrud('/purchase-invoices')
 
@@ -45,11 +48,11 @@ const matchColors: Record<string, string> = { matched: 'success', exception: 'wa
 
 const search = ref('')
 const statusFilter = ref<string | null>(null)
-const statusOptions = [
-  { label: 'Pending', value: 'pending' },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Cancelled', value: 'cancelled' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Pending'), value: 'pending' },
+  { label: pt('Approved'), value: 'approved' },
+  { label: pt('Cancelled'), value: 'cancelled' },
+])
 
 // --- Create / edit dialog ---
 const dialogVisible = ref(false)
@@ -71,13 +74,13 @@ const payForm = ref<{ amount: number | null; mode: string; payment_date: string;
   amount: null, mode: 'bank', payment_date: today(), notes: '',
 })
 const payErrors = ref<Record<string, string[]>>({})
-const payModes = [
-  { label: 'Cash', value: 'cash' },
-  { label: 'Bank', value: 'bank' },
-  { label: 'UPI', value: 'upi' },
-  { label: 'Cheque', value: 'cheque' },
-  { label: 'Adjustment', value: 'adjustment' },
-]
+const payModes = computed(() => [
+  { label: pt('Cash'), value: 'cash' },
+  { label: pt('Bank'), value: 'bank' },
+  { label: pt('UPI'), value: 'upi' },
+  { label: pt('Cheque'), value: 'cheque' },
+  { label: pt('Adjustment'), value: 'adjustment' },
+])
 const paymentStatusColors: Record<string, string> = { unpaid: 'danger', partial: 'warn', paid: 'success' }
 
 function today() {
@@ -101,7 +104,7 @@ async function onPoPick() {
       tax_percent: Number(i.tax_percent) || 0,
     }))
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load purchase order', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load purchase order'), life: 3000 })
   } finally {
     poLoading.value = false
   }
@@ -147,7 +150,7 @@ async function openEdit(row: any) {
     errors.value = {}
     dialogVisible.value = true
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load invoice', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load invoice'), life: 3000 })
   }
 }
 
@@ -172,16 +175,16 @@ async function saveInvoice() {
   try {
     if (editingId.value) {
       await http.put(`/purchase-invoices/${editingId.value}`, payload)
-      toast.add({ severity: 'success', summary: 'Invoice updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Invoice updated'), life: 2500 })
     } else {
       await http.post('/purchase-invoices', payload)
-      toast.add({ severity: 'success', summary: 'Invoice recorded', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Invoice recorded'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -193,46 +196,46 @@ async function openDetail(row: any) {
     detailInvoice.value = data.data
     detailVisible.value = true
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load invoice', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load invoice'), life: 3000 })
   }
 }
 
 async function approve(row: any) {
   const exceptionText = row.match_status === 'exception'
-    ? 'This invoice has line(s) outside tolerance — approve anyway?'
-    : `Approve ${row.invoice_number}?`
-  const res = await Swal.fire({ title: exceptionText, icon: 'question', showCancelButton: true, confirmButtonText: 'Approve' })
+    ? pt('This invoice has line(s) outside tolerance — approve anyway?')
+    : pt('Approve {n}?', { n: row.invoice_number })
+  const res = await Swal.fire({ title: exceptionText, icon: 'question', showCancelButton: true, confirmButtonText: pt('Approve'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.post(`/purchase-invoices/${row.id}/approve`)
-    toast.add({ severity: 'success', summary: 'Approved for payment', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Approved for payment'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
 async function cancelInvoice(row: any) {
-  const res = await Swal.fire({ title: `Cancel ${row.invoice_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Cancel invoice' })
+  const res = await Swal.fire({ title: pt('Cancel {n}?', { n: row.invoice_number }), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Cancel invoice'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.post(`/purchase-invoices/${row.id}/cancel`)
-    toast.add({ severity: 'success', summary: 'Cancelled', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Cancelled'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
 async function removeInvoice(row: any) {
-  const res = await Swal.fire({ title: `Delete ${row.invoice_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete' })
+  const res = await Swal.fire({ title: pt('Delete {n}?', { n: row.invoice_number }), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Delete'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/purchase-invoices/${row.id}`)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
@@ -254,12 +257,12 @@ async function savePayment() {
       payment_date: payForm.value.payment_date,
       notes: payForm.value.notes || null,
     })
-    toast.add({ severity: 'success', summary: 'Payment recorded', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Payment recorded'), life: 2500 })
     payVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) payErrors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     paying.value = false
   }
@@ -293,100 +296,101 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Vendor Invoices</h1>
-      <div class="header-actions">
+    <PageHeader :title="pt('Vendor Invoices')" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
         </span>
-        <Button label="Search" outlined @click="reload" />
+        <Button :label="pt('Search')" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
-        <Button v-if="canCreate" label="Record Invoice" icon="pi pi-plus" @click="openCreate" />
-        <TableExportButtons title="Vendor Invoices" endpoint="/purchase-invoices"
-          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
-          :columns="[
-            { key: 'invoice_number', label: 'Invoice #' },
-            { key: 'purchase_order.po_number', label: 'PO' },
-            { key: 'supplier.name', label: 'Supplier' },
-            { key: 'invoice_date', label: 'Date' },
-            { key: 'total', label: 'Total' },
-            { key: 'match_status', label: 'Match' },
-            { key: 'status', label: 'Status' },
-            { key: 'payment_status', label: 'Payment' },
-          ]" />
-      </div>
-    </div>
+        :placeholder="pt('All statuses')" @change="reload" class="status-filter" />
+        <Button v-if="canCreate" :label="pt('Record Invoice')" icon="pi pi-plus" @click="openCreate" />
+        <TableExportButtons :title="pt('Vendor Invoices')" endpoint="/purchase-invoices"
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+        :columns="[
+        { key: 'invoice_number', label: pt('Invoice #') },
+        { key: 'purchase_order.po_number', label: pt('PO') },
+        { key: 'supplier.name', label: pt('Supplier') },
+        { key: 'invoice_date', label: pt('Date') },
+        { key: 'total', label: pt('Total') },
+        { key: 'match_status', label: pt('Match') },
+        { key: 'status', label: pt('Status') },
+        { key: 'payment_status', label: pt('Payment') },
+        ]" />
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="invoice_number" header="Invoice #">
+      <Column field="invoice_number" :header="pt('Invoice #')">
         <template #body="{ data }"><a href="#" @click.prevent="openDetail(data)">{{ data.invoice_number }}</a></template>
       </Column>
-      <Column header="PO"><template #body="{ data }">{{ data.purchase_order?.po_number }}</template></Column>
-      <Column header="Supplier"><template #body="{ data }">{{ data.supplier?.name }}</template></Column>
-      <Column field="invoice_date" header="Date" />
-      <Column header="Total"><template #body="{ data }">{{ money(data.total) }}</template></Column>
-      <Column header="Match">
-        <template #body="{ data }"><Tag :severity="matchColors[data.match_status]" :value="data.match_status" /></template>
+      <Column :header="pt('PO')"><template #body="{ data }">{{ data.purchase_order?.po_number }}</template></Column>
+      <Column :header="pt('Supplier')"><template #body="{ data }">{{ data.supplier?.name }}</template></Column>
+      <Column field="invoice_date" :header="pt('Date')" />
+      <Column :header="pt('Total')"><template #body="{ data }">{{ money(data.total) }}</template></Column>
+      <Column :header="pt('Match')">
+        <template #body="{ data }"><Tag :severity="matchColors[data.match_status]" :value="pt(data.match_status)" /></template>
       </Column>
-      <Column header="Status">
-        <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="data.status" /></template>
+      <Column :header="pt('Status')">
+        <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="pt(data.status)" /></template>
       </Column>
-      <Column header="Payment">
+      <Column :header="pt('Payment')">
         <template #body="{ data }">
           <template v-if="data.status === 'approved'">
-            <Tag :severity="paymentStatusColors[data.payment_status]" :value="data.payment_status" />
-            <div v-if="data.payment_status !== 'paid'" class="balance">Due: {{ money(data.balance_due) }}</div>
+            <Tag :severity="paymentStatusColors[data.payment_status]" :value="pt(data.payment_status)" />
+            <div v-if="data.payment_status !== 'paid'" class="balance">{{ pt('Due:') }} {{ money(data.balance_due) }}</div>
           </template>
           <span v-else class="muted">—</span>
         </template>
       </Column>
-      <Column header="Actions" style="width: 16rem">
+      <Column :header="pt('Actions')" style="width: 16rem">
         <template #body="{ data }">
           <template v-if="data.status === 'pending'">
-            <Button v-if="canApprove" label="Approve" size="small" severity="success" outlined @click="approve(data)" />
+            <Button v-if="canApprove" :label="pt('Approve')" size="small" severity="success" outlined @click="approve(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
-            <Button v-if="canEdit" icon="pi pi-ban" size="small" text severity="warn" title="Cancel" @click="cancelInvoice(data)" />
+            <Button v-if="canEdit" icon="pi pi-ban" size="small" text severity="warn" :title="pt('Cancel')" @click="cancelInvoice(data)" />
             <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="removeInvoice(data)" />
           </template>
           <Button v-if="data.status === 'approved' && data.payment_status !== 'paid' && canCreate"
-            label="Record Payment" icon="pi pi-wallet" size="small" outlined @click="openPay(data)" />
+            :label="pt('Record Payment')" icon="pi pi-wallet" size="small" outlined @click="openPay(data)" />
         </template>
       </Column>
-      <template #empty>No vendor invoices yet.</template>
+      <template #empty>{{ pt('No vendor invoices yet.') }}</template>
     </DataTable>
 
     <!-- Create / edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editingId ? 'Edit Vendor Invoice' : 'Record Vendor Invoice'" :style="{ width: '860px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editingId ? pt('Edit Vendor Invoice') : pt('Record Vendor Invoice')" :style="{ width: '860px' }">
       <div class="form-top">
         <div class="fld">
-          <label>Purchase Order *</label>
+          <label>{{ pt('Purchase Order') }} *</label>
           <Select v-model="form.purchase_order_id" :options="purchaseOrders" optionLabel="label" optionValue="value"
-            filter placeholder="Select PO" :disabled="!!editingId" @change="onPoPick" />
+            filter :placeholder="pt('Select PO')" :disabled="!!editingId" @change="onPoPick" />
           <small v-if="errors.purchase_order_id" class="err">{{ errors.purchase_order_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Vendor Invoice # *</label>
-          <InputText v-model="form.invoice_number" placeholder="Supplier's invoice number" />
+          <label>{{ pt('Vendor Invoice #') }} *</label>
+          <InputText v-model="form.invoice_number" :placeholder="pt(`Supplier's invoice number`)" />
           <small v-if="errors.invoice_number" class="err">{{ errors.invoice_number[0] }}</small>
         </div>
         <div class="fld">
-          <label>Invoice Date *</label>
+          <label>{{ pt('Invoice Date') }} *</label>
           <input type="date" v-model="form.invoice_date" class="date-input" />
         </div>
         <div class="fld">
-          <label>Due Date</label>
+          <label>{{ pt('Due Date') }}</label>
           <input type="date" v-model="form.due_date" class="date-input" />
         </div>
       </div>
 
-      <h3 class="lines-title">Line Items</h3>
-      <p class="hint">Ordered/received quantities and PO price are shown for reference; edit to match the vendor's invoice.</p>
+      <h3 class="lines-title">{{ pt('Line Items') }}</h3>
+      <p class="hint">{{ pt("Ordered/received quantities and PO price are shown for reference; edit to match the vendor's invoice.") }}</p>
       <table class="lines" v-if="form.purchase_order_id">
         <thead>
-          <tr><th style="width: 28%">Product</th><th>Ordered</th><th>Received</th><th>Invoice Qty</th><th>Unit Cost</th><th>Tax %</th><th>Line Total</th></tr>
+          <tr><th style="width: 28%">{{ pt('Product') }}</th><th>{{ pt('Ordered') }}</th><th>{{ pt('Received') }}</th><th>{{ pt('Invoice Qty') }}</th><th>{{ pt('Unit Cost') }}</th><th>{{ pt('Tax %') }}</th><th>{{ pt('Line Total') }}</th></tr>
         </thead>
         <tbody>
           <tr v-for="(line, i) in form.items" :key="i">
@@ -398,40 +402,40 @@ onMounted(async () => {
             <td><InputNumber v-model="line.tax_percent" :minFractionDigits="0" :maxFractionDigits="2" class="num" /></td>
             <td class="line-total">{{ money(((line.quantity || 0) * (line.unit_cost || 0)) * (1 + (line.tax_percent || 0) / 100)) }}</td>
           </tr>
-          <tr v-if="!form.items.length"><td colspan="7" style="text-align: center; color: #6b7280">{{ poLoading ? 'Loading…' : 'Select a purchase order to load its lines.' }}</td></tr>
+          <tr v-if="!form.items.length"><td colspan="7" style="text-align: center; color: #6b7280">{{ poLoading ? pt('Loading…') : pt('Select a purchase order to load its lines.') }}</td></tr>
         </tbody>
       </table>
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
-      <div class="grand">Total: <strong>{{ money(grandTotal) }}</strong></div>
+      <div class="grand">{{ pt('Total:') }} <strong>{{ money(grandTotal) }}</strong></div>
 
       <div class="form-top" v-if="form.purchase_order_id">
         <div class="fld">
-          <label>TDS Section</label>
-          <Select v-model="form.tds_section" :options="tdsRates" optionLabel="label" optionValue="value" showClear placeholder="No TDS" @change="onTdsSectionChange" />
+          <label>{{ pt('TDS Section') }}</label>
+          <Select v-model="form.tds_section" :options="tdsRates" optionLabel="label" optionValue="value" showClear :placeholder="pt('No TDS')" @change="onTdsSectionChange" />
         </div>
         <div class="fld">
           <label>TDS ({{ form.tds_rate }}%)</label>
-          <div class="tds-summary">− {{ money(estTds) }} · Net payable <strong>{{ money(estNetPayable) }}</strong></div>
+          <div class="tds-summary">− {{ money(estTds) }} · {{ pt('Net payable') }} <strong>{{ money(estNetPayable) }}</strong></div>
         </div>
       </div>
 
       <div class="fld full">
-        <label>Notes</label>
+        <label>{{ pt('Notes') }}</label>
         <Textarea v-model="form.notes" rows="2" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editingId ? 'Save Changes' : 'Record Invoice'" :loading="saving" @click="saveInvoice" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editingId ? pt('Save Changes') : pt('Record Invoice')" :loading="saving" @click="saveInvoice" />
       </template>
     </Dialog>
 
     <!-- Variance detail dialog -->
-    <Dialog v-model:visible="detailVisible" modal :header="`Match Detail — ${detailInvoice?.invoice_number}`" :style="{ width: '760px' }">
+    <Dialog v-model:visible="detailVisible" modal :header="pt('Match Detail — {n}', { n: detailInvoice?.invoice_number })" :style="{ width: '760px' }">
       <table class="lines" v-if="detailInvoice">
         <thead>
-          <tr><th style="width: 24%">Product</th><th>Invoiced</th><th>Received</th><th>Invoice Price</th><th>PO Price</th><th>Variance</th></tr>
+          <tr><th style="width: 24%">{{ pt('Product') }}</th><th>{{ pt('Invoiced') }}</th><th>{{ pt('Received') }}</th><th>{{ pt('Invoice Price') }}</th><th>{{ pt('PO Price') }}</th><th>{{ pt('Variance') }}</th></tr>
         </thead>
         <tbody>
           <tr v-for="line in detailInvoice.items" :key="line.id" :class="{ exception: !line.variance?.within_tolerance }">
@@ -441,45 +445,45 @@ onMounted(async () => {
             <td>{{ money(line.unit_cost) }}</td>
             <td>{{ money(line.variance?.po_unit_cost) }}</td>
             <td>
-              <Tag v-if="line.variance?.within_tolerance" severity="success" value="matched" />
-              <Tag v-else severity="warn" :value="`qty ${line.variance?.quantity_variance}, price ${line.variance?.price_variance}`" />
+              <Tag v-if="line.variance?.within_tolerance" severity="success" :value="pt('matched')" />
+              <Tag v-else severity="warn" :value="pt('qty {q}, price {p}', { q: line.variance?.quantity_variance, p: line.variance?.price_variance })" />
             </td>
           </tr>
         </tbody>
       </table>
       <template #footer>
-        <Button label="Close" text @click="detailVisible = false" />
+        <Button :label="pt('Close')" text @click="detailVisible = false" />
       </template>
     </Dialog>
 
     <!-- Record payment dialog -->
-    <Dialog v-model:visible="payVisible" modal :header="`Record Payment — ${payInvoiceRow?.invoice_number}`" :style="{ width: '440px' }">
+    <Dialog v-model:visible="payVisible" modal :header="pt('Record Payment — {n}', { n: payInvoiceRow?.invoice_number })" :style="{ width: '440px' }">
       <div class="pay-info" v-if="payInvoiceRow">
-        <span>Supplier: <strong>{{ payInvoiceRow.supplier?.name }}</strong></span>
-        <span>Balance Due: <strong>{{ money(payInvoiceRow.balance_due) }}</strong></span>
+        <span>{{ pt('Supplier:') }} <strong>{{ payInvoiceRow.supplier?.name }}</strong></span>
+        <span>{{ pt('Balance Due:') }} <strong>{{ money(payInvoiceRow.balance_due) }}</strong></span>
       </div>
       <div class="pay-form">
         <div class="fld">
-          <label>Amount *</label>
+          <label>{{ pt('Amount') }} *</label>
           <InputNumber v-model="payForm.amount" mode="currency" currency="INR" locale="en-IN" />
           <small v-if="payErrors.amount" class="err">{{ payErrors.amount[0] }}</small>
         </div>
         <div class="fld">
-          <label>Mode *</label>
+          <label>{{ pt('Mode') }} *</label>
           <Select v-model="payForm.mode" :options="payModes" optionLabel="label" optionValue="value" />
         </div>
         <div class="fld">
-          <label>Payment Date *</label>
+          <label>{{ pt('Payment Date') }} *</label>
           <input type="date" v-model="payForm.payment_date" class="date-input" />
         </div>
         <div class="fld">
-          <label>Notes</label>
+          <label>{{ pt('Notes') }}</label>
           <Textarea v-model="payForm.notes" rows="2" />
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="payVisible = false" />
-        <Button label="Save Payment" :loading="paying" @click="savePayment" />
+        <Button :label="pt('Cancel')" text @click="payVisible = false" />
+        <Button :label="pt('Save Payment')" :loading="paying" @click="savePayment" />
       </template>
     </Dialog>
   </div>

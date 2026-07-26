@@ -9,6 +9,7 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 
@@ -84,9 +85,7 @@ onMounted(reload)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Email Log</h1>
-    </div>
+    <PageHeader title="Email Log" />
 
     <p class="hint">
       <i class="pi pi-info-circle" />

@@ -15,6 +15,7 @@ portalHttp.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  config.headers['X-Locale'] = localStorage.getItem('sims_locale') || 'en'
   return config
 })
 

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useMenuStore, type MenuNode } from '../stores/menu'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -20,6 +21,32 @@ interface ImportResult { message: string; created: number; failed: number; error
 const modules = ref<ModuleOption[]>([])
 const counts = ref<number[]>([10, 20, 50])
 const selectedCount = ref<number>(10)
+// Bulk volumes (1K / 100K / 1M) live in a dropdown next to the quick buttons.
+// Picking one always hands the work to the queue worker (see DemoDataController).
+const bulkCounts = ref<number[]>([])
+const bulkCount = ref<number | null>(null)
+
+function shortCount(v: number): string {
+  if (v >= 1_000_000) return `${v / 1_000_000}M`
+  if (v >= 1_000) return `${v / 1_000}K`
+  return String(v)
+}
+
+const bulkOptions = computed(() =>
+  bulkCounts.value.map((v) => ({ label: `${shortCount(v)} (${v.toLocaleString()})`, value: v })),
+)
+const isBulk = computed(() => bulkCounts.value.includes(selectedCount.value))
+
+function pickCount(c: number) {
+  selectedCount.value = c
+  bulkCount.value = null
+}
+
+// Choosing a bulk volume takes over the selection; clearing it hands the
+// selection back to the first quick volume.
+watch(bulkCount, (v) => {
+  selectedCount.value = v ?? counts.value[0] ?? 10
+})
 // Which module is currently generating (for the per-button spinner), or null.
 const generatingModule = ref<string | null>(null)
 
@@ -60,19 +87,30 @@ const MODULE_ICONS: Record<string, string> = {
   vendor_invoices: 'pi pi-receipt',
   vendor_ratings: 'pi pi-star',
   stock_adjustments: 'pi pi-sliders-h',
+  stock_transfers: 'pi pi-arrows-h',
+  stock_returns: 'pi pi-undo',
   gate_entries: 'pi pi-sign-in',
+  cycle_counts: 'pi pi-check-square',
   batches: 'pi pi-clone',
   serial_numbers: 'pi pi-hashtag',
+  boms: 'pi pi-sitemap',
+  manufacturing_orders: 'pi pi-wrench',
   colour_printings: 'pi pi-palette',
+  job_works: 'pi pi-briefcase',
   fabric_rolls: 'pi pi-scroll',
+  fabric_inspections: 'pi pi-search',
   shrinkage_records: 'pi pi-arrows-h',
+  fabric_cuttings: 'pi pi-objects-column',
   contractors: 'pi pi-briefcase',
   tailors: 'pi pi-user',
   rate_cards: 'pi pi-list',
+  piece_rates: 'pi pi-sliders-h',
+  tailor_works: 'pi pi-clock',
   tailor_alterations: 'pi pi-pencil',
   tailor_bonuses: 'pi pi-gift',
   tailor_payments: 'pi pi-money-bill',
   embroidery_vendors: 'pi pi-users',
+  embroidery_works: 'pi pi-clock',
   embroidery_payments: 'pi pi-money-bill',
   bank_accounts: 'pi pi-building-columns',
   vouchers: 'pi pi-book',
@@ -102,6 +140,8 @@ const MODULE_ICONS: Record<string, string> = {
   vehicles: 'pi pi-truck',
   drivers: 'pi pi-id-card',
   delivery_routes: 'pi pi-map-marker',
+  dispatch_plans: 'pi pi-send',
+  dispatch_pods: 'pi pi-check-circle',
   transport_charges: 'pi pi-send',
   channel_integrations: 'pi pi-globe',
   channel_orders: 'pi pi-inbox',
@@ -164,20 +204,31 @@ const MODULE_ROUTES: Record<string, string> = {
   vendor_ratings: '/vendor-ratings',
   // Inventory
   stock_adjustments: '/stock-adjustments',
+  stock_transfers: '/stock-transfers',
+  stock_returns: '/stock-returns',
   gate_entries: '/gate-entries',
+  cycle_counts: '/cycle-counts',
   batches: '/batches',
   serial_numbers: '/serial-numbers',
   // Manufacturing (incl. Textile, Tailoring, Embroidery)
+  boms: '/boms',
+  manufacturing_orders: '/manufacturing-orders',
   colour_printings: '/colour-printings',
+  job_works: '/job-works',
   fabric_rolls: '/fabric-rolls',
+  fabric_inspections: '/fabric-inspections',
   shrinkage_records: '/shrinkage-records',
+  fabric_cuttings: '/fabric-cuttings',
   contractors: '/contractors',
   tailors: '/tailors',
   rate_cards: '/rate-cards',
+  piece_rates: '/piece-rates',
+  tailor_works: '/tailor-works/pending',
   tailor_alterations: '/tailor-alterations',
   tailor_bonuses: '/tailor-bonuses',
   tailor_payments: '/tailor-payments',
   embroidery_vendors: '/embroidery-vendors',
+  embroidery_works: '/embroidery-works/pending',
   embroidery_payments: '/embroidery-payments',
   // Finance (incl. GST, Payments — top-bar sub-groups of Finance)
   bank_accounts: '/bank-accounts',
@@ -214,6 +265,8 @@ const MODULE_ROUTES: Record<string, string> = {
   vehicles: '/vehicles',
   drivers: '/drivers',
   delivery_routes: '/delivery-routes',
+  dispatch_plans: '/dispatch-plans',
+  dispatch_pods: '/proof-of-delivery',
   transport_charges: '/transport-charges',
 }
 
@@ -304,6 +357,7 @@ onMounted(async () => {
     ])
     modules.value = demo.data.modules
     counts.value = demo.data.counts
+    bulkCounts.value = demo.data.bulk_counts ?? []
     if (counts.value.length) selectedCount.value = counts.value[0]
 
     importModules.value = imp.data.modules
@@ -401,7 +455,12 @@ async function generateModule(key: string) {
       modules: [key],
       count: selectedCount.value,
     })
-    toast.add({ severity: 'success', summary: 'Demo data created', detail: data.message, life: 5000 })
+    toast.add({
+      severity: data.queued ? 'info' : 'success',
+      summary: data.queued ? 'Generation queued' : 'Demo data created',
+      detail: data.message,
+      life: data.queued ? 8000 : 5000,
+    })
   } catch (e: any) {
     toast.add({
       severity: 'error',
@@ -417,8 +476,7 @@ async function generateModule(key: string) {
 
 <template>
   <div class="system-tools">
-    <h1>System Tools</h1>
-    <p class="subtitle">Administrative utilities for this workspace.</p>
+    <PageHeader title="System Tools" subtitle="Administrative utilities for this workspace." />
 
     <!-- Performance diagnostics (project-stack.md §17) -->
     <section class="tool-card">
@@ -557,11 +615,26 @@ async function generateModule(key: string) {
             type="button"
             class="count-btn"
             :class="{ active: selectedCount === c }"
-            @click="selectedCount = c"
+            @click="pickCount(c)"
           >
             {{ c.toLocaleString() }}
           </button>
+          <Select
+            v-model="bulkCount"
+            :options="bulkOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Bulk volume"
+            showClear
+            class="bulk-select"
+            :class="{ active: isBulk }"
+          />
         </div>
+        <span v-if="isBulk" class="hint bulk-hint">
+          <i class="pi pi-info-circle" />
+          {{ selectedCount.toLocaleString() }} rows per module runs in the background on the queue worker —
+          it can take a while, and rows appear progressively.
+        </span>
       </div>
 
       <div class="field">
@@ -732,6 +805,26 @@ async function generateModule(key: string) {
   gap: 0.5rem;
   margin-top: 0.6rem;
   flex-wrap: wrap;
+  align-items: center;
+}
+/* Bulk-volume dropdown sits alongside the quick-count buttons and highlights
+   like them while one of its volumes is selected. */
+.bulk-select {
+  min-width: 11rem;
+}
+.bulk-select :deep(.p-select) {
+  border-radius: 8px;
+}
+.bulk-select.active :deep(.p-select) {
+  border-color: var(--safety-amber, #e8a33d);
+  box-shadow: 0 0 0 1px var(--safety-amber, #e8a33d);
+}
+.bulk-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  color: var(--alert-rust, #c1502e);
 }
 .count-btn {
   border: 1px solid var(--border, #e3ded3);

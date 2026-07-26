@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import http from '../api/http'
 import { openPdfBlob } from '../utils/blob'
+import PageHeader from '../components/PageHeader.vue'
 
 interface Plan {
   slug: string
@@ -274,8 +275,7 @@ onMounted(load)
 
 <template>
   <div class="billing">
-    <h1>Billing &amp; Plan</h1>
-    <p class="subtitle">Manage your subscription and usage limits</p>
+    <PageHeader title="Billing &amp; Plan" subtitle="Manage your subscription and usage limits" />
 
     <div v-if="loading" class="empty">Loading…</div>
 

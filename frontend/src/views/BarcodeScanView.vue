@@ -10,9 +10,12 @@ import http from '../api/http'
 import { openPdfBlob } from '../utils/blob'
 import { formatCurrency } from '../utils/currency'
 import { useAuthStore } from '../stores/auth'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 const canAssignRfid = computed(() => auth.can('products.edit'))
 const scanValue = ref('')
 const scanInput = ref<any>(null)
@@ -34,7 +37,7 @@ async function lookup(code: string) {
     if (e.response?.status === 404) {
       notFound.value = true
     } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Lookup failed', life: 4000 })
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Lookup failed'), life: 4000 })
     }
   } finally {
     loading.value = false
@@ -81,7 +84,7 @@ async function openCamera() {
       },
     )
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Camera error', detail: e?.message || 'Could not start camera', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Camera error'), detail: e?.message || pt('Could not start camera'), life: 4000 })
     cameraVisible.value = false
   }
 }
@@ -123,7 +126,7 @@ async function printLabel() {
     )
     openPdfBlob(data)
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Could not generate labels', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: pt('Could not generate labels'), life: 4000 })
   } finally {
     printing.value = false
   }
@@ -150,10 +153,10 @@ async function assignRfid() {
     if (result.value.type === 'variant') result.value.variant.rfid_tag = data.rfid_tag
     else result.value.product.rfid_tag = data.rfid_tag
     rfidValue.value = ''
-    toast.add({ severity: 'success', summary: 'RFID assigned', detail: data.rfid_tag, life: 2500 })
+    toast.add({ severity: 'success', summary: pt('RFID assigned'), detail: data.rfid_tag, life: 2500 })
   } catch (e: any) {
-    const msg = e.response?.data?.errors?.rfid_tag?.[0] || e.response?.data?.message || 'Could not assign RFID tag'
-    toast.add({ severity: 'error', summary: 'Error', detail: msg, life: 4000 })
+    const msg = e.response?.data?.errors?.rfid_tag?.[0] || e.response?.data?.message || pt('Could not assign RFID tag')
+    toast.add({ severity: 'error', summary: pt('Error'), detail: msg, life: 4000 })
   } finally {
     rfidSaving.value = false
   }
@@ -166,21 +169,20 @@ function money(v: any) {
 
 <template>
   <div>
-    <h1>Barcode / RFID Scan</h1>
-    <p class="subtitle">Scan with a handheld/USB barcode or RFID reader (both type into the field below) or use your device camera.</p>
+    <PageHeader :title="pt('Barcode / RFID Scan')" :subtitle="pt('Scan with a handheld/USB barcode or RFID reader (both type into the field below) or use your device camera.')" />
 
     <div class="scan-box">
       <span class="scan-input">
         <i class="pi pi-search" />
-        <InputText ref="scanInput" v-model="scanValue" placeholder="Scan or type a barcode / SKU / RFID tag, then press Enter"
+        <InputText ref="scanInput" v-model="scanValue" :placeholder="pt('Scan or type a barcode / SKU / RFID tag, then press Enter')"
           autofocus @keyup.enter="onEnter" />
       </span>
-      <Button label="Lookup" icon="pi pi-search" :loading="loading" @click="onEnter" />
-      <Button label="Use Camera" icon="pi pi-camera" outlined @click="openCamera" />
+      <Button :label="pt('Lookup')" icon="pi pi-search" :loading="loading" @click="onEnter" />
+      <Button :label="pt('Use Camera')" icon="pi pi-camera" outlined @click="openCamera" />
     </div>
 
     <div v-if="notFound" class="not-found">
-      <i class="pi pi-exclamation-triangle" /> No product or variant matches that code.
+      <i class="pi pi-exclamation-triangle" /> {{ pt('No product or variant matches that code.') }}
     </div>
 
     <div v-if="result" class="result-card">
@@ -189,39 +191,39 @@ function money(v: any) {
         <h2 v-else>{{ result.product.name }}</h2>
       </div>
       <div class="result-grid">
-        <div><label>SKU</label><span>{{ result.type === 'variant' ? result.variant.sku : result.product.sku }}</span></div>
-        <div><label>Barcode</label><span>{{ result.type === 'variant' ? result.variant.barcode : result.product.barcode }}</span></div>
-        <div><label>RFID Tag</label><span>{{ matchedRfid || '—' }}</span></div>
-        <div><label>Category</label><span>{{ result.product.category || '—' }}</span></div>
-        <div><label>Brand</label><span>{{ result.product.brand || '—' }}</span></div>
+        <div><label>{{ pt('SKU') }}</label><span>{{ result.type === 'variant' ? result.variant.sku : result.product.sku }}</span></div>
+        <div><label>{{ pt('Barcode') }}</label><span>{{ result.type === 'variant' ? result.variant.barcode : result.product.barcode }}</span></div>
+        <div><label>{{ pt('RFID Tag') }}</label><span>{{ matchedRfid || '—' }}</span></div>
+        <div><label>{{ pt('Category') }}</label><span>{{ result.product.category || '—' }}</span></div>
+        <div><label>{{ pt('Brand') }}</label><span>{{ result.product.brand || '—' }}</span></div>
         <div>
-          <label>Selling Price</label>
+          <label>{{ pt('Selling Price') }}</label>
           <span>{{ money(result.type === 'variant' ? result.variant.selling_price : result.product.selling_price) }}</span>
         </div>
-        <div v-if="result.type === 'product'"><label>Total Stock</label><span>{{ result.product.total_stock ?? '—' }}</span></div>
+        <div v-if="result.type === 'product'"><label>{{ pt('Total Stock') }}</label><span>{{ result.product.total_stock ?? '—' }}</span></div>
       </div>
 
       <div class="print-row">
-        <Select v-model="printLabelType" :options="[{ label: 'CODE128 Barcode', value: 'code128' }, { label: 'QR Code', value: 'qr' }]"
+        <Select v-model="printLabelType" :options="[{ label: pt('CODE128 Barcode'), value: 'code128' }, { label: pt('QR Code'), value: 'qr' }]"
           optionLabel="label" optionValue="value" />
         <InputNumber v-model="printQty" :min="1" :max="500" showButtons />
-        <Button label="Print Label" icon="pi pi-print" :loading="printing" @click="printLabel" />
+        <Button :label="pt('Print Label')" icon="pi pi-print" :loading="printing" @click="printLabel" />
       </div>
 
       <div v-if="canAssignRfid" class="rfid-row">
-        <label class="rfid-label">{{ matchedRfid ? 'Reassign RFID Tag' : 'Assign RFID Tag' }}</label>
+        <label class="rfid-label">{{ matchedRfid ? pt('Reassign RFID Tag') : pt('Assign RFID Tag') }}</label>
         <div class="rfid-controls">
-          <InputText v-model="rfidValue" placeholder="Scan or type RFID tag, then press Enter" @keyup.enter="assignRfid" />
-          <Button label="Assign" icon="pi pi-wifi" :loading="rfidSaving" :disabled="!rfidValue.trim()" @click="assignRfid" />
+          <InputText v-model="rfidValue" :placeholder="pt('Scan or type RFID tag, then press Enter')" @keyup.enter="assignRfid" />
+          <Button :label="pt('Assign')" icon="pi pi-wifi" :loading="rfidSaving" :disabled="!rfidValue.trim()" @click="assignRfid" />
         </div>
       </div>
     </div>
 
     <!-- Camera scan modal -->
-    <Dialog v-model:visible="cameraVisible" modal header="Scan with Camera" :style="{ width: '420px' }" @hide="closeCamera">
+    <Dialog v-model:visible="cameraVisible" modal :header="pt('Scan with Camera')" :style="{ width: '420px' }" @hide="closeCamera">
       <div id="camera-reader"></div>
       <template #footer>
-        <Button label="Cancel" text @click="closeCamera" />
+        <Button :label="pt('Cancel')" text @click="closeCamera" />
       </template>
     </Dialog>
   </div>

@@ -22,6 +22,19 @@ export interface ColumnConfig {
   type?: 'text' | 'boolean' | 'currency' | 'date'
 }
 
+/**
+ * Toolbar dropdown filter. `key` is sent verbatim as a query param to the list
+ * endpoint (which must support it), so a filter only works once the controller
+ * reads that param. Options come either from a static list or an endpoint.
+ */
+export interface FilterConfig {
+  key: string
+  label: string
+  options?: { label: string; value: string | number }[]
+  optionsFrom?: string
+  optionLabel?: string
+}
+
 export interface ResourceConfig {
   key: string
   title: string
@@ -30,6 +43,7 @@ export interface ResourceConfig {
   idKey?: string
   columns: ColumnConfig[]
   fields: FieldConfig[]
+  filters?: FilterConfig[]
 }
 
 export const resources: Record<string, ResourceConfig> = {
@@ -289,6 +303,9 @@ export const resources: Record<string, ResourceConfig> = {
     title: 'Branches',
     endpoint: '/branches',
     permission: 'branches',
+    filters: [
+      { key: 'company_id', label: 'Company', optionsFrom: '/companies', optionLabel: 'name' },
+    ],
     columns: [
       { key: 'code', label: 'Code' },
       { key: 'name', label: 'Name' },

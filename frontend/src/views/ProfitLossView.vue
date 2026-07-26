@@ -6,6 +6,7 @@ import Button from 'primevue/button'
 import http from '../api/http'
 import { useReportExport } from '../composables/useReportExport'
 import { formatCurrency } from '../utils/currency'
+import PageHeader from '../components/PageHeader.vue'
 
 const rows = ref<any[]>([])
 const meta = ref<any>({})
@@ -51,7 +52,7 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="header"><h1>Profit &amp; Loss</h1></div>
+    <PageHeader title="Profit &amp; Loss" />
 
     <div class="filters">
       <label>From <input type="date" v-model="from" class="date-input" @change="load" /></label>

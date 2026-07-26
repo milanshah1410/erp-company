@@ -16,11 +16,14 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 const crud = useCrud('/boms')
 
 const products = ref<any[]>([])
@@ -35,10 +38,10 @@ function money(v: number | string) {
 
 const search = ref('')
 const activeFilter = ref<string | null>(null)
-const activeOptions = [
-  { label: 'Active', value: '1' },
-  { label: 'Inactive', value: '0' },
-]
+const activeOptions = computed(() => [
+  { label: pt('Active'), value: '1' },
+  { label: pt('Inactive'), value: '0' },
+])
 
 const detailVisible = ref(false)
 const detailRecord = ref<any>(null)
@@ -112,7 +115,7 @@ async function openEdit(row: any) {
     }
     editVisible.value = true
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load BOM', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load BOM'), life: 3000 })
   }
 }
 
@@ -131,16 +134,16 @@ async function saveBom() {
   try {
     if (isEditing.value) {
       await http.put(`/boms/${form.value.id}`, payload)
-      toast.add({ severity: 'success', summary: 'BOM updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('BOM updated'), life: 2500 })
     } else {
       await http.post('/boms', payload)
-      toast.add({ severity: 'success', summary: 'Bill of materials created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Bill of materials created'), life: 2500 })
     }
     editVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -148,20 +151,21 @@ async function saveBom() {
 
 async function deleteBom(row: any) {
   const res = await Swal.fire({
-    title: `Delete ${row.bom_number}?`,
+    title: pt('Delete {n}?', { n: row.bom_number }),
     text: row.name,
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'Delete',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
     confirmButtonColor: '#dc2626',
   })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/boms/${row.id}`)
-    toast.add({ severity: 'success', summary: 'BOM deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('BOM deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot delete', detail: e.response?.data?.message || 'Failed', life: 5000 })
+    toast.add({ severity: 'error', summary: pt('Cannot delete'), detail: e.response?.data?.message || pt('Failed'), life: 5000 })
   }
 }
 
@@ -183,89 +187,88 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Bills of Materials</h1>
-      <div style="display: flex; gap: 0.5rem; align-items: center">
-        <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
-        </span>
-        <Button label="Search" outlined @click="reload" />
-        <Select v-model="activeFilter" :options="activeOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All" @change="reload" class="status-filter" />
-        <TableExportButtons title="Bills of Materials" endpoint="/boms"
-          :params="() => ({ search: search || undefined, is_active: activeFilter ?? undefined })"
-          :columns="[
-            { key: 'bom_number', label: 'BOM #' },
-            { key: 'name', label: 'Name' },
-            { key: 'product.name', label: 'Finished Product' },
-            { key: 'output_quantity', label: 'Output Qty' },
-            { key: 'items_count', label: 'Components' },
-            { key: 'material_cost', label: 'Material Cost' },
-            { key: 'is_active', label: 'Active', format: (v) => v ? 'Yes' : 'No' },
-          ]" />
-        <Button v-if="canCreate" label="New BOM" icon="pi pi-plus" @click="openCreate" />
-      </div>
+    <PageHeader :title="pt('Bills of Materials')" :count="crud.total.value" />
+
+    <div class="toolbar no-print">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
+      </span>
+      <Button :label="pt('Search')" outlined @click="reload" />
+      <Select v-model="activeFilter" :options="activeOptions" optionLabel="label" optionValue="value" showClear
+        :placeholder="pt('All')" @change="reload" class="status-filter" />
+      <TableExportButtons :title="pt('Bills of Materials')" endpoint="/boms"
+        :params="() => ({ search: search || undefined, is_active: activeFilter ?? undefined })"
+        :columns="[
+          { key: 'bom_number', label: pt('BOM #') },
+          { key: 'name', label: pt('Name') },
+          { key: 'product.name', label: pt('Finished Product') },
+          { key: 'output_quantity', label: pt('Output Qty') },
+          { key: 'items_count', label: pt('Components') },
+          { key: 'material_cost', label: pt('Material Cost') },
+          { key: 'is_active', label: pt('Active'), format: (v) => v ? pt('Yes') : pt('No') },
+        ]" />
+      <Button v-if="canCreate" :label="pt('New BOM')" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="bom_number" header="BOM #" />
-      <Column field="name" header="Name" />
-      <Column header="Finished Product"><template #body="{ data }">{{ data.product?.name }}</template></Column>
-      <Column header="Output Qty"><template #body="{ data }">{{ Number(data.output_quantity) }}</template></Column>
-      <Column header="Components"><template #body="{ data }">{{ data.items_count ?? 0 }}</template></Column>
-      <Column header="Material Cost"><template #body="{ data }">{{ money(data.material_cost) }}</template></Column>
-      <Column header="Status">
+      <Column field="bom_number" :header="pt('BOM #')" />
+      <Column field="name" :header="pt('Name')" />
+      <Column :header="pt('Finished Product')"><template #body="{ data }">{{ data.product?.name }}</template></Column>
+      <Column :header="pt('Output Qty')"><template #body="{ data }">{{ Number(data.output_quantity) }}</template></Column>
+      <Column :header="pt('Components')"><template #body="{ data }">{{ data.items_count ?? 0 }}</template></Column>
+      <Column :header="pt('Material Cost')"><template #body="{ data }">{{ money(data.material_cost) }}</template></Column>
+      <Column :header="pt('Status')">
         <template #body="{ data }">
-          <Tag v-if="data.is_default" severity="info" value="Default" style="margin-right: 4px" />
-          <Tag :severity="data.is_active ? 'success' : 'secondary'" :value="data.is_active ? 'Active' : 'Inactive'" />
+          <Tag v-if="data.is_default" severity="info" :value="pt('Default')" style="margin-right: 4px" />
+          <Tag :severity="data.is_active ? 'success' : 'secondary'" :value="data.is_active ? pt('Active') : pt('Inactive')" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 12rem">
+      <Column :header="pt('Actions')" style="width: 12rem">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
-          <Button v-if="canEdit" label="Edit" size="small" outlined @click="openEdit(data)" />
+          <Button v-if="canEdit" :label="pt('Edit')" size="small" outlined @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="deleteBom(data)" style="margin-left: 4px" />
         </template>
       </Column>
-      <template #empty>No bills of materials yet.</template>
+      <template #empty>{{ pt('No bills of materials yet.') }}</template>
     </DataTable>
 
     <!-- Create / edit dialog -->
-    <Dialog v-model:visible="editVisible" modal :header="isEditing ? 'Edit BOM' : 'New BOM'" :style="{ width: '820px' }">
+    <Dialog v-model:visible="editVisible" modal :header="isEditing ? pt('Edit BOM') : pt('New BOM')" :style="{ width: '820px' }">
       <div class="form-top">
         <div class="fld">
-          <label>Name *</label>
-          <InputText v-model="form.name" placeholder="e.g. Kids T-shirt — v1" />
+          <label>{{ pt('Name') }} *</label>
+          <InputText v-model="form.name" :placeholder="pt('e.g. Kids T-shirt — v1')" />
           <small v-if="errors.name" class="err">{{ errors.name[0] }}</small>
         </div>
         <div class="fld">
-          <label>Finished Product *</label>
-          <Select v-model="form.product_id" :options="products" optionLabel="name" optionValue="id" filter placeholder="Select product" />
+          <label>{{ pt('Finished Product') }} *</label>
+          <Select v-model="form.product_id" :options="products" optionLabel="name" optionValue="id" filter :placeholder="pt('Select product')" />
           <small v-if="errors.product_id" class="err">{{ errors.product_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Output Quantity *</label>
+          <label>{{ pt('Output Quantity') }} *</label>
           <InputNumber v-model="form.output_quantity" :minFractionDigits="0" :maxFractionDigits="3" class="w-full" />
-          <small class="muted">Units produced by one full run of this recipe.</small>
+          <small class="muted">{{ pt('Units produced by one full run of this recipe.') }}</small>
           <small v-if="errors.output_quantity" class="err">{{ errors.output_quantity[0] }}</small>
         </div>
         <div class="fld toggles">
-          <label class="chk"><Checkbox v-model="form.is_default" :binary="true" /> <span>Default BOM for this product</span></label>
-          <label class="chk"><Checkbox v-model="form.is_active" :binary="true" /> <span>Active</span></label>
+          <label class="chk"><Checkbox v-model="form.is_default" :binary="true" /> <span>{{ pt('Default BOM for this product') }}</span></label>
+          <label class="chk"><Checkbox v-model="form.is_active" :binary="true" /> <span>{{ pt('Active') }}</span></label>
         </div>
       </div>
 
-      <h3 class="lines-title">Components</h3>
+      <h3 class="lines-title">{{ pt('Components') }}</h3>
       <table class="lines">
         <thead>
-          <tr><th style="width: 34%">Material</th><th>Qty</th><th>Wastage %</th><th>Unit Cost</th><th>Line Cost</th><th>Remarks</th><th></th></tr>
+          <tr><th style="width: 34%">{{ pt('Material') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Wastage %') }}</th><th>{{ pt('Unit Cost') }}</th><th>{{ pt('Line Cost') }}</th><th>{{ pt('Remarks') }}</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="(m, i) in form.items" :key="i">
             <td>
-              <Select v-model="m.product_id" :options="products" optionLabel="name" optionValue="id" filter placeholder="Material" class="w-full" @change="onItemProductPick(m)" />
+              <Select v-model="m.product_id" :options="products" optionLabel="name" optionValue="id" filter :placeholder="pt('Material')" class="w-full" @change="onItemProductPick(m)" />
             </td>
             <td><InputNumber v-model="m.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
             <td><InputNumber v-model="m.wastage_percent" :min="0" :max="100" :minFractionDigits="0" :maxFractionDigits="2" class="num-sm" /></td>
@@ -274,35 +277,35 @@ onMounted(async () => {
             <td><input v-model="m.remarks" class="text-input" placeholder="—" /></td>
             <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeItem(i)" /></td>
           </tr>
-          <tr v-if="!form.items.length"><td colspan="7" class="muted" style="text-align: center; padding: 0.75rem">No components — add the raw materials this recipe consumes.</td></tr>
+          <tr v-if="!form.items.length"><td colspan="7" class="muted" style="text-align: center; padding: 0.75rem">{{ pt('No components — add the raw materials this recipe consumes.') }}</td></tr>
         </tbody>
       </table>
-      <Button label="Add Component" icon="pi pi-plus" text size="small" @click="addItem" />
+      <Button :label="pt('Add Component')" icon="pi pi-plus" text size="small" @click="addItem" />
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
-      <div class="grand">Material Cost per run: <strong>{{ money(materialCost) }}</strong></div>
+      <div class="grand">{{ pt('Material Cost per run:') }} <strong>{{ money(materialCost) }}</strong></div>
 
       <div class="fld full">
-        <label>Notes</label>
+        <label>{{ pt('Notes') }}</label>
         <Textarea v-model="form.notes" rows="2" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="editVisible = false" />
-        <Button :label="isEditing ? 'Save Changes' : 'Create BOM'" :loading="saving" @click="saveBom" />
+        <Button :label="pt('Cancel')" text @click="editVisible = false" />
+        <Button :label="isEditing ? pt('Save Changes') : pt('Create BOM')" :loading="saving" @click="saveBom" />
       </template>
     </Dialog>
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="BOM Details" :fields="[
-      { key: 'bom_number', label: 'BOM #' },
-      { key: 'name', label: 'Name' },
-      { key: 'product.name', label: 'Finished Product' },
-      { key: 'output_quantity', label: 'Output Qty' },
-      { key: 'items_count', label: 'Components' },
-      { key: 'material_cost', label: 'Material Cost', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
-      { key: 'is_default', label: 'Default' },
-      { key: 'is_active', label: 'Active' },
-      { key: 'notes', label: 'Notes', full: true },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('BOM Details')" :fields="[
+      { key: 'bom_number', label: pt('BOM #') },
+      { key: 'name', label: pt('Name') },
+      { key: 'product.name', label: pt('Finished Product') },
+      { key: 'output_quantity', label: pt('Output Qty') },
+      { key: 'items_count', label: pt('Components') },
+      { key: 'material_cost', label: pt('Material Cost'), format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'is_default', label: pt('Default') },
+      { key: 'is_active', label: pt('Active') },
+      { key: 'notes', label: pt('Notes'), full: true },
     ]" />
   </div>
 </template>

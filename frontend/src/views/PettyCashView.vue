@@ -6,6 +6,7 @@ import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const entries = ref<any[]>([])
 const summary = ref<any>(null)
@@ -43,9 +44,7 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Petty Cash Book</h1>
-    </div>
+    <PageHeader title="Petty Cash Book" />
 
     <div class="filters">
       <label>From <input type="date" v-model="from" class="date-input" @change="load" /></label>

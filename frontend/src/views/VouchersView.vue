@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -206,10 +207,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Vouchers</h1>
-      <Button v-if="canCreate" label="New Voucher" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Vouchers" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" label="New Voucher" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="filters">
       <Select v-model="filters.voucher_type" :options="typeOptions" optionLabel="label" optionValue="value" showClear placeholder="All types" class="flt" @change="reload" />

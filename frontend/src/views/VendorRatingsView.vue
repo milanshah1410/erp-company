@@ -15,8 +15,11 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
+const pt = usePt()
 const auth = useAuthStore()
 const crud = useCrud('/vendor-ratings')
 
@@ -65,21 +68,21 @@ async function save() {
   errors.value = {}
   try {
     await http.post('/vendor-ratings', form.value)
-    toast.add({ severity: 'success', summary: 'Rating saved', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Rating saved'), life: 2500 })
     dialogVisible.value = false
     await Promise.all([reload(), loadSummary()])
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
 }
 async function remove(row: any) {
-  const res = await Swal.fire({ title: 'Delete this rating?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#dc2626' })
+  const res = await Swal.fire({ title: pt('Delete this rating?'), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Delete'), cancelButtonText: pt('Cancel'), confirmButtonColor: '#dc2626' })
   if (!res.isConfirmed) return
   await http.delete(`/vendor-ratings/${row.id}`)
-  toast.add({ severity: 'success', summary: 'Deleted', life: 2000 })
+  toast.add({ severity: 'success', summary: pt('Deleted'), life: 2000 })
   await Promise.all([reload(), loadSummary()])
 }
 
@@ -116,106 +119,107 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Vendor Rating</h1>
-      <Button v-if="canCreate" label="Rate a Vendor" icon="pi pi-star" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Vendor Rating')" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('Rate a Vendor')" icon="pi pi-star" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <!-- Leaderboard -->
     <div class="card" v-if="summary.length">
-      <h3 class="card-title">Vendor Scorecard</h3>
+      <h3 class="card-title">{{ pt('Vendor Scorecard') }}</h3>
       <DataTable :value="summary" class="p-datatable-sm" dataKey="supplier_id">
-        <Column field="supplier" header="Vendor" />
-        <Column header="Quality"><template #body="{ data }">{{ data.avg_quality }}</template></Column>
-        <Column header="Delivery"><template #body="{ data }">{{ data.avg_delivery }}</template></Column>
-        <Column header="Pricing"><template #body="{ data }">{{ data.avg_pricing }}</template></Column>
-        <Column header="Service"><template #body="{ data }">{{ data.avg_service }}</template></Column>
-        <Column header="Overall">
+        <Column field="supplier" :header="pt('Vendor')" />
+        <Column :header="pt('Quality')"><template #body="{ data }">{{ data.avg_quality }}</template></Column>
+        <Column :header="pt('Delivery')"><template #body="{ data }">{{ data.avg_delivery }}</template></Column>
+        <Column :header="pt('Pricing')"><template #body="{ data }">{{ data.avg_pricing }}</template></Column>
+        <Column :header="pt('Service')"><template #body="{ data }">{{ data.avg_service }}</template></Column>
+        <Column :header="pt('Overall')">
           <template #body="{ data }"><Tag :severity="scoreColor(data.avg_overall)" :value="`${data.avg_overall} ★`" /></template>
         </Column>
-        <Column header="Ratings"><template #body="{ data }">{{ data.ratings_count }}</template></Column>
+        <Column :header="pt('Ratings')"><template #body="{ data }">{{ data.ratings_count }}</template></Column>
       </DataTable>
     </div>
 
     <!-- Individual ratings -->
     <div class="ratings-head">
-      <h3 class="card-title" style="margin-top: 1.5rem">All Ratings</h3>
+      <h3 class="card-title" style="margin-top: 1.5rem">{{ pt('All Ratings') }}</h3>
       <div class="ratings-tools">
         <span class="search-box">
           <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search vendor / remarks..." @keyup.enter="crud.currentPage.value = 1; reload()" />
+          <InputText v-model="search" :placeholder="pt('Search vendor / remarks...')" @keyup.enter="crud.currentPage.value = 1; reload()" />
         </span>
-        <Button label="Search" outlined @click="crud.currentPage.value = 1; reload()" />
-        <TableExportButtons title="Vendor Ratings" endpoint="/vendor-ratings"
+        <Button :label="pt('Search')" outlined @click="crud.currentPage.value = 1; reload()" />
+        <TableExportButtons :title="pt('Vendor Ratings')" endpoint="/vendor-ratings"
           :params="() => ({ search: search || undefined })"
           :columns="[
-          { key: 'supplier.name', label: 'Vendor' },
-          { key: 'rated_on', label: 'Date' },
-          { key: 'goods_receipt.grn_number', label: 'GRN' },
-          { key: 'quality_score', label: 'Quality' },
-          { key: 'delivery_score', label: 'Delivery' },
-          { key: 'pricing_score', label: 'Pricing' },
-          { key: 'service_score', label: 'Service' },
-          { key: 'overall_score', label: 'Overall' },
-          { key: 'remarks', label: 'Remarks' },
+          { key: 'supplier.name', label: pt('Vendor') },
+          { key: 'rated_on', label: pt('Date') },
+          { key: 'goods_receipt.grn_number', label: pt('GRN') },
+          { key: 'quality_score', label: pt('Quality') },
+          { key: 'delivery_score', label: pt('Delivery') },
+          { key: 'pricing_score', label: pt('Pricing') },
+          { key: 'service_score', label: pt('Service') },
+          { key: 'overall_score', label: pt('Overall') },
+          { key: 'remarks', label: pt('Remarks') },
         ]" />
       </div>
     </div>
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column header="Vendor"><template #body="{ data }">{{ data.supplier?.name }}</template></Column>
-      <Column field="rated_on" header="Date" />
-      <Column header="GRN"><template #body="{ data }">{{ data.goods_receipt?.grn_number || '—' }}</template></Column>
-      <Column header="Quality"><template #body="{ data }">{{ data.quality_score }}</template></Column>
-      <Column header="Delivery"><template #body="{ data }">{{ data.delivery_score }}</template></Column>
-      <Column header="Pricing"><template #body="{ data }">{{ data.pricing_score }}</template></Column>
-      <Column header="Service"><template #body="{ data }">{{ data.service_score }}</template></Column>
-      <Column header="Overall">
+      <Column :header="pt('Vendor')"><template #body="{ data }">{{ data.supplier?.name }}</template></Column>
+      <Column field="rated_on" :header="pt('Date')" />
+      <Column :header="pt('GRN')"><template #body="{ data }">{{ data.goods_receipt?.grn_number || '—' }}</template></Column>
+      <Column :header="pt('Quality')"><template #body="{ data }">{{ data.quality_score }}</template></Column>
+      <Column :header="pt('Delivery')"><template #body="{ data }">{{ data.delivery_score }}</template></Column>
+      <Column :header="pt('Pricing')"><template #body="{ data }">{{ data.pricing_score }}</template></Column>
+      <Column :header="pt('Service')"><template #body="{ data }">{{ data.service_score }}</template></Column>
+      <Column :header="pt('Overall')">
         <template #body="{ data }"><Tag :severity="scoreColor(data.overall_score)" :value="`${data.overall_score} ★`" /></template>
       </Column>
-      <Column header="Remarks"><template #body="{ data }"><span class="remarks">{{ data.remarks || '—' }}</span></template></Column>
+      <Column :header="pt('Remarks')"><template #body="{ data }"><span class="remarks">{{ data.remarks || '—' }}</span></template></Column>
       <Column header="" style="width: 4rem">
         <template #body="{ data }">
           <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="remove(data)" />
         </template>
       </Column>
-      <template #empty>No ratings recorded yet.</template>
+      <template #empty>{{ pt('No ratings recorded yet.') }}</template>
     </DataTable>
 
     <!-- Create dialog -->
-    <Dialog v-model:visible="dialogVisible" modal header="Rate a Vendor" :style="{ width: '560px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="pt('Rate a Vendor')" :style="{ width: '560px' }">
       <div class="fld">
-        <label>Vendor *</label>
-        <Select v-model="form.supplier_id" :options="suppliers" optionLabel="label" optionValue="value" filter placeholder="Select vendor" />
+        <label>{{ pt('Vendor') }} *</label>
+        <Select v-model="form.supplier_id" :options="suppliers" optionLabel="label" optionValue="value" filter :placeholder="pt('Select vendor')" />
         <small v-if="errors.supplier_id" class="err">{{ errors.supplier_id[0] }}</small>
       </div>
       <div class="two-col">
         <div class="fld">
-          <label>Against GRN (optional)</label>
-          <Select v-model="form.goods_receipt_id" :options="grnsForSupplier" optionLabel="label" optionValue="value" showClear placeholder="Link a receipt" />
+          <label>{{ pt('Against GRN (optional)') }}</label>
+          <Select v-model="form.goods_receipt_id" :options="grnsForSupplier" optionLabel="label" optionValue="value" showClear :placeholder="pt('Link a receipt')" />
         </div>
         <div class="fld">
-          <label>Rated On *</label>
+          <label>{{ pt('Rated On') }} *</label>
           <input type="date" v-model="form.rated_on" class="date-input" />
         </div>
       </div>
 
       <div class="scores">
-        <div class="score-row"><span>Quality</span><Rating v-model="form.quality_score" /></div>
-        <div class="score-row"><span>Delivery</span><Rating v-model="form.delivery_score" /></div>
-        <div class="score-row"><span>Pricing</span><Rating v-model="form.pricing_score" /></div>
-        <div class="score-row"><span>Service</span><Rating v-model="form.service_score" /></div>
+        <div class="score-row"><span>{{ pt('Quality') }}</span><Rating v-model="form.quality_score" /></div>
+        <div class="score-row"><span>{{ pt('Delivery') }}</span><Rating v-model="form.delivery_score" /></div>
+        <div class="score-row"><span>{{ pt('Pricing') }}</span><Rating v-model="form.pricing_score" /></div>
+        <div class="score-row"><span>{{ pt('Service') }}</span><Rating v-model="form.service_score" /></div>
       </div>
-      <div class="overall">Overall Score: <strong>{{ overall }} ★</strong></div>
+      <div class="overall">{{ pt('Overall Score:') }} <strong>{{ overall }} ★</strong></div>
 
       <div class="fld full">
-        <label>Remarks</label>
+        <label>{{ pt('Remarks') }}</label>
         <Textarea v-model="form.remarks" rows="2" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button label="Save Rating" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="pt('Save Rating')" :loading="saving" @click="save" />
       </template>
     </Dialog>
   </div>

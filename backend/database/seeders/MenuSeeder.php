@@ -120,7 +120,7 @@ class MenuSeeder extends Seeder
                     ['label' => 'Marketing Campaigns', 'icon' => 'pi pi-megaphone', 'to' => '/marketing-campaigns', 'permission' => 'marketing-campaigns.view'],
                     ['label' => 'Email Log', 'icon' => 'pi pi-envelope', 'to' => '/email-logs', 'permission' => 'email.view'],
                 ]],
-                ['label' => 'Field Sales', 'icon' => 'pi pi-map', 'module' => 'sales', 'children' => [
+                ['label' => 'Field Sales', 'icon' => 'pi pi-map', 'module' => 'field_sales', 'children' => [
                     ['label' => 'Salesmen', 'icon' => 'pi pi-user', 'to' => '/salesmen', 'permission' => 'salesmen.view'],
                     ['label' => 'Beat Plans & Routes', 'icon' => 'pi pi-directions', 'to' => '/beats', 'permission' => 'beats.view'],
                     ['label' => 'Daily Visit Plans', 'icon' => 'pi pi-calendar-clock', 'to' => '/salesman-visits', 'permission' => 'salesman-visits.view'],
@@ -130,7 +130,7 @@ class MenuSeeder extends Seeder
                     ['label' => 'Targets & Incentives', 'icon' => 'pi pi-flag', 'to' => '/salesman-targets', 'permission' => 'salesman-targets.view'],
                     ['label' => 'Reports', 'icon' => 'pi pi-chart-bar', 'to' => '/salesman-reports', 'permission' => 'salesmen.view'],
                 ]],
-                ['label' => 'E-Commerce', 'icon' => 'pi pi-globe', 'feature' => 'integrations', 'children' => [
+                ['label' => 'E-Commerce', 'icon' => 'pi pi-globe', 'feature' => 'integrations', 'module' => 'ecommerce', 'children' => [
                     ['label' => 'Integrations', 'icon' => 'pi pi-link', 'to' => '/ecommerce-integrations', 'permission' => 'ecommerce-integrations.view'],
                     ['label' => 'Marketplace Orders', 'icon' => 'pi pi-inbox', 'to' => '/channel-orders', 'permission' => 'channel-orders.view'],
                     ['label' => 'Channel Listings', 'icon' => 'pi pi-tags', 'to' => '/channel-listings', 'permission' => 'channel-listings.view'],
@@ -165,20 +165,24 @@ class MenuSeeder extends Seeder
                 ]],
             ]],
 
-            ['label' => 'Manufacturing', 'icon' => 'pi pi-cog', 'module' => 'manufacturing', 'children' => [
-                ['label' => 'Production', 'icon' => 'pi pi-cog', 'children' => [
+            // The top-level group carries no module tag on purpose: each shop-floor
+            // area below is its own module, and a group whose children are all
+            // hidden disappears anyway. That lets a tenant run e.g. Tailoring
+            // without switching on general Manufacturing.
+            ['label' => 'Manufacturing', 'icon' => 'pi pi-cog', 'children' => [
+                ['label' => 'Production', 'icon' => 'pi pi-cog', 'module' => 'manufacturing', 'children' => [
                     ['label' => 'Bills of Materials', 'icon' => 'pi pi-sitemap', 'to' => '/boms', 'permission' => 'boms.view'],
                     ['label' => 'Manufacturing Orders', 'icon' => 'pi pi-wrench', 'to' => '/manufacturing-orders', 'permission' => 'manufacturing-orders.view'],
                     ['label' => 'Colour Printing', 'icon' => 'pi pi-palette', 'to' => '/colour-printings', 'permission' => 'colour-printing.view'],
                     ['label' => 'Job Work', 'icon' => 'pi pi-briefcase', 'to' => '/job-works', 'permission' => 'job-works.view'],
                 ]],
-                ['label' => 'Textile', 'icon' => 'pi pi-th-large', 'children' => [
+                ['label' => 'Textile', 'icon' => 'pi pi-th-large', 'module' => 'textile', 'children' => [
                     ['label' => 'Fabric Rolls', 'icon' => 'pi pi-clone', 'to' => '/fabric-rolls', 'permission' => 'textile.view'],
                     ['label' => 'Fabric Inspection', 'icon' => 'pi pi-search', 'to' => '/fabric-inspections', 'permission' => 'textile.view'],
                     ['label' => 'Shrinkage Records', 'icon' => 'pi pi-arrows-h', 'to' => '/shrinkage-records', 'permission' => 'textile.view'],
                     ['label' => 'Fabric Cutting', 'icon' => 'pi pi-objects-column', 'to' => '/fabric-cuttings', 'permission' => 'textile.view'],
                 ]],
-                ['label' => 'Tailoring', 'icon' => 'pi pi-th-large', 'children' => [
+                ['label' => 'Tailoring', 'icon' => 'pi pi-th-large', 'module' => 'tailoring', 'children' => [
                     ['label' => 'Tailor Master', 'icon' => 'pi pi-user', 'to' => '/tailors', 'permission' => 'tailors.view'],
                     ['label' => 'Contractors', 'icon' => 'pi pi-users', 'to' => '/contractors', 'permission' => 'contractors.view'],
                     ['label' => 'Rate Card', 'icon' => 'pi pi-list', 'to' => '/rate-cards', 'permission' => 'rate-cards.view'],
@@ -191,7 +195,7 @@ class MenuSeeder extends Seeder
                     ['label' => 'Payment', 'icon' => 'pi pi-wallet', 'to' => '/tailor-payments', 'permission' => 'tailor-payments.view'],
                     ['label' => 'Tailor Ledger', 'icon' => 'pi pi-book', 'to' => '/tailors/ledger', 'permission' => 'tailors.view'],
                 ]],
-                ['label' => 'Embroidery', 'icon' => 'pi pi-star', 'children' => [
+                ['label' => 'Embroidery', 'icon' => 'pi pi-star', 'module' => 'embroidery', 'children' => [
                     ['label' => 'Vendor Master', 'icon' => 'pi pi-user', 'to' => '/embroidery-vendors', 'permission' => 'embroidery-vendors.view'],
                     ['label' => 'Pending Dispatch', 'icon' => 'pi pi-clock', 'to' => '/embroidery-works/pending', 'permission' => 'embroidery-works.view'],
                     ['label' => 'Received', 'icon' => 'pi pi-check-circle', 'to' => '/embroidery-works/received', 'permission' => 'embroidery-works.view'],
@@ -200,8 +204,10 @@ class MenuSeeder extends Seeder
                 ]],
             ]],
 
-            ['label' => 'Finance', 'icon' => 'pi pi-wallet', 'module' => 'accounts', 'children' => [
-                ['label' => 'Accounts', 'icon' => 'pi pi-wallet', 'children' => [
+            // Untagged container (see Manufacturing above): the books are the
+            // "accounts" module, GST filing is its own, so they toggle apart.
+            ['label' => 'Finance', 'icon' => 'pi pi-wallet', 'children' => [
+                ['label' => 'Accounts', 'icon' => 'pi pi-wallet', 'module' => 'accounts', 'children' => [
                     ['label' => 'Bank & Cash Accounts', 'icon' => 'pi pi-building', 'to' => '/bank-accounts', 'permission' => 'bank-accounts.view'],
                     ['label' => 'Vouchers', 'icon' => 'pi pi-file-edit', 'to' => '/vouchers', 'permission' => 'vouchers.view'],
                     ['label' => 'Cash Book', 'icon' => 'pi pi-money-bill', 'to' => '/accounts/cash-book', 'permission' => 'accounts.view'],
@@ -210,13 +216,13 @@ class MenuSeeder extends Seeder
                     ['label' => 'Day Book', 'icon' => 'pi pi-calendar', 'to' => '/accounts/day-book', 'permission' => 'accounts.view'],
                     ['label' => 'Petty Cash', 'icon' => 'pi pi-wallet', 'to' => '/accounts/petty-cash', 'permission' => 'accounts.view'],
                 ]],
-                ['label' => 'Ledgers', 'icon' => 'pi pi-book', 'children' => [
+                ['label' => 'Ledgers', 'icon' => 'pi pi-book', 'module' => 'accounts', 'children' => [
                     ['label' => 'Customer Ledger', 'icon' => 'pi pi-user', 'to' => '/accounts/customer-ledger', 'permission' => 'customers.view'],
                     ['label' => 'Supplier Ledger', 'icon' => 'pi pi-truck', 'to' => '/accounts/supplier-ledger', 'permission' => 'suppliers.view'],
                     ['label' => 'Broker Ledger', 'icon' => 'pi pi-user-plus', 'to' => '/brokers/ledger', 'permission' => 'brokers.view'],
                     ['label' => 'Expense Ledger', 'icon' => 'pi pi-receipt', 'to' => '/accounts/expense-ledger', 'permission' => 'expenses.view'],
                 ]],
-                ['label' => 'Expenses', 'icon' => 'pi pi-receipt', 'children' => [
+                ['label' => 'Expenses', 'icon' => 'pi pi-receipt', 'module' => 'accounts', 'children' => [
                     ['label' => 'Expenses', 'icon' => 'pi pi-receipt', 'to' => '/expenses', 'permission' => 'expenses.view'],
                     ['label' => 'Expense Categories', 'icon' => 'pi pi-tags', 'to' => '/expense-categories', 'permission' => 'expense-categories.view'],
                     ['label' => 'Employee Claims', 'icon' => 'pi pi-user', 'to' => '/employee-claims', 'permission' => 'employee-claims.view'],
@@ -227,16 +233,16 @@ class MenuSeeder extends Seeder
                     ['label' => 'Asset Maintenance', 'icon' => 'pi pi-cog', 'to' => '/asset-maintenances', 'permission' => 'asset-maintenances.view'],
                     ['label' => 'Assets', 'icon' => 'pi pi-box', 'to' => '/assets', 'permission' => 'assets.view'],
                 ]],
-                ['label' => 'Financial Reports', 'icon' => 'pi pi-chart-line', 'children' => [
+                ['label' => 'Financial Reports', 'icon' => 'pi pi-chart-line', 'module' => 'accounts', 'children' => [
                     ['label' => 'Trial Balance', 'icon' => 'pi pi-list', 'to' => '/accounts/trial-balance', 'permission' => 'accounts.view'],
                     ['label' => 'Profit & Loss', 'icon' => 'pi pi-chart-line', 'to' => '/accounts/profit-loss', 'permission' => 'accounts.view'],
                     ['label' => 'Balance Sheet', 'icon' => 'pi pi-book', 'to' => '/accounts/balance-sheet', 'permission' => 'accounts.view'],
                 ]],
-                ['label' => 'Payments', 'icon' => 'pi pi-credit-card', 'children' => [
+                ['label' => 'Payments', 'icon' => 'pi pi-credit-card', 'module' => 'accounts', 'children' => [
                     ['label' => 'Payment Links', 'icon' => 'pi pi-link', 'to' => '/payment-transactions', 'permission' => 'payments.view'],
                     ['label' => 'Payment Gateways', 'icon' => 'pi pi-credit-card', 'to' => '/payment-gateways', 'permission' => 'payment-gateways.view'],
                 ]],
-                ['label' => 'GST & Compliance', 'icon' => 'pi pi-verified', 'children' => [
+                ['label' => 'GST & Compliance', 'icon' => 'pi pi-verified', 'module' => 'gst', 'children' => [
                     ['label' => 'GST Registrations', 'icon' => 'pi pi-id-card', 'to' => '/gst-registrations', 'permission' => 'gst-registrations.view'],
                     ['label' => 'HSN/SAC Master', 'icon' => 'pi pi-list', 'to' => '/hsn-codes', 'permission' => 'hsn-codes.view'],
                     ['label' => 'GST Tools', 'icon' => 'pi pi-search', 'to' => '/gst-tools', 'permission' => 'hsn-codes.view'],
@@ -267,7 +273,7 @@ class MenuSeeder extends Seeder
                 ]],
             ]],
 
-            ['label' => 'Logistics', 'icon' => 'pi pi-truck', 'children' => [
+            ['label' => 'Logistics', 'icon' => 'pi pi-truck', 'module' => 'logistics', 'children' => [
                 ['label' => 'Vehicles', 'icon' => 'pi pi-car', 'to' => '/vehicles', 'permission' => 'vehicles.view'],
                 ['label' => 'Drivers', 'icon' => 'pi pi-id-card', 'to' => '/drivers', 'permission' => 'drivers.view'],
                 ['label' => 'Delivery Routes', 'icon' => 'pi pi-directions', 'to' => '/delivery-routes', 'permission' => 'delivery-routes.view'],
@@ -277,18 +283,18 @@ class MenuSeeder extends Seeder
             ]],
 
             ['label' => 'Reports', 'icon' => 'pi pi-chart-bar', 'feature' => 'reports', 'children' => [
-                ['label' => 'Sales Reports', 'icon' => 'pi pi-shopping-cart', 'children' => [
+                ['label' => 'Sales Reports', 'icon' => 'pi pi-shopping-cart', 'module' => 'sales', 'children' => [
                     ['label' => 'Sales', 'icon' => 'pi pi-shopping-cart', 'to' => '/reports/sales', 'permission' => 'reports.view'],
                     ['label' => 'Broker Commissions', 'icon' => 'pi pi-percentage', 'to' => '/reports/broker-commissions', 'permission' => 'reports.view'],
                     ['label' => 'Broker-wise Sales', 'icon' => 'pi pi-users', 'to' => '/reports/broker-wise-sales', 'permission' => 'reports.view'],
                     ['label' => 'Profitability', 'icon' => 'pi pi-chart-line', 'to' => '/reports/profitability', 'permission' => 'reports.view'],
                 ]],
-                ['label' => 'Purchase Reports', 'icon' => 'pi pi-shopping-bag', 'children' => [
+                ['label' => 'Purchase Reports', 'icon' => 'pi pi-shopping-bag', 'module' => 'purchase', 'children' => [
                     ['label' => 'Purchases', 'icon' => 'pi pi-file-edit', 'to' => '/reports/purchases', 'permission' => 'reports.view'],
                     ['label' => 'Vendor Performance', 'icon' => 'pi pi-star', 'to' => '/reports/vendor-performance', 'permission' => 'reports.view'],
                     ['label' => 'Payables / Pending', 'icon' => 'pi pi-wallet', 'to' => '/reports/payables', 'permission' => 'reports.view'],
                 ]],
-                ['label' => 'Inventory Reports', 'icon' => 'pi pi-warehouse', 'children' => [
+                ['label' => 'Inventory Reports', 'icon' => 'pi pi-warehouse', 'module' => 'inventory', 'children' => [
                     ['label' => 'Stock Overview', 'icon' => 'pi pi-database', 'to' => '/reports/stock-overview', 'permission' => 'reports.view'],
                     ['label' => 'Stock Movement', 'icon' => 'pi pi-history', 'to' => '/reports/stock-movement', 'permission' => 'reports.view'],
                     ['label' => 'Fast / Slow Moving', 'icon' => 'pi pi-gauge', 'to' => '/reports/fast-slow', 'permission' => 'reports.view'],
@@ -297,23 +303,23 @@ class MenuSeeder extends Seeder
                     ['label' => 'Slow Moving Stock', 'icon' => 'pi pi-arrow-down', 'to' => '/reports/slow-moving', 'permission' => 'reports.view'],
                     ['label' => 'Fast Moving Stock', 'icon' => 'pi pi-arrow-up', 'to' => '/reports/fast-moving', 'permission' => 'reports.view'],
                 ]],
-                ['label' => 'Finance Reports', 'icon' => 'pi pi-wallet', 'children' => [
+                ['label' => 'Finance Reports', 'icon' => 'pi pi-wallet', 'module' => 'accounts', 'children' => [
                     ['label' => 'Expenses', 'icon' => 'pi pi-money-bill', 'to' => '/reports/expenses', 'permission' => 'reports.view'],
                     ['label' => 'Customer Ledger', 'icon' => 'pi pi-book', 'to' => '/reports/customer-ledger', 'permission' => 'reports.view'],
                     ['label' => 'Supplier Ledger', 'icon' => 'pi pi-book', 'to' => '/reports/supplier-ledger', 'permission' => 'reports.view'],
                 ]],
-                ['label' => 'Manufacturing Reports', 'icon' => 'pi pi-cog', 'children' => [
+                ['label' => 'Manufacturing Reports', 'icon' => 'pi pi-cog', 'module' => 'manufacturing', 'children' => [
                     ['label' => 'Manufacturing', 'icon' => 'pi pi-cog', 'to' => '/reports/manufacturing', 'permission' => 'reports.view'],
                     ['label' => 'Production Cost', 'icon' => 'pi pi-calculator', 'to' => '/reports/production-cost', 'permission' => 'reports.view'],
                     ['label' => 'Tailor', 'icon' => 'pi pi-user', 'to' => '/reports/tailor', 'permission' => 'reports.view'],
                     ['label' => 'Embroidery', 'icon' => 'pi pi-palette', 'to' => '/reports/embroidery', 'permission' => 'reports.view'],
                     ['label' => 'Printing', 'icon' => 'pi pi-print', 'to' => '/reports/printing', 'permission' => 'reports.view'],
                 ]],
-                ['label' => 'HR Reports', 'icon' => 'pi pi-id-card', 'children' => [
+                ['label' => 'HR Reports', 'icon' => 'pi pi-id-card', 'module' => 'hrms', 'children' => [
                     // No HR report screens exist yet; the group stays hidden (a group
                     // with no visible children is dropped) until routes are added.
                 ]],
-                ['label' => 'GST Reports', 'icon' => 'pi pi-percentage', 'children' => [
+                ['label' => 'GST Reports', 'icon' => 'pi pi-percentage', 'module' => 'gst', 'children' => [
                     ['label' => 'GST / Tax', 'icon' => 'pi pi-percentage', 'to' => '/reports/gst', 'permission' => 'reports.view'],
                     ['label' => 'GST Summary (GSTR-3B)', 'icon' => 'pi pi-percentage', 'to' => '/reports/gst-summary', 'permission' => 'reports.view'],
                     ['label' => 'GSTR-1 (Outward)', 'icon' => 'pi pi-file-export', 'to' => '/reports/gstr1', 'permission' => 'reports.view'],

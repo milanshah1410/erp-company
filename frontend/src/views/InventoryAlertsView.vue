@@ -9,6 +9,7 @@ import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -110,10 +111,11 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Inventory Alerts</h1>
-      <Button v-if="canEdit" label="Scan Now" icon="pi pi-refresh" :loading="generating" @click="generate" />
-    </div>
+    <PageHeader title="Inventory Alerts">
+      <template #actions>
+        <Button v-if="canEdit" label="Scan Now" icon="pi pi-refresh" :loading="generating" @click="generate" />
+      </template>
+    </PageHeader>
     <p class="subtitle">Expiry and low-stock alerts, scanned daily (or on demand)</p>
 
     <div class="toolbar">

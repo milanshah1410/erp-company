@@ -16,6 +16,7 @@ import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -153,10 +154,11 @@ onMounted(reload)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Customer Categories</h1>
-      <Button v-if="canCreate" label="New Category" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Customer Categories">
+      <template #actions>
+        <Button v-if="canCreate" label="New Category" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <span class="search">

@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -184,10 +185,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Fabric Inspection</h1>
-      <Button v-if="canCreate" label="New Inspection" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Fabric Inspection" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" label="New Inspection" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
     <p class="subtitle">4-point system — defect points scored per 100 m² grade the fabric A / B / C.</p>
 
     <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.75rem;align-items:center;margin-bottom:1rem">

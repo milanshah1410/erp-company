@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
 import { useAuthStore } from '../stores/auth'
+import { SUPPORTED_LOCALES, setLocale } from '../i18n'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t, locale } = useI18n()
 
 const email = ref('admin@sims.test')
 const password = ref('password')
@@ -22,7 +25,7 @@ async function submit() {
     await auth.login(email.value, password.value)
     router.push('/')
   } catch (e: any) {
-    error.value = e.response?.data?.message || 'Login failed. Check your credentials.'
+    error.value = e.response?.data?.message || t('login.failed')
   } finally {
     loading.value = false
   }
@@ -35,28 +38,41 @@ async function submit() {
       <div class="brand">
         <div class="brand-icon"><i class="pi pi-box" /></div>
         <h1>SIMS</h1>
-        <p>Stock &amp; Inventory Management</p>
+        <p>{{ t('login.tagline') }}</p>
       </div>
       <div class="barcode-divider" />
+
+      <div class="lang-row">
+        <button
+          v-for="l in SUPPORTED_LOCALES"
+          :key="l.code"
+          type="button"
+          class="lang-btn"
+          :class="{ on: locale === l.code }"
+          @click="setLocale(l.code)"
+        >
+          {{ l.label }}
+        </button>
+      </div>
 
       <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
 
       <form @submit.prevent="submit">
-        <label>Email</label>
+        <label>{{ t('login.email') }}</label>
         <InputText v-model="email" type="email" placeholder="you@example.com" autocomplete="username" />
 
-        <label>Password</label>
+        <label>{{ t('login.password') }}</label>
         <Password v-model="password" :feedback="false" toggleMask inputClass="w-full" placeholder="••••••••" />
 
-        <Button type="submit" label="Sign In" :loading="loading" class="submit" />
+        <Button type="submit" :label="t('login.signIn')" :loading="loading" class="submit" />
       </form>
 
       <p class="signup">
-        Don't have an account?
-        <RouterLink to="/register">Create one</RouterLink>
+        {{ t('login.noAccount') }}
+        <RouterLink to="/register">{{ t('login.createOne') }}</RouterLink>
       </p>
 
-      <p class="hint">Default admin: <code>admin@sims.test</code> / <code>password</code></p>
+      <p class="hint">{{ t('login.defaultAdmin') }} <code>admin@sims.test</code> / <code>password</code></p>
     </div>
   </div>
 </template>
@@ -109,6 +125,28 @@ async function submit() {
 }
 .barcode-divider {
   margin-bottom: 1.25rem;
+}
+.lang-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.lang-btn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #6b7280;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.lang-btn.on {
+  border-color: #e8a33d;
+  background: #fdf7ec;
+  color: #a06a27;
+  font-weight: 600;
 }
 form {
   display: flex;

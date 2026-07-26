@@ -7,6 +7,7 @@ import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const entries = ref<any[]>([])
 const summary = ref<any>(null)
@@ -58,9 +59,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Bank Book</h1>
-    </div>
+    <PageHeader title="Bank Book" />
 
     <div class="filters">
       <Select v-model="bankAccountId" :options="accounts" optionLabel="label" optionValue="value"

@@ -14,6 +14,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -140,10 +141,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Fabric Cutting</h1>
-      <Button v-if="canCreate && tab === 'cuttings'" label="New Cutting" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Fabric Cutting" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate && tab === 'cuttings'" label="New Cutting" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="tabbar">
       <button v-for="t in tabs" :key="t.key" class="tab" :class="{ active: tab === t.key }" @click="switchTab(t.key)">

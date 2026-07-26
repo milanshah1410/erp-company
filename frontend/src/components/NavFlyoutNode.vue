@@ -2,6 +2,7 @@
 import { ref, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMenuStore, type MenuNode } from '../stores/menu'
+import { useMenuLabel } from '../i18n/menuLabels'
 
 /**
  * One node inside the top-menu flyout. Renders recursively so the menu can be
@@ -22,6 +23,7 @@ const emit = defineEmits<{ (e: 'navigate'): void }>()
 
 const route = useRoute()
 const menuStore = useMenuStore()
+const tMenu = useMenuLabel()
 
 function isGroup(n: MenuNode): boolean {
   return n.to === null && Array.isArray(n.children) && n.children.length > 0
@@ -138,7 +140,7 @@ async function toggleFavorite(e: MouseEvent, item: MenuNode) {
   <div v-if="!isGroup(node)" class="flyout-row">
     <RouterLink :to="node.to!" class="flyout-item" @click="onLeafClick">
       <i :class="node.icon" />
-      <span>{{ node.label }}</span>
+      <span>{{ tMenu(node.label) }}</span>
     </RouterLink>
     <button
       v-if="node.id"
@@ -160,11 +162,11 @@ async function toggleFavorite(e: MouseEvent, item: MenuNode) {
       @click="toggleSubmenu"
     >
       <i :class="node.icon" class="group-icon" />
-      <span>{{ node.label }}</span>
+      <span>{{ tMenu(node.label) }}</span>
       <i :class="side === 'left' && open ? 'pi pi-chevron-left' : 'pi pi-chevron-right'" class="chev" />
     </button>
     <div v-if="open" ref="panelEl" class="flyout-panel" :class="side === 'right' ? 'join-left' : 'join-right'" :style="panelStyle">
-      <div class="flyout-panel-title">{{ node.label }}</div>
+      <div class="flyout-panel-title">{{ tMenu(node.label) }}</div>
       <NavFlyoutNode
         v-for="child in node.children"
         :key="child.id ?? child.to ?? child.label"

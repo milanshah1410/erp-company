@@ -16,6 +16,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -157,10 +158,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Users</h1>
-      <Button v-if="canCreate" label="New User" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Users" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" label="New User" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <span class="search">

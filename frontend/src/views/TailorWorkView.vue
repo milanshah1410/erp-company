@@ -19,6 +19,7 @@ import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const route = useRoute()
 
@@ -244,10 +245,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>{{ isPending ? 'Pending Work' : 'Completed Work' }}</h1>
-      <Button v-if="isPending && canCreate" label="Issue Work" icon="pi pi-plus" @click="openIssue" />
-    </div>
+    <PageHeader :title="isPending ? 'Pending Work' : 'Completed Work'">
+      <template #actions>
+        <Button v-if="isPending && canCreate" label="Issue Work" icon="pi pi-plus" @click="openIssue" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <span class="search">

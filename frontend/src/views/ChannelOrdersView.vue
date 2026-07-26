@@ -14,7 +14,10 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
+const pt = usePt()
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/channel-orders')
@@ -25,12 +28,12 @@ const integrations = ref<any[]>([])
 const integrationFilter = ref<number | null>(null)
 const statusFilter = ref<string | null>('pending')
 const search = ref('')
-const statusOptions = [
-  { label: 'Pending', value: 'pending' },
-  { label: 'Imported', value: 'imported' },
-  { label: 'Ignored', value: 'ignored' },
-  { label: 'Failed', value: 'failed' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Pending'), value: 'pending' },
+  { label: pt('Imported'), value: 'imported' },
+  { label: pt('Ignored'), value: 'ignored' },
+  { label: pt('Failed'), value: 'failed' },
+])
 const importColors: Record<string, string> = { pending: 'warn', imported: 'success', ignored: 'secondary', failed: 'danger' }
 
 async function loadIntegrations() {
@@ -61,35 +64,35 @@ async function openDetail(row: any) {
     const { data } = await http.get(`/channel-orders/${row.id}`)
     detail.value = data.data
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load order', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load order'), life: 3000 })
   }
 }
 
 async function importOrder(row: any) {
   const res = await Swal.fire({
-    title: `Import ${row.external_order_number || row.external_order_id}?`,
-    text: 'Creates a sales order on the e-commerce channel and reserves available stock. Map the listings first if items are unmatched.',
-    icon: 'question', showCancelButton: true, confirmButtonText: 'Import',
+    title: pt('Import {number}?', { number: row.external_order_number || row.external_order_id }),
+    text: pt('Creates a sales order on the e-commerce channel and reserves available stock. Map the listings first if items are unmatched.'),
+    icon: 'question', showCancelButton: true, confirmButtonText: pt('Import'), cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     const { data } = await http.post(`/channel-orders/${row.id}/import`)
-    toast.add({ severity: 'success', summary: 'Imported', detail: data.message, life: 4000 })
+    toast.add({ severity: 'success', summary: pt('Imported'), detail: data.message, life: 4000 })
     detailVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Import failed', detail: e.response?.data?.message || 'Failed', life: 7000 })
+    toast.add({ severity: 'error', summary: pt('Import failed'), detail: e.response?.data?.message || pt('Failed'), life: 7000 })
   }
 }
 
 async function ignoreOrder(row: any) {
   try {
     await http.post(`/channel-orders/${row.id}/ignore`)
-    toast.add({ severity: 'success', summary: 'Ignored', life: 2000 })
+    toast.add({ severity: 'success', summary: pt('Ignored'), life: 2000 })
     detailVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
@@ -109,85 +112,86 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Marketplace Orders</h1>
-      <div class="header-actions">
+    <PageHeader :title="pt('Marketplace Orders')" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
         </span>
-        <Button label="Search" outlined @click="reload" />
+        <Button :label="pt('Search')" outlined @click="reload" />
         <Select v-model="integrationFilter" :options="integrations" optionLabel="name" optionValue="id" showClear
-          placeholder="All channels" class="filter" @change="reload" />
+        :placeholder="pt('All channels')" class="filter" @change="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" class="filter" @change="reload" />
-        <TableExportButtons title="Marketplace Orders" endpoint="/channel-orders" :params="() => ({
-          ...(search ? { search } : {}),
-          ...(integrationFilter ? { channel_integration_id: integrationFilter } : {}),
-          ...(statusFilter ? { import_status: statusFilter } : {}),
+        :placeholder="pt('All statuses')" class="filter" @change="reload" />
+        <TableExportButtons :title="pt('Marketplace Orders')" endpoint="/channel-orders" :params="() => ({
+        ...(search ? { search } : {}),
+        ...(integrationFilter ? { channel_integration_id: integrationFilter } : {}),
+        ...(statusFilter ? { import_status: statusFilter } : {}),
         })" :columns="[
-          { key: 'external_order_number', label: 'Order #' },
-          { key: 'integration.platform', label: 'Channel' },
-          { key: 'customer_name', label: 'Buyer' },
-          { key: 'placed_at', label: 'Placed' },
-          { key: 'items.length', label: 'Items' },
-          { key: 'total', label: 'Total' },
-          { key: 'import_status', label: 'Status' },
+        { key: 'external_order_number', label: pt('Order #') },
+        { key: 'integration.platform', label: pt('Channel') },
+        { key: 'customer_name', label: pt('Buyer') },
+        { key: 'placed_at', label: pt('Placed') },
+        { key: 'items.length', label: pt('Items') },
+        { key: 'total', label: pt('Total') },
+        { key: 'import_status', label: pt('Status') },
         ]" />
-        <Button icon="pi pi-refresh" text rounded @click="reload" title="Refresh" />
-      </div>
-    </div>
+        <Button icon="pi pi-refresh" text rounded @click="reload" :title="pt('Refresh')" />
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column header="Order #">
+      <Column :header="pt('Order #')">
         <template #body="{ data }">
           <strong>{{ data.external_order_number || data.external_order_id }}</strong>
         </template>
       </Column>
-      <Column header="Channel">
+      <Column :header="pt('Channel')">
         <template #body="{ data }"><span class="cap">{{ data.integration?.platform }}</span></template>
       </Column>
-      <Column field="customer_name" header="Buyer" />
-      <Column header="Placed">
+      <Column field="customer_name" :header="pt('Buyer')" />
+      <Column :header="pt('Placed')">
         <template #body="{ data }">{{ data.placed_at ? new Date(data.placed_at).toLocaleDateString() : '—' }}</template>
       </Column>
-      <Column header="Items"><template #body="{ data }">{{ data.items?.length ?? 0 }}</template></Column>
-      <Column header="Total"><template #body="{ data }">{{ money(data.total) }}</template></Column>
-      <Column header="Status">
+      <Column :header="pt('Items')"><template #body="{ data }">{{ data.items?.length ?? 0 }}</template></Column>
+      <Column :header="pt('Total')"><template #body="{ data }">{{ money(data.total) }}</template></Column>
+      <Column :header="pt('Status')">
         <template #body="{ data }">
           <Tag :severity="importColors[data.import_status]" :value="data.import_status" />
           <div v-if="data.sales_order" class="linked">→ {{ data.sales_order.so_number }}</div>
         </template>
       </Column>
-      <Column header="Actions" style="width: 15rem">
+      <Column :header="pt('Actions')" style="width: 15rem">
         <template #body="{ data }">
-          <Button label="View" size="small" text @click="openDetail(data)" />
+          <Button :label="pt('View')" size="small" text @click="openDetail(data)" />
           <template v-if="data.import_status === 'pending' || data.import_status === 'failed'">
-            <Button label="Import" size="small" severity="success" outlined :disabled="!canImport" @click="importOrder(data)" />
-            <Button label="Ignore" size="small" text severity="secondary" :disabled="!canEdit" @click="ignoreOrder(data)" />
+            <Button :label="pt('Import')" size="small" severity="success" outlined :disabled="!canImport" @click="importOrder(data)" />
+            <Button :label="pt('Ignore')" size="small" text severity="secondary" :disabled="!canEdit" @click="ignoreOrder(data)" />
           </template>
         </template>
       </Column>
-      <template #empty>No marketplace orders. Run a sync from the E-commerce Integration screen.</template>
+      <template #empty>{{ pt('No marketplace orders. Run a sync from the E-commerce Integration screen.') }}</template>
     </DataTable>
 
-    <Dialog v-model:visible="detailVisible" modal header="Marketplace Order" :style="{ width: '720px' }">
-      <div v-if="!detail" class="muted">Loading…</div>
+    <Dialog v-model:visible="detailVisible" modal :header="pt('Marketplace Order')" :style="{ width: '720px' }">
+      <div v-if="!detail" class="muted">{{ pt('Loading…') }}</div>
       <div v-else>
         <div class="detail-top">
-          <div class="d-cell"><span class="d-label">Order #</span><span class="d-value">{{ detail.external_order_number || detail.external_order_id }}</span></div>
-          <div class="d-cell"><span class="d-label">Channel</span><span class="d-value cap">{{ detail.integration?.platform }}</span></div>
-          <div class="d-cell"><span class="d-label">Status</span><span class="d-value"><Tag :severity="importColors[detail.import_status]" :value="detail.import_status" /></span></div>
-          <div class="d-cell"><span class="d-label">Buyer</span><span class="d-value">{{ detail.customer_name || '—' }}</span></div>
-          <div class="d-cell"><span class="d-label">Phone</span><span class="d-value">{{ detail.customer_phone || '—' }}</span></div>
-          <div class="d-cell"><span class="d-label">Payment</span><span class="d-value">{{ detail.financial_status || '—' }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Order #') }}</span><span class="d-value">{{ detail.external_order_number || detail.external_order_id }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Channel') }}</span><span class="d-value cap">{{ detail.integration?.platform }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Status') }}</span><span class="d-value"><Tag :severity="importColors[detail.import_status]" :value="detail.import_status" /></span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Buyer') }}</span><span class="d-value">{{ detail.customer_name || '—' }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Phone') }}</span><span class="d-value">{{ detail.customer_phone || '—' }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Payment') }}</span><span class="d-value">{{ detail.financial_status || '—' }}</span></div>
         </div>
-        <p class="ship"><strong>Ship to:</strong> {{ addr(detail.shipping_address) }}</p>
-        <p v-if="detail.import_error" class="notes err"><strong>Import error:</strong> {{ detail.import_error }}</p>
+        <p class="ship"><strong>{{ pt('Ship to:') }}</strong> {{ addr(detail.shipping_address) }}</p>
+        <p v-if="detail.import_error" class="notes err"><strong>{{ pt('Import error:') }}</strong> {{ detail.import_error }}</p>
 
         <table class="lines">
-          <thead><tr><th style="width: 45%">Item</th><th>SKU</th><th>Qty</th><th>Price</th></tr></thead>
+          <thead><tr><th style="width: 45%">{{ pt('Item') }}</th><th>{{ pt('SKU') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Price') }}</th></tr></thead>
           <tbody>
             <tr v-for="(i, idx) in detail.items" :key="idx">
               <td>{{ i.name }}</td>
@@ -199,10 +203,10 @@ onMounted(async () => {
         </table>
       </div>
       <template #footer>
-        <Button label="Close" text @click="detailVisible = false" />
+        <Button :label="pt('Close')" text @click="detailVisible = false" />
         <template v-if="detail && (detail.import_status === 'pending' || detail.import_status === 'failed')">
-          <Button label="Ignore" text severity="secondary" :disabled="!canEdit" @click="ignoreOrder(detail)" />
-          <Button label="Import" severity="success" :disabled="!canImport" @click="importOrder(detail)" />
+          <Button :label="pt('Ignore')" text severity="secondary" :disabled="!canEdit" @click="ignoreOrder(detail)" />
+          <Button :label="pt('Import')" severity="success" :disabled="!canImport" @click="importOrder(detail)" />
         </template>
       </template>
     </Dialog>

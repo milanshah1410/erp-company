@@ -8,6 +8,7 @@ import Button from 'primevue/button'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -44,8 +45,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <h1>Dead Stock / Slow-Moving Report</h1>
-    <p class="subtitle">On-hand stock with no outward movement in the selected window</p>
+    <PageHeader title="Dead Stock / Slow-Moving Report" subtitle="On-hand stock with no outward movement in the selected window" />
 
     <div class="toolbar">
       <label>Idle for at least</label>

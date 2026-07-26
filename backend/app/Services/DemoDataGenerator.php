@@ -10,6 +10,7 @@ use App\Models\Attendance;
 use App\Models\BankAccount;
 use App\Models\Batch;
 use App\Models\Beat;
+use App\Models\Bom;
 use App\Models\BiometricDevice;
 use App\Models\BiometricPunch;
 use App\Models\Branch;
@@ -26,19 +27,25 @@ use App\Models\Contractor;
 use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\CustomerCategory;
+use App\Models\CycleCount;
 use App\Models\DeliveryRoute;
 use App\Models\Department;
+use App\Models\DispatchItem;
+use App\Models\DispatchPlan;
 use App\Models\Driver;
 use App\Models\ElectricityBill;
 use App\Models\EmailLog;
 use App\Models\EmbroideryPayment;
 use App\Models\EmbroideryVendor;
+use App\Models\EmbroideryWork;
 use App\Models\Employee;
 use App\Models\EmployeeBonus;
 use App\Models\EmployeeClaim;
 use App\Models\EmployeeLoan;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\FabricCutting;
+use App\Models\FabricInspection;
 use App\Models\FabricRoll;
 use App\Models\FactoryMaintenance;
 use App\Models\FollowUp;
@@ -47,14 +54,18 @@ use App\Models\GateEntry;
 use App\Models\GstRegistration;
 use App\Models\HsnCode;
 use App\Models\Invoice;
+use App\Models\JobWork;
 use App\Models\Lead;
 use App\Models\LeaveApplication;
 use App\Models\LeaveType;
+use App\Models\LoanRepayment;
+use App\Models\ManufacturingOrder;
 use App\Models\MarketingCampaign;
 use App\Models\OvertimeRecord;
 use App\Models\Payment;
 use App\Models\PaymentGatewayAccount;
 use App\Models\PaymentTransaction;
+use App\Models\PieceRate;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\PurchaseIndent;
@@ -74,11 +85,14 @@ use App\Models\SerialNumber;
 use App\Models\ShrinkageRecord;
 use App\Models\SmsMessage;
 use App\Models\StockAdjustment;
+use App\Models\StockReturn;
+use App\Models\StockTransfer;
 use App\Models\Supplier;
 use App\Models\Tailor;
 use App\Models\TailorAlteration;
 use App\Models\TailorBonus;
 use App\Models\TailorPayment;
+use App\Models\TailorWork;
 use App\Models\TdsTcsRate;
 use App\Models\TransportCharge;
 use App\Models\Unit;
@@ -156,22 +170,33 @@ class DemoDataGenerator
         'vendor_ratings' => 'Vendor Ratings',
         // Inventory
         'stock_adjustments' => 'Stock Adjustments',
+        'stock_transfers' => 'Stock Transfers',
+        'stock_returns' => 'Stock Returns (Inward)',
         'gate_entries' => 'Gate Entries',
+        'cycle_counts' => 'Cycle Counts',
         'batches' => 'Batches',
         'serial_numbers' => 'Serial Numbers',
         // Manufacturing & Textile
+        'boms' => 'Bills of Materials',
+        'manufacturing_orders' => 'Manufacturing Orders',
         'colour_printings' => 'Colour Printing',
+        'job_works' => 'Job Work',
         'fabric_rolls' => 'Fabric Rolls',
+        'fabric_inspections' => 'Fabric Inspection',
         'shrinkage_records' => 'Shrinkage Records',
+        'fabric_cuttings' => 'Fabric Cutting',
         // Tailoring
         'contractors' => 'Contractors',
         'tailors' => 'Tailors',
         'rate_cards' => 'Rate Cards',
+        'piece_rates' => 'Piece Rates',
+        'tailor_works' => 'Pending Work (Tailor)',
         'tailor_alterations' => 'Tailor Alterations',
         'tailor_bonuses' => 'Tailor Bonuses',
         'tailor_payments' => 'Tailor Payments',
         // Embroidery
         'embroidery_vendors' => 'Embroidery Vendors',
+        'embroidery_works' => 'Pending Dispatch (Embroidery)',
         'embroidery_payments' => 'Embroidery Payments',
         // Accounts & Finance
         'bank_accounts' => 'Bank Accounts',
@@ -205,6 +230,8 @@ class DemoDataGenerator
         'vehicles' => 'Vehicles',
         'drivers' => 'Drivers',
         'delivery_routes' => 'Delivery Routes',
+        'dispatch_plans' => 'Dispatch Planning',
+        'dispatch_pods' => 'Proof of Delivery',
         'transport_charges' => 'Transport Charges',
         // E-commerce
         'channel_integrations' => 'E-commerce Integrations',
@@ -220,9 +247,29 @@ class DemoDataGenerator
         'expenses' => 'Expenses',
     ];
 
+    /** Quick volumes, generated inline within the request. */
     public const COUNTS = [10, 20, 50];
 
+    /**
+     * Bulk volumes offered separately in the UI. These are far too slow to run
+     * inline, so DemoDataController always pushes them onto the queue.
+     */
+    public const BULK_COUNTS = [1_000, 100_000, 1_000_000];
+
     private const CHUNK = 500;
+
+    /**
+     * Every volume the generator accepts (quick + bulk).
+     *
+     * @return list<int>
+     */
+    public static function allCounts(): array
+    {
+        return array_merge(self::COUNTS, self::BULK_COUNTS);
+    }
+
+    /** Consignments per carrier plan when generating Proof-of-Delivery rows. */
+    private const POD_DROPS_PER_PLAN = 3;
 
     /** User id stamped as creator on records that require one (e.g. expenses). */
     public function __construct(private ?int $createdBy = null) {}
@@ -265,7 +312,7 @@ class DemoDataGenerator
      */
     public function generate(array $modules, int $count): array
     {
-        $count = in_array($count, self::COUNTS, true) ? $count : self::COUNTS[0];
+        $count = in_array($count, self::allCounts(), true) ? $count : self::COUNTS[0];
         $created = [];
 
         foreach ($modules as $module) {
@@ -310,22 +357,33 @@ class DemoDataGenerator
                 'vendor_ratings' => $this->makeVendorRatings($count),
                 // Inventory
                 'stock_adjustments' => $this->makeStockAdjustments($count),
+                'stock_transfers' => $this->makeStockTransfers($count),
+                'stock_returns' => $this->makeStockReturns($count),
                 'gate_entries' => $this->makeGateEntries($count),
+                'cycle_counts' => $this->makeCycleCounts($count),
                 'batches' => $this->makeStockItems($count, 'batch'),
                 'serial_numbers' => $this->makeStockItems($count, 'serial'),
                 // Manufacturing & textile
+                'boms' => $this->makeBoms($count),
+                'manufacturing_orders' => $this->makeManufacturingOrders($count),
                 'colour_printings' => $this->makeColourPrintings($count),
+                'job_works' => $this->makeJobWorks($count),
                 'fabric_rolls' => $this->makeStockItems($count, 'fabric_roll'),
+                'fabric_inspections' => $this->makeFabricInspections($count),
                 'shrinkage_records' => $this->make($count, fn (int $i) => $this->shrinkageRow($i), ShrinkageRecord::class),
+                'fabric_cuttings' => $this->makeFabricCuttings($count),
                 // Tailoring
                 'contractors' => $this->make($count, fn (int $i) => $this->contractorRow($i), Contractor::class),
                 'tailors' => $this->make($count, fn (int $i) => $this->tailorRow($i), Tailor::class),
                 'rate_cards' => $this->makeRateCards($count),
+                'piece_rates' => $this->makePieceRates($count),
+                'tailor_works' => $this->makeTailorWorks($count),
                 'tailor_alterations' => $this->make($count, fn (int $i) => $this->tailorAlterationRow($i), TailorAlteration::class),
                 'tailor_bonuses' => $this->makeTailorLedger($count, 'bonus'),
                 'tailor_payments' => $this->makeTailorLedger($count, 'payment'),
                 // Embroidery
                 'embroidery_vendors' => $this->make($count, fn (int $i) => $this->embroideryVendorRow($i), EmbroideryVendor::class),
+                'embroidery_works' => $this->makeEmbroideryWorks($count),
                 'embroidery_payments' => $this->makeEmbroideryPayments($count),
                 // Accounts & finance
                 'bank_accounts' => $this->make($count, fn (int $i) => $this->bankAccountRow($i), BankAccount::class),
@@ -350,7 +408,7 @@ class DemoDataGenerator
                 'overtime_records' => $this->makeEmployeeDocs($count, 'overtime'),
                 'employee_bonuses' => $this->makeEmployeeDocs($count, 'bonus'),
                 'salary_advances' => $this->makeEmployeeDocs($count, 'advance'),
-                'employee_loans' => $this->makeEmployeeDocs($count, 'loan'),
+                'employee_loans' => $this->makeEmployeeLoans($count),
                 'salary_structures' => $this->makeEmployeeDocs($count, 'structure'),
                 'salaries' => $this->makeEmployeeDocs($count, 'salary'),
                 'leave_applications' => $this->makeLeaveApplications($count),
@@ -359,6 +417,8 @@ class DemoDataGenerator
                 'vehicles' => $this->make($count, fn (int $i) => $this->vehicleRow($i), Vehicle::class),
                 'drivers' => $this->make($count, fn (int $i) => $this->driverRow($i), Driver::class),
                 'delivery_routes' => $this->make($count, fn (int $i) => $this->deliveryRouteRow($i), DeliveryRoute::class),
+                'dispatch_plans' => $this->makeDispatchPlans($count),
+                'dispatch_pods' => $this->makeDispatchPods($count),
                 'transport_charges' => $this->make($count, fn (int $i) => $this->transportChargeRow($i), TransportCharge::class),
                 // E-commerce
                 'channel_integrations' => $this->make($count, fn (int $i) => $this->channelIntegrationRow($i), ChannelIntegration::class),
@@ -1732,6 +1792,173 @@ class DemoDataGenerator
         return $made;
     }
 
+    /**
+     * Inter-warehouse transfers with 1–3 item lines, cycling draft →
+     * in_transit → received → cancelled. from/to are always different
+     * warehouses, so needs at least two of them plus products. Like the other
+     * inventory generators this writes documents only — it does not post stock
+     * movements, so warehouse balances stay untouched.
+     */
+    private function makeStockTransfers(int $count): int
+    {
+        $warehouseIds = Warehouse::pluck('id')->all();
+        $productIds = Product::pluck('id')->all();
+        if (count($warehouseIds) < 2 || empty($productIds)) {
+            return 0;
+        }
+        $userId = $this->createdBy;
+        $warehouseCount = count($warehouseIds);
+        $productCount = count($productIds);
+        $offset = (int) StockTransfer::count();
+
+        return $this->makeChunked($count, function (int $k) use (
+            $warehouseIds, $warehouseCount, $productIds, $productCount, $userId, $offset
+        ) {
+            $i = $offset + $k;
+            $status = ['draft', 'in_transit', 'in_transit', 'received', 'cancelled'][$i % 5];
+            $dispatched = in_array($status, ['in_transit', 'received'], true);
+            $date = now()->subDays($i % 90);
+
+            $transfer = StockTransfer::create([
+                'transfer_number' => 'DTRF-' . $this->suffix($i) . '-' . $i,
+                'from_warehouse_id' => $warehouseIds[$i % $warehouseCount],
+                // +1 (mod) guarantees a different destination warehouse.
+                'to_warehouse_id' => $warehouseIds[($i + 1) % $warehouseCount],
+                'status' => $status,
+                'transfer_date' => $date->toDateString(),
+                'received_date' => $status === 'received' ? $date->copy()->addDays(2)->toDateString() : null,
+                'notes' => 'Demo stock transfer',
+                'created_by' => $userId,
+                'dispatched_by' => $dispatched ? $userId : null,
+                'received_by' => $status === 'received' ? $userId : null,
+            ]);
+
+            $lines = [];
+            for ($l = 0; $l < ($i % 3) + 1; $l++) {
+                $lines[] = [
+                    'product_id' => $productIds[($i + $l) % $productCount],
+                    'quantity' => ($i + $l) % 20 + 1,
+                    'unit_cost' => (($i + $l) % 50 + 5) * 10,
+                ];
+            }
+            $transfer->items()->createMany($lines);
+        });
+    }
+
+    /**
+     * Inward stock returns — goods coming back into a warehouse, either a
+     * customer return or a vendor return (which carries a debit note number),
+     * cycling draft → approved → cancelled with per-line return reasons. Needs
+     * warehouses and products; the customer/supplier reference is filled when
+     * those masters exist.
+     */
+    private function makeStockReturns(int $count): int
+    {
+        $warehouseIds = Warehouse::pluck('id')->all();
+        $productIds = Product::pluck('id')->all();
+        if (empty($warehouseIds) || empty($productIds)) {
+            return 0;
+        }
+        $customerIds = Customer::pluck('id')->all();
+        $supplierIds = Supplier::pluck('id')->all();
+        $reasons = ['Damaged in transit', 'Wrong size supplied', 'Quality rejected', 'Excess quantity', 'Customer changed mind'];
+        $userId = $this->createdBy;
+        $productCount = count($productIds);
+        $offset = (int) StockReturn::count();
+
+        return $this->makeChunked($count, function (int $k) use (
+            $warehouseIds, $productIds, $productCount, $customerIds, $supplierIds, $reasons, $userId, $offset
+        ) {
+            $i = $offset + $k;
+            // Vendor returns only make sense when there are suppliers to cite.
+            $type = ($i % 3 === 2 && $supplierIds) ? 'vendor_return' : ($customerIds ? 'customer_return' : 'other');
+            $status = ['draft', 'approved', 'approved', 'cancelled'][$i % 4];
+            $date = now()->subDays($i % 120);
+
+            $return = StockReturn::create([
+                'return_number' => 'DSR-' . $this->suffix($i) . '-' . $i,
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'return_type' => $type,
+                'customer_id' => $type === 'customer_return' ? $customerIds[$i % count($customerIds)] : null,
+                'supplier_id' => $type === 'vendor_return' ? $supplierIds[$i % count($supplierIds)] : null,
+                'debit_note_number' => $type === 'vendor_return' ? 'DDN-' . $this->suffix($i) . '-' . $i : null,
+                'status' => $status,
+                'return_date' => $date->toDateString(),
+                'notes' => 'Demo inward stock return',
+                'created_by' => $userId,
+                'approved_by' => $status === 'approved' ? $userId : null,
+                'approved_at' => $status === 'approved' ? $date->copy()->addDay() : null,
+            ]);
+
+            $lines = [];
+            for ($l = 0; $l < ($i % 3) + 1; $l++) {
+                $lines[] = [
+                    'product_id' => $productIds[($i + $l) % $productCount],
+                    'quantity' => ($i + $l) % 10 + 1,
+                    'unit_cost' => (($i + $l) % 50 + 5) * 10,
+                    'reason' => $reasons[($i + $l) % count($reasons)],
+                ];
+            }
+            $return->items()->createMany($lines);
+        });
+    }
+
+    /**
+     * Cycle counts (physical stock verification): 2–5 counted products per
+     * sheet with the system quantity, the counted quantity and the resulting
+     * variance — some short, some over, most matching — across draft →
+     * completed → cancelled. Needs warehouses and products.
+     */
+    private function makeCycleCounts(int $count): int
+    {
+        $warehouseIds = Warehouse::pluck('id')->all();
+        $productIds = Product::pluck('id')->all();
+        if (empty($warehouseIds) || empty($productIds)) {
+            return 0;
+        }
+        $userId = $this->createdBy;
+        $productCount = count($productIds);
+        $offset = (int) CycleCount::count();
+
+        return $this->makeChunked($count, function (int $k) use ($warehouseIds, $productIds, $productCount, $userId, $offset) {
+            $i = $offset + $k;
+            $status = ['draft', 'completed', 'completed', 'cancelled'][$i % 4];
+            $date = now()->subDays($i % 90);
+
+            $sheet = CycleCount::create([
+                'count_number' => 'DCC-' . $this->suffix($i) . '-' . $i,
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'status' => $status,
+                'count_date' => $date->toDateString(),
+                'notes' => 'Demo cycle count',
+                'created_by' => $userId,
+                'completed_by' => $status === 'completed' ? $userId : null,
+                'completed_at' => $status === 'completed' ? $date->copy()->addHours(6) : null,
+            ]);
+
+            $lines = [];
+            for ($l = 0; $l < ($i % 4) + 2; $l++) {
+                $systemQty = ($i + $l) % 40 + 10;
+                // Every third line is off by a little — the point of counting.
+                $delta = match (($i + $l) % 3) {
+                    0 => 0,
+                    1 => -(($i + $l) % 3 + 1),
+                    default => ($i + $l) % 2 + 1,
+                };
+                $countedQty = $status === 'draft' ? 0 : $systemQty + $delta;
+                $lines[] = [
+                    'product_id' => $productIds[($i + $l) % $productCount],
+                    'system_quantity' => $systemQty,
+                    'counted_quantity' => $countedQty,
+                    'variance' => $status === 'draft' ? 0 : $countedQty - $systemQty,
+                    'unit_cost' => (($i + $l) % 50 + 5) * 10,
+                    'notes' => $delta === 0 ? null : ($delta < 0 ? 'Short on shelf' : 'Extra found in bin'),
+                ];
+            }
+            $sheet->items()->createMany($lines);
+        });
+    }
+
     private function makeGateEntries(int $count): int
     {
         $warehouseIds = Warehouse::pluck('id')->all();
@@ -1801,6 +2028,497 @@ class DemoDataGenerator
         }, $model);
     }
 
+    /**
+     * Bills of Materials: a finished-good header plus 2–4 component lines drawn
+     * from the other products, with the header's material_cost rolled up from
+     * the lines. Needs at least two products; returns 0 otherwise.
+     */
+    private function makeBoms(int $count): int
+    {
+        $products = Product::select('id', 'name', 'cost_price')->get();
+        if ($products->count() < 2) {
+            return 0;
+        }
+        $userId = $this->createdBy;
+        $n = $products->count();
+        $offset = (int) Bom::count();
+
+        return $this->makeChunked($count, function (int $k) use ($products, $n, $userId, $offset) {
+            $i = $offset + $k;
+            $output = $products[$i % $n];
+            $lines = [];
+            $materialCost = 0.0;
+
+            for ($c = 1; $c <= ($i % 3) + 2; $c++) {
+                $component = $products[($i + $c) % $n];
+                $quantity = round(($c % 4 + 1) * 0.5, 3);
+                $unitCost = (float) ($component->cost_price ?: 50);
+                $totalCost = round($quantity * $unitCost, 2);
+                $materialCost += $totalCost;
+                $lines[] = [
+                    'product_id' => $component->id,
+                    'quantity' => $quantity,
+                    'wastage_percent' => [0, 2, 5][$c % 3],
+                    'unit_cost' => $unitCost,
+                    'total_cost' => $totalCost,
+                    'remarks' => 'Demo component line',
+                ];
+            }
+
+            $bom = Bom::create([
+                'bom_number' => 'DBOM-' . $this->suffix($i) . '-' . $i,
+                'name' => $output->name . ' — Recipe ' . ($i + 1),
+                'product_id' => $output->id,
+                'output_quantity' => 1,
+                // Only the first BOM per product is the default one.
+                'is_default' => $i < $n,
+                'is_active' => true,
+                'material_cost' => round($materialCost, 2),
+                'notes' => 'Demo bill of materials',
+                'created_by' => $userId,
+            ]);
+            $bom->items()->createMany($lines);
+        });
+    }
+
+    /**
+     * Manufacturing orders across draft → in_progress → completed → cancelled,
+     * each with its material lines and the full production stage pipeline
+     * (ManufacturingOrder::STAGES) progressed to match the header. Needs
+     * products and warehouses; a BOM is linked when one exists for the product.
+     */
+    private function makeManufacturingOrders(int $count): int
+    {
+        $products = Product::select('id', 'cost_price')->get();
+        $warehouseIds = Warehouse::pluck('id')->all();
+        if ($products->isEmpty() || empty($warehouseIds)) {
+            return 0;
+        }
+        $bomByProduct = Bom::query()->select('id', 'product_id')->get()->keyBy('product_id');
+        $employeeIds = Employee::pluck('id')->all();
+        $userId = $this->createdBy;
+        $n = $products->count();
+        $stages = ManufacturingOrder::STAGES;
+        $stageCount = count($stages);
+        $offset = (int) ManufacturingOrder::count();
+
+        return $this->makeChunked($count, function (int $k) use (
+            $products, $n, $warehouseIds, $bomByProduct, $employeeIds, $userId, $stages, $stageCount, $offset
+        ) {
+            $i = $offset + $k;
+            $product = $products[$i % $n];
+            $status = ['draft', 'in_progress', 'in_progress', 'completed', 'cancelled'][$i % 5];
+            $started = in_array($status, ['in_progress', 'completed'], true);
+            $quantity = ($i % 10 + 1) * 25;
+            $orderDate = now()->subDays($i % 90);
+
+            // Stage costs: only stages actually worked on carry one.
+            $doneStages = match ($status) {
+                'completed' => $stageCount,
+                'in_progress' => intdiv($stageCount, 2),
+                default => 0,
+            };
+            $stageCost = 0.0;
+            $materialCost = 0.0;
+
+            $materials = [];
+            for ($m = 1; $m <= ($i % 3) + 1; $m++) {
+                $component = $products[($i + $m) % $n];
+                $qty = round($quantity * 0.5 * $m, 3);
+                $unitCost = (float) ($component->cost_price ?: 50);
+                $lineCost = round($qty * $unitCost, 2);
+                $materialCost += $lineCost;
+                $materials[] = [
+                    'product_id' => $component->id,
+                    'quantity' => $qty,
+                    'unit_cost' => $unitCost,
+                    'total_cost' => $lineCost,
+                    'consumed_quantity' => $started ? $qty : 0,
+                    'remarks' => 'Demo material line',
+                ];
+            }
+
+            $stageRows = [];
+            $seq = 0;
+            foreach ($stages as $key => $name) {
+                $seq++;
+                $stageStatus = match (true) {
+                    $seq <= $doneStages => 'completed',
+                    $seq === $doneStages + 1 && $status === 'in_progress' => 'in_progress',
+                    default => 'pending',
+                };
+                $cost = $stageStatus === 'pending' ? 0 : ($seq % 5 + 1) * 150;
+                $stageCost += $cost;
+                $stageRows[] = [
+                    'stage_key' => $key,
+                    'name' => $name,
+                    'sequence' => $seq,
+                    'assigned_employee_id' => $employeeIds ? $employeeIds[($i + $seq) % count($employeeIds)] : null,
+                    'start_date' => $stageStatus === 'pending' ? null : $orderDate->copy()->addDays($seq)->toDateString(),
+                    'end_date' => $stageStatus === 'completed' ? $orderDate->copy()->addDays($seq + 1)->toDateString() : null,
+                    'status' => $stageStatus,
+                    'cost' => $cost,
+                ];
+            }
+
+            $order = ManufacturingOrder::create([
+                'mo_number' => 'DMO-' . $this->suffix($i) . '-' . $i,
+                'product_id' => $product->id,
+                'bom_id' => $bomByProduct[$product->id]->id ?? null,
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'quantity_to_produce' => $quantity,
+                'quantity_produced' => $status === 'completed' ? $quantity : ($status === 'in_progress' ? round($quantity / 2, 3) : 0),
+                'status' => $status,
+                'order_date' => $orderDate->toDateString(),
+                'expected_completion_date' => $orderDate->copy()->addDays(15)->toDateString(),
+                'material_cost' => round($materialCost, 2),
+                'stage_cost' => $stageCost,
+                'total_cost' => round($materialCost + $stageCost, 2),
+                'materials_consumed' => $started,
+                'finished_received' => $status === 'completed',
+                'started_at' => $started ? $orderDate->copy()->addDay() : null,
+                'completed_at' => $status === 'completed' ? $orderDate->copy()->addDays(12) : null,
+                'notes' => 'Demo manufacturing order',
+                'created_by' => $userId,
+            ]);
+            $order->materials()->createMany($materials);
+            $order->stages()->createMany($stageRows);
+        });
+    }
+
+    /**
+     * Job work (out-sourced processing): a supplier + warehouse header with 1–3
+     * issued item lines, walked through draft → issued → partial → completed →
+     * closed → cancelled with received/damage quantities to match. Needs
+     * suppliers, warehouses and products.
+     */
+    private function makeJobWorks(int $count): int
+    {
+        $supplierIds = Supplier::pluck('id')->all();
+        $warehouseIds = Warehouse::pluck('id')->all();
+        $products = Product::select('id', 'cost_price')->get();
+        if (empty($supplierIds) || empty($warehouseIds) || $products->isEmpty()) {
+            return 0;
+        }
+        $userId = $this->createdBy;
+        $n = $products->count();
+        $offset = (int) JobWork::count();
+
+        return $this->makeChunked($count, function (int $k) use ($supplierIds, $warehouseIds, $products, $n, $userId, $offset) {
+            $i = $offset + $k;
+            $status = ['draft', 'issued', 'partial', 'completed', 'closed', 'cancelled'][$i % 6];
+            $issued = ! in_array($status, ['draft', 'cancelled'], true);
+            $finished = in_array($status, ['completed', 'closed'], true);
+            $date = now()->subDays($i % 120);
+
+            $jobWork = JobWork::create([
+                'job_work_number' => 'DJW-' . $this->suffix($i) . '-' . $i,
+                'supplier_id' => $supplierIds[$i % count($supplierIds)],
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'status' => $status,
+                'job_type' => ['stitching', 'printing', 'embroidery', 'washing', 'packing'][$i % 5],
+                'job_work_date' => $date->toDateString(),
+                'expected_date' => $date->copy()->addDays(10)->toDateString(),
+                'issued_date' => $issued ? $date->copy()->addDay()->toDateString() : null,
+                'completed_date' => $finished ? $date->copy()->addDays(9)->toDateString() : null,
+                'notes' => 'Demo job work',
+                'created_by' => $userId,
+                'issued_by' => $issued ? $userId : null,
+                'closed_by' => $status === 'closed' ? $userId : null,
+            ]);
+
+            $lines = [];
+            for ($l = 0; $l < ($i % 3) + 1; $l++) {
+                $component = $products[($i + $l) % $n];
+                $finishedProduct = $products[($i + $l + 1) % $n];
+                $issuedQty = ($i % 20 + 5) * 10;
+                // Received quantity tracks the header's state; the shortfall is
+                // split between damage and shortage so the item maths balances.
+                $receivedQty = match ($status) {
+                    'completed', 'closed' => $issuedQty - 2,
+                    'partial' => round($issuedQty / 2, 3),
+                    default => 0,
+                };
+                $lines[] = [
+                    'product_id' => $component->id,
+                    'finished_product_id' => $finishedProduct->id,
+                    'issued_qty' => $issuedQty,
+                    'received_qty' => $receivedQty,
+                    'damage_qty' => $finished ? 1 : 0,
+                    'shortage_qty' => $finished ? 1 : 0,
+                    'unit_cost' => (float) ($component->cost_price ?: 50),
+                    'finished_unit_cost' => round((float) ($finishedProduct->cost_price ?: 80) * 1.1, 4),
+                ];
+            }
+            $jobWork->items()->createMany($lines);
+        });
+    }
+
+    /**
+     * 4-point-system fabric inspections: 1–3 defect lines whose penalty points
+     * roll up into the header's score, grade and pass/reject result. Needs
+     * fabric rolls; returns 0 if none exist yet.
+     */
+    private function makeFabricInspections(int $count): int
+    {
+        $rolls = FabricRoll::select('id', 'current_length', 'width')->get();
+        if ($rolls->isEmpty()) {
+            return 0;
+        }
+        $defectTypes = ['Slub', 'Hole', 'Stain', 'Weft bar', 'Missing yarn', 'Colour variation', 'Crease mark'];
+        $userId = $this->createdBy;
+        $n = $rolls->count();
+        $offset = (int) FabricInspection::count();
+
+        return $this->makeChunked($count, function (int $k) use ($rolls, $n, $defectTypes, $userId, $offset) {
+            $i = $offset + $k;
+            $roll = $rolls[$i % $n];
+            $length = (float) ($roll->current_length ?: 100);
+            $width = (float) ($roll->width ?: 44);
+
+            $defects = [];
+            $totalPoints = 0.0;
+            for ($d = 0; $d < ($i % 3) + 1; $d++) {
+                $severity = ['minor', 'major', 'critical'][($i + $d) % 3];
+                $points = ['minor' => 1, 'major' => 2, 'critical' => 4][$severity];
+                // Scale occurrences with the roll length, otherwise a long roll
+                // always scores near zero and every inspection grades A.
+                $occurrences = (($i + $d) % 4 + 1) * max(1, (int) round($length / 45));
+                $totalPoints += $points * $occurrences;
+                $defects[] = [
+                    'defect_type' => $defectTypes[($i + $d) % count($defectTypes)],
+                    'severity' => $severity,
+                    'size_range' => ['under 3 inch', '3-6 inch', '6-9 inch', 'over 9 inch'][($i + $d) % 4],
+                    'points' => $points,
+                    'count' => $occurrences,
+                ];
+            }
+
+            // 4-point score: points per 100 square metres of inspected fabric.
+            $sqm = max(0.01, $length * ($width * 0.0254));
+            $score = round($totalPoints * 100 / $sqm, 2);
+            [$grade, $result] = match (true) {
+                $score <= 20 => ['A', 'pass'],
+                $score <= 30 => ['B', 'pass'],
+                default => ['C', 'reject'],
+            };
+
+            $inspection = FabricInspection::create([
+                'inspection_number' => 'DFI-' . $this->suffix($i) . '-' . $i,
+                'fabric_roll_id' => $roll->id,
+                'inspected_length' => $length,
+                'inspected_width' => $width,
+                'total_points' => $totalPoints,
+                'points_per_100sqm' => $score,
+                'grade' => $grade,
+                'result' => $result,
+                'inspector' => $this->person($i),
+                'inspection_date' => now()->subDays($i % 90)->toDateString(),
+                'notes' => 'Demo 4-point inspection',
+                'created_by' => $userId,
+            ]);
+            $inspection->defects()->createMany($defects);
+        });
+    }
+
+    /**
+     * Fabric cutting runs. The lengths balance — used = consumed + loss +
+     * leftover — so the cutting report adds up. Needs fabric rolls and
+     * warehouses.
+     */
+    private function makeFabricCuttings(int $count): int
+    {
+        $rolls = FabricRoll::select('id', 'current_length')->get();
+        $warehouseIds = Warehouse::pluck('id')->all();
+        if ($rolls->isEmpty() || empty($warehouseIds)) {
+            return 0;
+        }
+        $userId = $this->createdBy;
+        $n = $rolls->count();
+
+        // make() already continues $i from the existing row count.
+        return $this->make($count, function (int $i) use ($rolls, $n, $warehouseIds, $userId) {
+            $roll = $rolls[$i % $n];
+            $used = round(min((float) ($roll->current_length ?: 100), ($i % 8 + 3) * 10), 3);
+            $loss = round($used * 0.03, 3);
+            $leftover = round($used * 0.07, 3);
+            $consumed = round($used - $loss - $leftover, 3);
+
+            return [
+                'cutting_number' => 'DFC-' . $this->suffix($i) . '-' . $i,
+                'fabric_roll_id' => $roll->id,
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'cut_date' => now()->subDays($i % 90)->toDateString(),
+                'length_used' => $used,
+                'length_consumed' => $consumed,
+                'cutting_loss' => $loss,
+                'leftover_length' => $leftover,
+                'pieces_produced' => (int) floor($consumed * 2),
+                'notes' => 'Demo cutting run',
+                'created_by' => $userId,
+            ];
+        }, FabricCutting::class);
+    }
+
+    /**
+     * Extra piece-rate operations on the existing rate cards (the cards
+     * themselves come with a starter set — see makeRateCards). Sequence
+     * continues from what each card already has, so re-runs keep extending
+     * rather than clashing. Needs rate cards; returns 0 if none exist.
+     */
+    private function makePieceRates(int $count): int
+    {
+        $cardIds = RateCard::pluck('id')->all();
+        if (empty($cardIds)) {
+            return 0;
+        }
+        $operations = ['Cutting', 'Stitching', 'Finishing', 'Overlock', 'Hemming', 'Button Fixing', 'Ironing', 'Packing', 'Embroidery Prep', 'Quality Check'];
+        // Where each card's numbering currently ends.
+        $nextSequence = PieceRate::query()
+            ->selectRaw('rate_card_id, max(sequence) as max_sequence')
+            ->groupBy('rate_card_id')
+            ->pluck('max_sequence', 'rate_card_id')
+            ->all();
+
+        return $this->make($count, function (int $i) use ($cardIds, $operations, &$nextSequence) {
+            $cardId = $cardIds[$i % count($cardIds)];
+            $sequence = ($nextSequence[$cardId] ?? 0) + 1;
+            $nextSequence[$cardId] = $sequence;
+            // Past the pool, operations repeat with a pass number appended.
+            $operation = $operations[($sequence - 1) % count($operations)];
+            $pass = intdiv($sequence - 1, count($operations)) + 1;
+
+            return [
+                'rate_card_id' => $cardId,
+                'operation' => $pass > 1 ? $operation . ' (Pass ' . $pass . ')' : $operation,
+                'rate' => ($sequence % 8 + 1) * 15,
+                'sequence' => $sequence,
+            ];
+        }, PieceRate::class);
+    }
+
+    /**
+     * Tailor work orders. Weighted towards open work so the "Pending Work"
+     * screen (status pending/partial) has a queue, with completed orders — and
+     * their completion entries, which drive the tailor ledger — for the
+     * "Completed Work" screen. Needs tailors and products.
+     */
+    private function makeTailorWorks(int $count): int
+    {
+        $tailorIds = Tailor::pluck('id')->all();
+        $productIds = Product::pluck('id')->all();
+        if (empty($tailorIds) || empty($productIds)) {
+            return 0;
+        }
+        $rateCards = RateCard::query()->select('id', 'product_id', 'standard_rate')->get()->keyBy('product_id');
+        $userId = $this->createdBy;
+        $offset = (int) TailorWork::count();
+
+        return $this->makeChunked($count, function (int $k) use ($tailorIds, $productIds, $rateCards, $userId, $offset) {
+            $i = $offset + $k;
+            $tailorId = $tailorIds[$i % count($tailorIds)];
+            $productId = $productIds[$i % count($productIds)];
+            $card = $rateCards[$productId] ?? null;
+            $rate = (float) ($card->standard_rate ?? (($i % 20 + 5) * 5));
+            $status = ['pending', 'pending', 'partial', 'completed', 'cancelled'][$i % 5];
+            $issuedQty = ($i % 15 + 2) * 10;
+            $completedQty = match ($status) {
+                'completed' => $issuedQty,
+                'partial' => round($issuedQty / 2, 2),
+                default => 0,
+            };
+            $issueDate = now()->subDays($i % 60);
+
+            $work = TailorWork::create([
+                'work_number' => 'DTW-' . $this->suffix($i) . '-' . $i,
+                'tailor_id' => $tailorId,
+                'product_id' => $productId,
+                'rate_card_id' => $card->id ?? null,
+                'issued_qty' => $issuedQty,
+                'completed_qty' => $completedQty,
+                'rate' => $rate,
+                'status' => $status,
+                'issue_date' => $issueDate->toDateString(),
+                'due_date' => $issueDate->copy()->addDays(7)->toDateString(),
+                'notes' => 'Demo tailor work order',
+                'created_by' => $userId,
+            ]);
+
+            if ($completedQty > 0) {
+                $work->completions()->create([
+                    'tailor_id' => $tailorId,
+                    'qty' => $completedQty,
+                    'rate' => $rate,
+                    'amount' => round($completedQty * $rate, 2),
+                    'completed_at' => $issueDate->copy()->addDays(5)->toDateString(),
+                    'received_to_stock' => false,
+                    'notes' => 'Demo completion entry',
+                    'created_by' => $userId,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * Embroidery job-work dispatches. Weighted towards open jobs so the
+     * "Pending Dispatch" screen (status pending/partial) has a queue, with
+     * completed jobs — and their receipt entries, which drive the vendor
+     * ledger — for the "Received" screen. Needs embroidery vendors and products.
+     */
+    private function makeEmbroideryWorks(int $count): int
+    {
+        $vendorIds = EmbroideryVendor::pluck('id')->all();
+        $productIds = Product::pluck('id')->all();
+        if (empty($vendorIds) || empty($productIds)) {
+            return 0;
+        }
+        $userId = $this->createdBy;
+        $offset = (int) EmbroideryWork::count();
+
+        return $this->makeChunked($count, function (int $k) use ($vendorIds, $productIds, $userId, $offset) {
+            $i = $offset + $k;
+            $vendorId = $vendorIds[$i % count($vendorIds)];
+            $status = ['pending', 'pending', 'partial', 'completed', 'cancelled'][$i % 5];
+            $dispatchedQty = ($i % 12 + 2) * 25;
+            $receivedQty = match ($status) {
+                'completed' => $dispatchedQty,
+                'partial' => round($dispatchedQty / 2, 2),
+                default => 0,
+            };
+            $cost = ($i % 10 + 1) * 12;
+            $dispatchDate = now()->subDays($i % 60);
+
+            $work = EmbroideryWork::create([
+                'work_number' => 'DEW-' . $this->suffix($i) . '-' . $i,
+                'embroidery_vendor_id' => $vendorId,
+                'product_id' => $productIds[$i % count($productIds)],
+                'design_number' => 'DSN-' . str_pad((string) ($i % 9999), 4, '0', STR_PAD_LEFT),
+                'stitch_count' => ($i % 20 + 3) * 1000,
+                'dispatched_qty' => $dispatchedQty,
+                'received_qty' => $receivedQty,
+                'cost' => $cost,
+                'status' => $status,
+                'dispatch_date' => $dispatchDate->toDateString(),
+                'due_date' => $dispatchDate->copy()->addDays(10)->toDateString(),
+                'notes' => 'Demo embroidery job',
+                'created_by' => $userId,
+            ]);
+
+            if ($receivedQty > 0) {
+                $work->receipts()->create([
+                    'embroidery_vendor_id' => $vendorId,
+                    'qty' => $receivedQty,
+                    'cost' => $cost,
+                    'amount' => round($receivedQty * $cost, 2),
+                    'received_at' => $dispatchDate->copy()->addDays(8)->toDateString(),
+                    'received_to_stock' => false,
+                    'notes' => 'Demo receipt entry',
+                    'created_by' => $userId,
+                ]);
+            }
+        });
+    }
+
     private function makeColourPrintings(int $count): int
     {
         $supplierIds = Supplier::pluck('id')->all();
@@ -1818,14 +2536,20 @@ class DemoDataGenerator
         ], ColourPrinting::class);
     }
 
-    /** One rate card per product (unique), each with 2–3 piece-rate operations. */
+    /**
+     * One rate card per product, each with a starter set of piece-rate
+     * operations. (tenant, product_id) is unique, so products that already have
+     * a card are skipped — otherwise a second run collides on the first product.
+     */
     private function makeRateCards(int $count): int
     {
-        $productIds = Product::pluck('id')->all();
+        $productIds = Product::query()
+            ->whereNotIn('id', RateCard::query()->select('product_id'))
+            ->pluck('id')
+            ->all();
         if (empty($productIds)) {
             return 0;
         }
-        // Unique (tenant, product_id) → at most one card per product.
         $limit = min($count, count($productIds));
         $ops = ['Cutting', 'Stitching', 'Finishing'];
 
@@ -1917,7 +2641,6 @@ class DemoDataGenerator
             'overtime' => OvertimeRecord::class,
             'bonus' => EmployeeBonus::class,
             'advance' => SalaryAdvance::class,
-            'loan' => EmployeeLoan::class,
             'structure' => SalaryStructure::class,
             'salary' => Salary::class,
         };
@@ -1936,14 +2659,7 @@ class DemoDataGenerator
                     'status' => 'draft',
                     'created_by' => $userId,
                 ],
-                // (employee, date) is unique — subDays($i) keeps each row's date distinct.
-                'attendance' => [
-                    'employee_id' => $emp,
-                    'date' => now()->subDays($i)->toDateString(),
-                    'status' => ['present', 'absent'][$i % 2],
-                    'check_in' => $i % 2 === 0 ? '09:30:00' : null,
-                    'check_out' => $i % 2 === 0 ? '18:30:00' : null,
-                ],
+                'attendance' => $this->attendanceRow($emp, $i),
                 'overtime' => [
                     'employee_id' => $emp,
                     'date' => now()->subDays($i)->toDateString(),
@@ -1952,32 +2668,8 @@ class DemoDataGenerator
                     'amount' => ($i % 4 + 1) * 100,
                     'status' => 'pending',
                 ],
-                'bonus' => [
-                    'employee_id' => $emp,
-                    'month' => now()->subMonths($i)->format('Y-m-01'),
-                    'type' => 'performance',
-                    'amount' => ($i % 20 + 1) * 500,
-                    'status' => 'pending',
-                ],
-                'advance' => [
-                    'employee_id' => $emp,
-                    'date' => now()->subDays($i % 120)->toDateString(),
-                    'amount' => ($i % 10 + 1) * 1000,
-                    'monthly_recovery' => 500,
-                    'recovered' => 0,
-                    'status' => 'pending',
-                ],
-                'loan' => [
-                    'employee_id' => $emp,
-                    'loan_number' => 'DLOAN-' . $this->suffix($i) . '-' . $i,
-                    'principal' => ($i % 20 + 5) * 5000,
-                    'interest_rate' => 10,
-                    'tenure_months' => 12,
-                    'emi' => round((($i % 20 + 5) * 5000) / 12, 2),
-                    'total_payable' => ($i % 20 + 5) * 5000,
-                    'disbursed_on' => now()->subDays($i % 200)->toDateString(),
-                    'status' => 'pending',
-                ],
+                'bonus' => $this->bonusRow($emp, $i, $userId),
+                'advance' => $this->advanceRow($emp, $i, $userId),
                 'structure' => [
                     'employee_id' => $emp,
                     'effective_from' => now()->subMonths($i % 24)->format('Y-m-01'),
@@ -1988,18 +2680,201 @@ class DemoDataGenerator
                     'special_allowance' => 2000,
                     'is_active' => true,
                 ],
-                // (employee, month) is unique — subMonths($i) keeps each month distinct.
-                'salary' => [
-                    'employee_id' => $emp,
-                    'month' => now()->subMonths($i)->format('Y-m-01'),
-                    'basic' => 15000,
-                    'hra' => 6000,
-                    'gross' => 23000,
-                    'net_salary' => 21000,
-                    'status' => 'draft',
-                ],
+                'salary' => $this->salaryRow($emp, $i),
             };
         }, $model);
+    }
+
+    /**
+     * One attendance day. Rotates the full status vocabulary (not just
+     * present/absent) so the register shows half-days, leave and week-offs,
+     * with check-in/out only on days actually worked. (employee, date) is
+     * unique — subDays($i) keeps each row's date distinct.
+     */
+    private function attendanceRow(int $emp, int $i): array
+    {
+        // Weighted towards "present" so the register looks like a real month.
+        $status = ['present', 'present', 'present', 'half-day', 'present', 'absent', 'present', 'leave', 'week-off', 'present'][$i % 10];
+        $worked = in_array($status, ['present', 'half-day'], true);
+
+        return [
+            'employee_id' => $emp,
+            'date' => now()->subDays($i)->toDateString(),
+            'status' => $status,
+            'check_in' => $worked ? sprintf('09:%02d:00', ($i * 7) % 45) : null,
+            'check_out' => $worked ? ($status === 'half-day' ? '13:30:00' : sprintf('18:%02d:00', ($i * 11) % 50)) : null,
+            'remarks' => match ($status) {
+                'half-day' => 'Left after lunch',
+                'absent' => 'Unplanned absence',
+                'leave' => 'On approved leave',
+                default => null,
+            },
+        ];
+    }
+
+    /** Bonus for a payroll month, spread across the pending → paid lifecycle. */
+    private function bonusRow(int $emp, int $i, ?int $userId): array
+    {
+        $status = ['pending', 'approved', 'paid', 'paid', 'rejected'][$i % 5];
+        $decided = $status !== 'pending';
+
+        return [
+            'employee_id' => $emp,
+            'month' => now()->subMonths($i % 18)->format('Y-m-01'),
+            'type' => ['performance', 'festival', 'diwali', 'attendance', 'statutory'][$i % 5],
+            'amount' => ($i % 20 + 1) * 500,
+            'remarks' => $status === 'rejected' ? 'Not eligible for this cycle.' : 'Demo bonus entry',
+            'status' => $status,
+            'approved_by' => $decided ? $userId : null,
+            'approved_at' => $decided ? now()->subDays($i % 30) : null,
+        ];
+    }
+
+    /** Salary advance with recovery progress matching its status. */
+    private function advanceRow(int $emp, int $i, ?int $userId): array
+    {
+        $status = ['pending', 'approved', 'recovering', 'recovering', 'closed', 'rejected'][$i % 6];
+        $amount = ($i % 10 + 1) * 1000;
+        $monthly = max(500, round($amount / 5, 2));
+        $recovered = match ($status) {
+            'closed' => $amount,
+            'recovering' => min($amount, $monthly * (($i % 3) + 1)),
+            default => 0,
+        };
+        $decided = ! in_array($status, ['pending'], true);
+
+        return [
+            'employee_id' => $emp,
+            'date' => now()->subDays($i % 120)->toDateString(),
+            'amount' => $amount,
+            'monthly_recovery' => $monthly,
+            'recovered' => $recovered,
+            'reason' => ['Medical emergency', 'Festival expenses', 'Home repair', 'School fees', 'Family travel'][$i % 5],
+            'status' => $status,
+            'approved_by' => $decided ? $userId : null,
+            'approved_at' => $decided ? now()->subDays($i % 60) : null,
+        ];
+    }
+
+    /**
+     * A payroll row whose components add up: gross = basic + allowances,
+     * net = gross - deductions, so both the Salary Register columns and the
+     * detailed payroll fields are consistent. (employee, month) is unique —
+     * subMonths($i) keeps each month distinct.
+     */
+    private function salaryRow(int $emp, int $i): array
+    {
+        $basic = 15000 + ($i % 10) * 1500;
+        $hra = round($basic * 0.4, 2);
+        $conveyance = 1600.0;
+        $medical = 1250.0;
+        $special = 2000.0;
+        $allowances = round($hra + $conveyance + $medical + $special, 2);
+        $gross = round($basic + $allowances, 2);
+
+        $pf = round($basic * 0.12, 2);
+        $professionalTax = 200.0;
+        $advance = $i % 6 === 0 ? 1000.0 : 0.0;
+        $loan = $i % 7 === 0 ? 1500.0 : 0.0;
+        $deductions = round($pf + $professionalTax + $advance + $loan, 2);
+
+        $month = now()->subMonths($i)->startOfMonth();
+        // Anything older than last month is settled; recent months stay draft.
+        $paid = $i >= 2;
+
+        return [
+            'employee_id' => $emp,
+            'month' => $month->format('Y-m-01'),
+            'basic' => $basic,
+            'hra' => $hra,
+            'conveyance' => $conveyance,
+            'medical' => $medical,
+            'special_allowance' => $special,
+            'allowances' => $allowances,
+            'gross' => $gross,
+            'pf_employee' => $pf,
+            'professional_tax' => $professionalTax,
+            'advance_deduction' => $advance,
+            'loan_deduction' => $loan,
+            'deductions' => $deductions,
+            'net_salary' => round($gross - $deductions, 2),
+            'working_days' => 26,
+            'present_days' => 26,
+            'paid_days' => 26,
+            'lop_days' => 0,
+            'status' => $paid ? 'paid' : 'draft',
+            'paid_on' => $paid ? $month->copy()->endOfMonth()->addDays(2)->toDateString() : null,
+        ];
+    }
+
+    /**
+     * Employee loans across the pending → disbursed → closed lifecycle. A
+     * disbursed or closed loan also gets its monthly repayment schedule, with
+     * the instalments already due marked paid — mirroring the amortisation the
+     * loan controller applies on disburse.
+     */
+    private function makeEmployeeLoans(int $count): int
+    {
+        $employeeIds = Employee::pluck('id')->all();
+        if (empty($employeeIds)) {
+            return 0;
+        }
+        $userId = $this->createdBy;
+        $n = count($employeeIds);
+        $offset = (int) EmployeeLoan::count();
+
+        return $this->makeChunked($count, function (int $k) use ($employeeIds, $n, $userId, $offset) {
+            $i = $offset + $k;
+            $status = ['pending', 'approved', 'disbursed', 'disbursed', 'closed', 'rejected'][$i % 6];
+            $principal = (float) (($i % 20 + 5) * 5000);
+            $rate = 10.0;
+            $tenure = [6, 12, 18, 24][$i % 4];
+            // Flat-rate amortisation, same formula as EmployeeLoanController.
+            $interest = round($principal * ($rate / 100) * ($tenure / 12), 2);
+            $totalPayable = round($principal + $interest, 2);
+            $emi = round($totalPayable / $tenure, 2);
+            $disbursedOn = now()->subMonths($i % 18)->startOfMonth();
+
+            // Whole instalments already behind us; a closed loan is fully repaid.
+            // (int) matters: diffInMonths() is fractional, and a part-month must
+            // not count as a paid EMI or `repaid` drifts from the schedule.
+            $elapsed = min($tenure, max(0, (int) $disbursedOn->diffInMonths(now())));
+            $paidCount = $status === 'closed' ? $tenure : ($status === 'disbursed' ? $elapsed : 0);
+
+            $loan = EmployeeLoan::create([
+                'employee_id' => $employeeIds[$i % $n],
+                'loan_number' => 'DLOAN-' . $this->suffix($i) . '-' . $i,
+                'principal' => $principal,
+                'interest_rate' => $rate,
+                'tenure_months' => $tenure,
+                'emi' => $emi,
+                'total_payable' => $totalPayable,
+                'repaid' => $paidCount === $tenure ? $totalPayable : round($emi * $paidCount, 2),
+                'disbursed_on' => $disbursedOn->toDateString(),
+                'reason' => ['Home renovation', 'Medical treatment', 'Wedding expenses', 'Vehicle purchase', 'Education fees'][$i % 5],
+                'status' => $status,
+                'approved_by' => in_array($status, ['pending'], true) ? null : $userId,
+                'approved_at' => in_array($status, ['pending'], true) ? null : $disbursedOn->copy()->subDays(3),
+            ]);
+
+            if (! in_array($status, ['disbursed', 'closed'], true)) {
+                return;
+            }
+
+            for ($inst = 1; $inst <= $tenure; $inst++) {
+                // Last instalment absorbs the rounding, as the controller does.
+                $amount = $inst < $tenure ? $emi : round($totalPayable - $emi * ($tenure - 1), 2);
+                $dueDate = $disbursedOn->copy()->addMonths($inst)->endOfMonth();
+                LoanRepayment::create([
+                    'employee_loan_id' => $loan->id,
+                    'installment_no' => $inst,
+                    'due_date' => $dueDate->toDateString(),
+                    'amount' => $amount,
+                    'status' => $inst <= $paidCount ? 'paid' : 'pending',
+                    'paid_on' => $inst <= $paidCount ? $dueDate->toDateString() : null,
+                ]);
+            }
+        });
     }
 
     private function makeAssetMaintenances(int $count): int
@@ -2054,18 +2929,28 @@ class DemoDataGenerator
             return 0;
         }
 
-        return $this->make($count, function (int $i) use ($employeeIds, $leaveTypeIds) {
+        $userId = $this->createdBy;
+
+        return $this->make($count, function (int $i) use ($employeeIds, $leaveTypeIds, $userId) {
             $from = now()->subDays($i % 200);
+            // Every 5th request is a half-day; the rest run 1–4 days.
+            $halfDay = $i % 5 === 4;
+            $spanDays = $i % 4;
+            $status = ['pending', 'approved', 'approved', 'rejected', 'cancelled'][$i % 5];
+            $decided = in_array($status, ['approved', 'rejected'], true);
 
             return [
                 'employee_id' => $employeeIds[$i % count($employeeIds)],
                 'leave_type_id' => $leaveTypeIds[$i % count($leaveTypeIds)],
                 'from_date' => $from->toDateString(),
-                'to_date' => $from->copy()->addDays(2)->toDateString(),
-                'days' => 3,
-                'half_day' => false,
-                'reason' => 'Demo leave application',
-                'status' => ['pending', 'approved', 'rejected'][$i % 3],
+                'to_date' => $halfDay ? $from->toDateString() : $from->copy()->addDays($spanDays)->toDateString(),
+                'days' => $halfDay ? 0.5 : $spanDays + 1,
+                'half_day' => $halfDay,
+                'reason' => ['Family function', 'Not well', 'Personal work', 'Out of town', 'Medical check-up'][$i % 5],
+                'status' => $status,
+                'approved_by' => $decided ? $userId : null,
+                'approved_at' => $decided ? $from->copy()->subDay() : null,
+                'remarks' => $status === 'rejected' ? 'Peak season — cannot spare.' : null,
             ];
         }, LeaveApplication::class);
     }
@@ -2128,6 +3013,200 @@ class DemoDataGenerator
                 'created_by' => $userId,
             ];
         }, $model);
+    }
+
+    /**
+     * Dispatch plans: a vehicle + driver + route going out with 1–3 consignments
+     * (customer drops). Statuses cycle draft → dispatched → delivered →
+     * cancelled, and each plan's consignments stay consistent with its header —
+     * a delivered plan's drops all carry proof of delivery, a dispatched one is
+     * mid-run (first drop done, the rest pending). Needs customers; vehicle,
+     * driver and route are optional. Returns plans created.
+     */
+    private function makeDispatchPlans(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        if (empty($customerIds)) {
+            return 0;
+        }
+        $fleet = $this->dispatchFleet();
+        $ordersByCustomer = $this->salesOrdersByCustomer();
+        $userId = $this->createdBy;
+        $offset = (int) DispatchPlan::count();
+
+        return $this->makeChunked($count, function (int $k) use ($customerIds, $fleet, $ordersByCustomer, $userId, $offset) {
+            $i = $offset + $k;
+            $status = ['draft', 'dispatched', 'dispatched', 'delivered', 'cancelled'][$i % 5];
+            $date = now()->subDays($i % 45);
+            $rolledOut = in_array($status, ['dispatched', 'delivered'], true);
+
+            $plan = DispatchPlan::create([
+                'dispatch_number' => 'DDSP-' . $this->suffix($i) . '-' . $i,
+                'dispatch_date' => $date->toDateString(),
+                'vehicle_id' => $fleet['vehicles'] ? $fleet['vehicles'][$i % count($fleet['vehicles'])] : null,
+                'driver_id' => $fleet['drivers'] ? $fleet['drivers'][$i % count($fleet['drivers'])] : null,
+                'route_id' => $fleet['routes'] ? $fleet['routes'][$i % count($fleet['routes'])] : null,
+                'status' => $status,
+                'remarks' => 'Demo dispatch plan',
+                'dispatched_at' => $rolledOut ? $date->copy()->setTime(8, 30) : null,
+                'delivered_at' => $status === 'delivered' ? $date->copy()->setTime(19, 0) : null,
+                'created_by' => $userId,
+            ]);
+
+            $drops = ($i % 3) + 1;
+            for ($d = 0; $d < $drops; $d++) {
+                // Delivered plan → every drop done. Dispatched → the first drop
+                // is done and the rest await POD. Draft/cancelled → all pending.
+                $deliveryStatus = match (true) {
+                    $status === 'delivered' => 'delivered',
+                    $status === 'dispatched' && $d === 0 => 'delivered',
+                    default => 'pending',
+                };
+                $plan->items()->create($this->dispatchItemRow(
+                    $i + $d,
+                    $d + 1,
+                    $customerIds,
+                    $ordersByCustomer,
+                    $deliveryStatus,
+                    $date->copy()->setTime(11 + $d, 15),
+                ));
+            }
+        });
+    }
+
+    /**
+     * Proof-of-Delivery rows. A POD *is* a consignment on a dispatched plan, so
+     * this creates carrier plans of up to 3 drops whose consignments already
+     * carry recorded proof — receiver, timestamp and remarks — plus the odd
+     * failed and still-pending drop so the POD screen's filters have data. A
+     * plan with nothing left pending is marked delivered, exactly as recording
+     * the last POD would. Returns consignments created.
+     */
+    private function makeDispatchPods(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        if (empty($customerIds)) {
+            return 0;
+        }
+        $fleet = $this->dispatchFleet();
+        $ordersByCustomer = $this->salesOrdersByCustomer();
+        $userId = $this->createdBy;
+        $planOffset = (int) DispatchPlan::count();
+        $itemOffset = (int) DispatchItem::count();
+
+        $made = 0;
+        $plans = 0;
+        for ($start = 0; $start < $count; $start += self::CHUNK) {
+            $batch = min(self::CHUNK, $count - $start);
+            DB::transaction(function () use (
+                $batch, $customerIds, $fleet, $ordersByCustomer, $userId, $planOffset, $itemOffset, &$made, &$plans
+            ) {
+                $done = 0;
+                while ($done < $batch) {
+                    $drops = min(self::POD_DROPS_PER_PLAN, $batch - $done);
+                    $p = $planOffset + $plans;
+                    $date = now()->subDays($p % 30);
+
+                    $plan = DispatchPlan::create([
+                        'dispatch_number' => 'DPOD-' . $this->suffix($p) . '-' . $p,
+                        'dispatch_date' => $date->toDateString(),
+                        'vehicle_id' => $fleet['vehicles'] ? $fleet['vehicles'][$p % count($fleet['vehicles'])] : null,
+                        'driver_id' => $fleet['drivers'] ? $fleet['drivers'][$p % count($fleet['drivers'])] : null,
+                        'route_id' => $fleet['routes'] ? $fleet['routes'][$p % count($fleet['routes'])] : null,
+                        'status' => 'dispatched',
+                        'remarks' => 'Demo delivery run',
+                        'dispatched_at' => $date->copy()->setTime(8, 30),
+                        'created_by' => $userId,
+                    ]);
+
+                    $pending = false;
+                    for ($d = 0; $d < $drops; $d++) {
+                        $item = $itemOffset + $made + $d;
+                        $deliveryStatus = ['delivered', 'delivered', 'delivered', 'failed', 'pending'][$item % 5];
+                        $pending = $pending || $deliveryStatus === 'pending';
+                        $plan->items()->create($this->dispatchItemRow(
+                            $item,
+                            $d + 1,
+                            $customerIds,
+                            $ordersByCustomer,
+                            $deliveryStatus,
+                            $date->copy()->setTime(11 + $d, 15),
+                        ));
+                    }
+
+                    // Mirrors ProofOfDeliveryController::settlePlan().
+                    if (! $pending) {
+                        $plan->update(['status' => 'delivered', 'delivered_at' => $date->copy()->setTime(19, 0)]);
+                    }
+
+                    $done += $drops;
+                    $made += $drops;
+                    $plans++;
+                }
+            });
+        }
+
+        return $made;
+    }
+
+    /** Optional dispatch header references — any of these may be empty. */
+    private function dispatchFleet(): array
+    {
+        return [
+            'vehicles' => Vehicle::pluck('id')->all(),
+            'drivers' => Driver::pluck('id')->all(),
+            'routes' => DeliveryRoute::pluck('id')->all(),
+        ];
+    }
+
+    /** customer_id => [sales order ids], so a drop can cite that customer's order. */
+    private function salesOrdersByCustomer(): array
+    {
+        return SalesOrder::query()
+            ->select('id', 'customer_id')
+            ->whereNotNull('customer_id')
+            ->get()
+            ->groupBy('customer_id')
+            ->map(fn ($orders) => $orders->pluck('id')->all())
+            ->all();
+    }
+
+    /**
+     * One consignment (customer drop) on a dispatch plan. The proof-of-delivery
+     * fields are filled only for a delivered drop; a failed one keeps the reason
+     * in pod_remarks with no receiver, as the POD screen records it.
+     */
+    private function dispatchItemRow(
+        int $i,
+        int $sequence,
+        array $customerIds,
+        array $ordersByCustomer,
+        string $deliveryStatus,
+        $deliveredAt,
+    ): array {
+        $customerId = $customerIds[$i % count($customerIds)];
+        $orders = $ordersByCustomer[$customerId] ?? [];
+        $delivered = $deliveryStatus === 'delivered';
+
+        return [
+            'customer_id' => $customerId,
+            'sales_order_id' => $orders ? $orders[$i % count($orders)] : null,
+            'delivery_address' => ($i % 90 + 1) . ', ' . $this->last[$i % count($this->last)] . ' Road, '
+                . $this->cities[$i % count($this->cities)],
+            'packages' => $i % 5 + 1,
+            'weight_kg' => round(($i % 40 + 1) * 2.5, 2),
+            'cod_amount' => $i % 4 === 0 ? ($i % 20 + 1) * 250 : 0,
+            'sequence' => $sequence,
+            'delivery_status' => $deliveryStatus,
+            'delivered_at' => $delivered ? $deliveredAt : null,
+            'received_by' => $delivered ? $this->person($i) : null,
+            'receiver_phone' => $delivered ? $this->phone($i) : null,
+            'pod_remarks' => match ($deliveryStatus) {
+                'delivered' => 'Received in good condition.',
+                'failed' => 'Customer unavailable at the drop point.',
+                default => null,
+            },
+        ];
     }
 
     /** Channel orders / listings / sync logs — keyed to a channel integration. */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import InputText from 'primevue/inputtext'
@@ -7,7 +7,11 @@ import Select from 'primevue/select'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import http from '../api/http'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
+
+const pt = usePt()
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -17,13 +21,13 @@ const perPage = ref(15)
 const search = ref('')
 const status = ref<string | null>(null)
 
-const statusOptions = [
-  { label: 'In Stock', value: 'in_stock' },
-  { label: 'In Transit', value: 'in_transit' },
-  { label: 'Sold', value: 'sold' },
-  { label: 'Damaged', value: 'damaged' },
-  { label: 'Returned', value: 'returned' },
-]
+const statusOptions = computed(() => [
+  { label: pt('In Stock'), value: 'in_stock' },
+  { label: pt('In Transit'), value: 'in_transit' },
+  { label: pt('Sold'), value: 'sold' },
+  { label: pt('Damaged'), value: 'damaged' },
+  { label: pt('Returned'), value: 'returned' },
+])
 
 const statusColors: Record<string, string> = {
   in_stock: 'success',
@@ -62,37 +66,36 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Serial Numbers</h1>
-    <p class="subtitle">Current status/location of each serial-tracked unit</p>
+    <PageHeader :title="pt('Serial Numbers')" :subtitle="pt('Current status/location of each serial-tracked unit')" />
 
     <div class="toolbar">
-      <span class="search"><i class="pi pi-search" /><InputText v-model="search" placeholder="Search serial..." @keyup.enter="doSearch" /></span>
-      <Select v-model="status" :options="statusOptions" optionLabel="label" optionValue="value" placeholder="Any status" showClear @change="doSearch" />
-      <Button label="Search" outlined @click="doSearch" />
-      <TableExportButtons title="Serial Numbers" endpoint="/serial-numbers"
+      <span class="search"><i class="pi pi-search" /><InputText v-model="search" :placeholder="pt('Search serial...')" @keyup.enter="doSearch" /></span>
+      <Select v-model="status" :options="statusOptions" optionLabel="label" optionValue="value" :placeholder="pt('Any status')" showClear @change="doSearch" />
+      <Button :label="pt('Search')" outlined @click="doSearch" />
+      <TableExportButtons :title="pt('Serial Numbers')" endpoint="/serial-numbers"
         :params="() => ({ search: search || undefined, status: status || undefined })"
         :columns="[
-          { key: 'product.name', label: 'Product' },
-          { key: 'product.sku', label: 'SKU' },
-          { key: 'serial', label: 'Serial #' },
-          { key: 'warehouse.name', label: 'Warehouse' },
-          { key: 'status', label: 'Status' },
-          { key: 'updated_at', label: 'Updated' },
+          { key: 'product.name', label: pt('Product') },
+          { key: 'product.sku', label: pt('SKU') },
+          { key: 'serial', label: pt('Serial #') },
+          { key: 'warehouse.name', label: pt('Warehouse') },
+          { key: 'status', label: pt('Status') },
+          { key: 'updated_at', label: pt('Updated') },
         ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
       :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column header="Product">
+      <Column :header="pt('Product')">
         <template #body="{ data }"><strong>{{ data.product?.name }}</strong><br /><small style="color: #6b7280">{{ data.product?.sku }}</small></template>
       </Column>
-      <Column field="serial" header="Serial #" />
-      <Column header="Warehouse"><template #body="{ data }">{{ data.warehouse?.name ?? '—' }}</template></Column>
-      <Column header="Status">
+      <Column field="serial" :header="pt('Serial #')" />
+      <Column :header="pt('Warehouse')"><template #body="{ data }">{{ data.warehouse?.name ?? '—' }}</template></Column>
+      <Column :header="pt('Status')">
         <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="data.status" /></template>
       </Column>
-      <Column header="Updated"><template #body="{ data }">{{ new Date(data.updated_at).toLocaleString() }}</template></Column>
-      <template #empty>No serial numbers found.</template>
+      <Column :header="pt('Updated')"><template #body="{ data }">{{ new Date(data.updated_at).toLocaleString() }}</template></Column>
+      <template #empty>{{ pt('No serial numbers found.') }}</template>
     </DataTable>
   </div>
 </template>

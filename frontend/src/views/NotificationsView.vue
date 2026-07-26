@@ -8,6 +8,7 @@ import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const router = useRouter()
 const items = ref<any[]>([])
@@ -69,28 +70,29 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Notifications</h1>
-      <div class="header-actions">
+    <PageHeader title="Notifications">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search notifications..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search notifications..." @keyup.enter="reload" />
         </span>
         <label class="unread-toggle">
-          <Checkbox v-model="unreadOnly" binary @change="reload" />
-          Unread only
+        <Checkbox v-model="unreadOnly" binary @change="reload" />
+        Unread only
         </label>
         <Button label="Mark all read" icon="pi pi-check" outlined size="small" @click="markAllRead" />
         <TableExportButtons title="Notifications" endpoint="/notifications" size="small"
-          :params="() => ({ ...(unreadOnly ? { unread_only: true } : {}), ...(search ? { search } : {}) })"
-          :columns="[
-            { key: 'data.severity', label: 'Severity' },
-            { key: 'data.title', label: 'Title' },
-            { key: 'data.message', label: 'Message' },
-            { key: 'created_at', label: 'Time' },
-          ]" />
-      </div>
-    </div>
+        :params="() => ({ ...(unreadOnly ? { unread_only: true } : {}), ...(search ? { search } : {}) })"
+        :columns="[
+        { key: 'data.severity', label: 'Severity' },
+        { key: 'data.title', label: 'Title' },
+        { key: 'data.message', label: 'Message' },
+        { key: 'created_at', label: 'Time' },
+        ]" />
+        </div>
+      </template>
+    </PageHeader>
 
     <DataView :value="items" :loading="loading" dataKey="id">
       <template #list="{ items: rows }">

@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -132,10 +133,11 @@ onMounted(async () => { await loadEmployees(); await load() })
 
 <template>
   <div>
-    <div class="header">
-      <h1>Salary Advances</h1>
-      <Button v-if="canCreate" label="New Advance" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Salary Advances">
+      <template #actions>
+        <Button v-if="canCreate" label="New Advance" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <Select v-model="filters.employee_id" :options="employees" optionLabel="label" optionValue="value" filter showClear placeholder="All employees" class="w-60" @change="load" />

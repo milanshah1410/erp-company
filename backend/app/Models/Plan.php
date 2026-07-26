@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\Modules;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -38,5 +39,32 @@ class Plan extends Model
     public function limit(string $key): mixed
     {
         return $this->feature_limits[$key] ?? null;
+    }
+
+    /**
+     * The module keys a subscriber on this plan may switch on (onboarding §3).
+     *
+     * `feature_limits.modules` holds either the literal `['*']` — Enterprise,
+     * everything in the catalogue — or an explicit subset. A plan that declares
+     * nothing fails open to the full catalogue, so plans created before module
+     * gating existed keep working.
+     *
+     * @return list<string>
+     */
+    public function allowedModules(): array
+    {
+        $declared = $this->feature_limits['modules'] ?? null;
+
+        if (! is_array($declared) || $declared === [] || in_array('*', $declared, true)) {
+            return Modules::keys();
+        }
+
+        return Modules::sanitize($declared);
+    }
+
+    /** True when the plan puts no restriction on the module set. */
+    public function allowsAllModules(): bool
+    {
+        return count($this->allowedModules()) === count(Modules::keys());
     }
 }

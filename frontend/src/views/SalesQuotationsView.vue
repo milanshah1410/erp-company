@@ -19,6 +19,10 @@ import { priceDocument, type DiscountType } from '../utils/pricing'
 import { openPdfBlob } from '../utils/blob'
 import SendEmailDialog from '../components/SendEmailDialog.vue'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
+
+const pt = usePt()
 
 const discountTypes = [
   { label: '%', value: 'percent' },
@@ -43,7 +47,7 @@ async function previewPdf(row: any) {
     const res = await http.get(`/sales-quotations/${row.id}/pdf`, { responseType: 'blob' })
     openPdfBlob(res.data)
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not open PDF', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not open PDF'), life: 3000 })
   }
 }
 
@@ -54,7 +58,7 @@ const emailCtx = ref<{ endpoint: string; title: string; defaultTo: string; defau
 function openEmail(row: any) {
   emailCtx.value = {
     endpoint: `/email/quotations/${row.id}`,
-    title: `Email Quotation ${row.quote_number}`,
+    title: pt('Email Quotation {number}', { number: row.quote_number }),
     defaultTo: row.customer?.email ?? '',
     defaultSubject: `Quotation ${row.quote_number}`,
   }
@@ -72,14 +76,14 @@ const statusColors: Record<string, string> = {
 
 const search = ref('')
 const statusFilter = ref<string | null>(null)
-const statusOptions = [
-  { label: 'Draft', value: 'draft' },
-  { label: 'Sent', value: 'sent' },
-  { label: 'Accepted', value: 'accepted' },
-  { label: 'Rejected', value: 'rejected' },
-  { label: 'Expired', value: 'expired' },
-  { label: 'Converted', value: 'converted' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Draft'), value: 'draft' },
+  { label: pt('Sent'), value: 'sent' },
+  { label: pt('Accepted'), value: 'accepted' },
+  { label: pt('Rejected'), value: 'rejected' },
+  { label: pt('Expired'), value: 'expired' },
+  { label: pt('Converted'), value: 'converted' },
+])
 
 // --- Create dialog ---
 const createVisible = ref(false)
@@ -119,12 +123,12 @@ async function saveQuotation() {
   errors.value = {}
   try {
     await http.post('/sales-quotations', form.value)
-    toast.add({ severity: 'success', summary: 'Quotation created', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Quotation created'), life: 2500 })
     createVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -132,29 +136,29 @@ async function saveQuotation() {
 
 // --- Row actions ---
 async function sendQuotation(row: any) {
-  const res = await Swal.fire({ title: `Send ${row.quote_number}?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Send' })
+  const res = await Swal.fire({ title: pt('Send {number}?', { number: row.quote_number }), icon: 'question', showCancelButton: true, confirmButtonText: pt('Send'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
-  await runAction(row, 'send', 'Quotation sent')
+  await runAction(row, 'send', pt('Quotation sent'))
 }
 async function acceptQuotation(row: any) {
-  const res = await Swal.fire({ title: `Mark ${row.quote_number} as accepted?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Accept' })
+  const res = await Swal.fire({ title: pt('Mark {number} as accepted?', { number: row.quote_number }), icon: 'question', showCancelButton: true, confirmButtonText: pt('Accept'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
-  await runAction(row, 'accept', 'Quotation accepted')
+  await runAction(row, 'accept', pt('Quotation accepted'))
 }
 async function rejectQuotation(row: any) {
-  const res = await Swal.fire({ title: `Reject ${row.quote_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Reject', confirmButtonColor: '#dc2626' })
+  const res = await Swal.fire({ title: pt('Reject {number}?', { number: row.quote_number }), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Reject'), confirmButtonColor: '#dc2626', cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
-  await runAction(row, 'reject', 'Quotation rejected')
+  await runAction(row, 'reject', pt('Quotation rejected'))
 }
 async function convertQuotation(row: any) {
-  const res = await Swal.fire({ title: `Convert ${row.quote_number} to a Sales Order?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Convert' })
+  const res = await Swal.fire({ title: pt('Convert {number} to a Sales Order?', { number: row.quote_number }), icon: 'question', showCancelButton: true, confirmButtonText: pt('Convert'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     const { data } = await http.post(`/sales-quotations/${row.id}/convert`)
-    toast.add({ severity: 'success', summary: `Converted to ${data.data?.so_number}`, life: 3500 })
+    toast.add({ severity: 'success', summary: pt('Converted to {number}', { number: data.data?.so_number }), life: 3500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot convert', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Cannot convert'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 async function runAction(row: any, action: string, successMsg: string) {
@@ -163,7 +167,7 @@ async function runAction(row: any, action: string, successMsg: string) {
     toast.add({ severity: 'success', summary: successMsg, life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Action failed', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Action failed'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 
@@ -197,92 +201,91 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Sales Quotations</h1>
-      <div style="display:flex;gap:0.5rem;align-items:center">
-        <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
-        </span>
-        <Button label="Search" outlined @click="reload" />
-        <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
-        <TableExportButtons only="export" title="Sales Quotations" endpoint="/sales-quotations"
-          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
-          :columns="[
-            { key: 'quote_number', label: 'Quote #' },
-            { key: 'customer.name', label: 'Customer' },
-            { key: 'warehouse.name', label: 'Warehouse' },
-            { key: 'quote_date', label: 'Date' },
-            { key: 'valid_until', label: 'Valid Until' },
-            { key: 'total', label: 'Total' },
-            { key: 'status', label: 'Status' },
-          ]" />
-        <Button v-if="canCreate" label="New Quotation" icon="pi pi-plus" @click="openCreate" />
-      </div>
+    <PageHeader :title="pt('Sales Quotations')" :count="crud.total.value" />
+
+    <div class="toolbar no-print">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
+      </span>
+      <Button :label="pt('Search')" outlined @click="reload" />
+      <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+        :placeholder="pt('All statuses')" @change="reload" class="status-filter" />
+      <TableExportButtons only="export" :title="pt('Sales Quotations')" endpoint="/sales-quotations"
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+        :columns="[
+          { key: 'quote_number', label: pt('Quote #') },
+          { key: 'customer.name', label: pt('Customer') },
+          { key: 'warehouse.name', label: pt('Warehouse') },
+          { key: 'quote_date', label: pt('Date') },
+          { key: 'valid_until', label: pt('Valid Until') },
+          { key: 'total', label: pt('Total') },
+          { key: 'status', label: pt('Status') },
+        ]" />
+      <Button v-if="canCreate" :label="pt('New Quotation')" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="quote_number" header="Quote #" />
-      <Column header="Customer"><template #body="{ data }">{{ data.customer?.name }}</template></Column>
-      <Column header="Warehouse"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
-      <Column field="quote_date" header="Date" />
-      <Column field="valid_until" header="Valid Until" />
-      <Column header="Total"><template #body="{ data }">{{ money(data.total) }}</template></Column>
-      <Column header="Status">
+      <Column field="quote_number" :header="pt('Quote #')" />
+      <Column :header="pt('Customer')"><template #body="{ data }">{{ data.customer?.name }}</template></Column>
+      <Column :header="pt('Warehouse')"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
+      <Column field="quote_date" :header="pt('Date')" />
+      <Column field="valid_until" :header="pt('Valid Until')" />
+      <Column :header="pt('Total')"><template #body="{ data }">{{ money(data.total) }}</template></Column>
+      <Column :header="pt('Status')">
         <template #body="{ data }">
           <Tag :severity="statusColors[data.status]" :value="data.status" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 18rem">
+      <Column :header="pt('Actions')" style="width: 18rem">
         <template #body="{ data }">
-          <Button icon="pi pi-file-pdf" text rounded size="small" title="View PDF" @click="previewPdf(data)" />
-          <Button v-if="canEmail" icon="pi pi-envelope" text rounded size="small" title="Email to customer" @click="openEmail(data)" />
-          <Button v-if="canEdit && data.status === 'draft'" label="Send" size="small" outlined @click="sendQuotation(data)" style="margin-left: 4px" />
-          <Button v-if="canEdit && data.status === 'sent'" label="Accept" size="small" outlined severity="success" @click="acceptQuotation(data)" style="margin-left: 4px" />
-          <Button v-if="canEdit && data.status === 'sent'" label="Reject" size="small" outlined severity="danger" @click="rejectQuotation(data)" style="margin-left: 4px" />
-          <Button v-if="canCreate && data.status === 'accepted'" label="Convert to SO" size="small" severity="success" @click="convertQuotation(data)" style="margin-left: 4px" />
+          <Button icon="pi pi-file-pdf" text rounded size="small" :title="pt('View PDF')" @click="previewPdf(data)" />
+          <Button v-if="canEmail" icon="pi pi-envelope" text rounded size="small" :title="pt('Email to customer')" @click="openEmail(data)" />
+          <Button v-if="canEdit && data.status === 'draft'" :label="pt('Send')" size="small" outlined @click="sendQuotation(data)" style="margin-left: 4px" />
+          <Button v-if="canEdit && data.status === 'sent'" :label="pt('Accept')" size="small" outlined severity="success" @click="acceptQuotation(data)" style="margin-left: 4px" />
+          <Button v-if="canEdit && data.status === 'sent'" :label="pt('Reject')" size="small" outlined severity="danger" @click="rejectQuotation(data)" style="margin-left: 4px" />
+          <Button v-if="canCreate && data.status === 'accepted'" :label="pt('Convert to SO')" size="small" severity="success" @click="convertQuotation(data)" style="margin-left: 4px" />
         </template>
       </Column>
-      <template #empty>No quotations yet.</template>
+      <template #empty>{{ pt('No quotations yet.') }}</template>
     </DataTable>
 
     <!-- Create Quotation dialog -->
-    <Dialog v-model:visible="createVisible" modal header="New Sales Quotation" :style="{ width: '820px' }">
+    <Dialog v-model:visible="createVisible" modal :header="pt('New Sales Quotation')" :style="{ width: '820px' }">
       <div class="form-top">
         <div class="fld">
-          <label>Customer *</label>
-          <Select v-model="form.customer_id" :options="customers" optionLabel="label" optionValue="value" filter placeholder="Select customer" />
+          <label>{{ pt('Customer') }} *</label>
+          <Select v-model="form.customer_id" :options="customers" optionLabel="label" optionValue="value" filter :placeholder="pt('Select customer')" />
           <small v-if="errors.customer_id" class="err">{{ errors.customer_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Warehouse *</label>
-          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" placeholder="Select warehouse" />
+          <label>{{ pt('Warehouse') }} *</label>
+          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" :placeholder="pt('Select warehouse')" />
           <small v-if="errors.warehouse_id" class="err">{{ errors.warehouse_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Quote Date *</label>
+          <label>{{ pt('Quote Date') }} *</label>
           <input type="date" v-model="form.quote_date" class="date-input" />
           <small v-if="errors.quote_date" class="err">{{ errors.quote_date[0] }}</small>
         </div>
         <div class="fld">
-          <label>Valid Until</label>
+          <label>{{ pt('Valid Until') }}</label>
           <input type="date" v-model="form.valid_until" class="date-input" />
           <small v-if="errors.valid_until" class="err">{{ errors.valid_until[0] }}</small>
         </div>
       </div>
 
-      <h3 class="lines-title">Line Items</h3>
+      <h3 class="lines-title">{{ pt('Line Items') }}</h3>
       <table class="lines">
         <thead>
-          <tr><th style="width: 30%">Product</th><th>Qty</th><th>Unit Price</th><th>Discount</th><th>Tax %</th><th>Line Total</th><th></th></tr>
+          <tr><th style="width: 30%">{{ pt('Product') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Unit Price') }}</th><th>{{ pt('Discount') }}</th><th>{{ pt('Tax %') }}</th><th>{{ pt('Line Total') }}</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="(line, i) in form.items" :key="i">
             <td>
               <Select v-model="line.product_id" :options="products" optionLabel="name" optionValue="id" filter
-                placeholder="Product" class="w-full" @change="onProductPick(line)" />
+                :placeholder="pt('Product')" class="w-full" @change="onProductPick(line)" />
             </td>
             <td><InputNumber v-model="line.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
             <td><InputNumber v-model="line.unit_price" :minFractionDigits="2" :maxFractionDigits="2" class="num" /></td>
@@ -296,34 +299,34 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-      <Button label="Add Line" icon="pi pi-plus" text size="small" @click="addLine" />
+      <Button :label="pt('Add Line')" icon="pi pi-plus" text size="small" @click="addLine" />
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
       <div class="totals-panel">
         <div class="overall-disc">
-          <label>Invoice Discount</label>
+          <label>{{ pt('Invoice Discount') }}</label>
           <Select v-model="form.discount_type" :options="discountTypes" optionLabel="label" optionValue="value" showClear placeholder="—" class="disc-type" />
           <InputNumber v-model="form.discount_value" :minFractionDigits="0" :maxFractionDigits="2" class="disc-val" :disabled="!form.discount_type" />
         </div>
         <div class="totals">
-          <div><span>Subtotal</span><span>{{ money(pricing.header.subtotal) }}</span></div>
-          <div v-if="pricing.header.item_discount_total"><span>Item Discount</span><span>−{{ money(pricing.header.item_discount_total) }}</span></div>
-          <div v-if="pricing.header.discount_amount"><span>Invoice Discount</span><span>−{{ money(pricing.header.discount_amount) }}</span></div>
-          <div><span>Taxable</span><span>{{ money(pricing.header.taxable) }}</span></div>
-          <div><span>GST</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
-          <div v-if="pricing.header.round_off"><span>Round Off</span><span>{{ money(pricing.header.round_off) }}</span></div>
-          <div class="grand-row"><span>Grand Total</span><span>{{ money(pricing.header.total) }}</span></div>
+          <div><span>{{ pt('Subtotal') }}</span><span>{{ money(pricing.header.subtotal) }}</span></div>
+          <div v-if="pricing.header.item_discount_total"><span>{{ pt('Item Discount') }}</span><span>−{{ money(pricing.header.item_discount_total) }}</span></div>
+          <div v-if="pricing.header.discount_amount"><span>{{ pt('Invoice Discount') }}</span><span>−{{ money(pricing.header.discount_amount) }}</span></div>
+          <div><span>{{ pt('Taxable') }}</span><span>{{ money(pricing.header.taxable) }}</span></div>
+          <div><span>{{ pt('GST') }}</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
+          <div v-if="pricing.header.round_off"><span>{{ pt('Round Off') }}</span><span>{{ money(pricing.header.round_off) }}</span></div>
+          <div class="grand-row"><span>{{ pt('Grand Total') }}</span><span>{{ money(pricing.header.total) }}</span></div>
         </div>
       </div>
 
       <div class="fld full">
-        <label>Notes</label>
+        <label>{{ pt('Notes') }}</label>
         <Textarea v-model="form.notes" rows="2" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="createVisible = false" />
-        <Button label="Create Quotation" :loading="saving" @click="saveQuotation" />
+        <Button :label="pt('Cancel')" text @click="createVisible = false" />
+        <Button :label="pt('Create Quotation')" :loading="saving" @click="saveQuotation" />
       </template>
     </Dialog>
 

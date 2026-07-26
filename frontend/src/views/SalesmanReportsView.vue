@@ -11,6 +11,7 @@ import ProgressBar from 'primevue/progressbar'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const now = new Date()
 const MONTHS = [
@@ -89,10 +90,11 @@ onMounted(loadIncentive)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Salesman Reports</h1>
-      <SelectButton v-model="tab" :options="TABS" optionLabel="label" optionValue="value" :allowEmpty="false" @change="refresh" />
-    </div>
+    <PageHeader title="Salesman Reports">
+      <template #actions>
+        <SelectButton v-model="tab" :options="TABS" optionLabel="label" optionValue="value" :allowEmpty="false" @change="refresh" />
+      </template>
+    </PageHeader>
 
     <!-- Incentive -->
     <template v-if="tab === 'incentive'">

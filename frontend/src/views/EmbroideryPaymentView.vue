@@ -15,6 +15,7 @@ import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -132,10 +133,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Embroidery Payments</h1>
-      <Button v-if="canPay" label="Record Payment" icon="pi pi-wallet" @click="openPay" />
-    </div>
+    <PageHeader title="Embroidery Payments">
+      <template #actions>
+        <Button v-if="canPay" label="Record Payment" icon="pi pi-wallet" @click="openPay" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <Select v-model="filterVendor" :options="vendors" optionLabel="label" optionValue="value"

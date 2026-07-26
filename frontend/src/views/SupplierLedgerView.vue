@@ -7,6 +7,7 @@ import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const suppliers = ref<{ label: string; value: number }[]>([])
 const supplierId = ref<number | null>(null)
@@ -44,9 +45,7 @@ onMounted(loadSuppliers)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Supplier Ledger</h1>
-    </div>
+    <PageHeader title="Supplier Ledger" />
 
     <div class="toolbar">
       <Select v-model="supplierId" :options="suppliers" optionLabel="label" optionValue="value"

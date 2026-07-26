@@ -11,11 +11,14 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -25,7 +28,7 @@ const perPage = ref(25)
 
 const devices = ref<{ label: string; value: number }[]>([])
 const filters = ref<{ biometric_device_id: number | null; processed: string | null }>({ biometric_device_id: null, processed: null })
-const PROCESSED = [{ label: 'Unprocessed', value: 'false' }, { label: 'Processed', value: 'true' }]
+const PROCESSED = computed(() => [{ label: pt('Unprocessed'), value: 'false' }, { label: pt('Processed'), value: 'true' }])
 
 const canImport = computed(() => auth.can('biometric-punches.create'))
 const canSync = computed(() => auth.can('attendance.create'))
@@ -79,17 +82,17 @@ async function runImport() {
     punches = JSON.parse(importText.value)
     if (!Array.isArray(punches)) throw new Error('not an array')
   } catch {
-    toast.add({ severity: 'error', summary: 'Invalid JSON', detail: 'Provide a JSON array of punches.', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Invalid JSON'), detail: pt('Provide a JSON array of punches.'), life: 4000 })
     return
   }
   importing.value = true
   try {
     const { data } = await http.post('/biometric-punches/import', { biometric_device_id: importDevice.value || undefined, punches })
-    toast.add({ severity: 'success', summary: 'Imported', detail: data.message, life: 3500 })
+    toast.add({ severity: 'success', summary: pt('Imported'), detail: data.message, life: 3500 })
     importVisible.value = false
     load()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Import failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Import failed'), life: 4000 })
   } finally {
     importing.value = false
   }
@@ -102,10 +105,10 @@ async function runSync() {
       from: toDateString(syncRange.value.from),
       to: toDateString(syncRange.value.to),
     })
-    toast.add({ severity: 'success', summary: 'Synced', detail: data.message, life: 3500 })
+    toast.add({ severity: 'success', summary: pt('Synced'), detail: data.message, life: 3500 })
     load()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Sync failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Sync failed'), life: 4000 })
   } finally {
     syncing.value = false
   }
@@ -114,10 +117,10 @@ async function runSync() {
 async function del(row: any) {
   try {
     await http.delete(`/biometric-punches/${row.id}`)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2000 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2000 })
     load()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -126,79 +129,78 @@ onMounted(async () => { await loadDevices(); await load() })
 
 <template>
   <div>
-    <div class="header">
-      <h1>Biometric Punches</h1>
-      <div class="actions">
-        <Button v-if="canImport" label="Import Punches" icon="pi pi-upload" @click="openImport" />
-      </div>
-    </div>
+    <PageHeader :title="pt('Biometric Punches')">
+      <template #actions>
+        <Button v-if="canImport" :label="pt('Import Punches')" icon="pi pi-upload" @click="openImport" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
-      <Select v-model="filters.biometric_device_id" :options="devices" optionLabel="label" optionValue="value" filter showClear placeholder="All devices" class="w-60" @change="load" />
-      <Select v-model="filters.processed" :options="PROCESSED" optionLabel="label" optionValue="value" showClear placeholder="All punches" @change="load" />
-      <TableExportButtons title="Biometric Punches" endpoint="/biometric-punches" :params="() => ({
+      <Select v-model="filters.biometric_device_id" :options="devices" optionLabel="label" optionValue="value" filter showClear :placeholder="pt('All devices')" class="w-60" @change="load" />
+      <Select v-model="filters.processed" :options="PROCESSED" optionLabel="label" optionValue="value" showClear :placeholder="pt('All punches')" @change="load" />
+      <TableExportButtons :title="pt('Biometric Punches')" endpoint="/biometric-punches" :params="() => ({
         biometric_device_id: filters.biometric_device_id || undefined,
         processed: filters.processed ?? undefined,
       })" :columns="[
-        { key: 'punched_at', label: 'Punched At' },
-        { key: 'employee_name', label: 'Employee' },
-        { key: 'device_user_id', label: 'Device User' },
-        { key: 'device_name', label: 'Device' },
-        { key: 'direction', label: 'Direction' },
-        { key: 'source', label: 'Source' },
-        { key: 'processed', label: 'Processed', format: (v) => v ? 'Yes' : 'No' },
+        { key: 'punched_at', label: pt('Punched At') },
+        { key: 'employee_name', label: pt('Employee') },
+        { key: 'device_user_id', label: pt('Device User') },
+        { key: 'device_name', label: pt('Device') },
+        { key: 'direction', label: pt('Direction') },
+        { key: 'source', label: pt('Source') },
+        { key: 'processed', label: pt('Processed'), format: (v) => v ? pt('Yes') : pt('No') },
       ]" />
       <div class="spacer" />
       <template v-if="canSync">
-        <DatePicker v-model="syncRange.from" dateFormat="yy-mm-dd" placeholder="From" showIcon iconDisplay="input" />
-        <DatePicker v-model="syncRange.to" dateFormat="yy-mm-dd" placeholder="To" showIcon iconDisplay="input" />
-        <Button label="Sync to Attendance" icon="pi pi-sync" severity="info" :loading="syncing" @click="runSync" />
+        <DatePicker v-model="syncRange.from" dateFormat="yy-mm-dd" :placeholder="pt('From')" showIcon iconDisplay="input" />
+        <DatePicker v-model="syncRange.to" dateFormat="yy-mm-dd" :placeholder="pt('To')" showIcon iconDisplay="input" />
+        <Button :label="pt('Sync to Attendance')" icon="pi pi-sync" severity="info" :loading="syncing" @click="runSync" />
       </template>
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total" :rowsPerPageOptions="[25, 50, 100, 200]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="punched_at" header="Punched At" />
-      <Column field="employee_name" header="Employee" />
-      <Column field="device_user_id" header="Device User" />
-      <Column field="device_name" header="Device" />
-      <Column header="Direction"><template #body="{ data }"><Tag :value="data.direction" :severity="data.direction === 'in' ? 'success' : 'warn'" /></template></Column>
-      <Column field="source" header="Source" />
-      <Column header="Processed"><template #body="{ data }"><Tag :value="data.processed ? 'Yes' : 'No'" :severity="data.processed ? 'success' : 'secondary'" /></template></Column>
+      <Column field="punched_at" :header="pt('Punched At')" />
+      <Column field="employee_name" :header="pt('Employee')" />
+      <Column field="device_user_id" :header="pt('Device User')" />
+      <Column field="device_name" :header="pt('Device')" />
+      <Column :header="pt('Direction')"><template #body="{ data }"><Tag :value="data.direction" :severity="data.direction === 'in' ? 'success' : 'warn'" /></template></Column>
+      <Column field="source" :header="pt('Source')" />
+      <Column :header="pt('Processed')"><template #body="{ data }"><Tag :value="data.processed ? pt('Yes') : pt('No')" :severity="data.processed ? 'success' : 'secondary'" /></template></Column>
       <Column header="" style="width: 4rem">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <Button v-if="canDelete && !data.processed" icon="pi pi-trash" text rounded severity="danger" size="small" @click="del(data)" />
         </template>
       </Column>
-      <template #empty>No punches recorded.</template>
+      <template #empty>{{ pt('No punches recorded.') }}</template>
     </DataTable>
 
-    <Dialog v-model:visible="importVisible" modal header="Import Biometric Punches" :style="{ width: '560px' }">
+    <Dialog v-model:visible="importVisible" modal :header="pt('Import Biometric Punches')" :style="{ width: '560px' }">
       <div class="form">
         <div class="field">
-          <label>Device</label>
-          <Select v-model="importDevice" :options="devices" optionLabel="label" optionValue="value" filter showClear placeholder="Select device (optional)" />
+          <label>{{ pt('Device') }}</label>
+          <Select v-model="importDevice" :options="devices" optionLabel="label" optionValue="value" filter showClear :placeholder="pt('Select device (optional)')" />
         </div>
         <div class="field">
-          <label>Punches (JSON array)</label>
+          <label>{{ pt('Punches (JSON array)') }}</label>
           <Textarea v-model="importText" rows="10" class="mono" />
-          <small class="hint">Each punch needs <code>punched_at</code> and either <code>employee_id</code> or a <code>device_user_id</code> mapped on the employee. <code>direction</code> is <code>in</code>/<code>out</code>.</small>
+          <small class="hint">{{ pt('Each punch needs') }} <code>punched_at</code> {{ pt('and either') }} <code>employee_id</code> {{ pt('or a') }} <code>device_user_id</code> {{ pt('mapped on the employee.') }} <code>direction</code> {{ pt('is') }} <code>in</code>/<code>out</code>.</small>
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="importVisible = false" />
-        <Button label="Import" icon="pi pi-upload" :loading="importing" @click="runImport" />
+        <Button :label="pt('Cancel')" text @click="importVisible = false" />
+        <Button :label="pt('Import')" icon="pi pi-upload" :loading="importing" @click="runImport" />
       </template>
     </Dialog>
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Punch Details" :fields="[
-      { key: 'punched_at', label: 'Punched At' },
-      { key: 'employee_name', label: 'Employee' },
-      { key: 'device_user_id', label: 'Device User' },
-      { key: 'device_name', label: 'Device' },
-      { key: 'direction', label: 'Direction' },
-      { key: 'source', label: 'Source' },
-      { key: 'processed', label: 'Processed' },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('Punch Details')" :fields="[
+      { key: 'punched_at', label: pt('Punched At') },
+      { key: 'employee_name', label: pt('Employee') },
+      { key: 'device_user_id', label: pt('Device User') },
+      { key: 'device_name', label: pt('Device') },
+      { key: 'direction', label: pt('Direction') },
+      { key: 'source', label: pt('Source') },
+      { key: 'processed', label: pt('Processed') },
     ]" />
   </div>
 </template>

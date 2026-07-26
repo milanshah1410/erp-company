@@ -4,6 +4,7 @@ import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import http from '../api/http'
+import PageHeader from '../components/PageHeader.vue'
 
 interface Live {
   salesman_id: number
@@ -74,13 +75,14 @@ onBeforeUnmount(() => timer && clearInterval(timer))
 
 <template>
   <div>
-    <div class="header">
-      <h1>Live Location Tracking</h1>
-      <div class="header-actions">
+    <PageHeader title="Live Location Tracking">
+      <template #actions>
+        <div class="header-actions">
         <label class="auto"><ToggleSwitch :modelValue="autoRefresh" @update:modelValue="setAuto" /> Auto-refresh (30s)</label>
         <Button label="Refresh" icon="pi pi-refresh" :loading="loading" outlined @click="load" />
-      </div>
-    </div>
+        </div>
+      </template>
+    </PageHeader>
 
     <p v-if="lastRefreshed" class="refreshed">Last updated {{ lastRefreshed.toLocaleTimeString() }}</p>
 

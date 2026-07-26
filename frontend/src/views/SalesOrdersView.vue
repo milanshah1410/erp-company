@@ -19,6 +19,10 @@ import { priceDocument, type DiscountType } from '../utils/pricing'
 import { openPdfBlob } from '../utils/blob'
 import SendEmailDialog from '../components/SendEmailDialog.vue'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
+
+const pt = usePt()
 
 const discountTypes = [
   { label: '%', value: 'percent' },
@@ -47,7 +51,7 @@ async function previewInvoicePdf(row: any) {
     const res = await http.get(`/invoices/${row.invoice.id}/pdf`, { responseType: 'blob' })
     openPdfBlob(res.data)
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not open invoice PDF', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not open invoice PDF'), life: 3000 })
   }
 }
 
@@ -59,7 +63,7 @@ function emailInvoice(row: any) {
   if (!row.invoice) return
   emailCtx.value = {
     endpoint: `/email/invoices/${row.invoice.id}`,
-    title: `Email Invoice ${row.invoice.invoice_number}`,
+    title: pt('Email Invoice {number}', { number: row.invoice.invoice_number }),
     defaultTo: row.customer?.email ?? '',
     defaultSubject: `Invoice ${row.invoice.invoice_number}`,
   }
@@ -76,13 +80,13 @@ const statusColors: Record<string, string> = {
 
 const search = ref('')
 const statusFilter = ref<string | null>(null)
-const statusOptions = [
-  { label: 'Draft', value: 'draft' },
-  { label: 'Confirmed', value: 'confirmed' },
-  { label: 'Backordered', value: 'backordered' },
-  { label: 'Delivered', value: 'delivered' },
-  { label: 'Cancelled', value: 'cancelled' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Draft'), value: 'draft' },
+  { label: pt('Confirmed'), value: 'confirmed' },
+  { label: pt('Backordered'), value: 'backordered' },
+  { label: pt('Delivered'), value: 'delivered' },
+  { label: pt('Cancelled'), value: 'cancelled' },
+])
 
 const invoiceStatusColors: Record<string, string> = {
   unpaid: 'danger',
@@ -96,12 +100,12 @@ const fulfillmentColors: Record<string, string> = {
   packed: 'warn',
   shipped: 'success',
 }
-const fulfillmentLabels: Record<string, string> = {
-  pending: 'Not Started',
-  picked: 'Picked',
-  packed: 'Packed',
-  shipped: 'Shipped',
-}
+const fulfillmentLabels = computed<Record<string, string>>(() => ({
+  pending: pt('Not Started'),
+  picked: pt('Picked'),
+  packed: pt('Packed'),
+  shipped: pt('Shipped'),
+}))
 
 // --- Create dialog ---
 const createVisible = ref(false)
@@ -165,12 +169,12 @@ async function saveOrder() {
       ? { ...rest, brokers: (brokers ?? []).filter((b: any) => b.broker_id) }
       : { ...rest, broker_id }
     await http.post('/sales-orders', payload)
-    toast.add({ severity: 'success', summary: 'Sales order created', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Sales order created'), life: 2500 })
     createVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -178,18 +182,18 @@ async function saveOrder() {
 
 // --- Row actions ---
 async function confirmOrder(row: any) {
-  const res = await Swal.fire({ title: `Confirm ${row.so_number}?`, text: 'Available stock will be reserved. Any shortfall is flagged as a backorder instead of blocking the order.', icon: 'question', showCancelButton: true, confirmButtonText: 'Confirm' })
+  const res = await Swal.fire({ title: pt('Confirm {number}?', { number: row.so_number }), text: pt('Available stock will be reserved. Any shortfall is flagged as a backorder instead of blocking the order.'), icon: 'question', showCancelButton: true, confirmButtonText: pt('Confirm'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     const { data } = await http.post(`/sales-orders/${row.id}/confirm`)
     if (data.data?.status === 'backordered') {
-      toast.add({ severity: 'warn', summary: 'Order backordered', detail: 'Some lines could not be fully reserved.', life: 4000 })
+      toast.add({ severity: 'warn', summary: pt('Order backordered'), detail: pt('Some lines could not be fully reserved.'), life: 4000 })
     } else {
-      toast.add({ severity: 'success', summary: 'Order confirmed', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Order confirmed'), life: 2500 })
     }
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot confirm', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Cannot confirm'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 
@@ -197,67 +201,67 @@ async function recheckOrder(row: any) {
   try {
     const { data } = await http.post(`/sales-orders/${row.id}/recheck`)
     if (data.data?.status === 'confirmed') {
-      toast.add({ severity: 'success', summary: 'Fully reserved — order confirmed', life: 3000 })
+      toast.add({ severity: 'success', summary: pt('Fully reserved — order confirmed'), life: 3000 })
     } else {
-      toast.add({ severity: 'info', summary: 'Still short on stock for some lines', life: 3000 })
+      toast.add({ severity: 'info', summary: pt('Still short on stock for some lines'), life: 3000 })
     }
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot recheck', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Cannot recheck'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 
 async function pickOrder(row: any) {
   try {
     await http.post(`/sales-orders/${row.id}/pick`)
-    toast.add({ severity: 'success', summary: 'Order picked', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Order picked'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot pick', detail: e.response?.data?.message || 'Failed', life: 5000 })
+    toast.add({ severity: 'error', summary: pt('Cannot pick'), detail: e.response?.data?.message || pt('Failed'), life: 5000 })
   }
 }
 
 async function packOrder(row: any) {
   try {
     await http.post(`/sales-orders/${row.id}/pack`)
-    toast.add({ severity: 'success', summary: 'Order packed', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Order packed'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot pack', detail: e.response?.data?.message || 'Failed', life: 5000 })
+    toast.add({ severity: 'error', summary: pt('Cannot pack'), detail: e.response?.data?.message || pt('Failed'), life: 5000 })
   }
 }
 
 async function shipOrder(row: any) {
   try {
     await http.post(`/sales-orders/${row.id}/ship`)
-    toast.add({ severity: 'success', summary: 'Order shipped', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Order shipped'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot ship', detail: e.response?.data?.message || 'Failed', life: 5000 })
+    toast.add({ severity: 'error', summary: pt('Cannot ship'), detail: e.response?.data?.message || pt('Failed'), life: 5000 })
   }
 }
 
 async function deliverOrder(row: any) {
-  const res = await Swal.fire({ title: `Deliver ${row.so_number}?`, text: 'Stock will be deducted and an invoice created.', icon: 'question', showCancelButton: true, confirmButtonText: 'Deliver' })
+  const res = await Swal.fire({ title: pt('Deliver {number}?', { number: row.so_number }), text: pt('Stock will be deducted and an invoice created.'), icon: 'question', showCancelButton: true, confirmButtonText: pt('Deliver'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.post(`/sales-orders/${row.id}/deliver`)
-    toast.add({ severity: 'success', summary: 'Order delivered — invoice created', life: 3000 })
+    toast.add({ severity: 'success', summary: pt('Order delivered — invoice created'), life: 3000 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot deliver', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Cannot deliver'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 
 async function cancelOrder(row: any) {
-  const res = await Swal.fire({ title: `Cancel ${row.so_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Cancel Order', confirmButtonColor: '#dc2626' })
+  const res = await Swal.fire({ title: pt('Cancel {number}?', { number: row.so_number }), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Cancel Order'), confirmButtonColor: '#dc2626', cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.post(`/sales-orders/${row.id}/cancel`)
-    toast.add({ severity: 'success', summary: 'Order cancelled', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Order cancelled'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot cancel', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Cannot cancel'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 
@@ -269,12 +273,12 @@ const invoice = ref<any>(null)
 const payForm = ref<any>({ amount: 0, mode: 'cash', payment_date: today(), notes: '' })
 const payErrors = ref<Record<string, string[]>>({})
 
-const paymentModes = [
-  { label: 'Cash', value: 'cash' },
-  { label: 'Card', value: 'card' },
-  { label: 'UPI', value: 'upi' },
-  { label: 'Credit', value: 'credit' },
-]
+const paymentModes = computed(() => [
+  { label: pt('Cash'), value: 'cash' },
+  { label: pt('Card'), value: 'card' },
+  { label: pt('UPI'), value: 'upi' },
+  { label: pt('Credit'), value: 'credit' },
+])
 
 async function openPayment(row: any) {
   if (!row.invoice) return
@@ -287,7 +291,7 @@ async function openPayment(row: any) {
     invoice.value = data.data
     payForm.value = { amount: Number(invoice.value.balance_due) || 0, mode: 'cash', payment_date: today(), notes: '' }
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load invoice', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load invoice'), life: 3000 })
     payVisible.value = false
   } finally {
     payLoading.value = false
@@ -301,11 +305,11 @@ async function savePayment() {
     const { data } = await http.post(`/invoices/${invoice.value.id}/payments`, payForm.value)
     invoice.value = data.data
     payForm.value = { amount: Number(invoice.value.balance_due) || 0, mode: 'cash', payment_date: today(), notes: '' }
-    toast.add({ severity: 'success', summary: 'Payment recorded', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Payment recorded'), life: 2500 })
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) payErrors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     paySaving.value = false
   }
@@ -347,53 +351,54 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Sales Orders</h1>
-      <Button v-if="canCreate" label="New Sales Order" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Sales Orders')" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Sales Order')" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.5rem;align-items:center;margin-bottom:1rem">
       <span class="search-box">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
       </span>
-      <Button label="Search" outlined @click="reload" />
+      <Button :label="pt('Search')" outlined @click="reload" />
       <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-        placeholder="All statuses" @change="reload" class="status-filter" />
-      <TableExportButtons title="Sales Orders" only="export" endpoint="/sales-orders"
+        :placeholder="pt('All statuses')" @change="reload" class="status-filter" />
+      <TableExportButtons :title="pt('Sales Orders')" only="export" endpoint="/sales-orders"
         :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
         :columns="[
-          { key: 'so_number', label: 'SO #' },
-          { key: 'customer.name', label: 'Customer' },
-          { key: 'warehouse.name', label: 'Warehouse' },
-          { key: 'order_date', label: 'Date' },
-          { key: 'total', label: 'Total' },
-          { key: 'status', label: 'Status' },
-          { key: 'fulfillment_stage', label: 'Fulfillment' },
-          { key: 'invoice.invoice_number', label: 'Invoice' },
-          { key: 'invoice.status', label: 'Invoice Status' },
+          { key: 'so_number', label: pt('SO #') },
+          { key: 'customer.name', label: pt('Customer') },
+          { key: 'warehouse.name', label: pt('Warehouse') },
+          { key: 'order_date', label: pt('Date') },
+          { key: 'total', label: pt('Total') },
+          { key: 'status', label: pt('Status') },
+          { key: 'fulfillment_stage', label: pt('Fulfillment') },
+          { key: 'invoice.invoice_number', label: pt('Invoice') },
+          { key: 'invoice.status', label: pt('Invoice Status') },
         ]" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="so_number" header="SO #" />
-      <Column header="Customer"><template #body="{ data }">{{ data.customer?.name }}</template></Column>
-      <Column header="Warehouse"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
-      <Column field="order_date" header="Date" />
-      <Column header="Total"><template #body="{ data }">{{ money(data.total) }}</template></Column>
-      <Column header="Status">
+      <Column field="so_number" :header="pt('SO #')" />
+      <Column :header="pt('Customer')"><template #body="{ data }">{{ data.customer?.name }}</template></Column>
+      <Column :header="pt('Warehouse')"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
+      <Column field="order_date" :header="pt('Date')" />
+      <Column :header="pt('Total')"><template #body="{ data }">{{ money(data.total) }}</template></Column>
+      <Column :header="pt('Status')">
         <template #body="{ data }">
           <Tag :severity="statusColors[data.status]" :value="data.status" />
         </template>
       </Column>
-      <Column header="Fulfillment">
+      <Column :header="pt('Fulfillment')">
         <template #body="{ data }">
           <Tag v-if="data.status === 'confirmed' && data.channel !== 'pos'" :severity="fulfillmentColors[data.fulfillment_stage]" :value="fulfillmentLabels[data.fulfillment_stage]" />
           <span v-else class="muted">—</span>
         </template>
       </Column>
-      <Column header="Invoice">
+      <Column :header="pt('Invoice')">
         <template #body="{ data }">
           <template v-if="data.invoice">
             <span class="inv-number">{{ data.invoice.invoice_number }}</span>
@@ -402,93 +407,93 @@ onMounted(async () => {
           <span v-else class="muted">—</span>
         </template>
       </Column>
-      <Column header="Actions" style="width: 20rem">
+      <Column :header="pt('Actions')" style="width: 20rem">
         <template #body="{ data }">
-          <Button v-if="canApprove && data.status === 'draft'" label="Confirm" size="small" outlined @click="confirmOrder(data)" />
-          <Button v-if="canApprove && data.status === 'backordered'" label="Recheck" size="small" outlined severity="warn" @click="recheckOrder(data)" />
+          <Button v-if="canApprove && data.status === 'draft'" :label="pt('Confirm')" size="small" outlined @click="confirmOrder(data)" />
+          <Button v-if="canApprove && data.status === 'backordered'" :label="pt('Recheck')" size="small" outlined severity="warn" @click="recheckOrder(data)" />
           <template v-if="canEdit && data.status === 'confirmed' && data.channel !== 'pos'">
-            <Button v-if="data.fulfillment_stage === 'pending'" label="Pick" size="small" outlined @click="pickOrder(data)" />
-            <Button v-if="data.fulfillment_stage === 'picked'" label="Pack" size="small" outlined @click="packOrder(data)" />
-            <Button v-if="data.fulfillment_stage === 'packed'" label="Ship" size="small" outlined @click="shipOrder(data)" />
+            <Button v-if="data.fulfillment_stage === 'pending'" :label="pt('Pick')" size="small" outlined @click="pickOrder(data)" />
+            <Button v-if="data.fulfillment_stage === 'picked'" :label="pt('Pack')" size="small" outlined @click="packOrder(data)" />
+            <Button v-if="data.fulfillment_stage === 'packed'" :label="pt('Ship')" size="small" outlined @click="shipOrder(data)" />
           </template>
-          <Button v-if="canEdit && data.status === 'confirmed' && (data.channel === 'pos' || data.fulfillment_stage === 'shipped')" label="Deliver" size="small" severity="success" @click="deliverOrder(data)" />
-          <Button v-if="canEdit && ['draft', 'confirmed', 'backordered'].includes(data.status)" label="Cancel" size="small" outlined severity="danger" @click="cancelOrder(data)" style="margin-left: 4px" />
-          <Button v-if="canCreate && data.status === 'delivered' && data.invoice" label="Payment" icon="pi pi-wallet" size="small" outlined @click="openPayment(data)" style="margin-left: 4px" />
-          <Button v-if="data.invoice" icon="pi pi-file-pdf" text rounded size="small" title="Invoice PDF" @click="previewInvoicePdf(data)" />
-          <Button v-if="canEmail && data.invoice" icon="pi pi-envelope" text rounded size="small" title="Email invoice" @click="emailInvoice(data)" />
+          <Button v-if="canEdit && data.status === 'confirmed' && (data.channel === 'pos' || data.fulfillment_stage === 'shipped')" :label="pt('Deliver')" size="small" severity="success" @click="deliverOrder(data)" />
+          <Button v-if="canEdit && ['draft', 'confirmed', 'backordered'].includes(data.status)" :label="pt('Cancel')" size="small" outlined severity="danger" @click="cancelOrder(data)" style="margin-left: 4px" />
+          <Button v-if="canCreate && data.status === 'delivered' && data.invoice" :label="pt('Payment')" icon="pi pi-wallet" size="small" outlined @click="openPayment(data)" style="margin-left: 4px" />
+          <Button v-if="data.invoice" icon="pi pi-file-pdf" text rounded size="small" :title="pt('Invoice PDF')" @click="previewInvoicePdf(data)" />
+          <Button v-if="canEmail && data.invoice" icon="pi pi-envelope" text rounded size="small" :title="pt('Email invoice')" @click="emailInvoice(data)" />
         </template>
       </Column>
-      <template #empty>No sales orders yet.</template>
+      <template #empty>{{ pt('No sales orders yet.') }}</template>
     </DataTable>
 
     <!-- Create SO dialog -->
-    <Dialog v-model:visible="createVisible" modal header="New Sales Order" :style="{ width: '820px' }">
+    <Dialog v-model:visible="createVisible" modal :header="pt('New Sales Order')" :style="{ width: '820px' }">
       <div class="form-top">
         <div class="fld">
-          <label>Customer *</label>
-          <Select v-model="form.customer_id" :options="customers" optionLabel="label" optionValue="value" filter placeholder="Select customer" />
+          <label>{{ pt('Customer') }} *</label>
+          <Select v-model="form.customer_id" :options="customers" optionLabel="label" optionValue="value" filter :placeholder="pt('Select customer')" />
           <small v-if="errors.customer_id" class="err">{{ errors.customer_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Broker
+          <label>{{ pt('Broker') }}
             <a class="multi-toggle" @click="multiBroker = !multiBroker">
-              {{ multiBroker ? 'single broker' : 'multiple brokers' }}
+              {{ multiBroker ? pt('single broker') : pt('multiple brokers') }}
             </a>
           </label>
-          <Select v-if="!multiBroker" v-model="form.broker_id" :options="brokers" optionLabel="label" optionValue="value" filter showClear placeholder="No broker" />
-          <span v-else class="multi-hint">{{ form.brokers.length }} broker(s) — see below</span>
+          <Select v-if="!multiBroker" v-model="form.broker_id" :options="brokers" optionLabel="label" optionValue="value" filter showClear :placeholder="pt('No broker')" />
+          <span v-else class="multi-hint">{{ pt('{n} broker(s) — see below', { n: form.brokers.length }) }}</span>
           <small v-if="errors.broker_id" class="err">{{ errors.broker_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Salesman</label>
-          <Select v-model="form.salesman_id" :options="salesmen" optionLabel="label" optionValue="value" filter showClear placeholder="No salesman" />
+          <label>{{ pt('Salesman') }}</label>
+          <Select v-model="form.salesman_id" :options="salesmen" optionLabel="label" optionValue="value" filter showClear :placeholder="pt('No salesman')" />
           <small v-if="errors.salesman_id" class="err">{{ errors.salesman_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Warehouse *</label>
-          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" placeholder="Select warehouse" />
+          <label>{{ pt('Warehouse') }} *</label>
+          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" :placeholder="pt('Select warehouse')" />
           <small v-if="errors.warehouse_id" class="err">{{ errors.warehouse_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Order Date *</label>
+          <label>{{ pt('Order Date') }} *</label>
           <input type="date" v-model="form.order_date" class="date-input" />
           <small v-if="errors.order_date" class="err">{{ errors.order_date[0] }}</small>
         </div>
       </div>
 
       <div v-if="multiBroker" class="brokers-block">
-        <h3 class="lines-title">Brokers (Dalal)</h3>
+        <h3 class="lines-title">{{ pt('Brokers (Dalal)') }}</h3>
         <table class="lines">
           <thead>
-            <tr><th style="width: 40%">Broker</th><th>Commission %</th><th>Fixed</th><th>Share %</th><th></th></tr>
+            <tr><th style="width: 40%">{{ pt('Broker') }}</th><th>{{ pt('Commission %') }}</th><th>{{ pt('Fixed') }}</th><th>{{ pt('Share %') }}</th><th></th></tr>
           </thead>
           <tbody>
             <tr v-for="(b, i) in form.brokers" :key="i">
               <td>
-                <Select v-model="b.broker_id" :options="brokers" optionLabel="label" optionValue="value" filter placeholder="Broker" class="w-full" />
+                <Select v-model="b.broker_id" :options="brokers" optionLabel="label" optionValue="value" filter :placeholder="pt('Broker')" class="w-full" />
               </td>
-              <td><InputNumber v-model="b.commission_percent" :minFractionDigits="0" :maxFractionDigits="2" placeholder="default" class="num" /></td>
-              <td><InputNumber v-model="b.fixed_commission" :minFractionDigits="0" :maxFractionDigits="2" placeholder="default" class="num" /></td>
+              <td><InputNumber v-model="b.commission_percent" :minFractionDigits="0" :maxFractionDigits="2" :placeholder="pt('default')" class="num" /></td>
+              <td><InputNumber v-model="b.fixed_commission" :minFractionDigits="0" :maxFractionDigits="2" :placeholder="pt('default')" class="num" /></td>
               <td><InputNumber v-model="b.share_percent" :minFractionDigits="0" :maxFractionDigits="2" class="num" /></td>
               <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeBroker(i)" /></td>
             </tr>
-            <tr v-if="!form.brokers.length"><td colspan="5" class="muted">No brokers added.</td></tr>
+            <tr v-if="!form.brokers.length"><td colspan="5" class="muted">{{ pt('No brokers added.') }}</td></tr>
           </tbody>
         </table>
-        <Button label="Add Broker" icon="pi pi-plus" text size="small" @click="addBroker" />
-        <small class="hint block">Leave Commission %/Fixed blank to use each broker's product/customer rate or default. Share % splits one deal across brokers.</small>
+        <Button :label="pt('Add Broker')" icon="pi pi-plus" text size="small" @click="addBroker" />
+        <small class="hint block">{{ pt("Leave Commission %/Fixed blank to use each broker's product/customer rate or default. Share % splits one deal across brokers.") }}</small>
       </div>
 
-      <h3 class="lines-title">Line Items</h3>
+      <h3 class="lines-title">{{ pt('Line Items') }}</h3>
       <table class="lines">
         <thead>
-          <tr><th style="width: 30%">Product</th><th>Qty</th><th>Unit Price</th><th>Discount</th><th>Tax %</th><th>Line Total</th><th></th></tr>
+          <tr><th style="width: 30%">{{ pt('Product') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Unit Price') }}</th><th>{{ pt('Discount') }}</th><th>{{ pt('Tax %') }}</th><th>{{ pt('Line Total') }}</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="(line, i) in form.items" :key="i">
             <td>
               <Select v-model="line.product_id" :options="products" optionLabel="name" optionValue="id" filter
-                placeholder="Product" class="w-full" @change="onProductPick(line)" />
+                :placeholder="pt('Product')" class="w-full" @change="onProductPick(line)" />
             </td>
             <td><InputNumber v-model="line.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
             <td><InputNumber v-model="line.unit_price" :minFractionDigits="2" :maxFractionDigits="2" class="num" /></td>
@@ -502,95 +507,95 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-      <Button label="Add Line" icon="pi pi-plus" text size="small" @click="addLine" />
+      <Button :label="pt('Add Line')" icon="pi pi-plus" text size="small" @click="addLine" />
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
       <div class="totals-panel">
         <div class="overall-disc">
-          <label>Invoice Discount</label>
+          <label>{{ pt('Invoice Discount') }}</label>
           <Select v-model="form.discount_type" :options="discountTypes" optionLabel="label" optionValue="value" showClear placeholder="—" class="disc-type" />
           <InputNumber v-model="form.discount_value" :minFractionDigits="0" :maxFractionDigits="2" class="disc-val" :disabled="!form.discount_type" />
         </div>
         <div class="totals">
-          <div><span>Subtotal</span><span>{{ money(pricing.header.subtotal) }}</span></div>
-          <div v-if="pricing.header.item_discount_total"><span>Item Discount</span><span>−{{ money(pricing.header.item_discount_total) }}</span></div>
-          <div v-if="pricing.header.discount_amount"><span>Invoice Discount</span><span>−{{ money(pricing.header.discount_amount) }}</span></div>
-          <div><span>Taxable</span><span>{{ money(pricing.header.taxable) }}</span></div>
-          <div><span>GST</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
-          <div v-if="pricing.header.round_off"><span>Round Off</span><span>{{ money(pricing.header.round_off) }}</span></div>
-          <div class="grand-row"><span>Grand Total</span><span>{{ money(pricing.header.total) }}</span></div>
+          <div><span>{{ pt('Subtotal') }}</span><span>{{ money(pricing.header.subtotal) }}</span></div>
+          <div v-if="pricing.header.item_discount_total"><span>{{ pt('Item Discount') }}</span><span>−{{ money(pricing.header.item_discount_total) }}</span></div>
+          <div v-if="pricing.header.discount_amount"><span>{{ pt('Invoice Discount') }}</span><span>−{{ money(pricing.header.discount_amount) }}</span></div>
+          <div><span>{{ pt('Taxable') }}</span><span>{{ money(pricing.header.taxable) }}</span></div>
+          <div><span>{{ pt('GST') }}</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
+          <div v-if="pricing.header.round_off"><span>{{ pt('Round Off') }}</span><span>{{ money(pricing.header.round_off) }}</span></div>
+          <div class="grand-row"><span>{{ pt('Grand Total') }}</span><span>{{ money(pricing.header.total) }}</span></div>
           <div class="tcs-row">
-            <Select v-model="form.tcs_section" :options="tcsRates" optionLabel="label" optionValue="value" showClear placeholder="No TCS" class="tcs-select" @change="onTcsSectionChange" />
-            <span>TCS {{ form.tcs_rate }}%</span><span>+{{ money(estTcs) }}</span>
+            <Select v-model="form.tcs_section" :options="tcsRates" optionLabel="label" optionValue="value" showClear :placeholder="pt('No TCS')" class="tcs-select" @change="onTcsSectionChange" />
+            <span>{{ pt('TCS') }} {{ form.tcs_rate }}%</span><span>+{{ money(estTcs) }}</span>
           </div>
-          <div v-if="estTcs" class="grand-row"><span>Total Collectible</span><span>{{ money(pricing.header.total + estTcs) }}</span></div>
+          <div v-if="estTcs" class="grand-row"><span>{{ pt('Total Collectible') }}</span><span>{{ money(pricing.header.total + estTcs) }}</span></div>
         </div>
       </div>
 
       <div class="fld full">
-        <label>Notes</label>
+        <label>{{ pt('Notes') }}</label>
         <Textarea v-model="form.notes" rows="2" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="createVisible = false" />
-        <Button label="Create Order" :loading="saving" @click="saveOrder" />
+        <Button :label="pt('Cancel')" text @click="createVisible = false" />
+        <Button :label="pt('Create Order')" :loading="saving" @click="saveOrder" />
       </template>
     </Dialog>
 
     <!-- Payment dialog -->
-    <Dialog v-model:visible="payVisible" modal :header="invoice ? `Invoice ${invoice.invoice_number}` : 'Invoice'" :style="{ width: '560px' }">
-      <div v-if="payLoading" class="muted">Loading invoice…</div>
+    <Dialog v-model:visible="payVisible" modal :header="invoice ? pt('Invoice {number}', { number: invoice.invoice_number }) : pt('Invoice')" :style="{ width: '560px' }">
+      <div v-if="payLoading" class="muted">{{ pt('Loading invoice…') }}</div>
       <template v-else-if="invoice">
         <div class="inv-summary">
-          <div class="inv-cell"><span class="inv-label">Total</span><span class="inv-value">{{ money(invoice.total) }}</span></div>
-          <div class="inv-cell"><span class="inv-label">Paid</span><span class="inv-value">{{ money(invoice.paid_amount) }}</span></div>
-          <div class="inv-cell"><span class="inv-label">Balance Due</span><span class="inv-value due">{{ money(invoice.balance_due) }}</span></div>
-          <div class="inv-cell"><span class="inv-label">Status</span><Tag :severity="invoiceStatusColors[invoice.status]" :value="invoice.status" /></div>
+          <div class="inv-cell"><span class="inv-label">{{ pt('Total') }}</span><span class="inv-value">{{ money(invoice.total) }}</span></div>
+          <div class="inv-cell"><span class="inv-label">{{ pt('Paid') }}</span><span class="inv-value">{{ money(invoice.paid_amount) }}</span></div>
+          <div class="inv-cell"><span class="inv-label">{{ pt('Balance Due') }}</span><span class="inv-value due">{{ money(invoice.balance_due) }}</span></div>
+          <div class="inv-cell"><span class="inv-label">{{ pt('Status') }}</span><Tag :severity="invoiceStatusColors[invoice.status]" :value="invoice.status" /></div>
         </div>
 
-        <h3 class="lines-title">Payments</h3>
+        <h3 class="lines-title">{{ pt('Payments') }}</h3>
         <table class="lines">
-          <thead><tr><th>Date</th><th>Mode</th><th style="text-align: right">Amount</th></tr></thead>
+          <thead><tr><th>{{ pt('Date') }}</th><th>{{ pt('Mode') }}</th><th style="text-align: right">{{ pt('Amount') }}</th></tr></thead>
           <tbody>
             <tr v-for="p in invoice.payments" :key="p.id">
               <td>{{ p.payment_date }}</td>
               <td>{{ p.mode }}</td>
               <td style="text-align: right">{{ money(p.amount) }}</td>
             </tr>
-            <tr v-if="!invoice.payments?.length"><td colspan="3" class="muted" style="text-align: center">No payments yet.</td></tr>
+            <tr v-if="!invoice.payments?.length"><td colspan="3" class="muted" style="text-align: center">{{ pt('No payments yet.') }}</td></tr>
           </tbody>
         </table>
 
         <template v-if="invoice.status !== 'paid'">
-          <h3 class="lines-title">Record Payment</h3>
+          <h3 class="lines-title">{{ pt('Record Payment') }}</h3>
           <div class="form-top">
             <div class="fld">
-              <label>Amount *</label>
+              <label>{{ pt('Amount') }} *</label>
               <InputNumber v-model="payForm.amount" :minFractionDigits="2" :maxFractionDigits="2" class="w-full" />
               <small v-if="payErrors.amount" class="err">{{ payErrors.amount[0] }}</small>
             </div>
             <div class="fld">
-              <label>Mode *</label>
+              <label>{{ pt('Mode') }} *</label>
               <Select v-model="payForm.mode" :options="paymentModes" optionLabel="label" optionValue="value" />
               <small v-if="payErrors.mode" class="err">{{ payErrors.mode[0] }}</small>
             </div>
             <div class="fld">
-              <label>Payment Date *</label>
+              <label>{{ pt('Payment Date') }} *</label>
               <input type="date" v-model="payForm.payment_date" class="date-input" />
               <small v-if="payErrors.payment_date" class="err">{{ payErrors.payment_date[0] }}</small>
             </div>
             <div class="fld">
-              <label>Notes</label>
+              <label>{{ pt('Notes') }}</label>
               <Textarea v-model="payForm.notes" rows="1" />
             </div>
           </div>
         </template>
-        <div v-else class="paid-note">Fully paid — no balance outstanding.</div>
+        <div v-else class="paid-note">{{ pt('Fully paid — no balance outstanding.') }}</div>
       </template>
       <template #footer>
-        <Button label="Close" text @click="payVisible = false" />
-        <Button v-if="invoice && invoice.status !== 'paid'" label="Record Payment" :loading="paySaving" @click="savePayment" />
+        <Button :label="pt('Close')" text @click="payVisible = false" />
+        <Button v-if="invoice && invoice.status !== 'paid'" :label="pt('Record Payment')" :loading="paySaving" @click="savePayment" />
       </template>
     </Dialog>
 

@@ -10,16 +10,19 @@ import Column from 'primevue/column'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { openPdfBlob } from '../utils/blob'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
+const pt = usePt()
 
 // The four label formats from SRS §21.
-const TEMPLATES = [
-  { value: 'barcode', label: 'Barcode Printing', icon: 'pi pi-barcode', desc: 'Compact CODE128 barcode label.', symbology: 'code128' },
-  { value: 'qr', label: 'QR Label', icon: 'pi pi-qrcode', desc: 'Square QR-code label.', symbology: 'qr' },
-  { value: 'sticker', label: 'Product Sticker', icon: 'pi pi-tag', desc: 'Name, brand/category, code & price.', symbology: null },
-  { value: 'price_tag', label: 'Price Tag', icon: 'pi pi-indian-rupee', desc: 'Retail tag with a bold price.', symbology: null },
-]
+const TEMPLATES = computed(() => [
+  { value: 'barcode', label: pt('Barcode Printing'), icon: 'pi pi-barcode', desc: pt('Compact CODE128 barcode label.'), symbology: 'code128' as string | null },
+  { value: 'qr', label: pt('QR Label'), icon: 'pi pi-qrcode', desc: pt('Square QR-code label.'), symbology: 'qr' as string | null },
+  { value: 'sticker', label: pt('Product Sticker'), icon: 'pi pi-tag', desc: pt('Name, brand/category, code & price.'), symbology: null as string | null },
+  { value: 'price_tag', label: pt('Price Tag'), icon: 'pi pi-indian-rupee', desc: pt('Retail tag with a bold price.'), symbology: null as string | null },
+])
 
 const search = ref('')
 const products = ref<any[]>([])
@@ -32,7 +35,7 @@ const showCompany = ref(true)
 const showPrice = ref(true)
 const printing = ref(false)
 
-const currentTemplate = computed(() => TEMPLATES.find((t) => t.value === template.value)!)
+const currentTemplate = computed(() => TEMPLATES.value.find((t) => t.value === template.value)!)
 // The barcode/qr templates imply their symbology; sticker/price_tag let the user pick.
 const allowsSymbologyChoice = computed(() => currentTemplate.value.symbology === null)
 const effectiveSymbology = computed(() => currentTemplate.value.symbology ?? symbology.value)
@@ -50,7 +53,7 @@ async function searchProducts() {
 
 function addToCart(product: any) {
   if (!product.barcode) {
-    toast.add({ severity: 'warn', summary: 'No barcode', detail: `${product.name} has no barcode value yet.`, life: 3000 })
+    toast.add({ severity: 'warn', summary: pt('No barcode'), detail: pt('{name} has no barcode value yet.', { name: product.name }), life: 3000 })
     return
   }
   const existing = cart.value.find((l) => l.type === 'product' && l.id === product.id)
@@ -105,7 +108,7 @@ watch([previewItem, effectiveSymbology], refreshPreview, { deep: true })
 
 async function generatePdf() {
   if (!cart.value.length) {
-    toast.add({ severity: 'warn', summary: 'No items selected', life: 3000 })
+    toast.add({ severity: 'warn', summary: pt('No items selected'), life: 3000 })
     return
   }
   printing.value = true
@@ -123,7 +126,7 @@ async function generatePdf() {
     )
     openPdfBlob(data)
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: 'Could not generate labels', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: pt('Could not generate labels'), life: 4000 })
   } finally {
     printing.value = false
   }
@@ -140,8 +143,7 @@ onMounted(searchProducts)
 
 <template>
   <div>
-    <h1>Barcode &amp; Label Printing</h1>
-    <p class="subtitle">Pick a label format, add products with a quantity, then print a ready-to-cut sheet.</p>
+    <PageHeader :title="pt('Barcode & Label Printing')" :subtitle="pt('Pick a label format, add products with a quantity, then print a ready-to-cut sheet.')" />
 
     <!-- Format picker -->
     <div class="templates">
@@ -163,28 +165,28 @@ onMounted(searchProducts)
       <div class="panel">
         <span class="search">
           <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search products by name / SKU / barcode..." />
+          <InputText v-model="search" :placeholder="pt('Search products by name / SKU / barcode...')" />
         </span>
 
         <DataTable :value="products" :loading="searching" class="p-datatable-sm" dataKey="id">
-          <Column field="sku" header="SKU" style="width: 8rem" />
-          <Column field="name" header="Name" />
-          <Column field="barcode" header="Barcode" style="width: 9rem" />
+          <Column field="sku" :header="pt('SKU')" style="width: 8rem" />
+          <Column field="name" :header="pt('Name')" />
+          <Column field="barcode" :header="pt('Barcode')" style="width: 9rem" />
           <Column header="" style="width: 4rem">
             <template #body="{ data }">
               <Button icon="pi pi-plus" text rounded size="small" @click="addToCart(data)" />
             </template>
           </Column>
-          <template #empty>No products found.</template>
+          <template #empty>{{ pt('No products found.') }}</template>
         </DataTable>
       </div>
 
       <div class="panel cart-panel">
-        <h2>Labels to print ({{ totalLabels }})</h2>
+        <h2>{{ pt('Labels to print ({n})', { n: totalLabels }) }}</h2>
 
         <table class="cart-table" v-if="cart.length">
           <thead>
-            <tr><th>Product</th><th>Qty</th><th></th></tr>
+            <tr><th>{{ pt('Product') }}</th><th>{{ pt('Qty') }}</th><th></th></tr>
           </thead>
           <tbody>
             <tr v-for="(l, i) in cart" :key="`${l.type}-${l.id}`">
@@ -197,13 +199,13 @@ onMounted(searchProducts)
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty-cart">No items added yet.</p>
+        <p v-else class="empty-cart">{{ pt('No items added yet.') }}</p>
 
         <!-- Live preview -->
         <div class="preview-wrap" v-if="previewItem">
-          <label class="section-label">Preview</label>
+          <label class="section-label">{{ pt('Preview') }}</label>
           <div class="preview" :class="`prev-${template}`">
-            <div v-if="showCompany && (template === 'sticker' || template === 'price_tag')" class="p-company">Your Company</div>
+            <div v-if="showCompany && (template === 'sticker' || template === 'price_tag')" class="p-company">{{ pt('Your Company') }}</div>
             <div class="p-name">{{ previewItem.name }}</div>
             <div v-if="template === 'sticker'" class="p-sub">{{ previewItem.sku }}</div>
             <div v-if="template === 'sticker' && (previewItem.category || previewItem.brand)" class="p-meta">
@@ -224,22 +226,22 @@ onMounted(searchProducts)
 
         <div class="print-controls">
           <template v-if="allowsSymbologyChoice">
-            <label class="section-label">Code Type</label>
+            <label class="section-label">{{ pt('Code Type') }}</label>
             <Select v-model="symbology"
-              :options="[{ label: 'CODE128 Barcode', value: 'code128' }, { label: 'QR Code', value: 'qr' }]"
+              :options="[{ label: pt('CODE128 Barcode'), value: 'code128' }, { label: pt('QR Code'), value: 'qr' }]"
               optionLabel="label" optionValue="value" />
           </template>
 
           <div v-if="showsPriceOption" class="toggle-row">
             <ToggleSwitch v-model="showCompany" inputId="tg-company" />
-            <label for="tg-company">Show company name</label>
+            <label for="tg-company">{{ pt('Show company name') }}</label>
           </div>
           <div v-if="showsPriceOption" class="toggle-row">
             <ToggleSwitch v-model="showPrice" inputId="tg-price" />
-            <label for="tg-price">Show price</label>
+            <label for="tg-price">{{ pt('Show price') }}</label>
           </div>
 
-          <Button label="Generate PDF" icon="pi pi-print" :loading="printing" :disabled="!cart.length" @click="generatePdf" />
+          <Button :label="pt('Generate PDF')" icon="pi pi-print" :loading="printing" :disabled="!cart.length" @click="generatePdf" />
         </div>
       </div>
     </div>

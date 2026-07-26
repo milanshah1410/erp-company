@@ -15,6 +15,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -153,31 +154,30 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Shrinkage Records</h1>
-      <div style="display:flex;gap:0.5rem;align-items:center">
-        <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
-        </span>
-        <Button label="Search" outlined @click="reload" />
-        <Select v-model="processFilter" :options="processOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All processes" @change="reload" class="filter-sel" />
-        <TableExportButtons title="Shrinkage Records" endpoint="/shrinkage-records"
-          :params="() => ({ search: search || undefined, process: processFilter || undefined })"
-          :columns="[
-            { key: 'record_number', label: 'Record #' },
-            { key: 'fabric_roll', label: 'Roll' },
-            { key: 'product', label: 'Product' },
-            { key: 'process', label: 'Process' },
-            { key: 'test_date', label: 'Date' },
-            { key: 'length_before', label: 'Length Before' },
-            { key: 'length_after', label: 'Length After' },
-            { key: 'length_shrinkage_pct', label: 'Length Shrink %' },
-            { key: 'width_shrinkage_pct', label: 'Width Shrink %' },
-          ]" />
-        <Button v-if="canCreate" label="New Record" icon="pi pi-plus" @click="openCreate" />
-      </div>
+    <PageHeader title="Shrinkage Records" :count="crud.total.value" />
+
+    <div class="toolbar no-print">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button label="Search" outlined @click="reload" />
+      <Select v-model="processFilter" :options="processOptions" optionLabel="label" optionValue="value" showClear
+        placeholder="All processes" @change="reload" class="filter-sel" />
+      <TableExportButtons title="Shrinkage Records" endpoint="/shrinkage-records"
+        :params="() => ({ search: search || undefined, process: processFilter || undefined })"
+        :columns="[
+          { key: 'record_number', label: 'Record #' },
+          { key: 'fabric_roll', label: 'Roll' },
+          { key: 'product', label: 'Product' },
+          { key: 'process', label: 'Process' },
+          { key: 'test_date', label: 'Date' },
+          { key: 'length_before', label: 'Length Before' },
+          { key: 'length_after', label: 'Length After' },
+          { key: 'length_shrinkage_pct', label: 'Length Shrink %' },
+          { key: 'width_shrinkage_pct', label: 'Width Shrink %' },
+        ]" />
+      <Button v-if="canCreate" label="New Record" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"

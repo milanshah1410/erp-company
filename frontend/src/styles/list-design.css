@@ -1,0 +1,476 @@
+/* =====================================================================
+ * Common listing-screen design (project-stack.md §1).
+ *
+ * The Products screen was redesigned first; these rules lift that design
+ * into one shared global layer so every module's list screen inherits it
+ * without editing ~98 view files. They deliberately key off the class
+ * names the views already use by convention (.header, .toolbar, .search)
+ * plus PrimeVue's DataTable classes.
+ *
+ * Specificity contract: everything here is plain global CSS, so a screen's
+ * own scoped rule (.toolbar[data-v-x]) always wins. A view that already
+ * styles a property keeps its value and only *gains* the new ones.
+ *
+ * The "cell atoms" at the bottom (.code-chip, .status-pill, .row-actions…)
+ * are opt-in helpers for <Column> body templates — use them instead of
+ * re-inventing per-view chip styles. See ProductsView.vue for the
+ * reference implementation.
+ * ===================================================================== */
+
+:root {
+  /* Muted text. NOTE: --graphite-light is *not* a muted tone in light mode
+     (it is a darker graphite), so listing screens use this instead. */
+  --muted: #6f7680;
+  /* Table row hover + generic accent tints */
+  --row-hover: color-mix(in srgb, var(--safety-amber, #e8a33d) 8%, transparent);
+  --card-shadow: 0 4px 18px rgba(30, 35, 40, 0.05);
+  --card-shadow-sm: 0 2px 8px rgba(30, 35, 40, 0.04);
+}
+
+:root.dark-mode {
+  --muted: #98a1ab;
+  --card-shadow: none;
+  --card-shadow-sm: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * 1. Page head — title block + primary action
+ * ------------------------------------------------------------------ */
+.header,
+.page-head,
+.crud-header,
+.page-header,
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.header h1,
+.page-head h1,
+.crud-header h1,
+.page-header h1,
+.view-header h1 {
+  font-size: 1.65rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Small uppercase module label above the title ("INVENTORY", "SALES"…) */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--safety-amber, #e8a33d);
+}
+
+.page-sub,
+.page-subtitle,
+.subtitle {
+  margin: 0.3rem 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.header-actions,
+.head-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* Record-count badge, e.g. "1,204 products" */
+.count-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: var(--surface-2, #f2f0ea);
+  border: 1px solid var(--border, #e3ded3);
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.count-chip strong {
+  font-size: 0.95rem;
+  color: var(--graphite, #1e2328);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* ------------------------------------------------------------------ *
+ * 2. Toolbar — search + filters + export/print, as one card
+ * ------------------------------------------------------------------ */
+.toolbar,
+.crud-toolbar,
+.toolbar-card,
+.report-toolbar,
+.filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3ded3);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.1rem;
+  box-shadow: var(--card-shadow-sm);
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+/* Search box with the magnifier tucked inside the field. Views use either
+   `.search` or `.search-box` for this wrapper — both are supported. */
+.search,
+.search-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.search > .pi:first-child,
+.search-box > .pi:first-child {
+  position: absolute;
+  left: 0.8rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+.search input,
+.search-box input {
+  padding-left: 2.35rem;
+  border-radius: 10px;
+}
+/* Optional click-to-clear icon on the right of the search field. */
+.search .clear-search {
+  position: absolute;
+  right: 0.7rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.search .clear-search:hover {
+  color: var(--alert-rust, #c1502e);
+}
+
+.toolbar .p-button-outlined,
+.crud-toolbar .p-button-outlined {
+  border-radius: 10px;
+}
+
+/* ------------------------------------------------------------------ *
+ * 3. Data table — the table itself is the card (no wrapper needed)
+ * ------------------------------------------------------------------ */
+.p-datatable {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3ded3);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+}
+/* Tables nested in dialogs / cards stay flat so borders don't stack up. */
+.p-dialog .p-datatable,
+.card .p-datatable {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.p-datatable .p-datatable-header-cell {
+  background: var(--surface-2, #f7f5f0);
+  border-top: none;
+  border-bottom: 1px solid var(--border, #e3ded3);
+  padding: 0.75rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border, #f0ece2);
+  vertical-align: middle;
+  transition: background 0.15s;
+}
+.p-datatable .p-datatable-tbody > tr:last-child > td {
+  border-bottom: none;
+}
+.p-datatable .p-datatable-tbody > tr:not(.p-datatable-empty-message):hover > td {
+  /* Painted on the cells so it sits above the theme's own row colour. */
+  background: var(--row-hover);
+}
+.p-datatable .p-datatable-empty-message > td {
+  text-align: center;
+  color: var(--muted);
+  padding: 2rem 1rem;
+}
+
+/* Compact variant keeps its tighter rhythm. */
+.p-datatable.p-datatable-sm .p-datatable-header-cell,
+.p-datatable.p-datatable-sm .p-datatable-tbody > tr > td {
+  padding: 0.6rem 0.85rem;
+}
+
+.p-datatable .p-paginator {
+  border: none;
+  border-top: 1px solid var(--border, #e3ded3);
+  background: var(--surface-2, #faf9f5);
+  padding: 0.55rem 1rem;
+}
+
+/* Tags inside tables read as status pills. */
+.p-datatable .p-tag {
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+/* Row action buttons: square-ish icon buttons instead of circles. */
+.p-datatable .p-datatable-tbody .p-button.p-button-icon-only {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 8px;
+}
+
+/* ------------------------------------------------------------------ *
+ * 4. Cell atoms — opt-in helpers for <Column> body templates
+ * ------------------------------------------------------------------ */
+
+/* Image + name + secondary line (see ProductsView "Product" column). */
+.entity-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+.entity-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.entity-name {
+  font-weight: 600;
+  color: var(--graphite, #1e2328);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entity-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 40px thumbnail (or icon placeholder) */
+.thumb {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  object-fit: cover;
+  border-radius: 9px;
+  border: 1px solid var(--border, #e3ded3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.thumb-placeholder {
+  background: var(--surface-2, #f3f4f6);
+  color: var(--muted);
+}
+
+/* Codes: SKU, invoice no., batch, serial, GSTIN… */
+.code-chip {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: var(--surface-2, #f2f0ea);
+  border: 1px solid var(--border, #e3ded3);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+/* Soft category / type chip */
+.chip {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ink-blue, #2c4a5e);
+  background: color-mix(in srgb, var(--ink-blue, #2c4a5e) 10%, transparent);
+}
+.chip-amber {
+  color: #8a5a12;
+  background: color-mix(in srgb, var(--safety-amber, #e8a33d) 18%, transparent);
+}
+:root.dark-mode .chip-amber {
+  color: var(--safety-amber-light, #f2c274);
+}
+.chip-green {
+  color: var(--stock-green, #4c8b6c);
+  background: color-mix(in srgb, var(--stock-green, #4c8b6c) 12%, transparent);
+}
+.chip-rust {
+  color: var(--alert-rust, #c1502e);
+  background: color-mix(in srgb, var(--alert-rust, #c1502e) 12%, transparent);
+}
+
+/* Tiny uppercase flag pills (batch / serial / expiry, feature toggles…) */
+.track-pill {
+  display: inline-block;
+  margin: 0.1rem 0.25rem 0.1rem 0;
+  padding: 0.12rem 0.45rem;
+  border-radius: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--stock-green, #4c8b6c);
+  background: color-mix(in srgb, var(--stock-green, #4c8b6c) 12%, transparent);
+}
+
+/* Dot + label status pill. Add .is-on / .is-off / .is-warn / .is-info */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 6px;
+}
+.status-pill.is-on {
+  color: var(--stock-green, #4c8b6c);
+  background: color-mix(in srgb, var(--stock-green, #4c8b6c) 13%, transparent);
+}
+.status-pill.is-off {
+  color: var(--alert-rust, #c1502e);
+  background: color-mix(in srgb, var(--alert-rust, #c1502e) 13%, transparent);
+}
+.status-pill.is-warn {
+  color: #8a5a12;
+  background: color-mix(in srgb, var(--safety-amber, #e8a33d) 20%, transparent);
+}
+:root.dark-mode .status-pill.is-warn {
+  color: var(--safety-amber-light, #f2c274);
+}
+.status-pill.is-info {
+  color: var(--ink-blue, #2c4a5e);
+  background: color-mix(in srgb, var(--ink-blue, #2c4a5e) 13%, transparent);
+}
+:root.dark-mode .status-pill.is-info {
+  color: var(--ink-blue-light, #7fa8c2);
+}
+.status-pill.is-muted {
+  color: var(--muted);
+  background: var(--surface-2, #f2f0ea);
+}
+
+/* Numeric / amount cells */
+.num-cell,
+.amount-cell {
+  text-align: right;
+}
+.p-datatable .num-head .p-datatable-column-header-content {
+  justify-content: flex-end;
+}
+.amount {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-weight: 600;
+  color: var(--graphite, #1e2328);
+}
+.muted {
+  color: var(--muted);
+}
+
+/* Row action button group (plain <button class="icon-btn">) */
+.row-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.icon-btn:hover {
+  background: var(--surface-2, #f2f0ea);
+  border-color: var(--border, #e3ded3);
+  color: var(--graphite, #1e2328);
+}
+.icon-btn.edit:hover {
+  color: var(--ink-blue, #2c4a5e);
+  border-color: color-mix(in srgb, var(--ink-blue, #2c4a5e) 35%, transparent);
+}
+.icon-btn.danger:hover {
+  color: var(--alert-rust, #c1502e);
+  border-color: color-mix(in srgb, var(--alert-rust, #c1502e) 35%, transparent);
+}
+
+/* Illustrated empty state for a table's #empty slot */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+}
+.empty-state > i {
+  font-size: 1.8rem;
+  opacity: 0.6;
+}
+.empty-state p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* ------------------------------------------------------------------ *
+ * 5. Small screens
+ * ------------------------------------------------------------------ */
+@media (max-width: 640px) {
+  .page-head,
+  .head-actions {
+    align-items: stretch;
+  }
+  .search input {
+    width: 100%;
+  }
+  .p-datatable {
+    border-radius: 12px;
+  }
+}

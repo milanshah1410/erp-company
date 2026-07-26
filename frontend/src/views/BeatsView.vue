@@ -15,6 +15,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -194,10 +195,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Beat Plan &amp; Routes</h1>
-      <Button v-if="canCreate" label="New Beat" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Beat Plan &amp; Routes">
+      <template #actions>
+        <Button v-if="canCreate" label="New Beat" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <Select v-model="filterSalesman" :options="salesmen" optionLabel="label" optionValue="value" filter showClear

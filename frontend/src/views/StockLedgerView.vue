@@ -8,6 +8,7 @@ import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import http from '../api/http'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -71,8 +72,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <h1>Stock Ledger</h1>
-    <p class="subtitle">Immutable record of every stock movement</p>
+    <PageHeader title="Stock Ledger" subtitle="Immutable record of every stock movement" />
 
     <div class="toolbar">
       <span class="search-box">

@@ -15,6 +15,7 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -224,13 +225,14 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>SMS</h1>
-      <div class="header-actions">
+    <PageHeader title="SMS">
+      <template #actions>
+        <div class="header-actions">
         <Button v-if="canCreate" label="Festival Greetings" icon="pi pi-gift" severity="success" outlined @click="openFestival" />
         <Button v-if="canCreate" label="New SMS" icon="pi pi-send" @click="openCompose" />
-      </div>
-    </div>
+        </div>
+      </template>
+    </PageHeader>
 
     <p class="hint">
       <i class="pi pi-info-circle" />

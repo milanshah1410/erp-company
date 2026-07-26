@@ -28,6 +28,9 @@ class PlanSeeder extends Seeder
                     'api_access' => false,
                     'integrations' => false,
                     'support' => 'email',
+                    // Onboarding §3: the module set a Starter tenant may enable.
+                    // Keys come from App\Support\Modules::CATALOGUE.
+                    'modules' => ['sales', 'pos', 'purchase', 'inventory', 'accounts'],
                 ],
             ],
             [
@@ -46,6 +49,10 @@ class PlanSeeder extends Seeder
                     'api_access' => false,
                     'integrations' => false,
                     'support' => 'email',
+                    'modules' => [
+                        'sales', 'pos', 'crm', 'field_sales', 'broker',
+                        'purchase', 'inventory', 'logistics', 'accounts', 'gst', 'hrms',
+                    ],
                 ],
             ],
             [
@@ -65,6 +72,8 @@ class PlanSeeder extends Seeder
                     'api_access' => true,
                     'integrations' => true,
                     'support' => 'dedicated',
+                    // '*' unlocks the whole catalogue — Enterprise picks freely.
+                    'modules' => ['*'],
                 ],
             ],
         ];

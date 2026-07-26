@@ -7,6 +7,7 @@ import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const tailors = ref<{ label: string; value: number }[]>([])
 const tailorId = ref<number | null>(null)
@@ -44,9 +45,7 @@ onMounted(loadTailors)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Tailor Ledger</h1>
-    </div>
+    <PageHeader title="Tailor Ledger" />
 
     <div class="toolbar">
       <Select v-model="tailorId" :options="tailors" optionLabel="label" optionValue="value"

@@ -11,6 +11,7 @@ use App\Models\Plan;
 use App\Models\Scopes\TenantScope;
 use App\Models\User;
 use App\Notifications\VerifyTenantEmail;
+use App\Support\Modules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -59,7 +60,7 @@ class RegistrationController extends Controller
             'config.industry' => ['nullable', 'string', 'max:50'],
             'config.company' => ['nullable', 'array'],
             'config.modules' => ['nullable', 'array'],
-            'config.modules.*' => ['string', 'max:30'],
+            'config.modules.*' => ['string', Rule::in(Modules::keys())],
             'config.users' => ['nullable', 'array', 'max:20'],
             'config.users.*.name' => ['required_with:config.users', 'string', 'max:255'],
             'config.users.*.email' => ['required_with:config.users', 'email', 'max:255', 'distinct:ignore_case'],
@@ -74,6 +75,28 @@ class RegistrationController extends Controller
             'config.load_demo' => ['nullable', 'boolean'],
             'config.demo_count' => ['nullable', 'integer'],
         ]);
+
+        // Module set must fit the chosen package: only Enterprise ('*') unlocks
+        // the whole catalogue, so a tampered payload can't smuggle in modules the
+        // plan does not sell.
+        $plan = isset($data['plan_slug']) ? Plan::where('slug', $data['plan_slug'])->first() : null;
+        $chosenModules = $data['config']['modules'] ?? [];
+        if ($plan && $chosenModules) {
+            $extra = array_values(array_diff($chosenModules, $plan->allowedModules()));
+            if ($extra !== []) {
+                $labels = array_map(
+                    static fn (string $k) => Modules::CATALOGUE[$k]['label'] ?? $k,
+                    $extra,
+                );
+
+                return response()->json([
+                    'message' => 'Some selected modules are not available on the ' . $plan->name . ' plan.',
+                    'errors' => ['config.modules' => [
+                        implode(', ', $labels) . ' need a higher plan. Upgrade to Enterprise for the full module set.',
+                    ]],
+                ], 422);
+            }
+        }
 
         $email = strtolower(trim($data['email']));
         if ($reason = $this->emailError($email)) {

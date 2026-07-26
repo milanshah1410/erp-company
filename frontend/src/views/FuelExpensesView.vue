@@ -15,6 +15,7 @@ import { useCrud } from '../composables/useCrud'
 import { useExpenseWorkflow } from '../composables/useExpenseWorkflow'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 const crud = useCrud('/fuel-expenses')
@@ -177,10 +178,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Fuel Expenses</h1>
-      <Button v-if="canCreate" label="New Fill" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Fuel Expenses" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" label="New Fill" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="tabbar">
       <button class="tab" :class="{ active: tab === 'list' }" @click="switchTab('list')"><i class="pi pi-bolt" /> Fills</button>

@@ -31,27 +31,29 @@ import {
   type CustomerDisplayState,
 } from '../utils/posDevice'
 import { printReceipt, openCashDrawer, type ReceiptData } from '../utils/posReceipt'
+import { usePt } from '../i18n/pt'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 
-const modeOptions = [
-  { label: 'Sell', value: 'sell', icon: 'pi pi-shopping-bag' },
-  { label: 'Return', value: 'return', icon: 'pi pi-replay' },
-  { label: 'Exchange', value: 'exchange', icon: 'pi pi-sync' },
-]
+const modeOptions = computed(() => [
+  { label: pt('Sell'), value: 'sell', icon: 'pi pi-shopping-bag' },
+  { label: pt('Return'), value: 'return', icon: 'pi pi-replay' },
+  { label: pt('Exchange'), value: 'exchange', icon: 'pi pi-sync' },
+])
 const mode = ref<'sell' | 'return' | 'exchange'>('sell')
 
 const discountTypes = [
   { label: '%', value: 'percent' },
   { label: '₹', value: 'flat' },
 ]
-const paymentModes = [
-  { label: 'Cash', value: 'cash' },
-  { label: 'Card', value: 'card' },
-  { label: 'UPI', value: 'upi' },
-  { label: 'Credit', value: 'credit' },
-]
+const paymentModes = computed(() => [
+  { label: pt('Cash'), value: 'cash' },
+  { label: pt('Card'), value: 'card' },
+  { label: pt('UPI'), value: 'upi' },
+  { label: pt('Credit'), value: 'credit' },
+])
 
 const warehouses = ref<any[]>([])
 const customers = ref<any[]>([])
@@ -204,7 +206,7 @@ async function loadProducts() {
     })
     products.value = (data.data ?? []).map((p: any) => ({ ...p, unit_price: p.selling_price }))
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load products', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load products'), life: 3000 })
   }
 }
 
@@ -226,7 +228,7 @@ async function onScanEnter() {
       search.value = ''
       await loadProducts()
     } else {
-      toast.add({ severity: 'warn', summary: 'Not found', detail: e.response?.data?.message || `No match for "${code}"`, life: 2500 })
+      toast.add({ severity: 'warn', summary: pt('Not found'), detail: e.response?.data?.message || pt('No match for "{code}"', { code }), life: 2500 })
     }
   }
   focusScan()
@@ -240,7 +242,7 @@ async function findInvoices() {
     const { data } = await http.get('/pos/invoices', { params: { search: invoiceSearch.value || undefined } })
     invoiceResults.value = data.data ?? []
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load invoices', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load invoices'), life: 3000 })
   } finally {
     searchingInvoices.value = false
   }
@@ -258,10 +260,10 @@ async function loadInvoice(id: number) {
     if (data.data.warehouse_id) warehouseId.value = data.data.warehouse_id
     if (data.data.customer_id) customerId.value = data.data.customer_id
     if (!returnLines.value.length) {
-      toast.add({ severity: 'info', summary: 'Nothing returnable', detail: 'All lines on this invoice are already returned.', life: 4000 })
+      toast.add({ severity: 'info', summary: pt('Nothing returnable'), detail: pt('All lines on this invoice are already returned.'), life: 4000 })
     }
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Could not load invoice', detail: e.response?.data?.message, life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Could not load invoice'), detail: e.response?.data?.message, life: 4000 })
   }
 }
 
@@ -273,8 +275,8 @@ function returnAll() {
 
 async function completeSale() {
   errors.value = {}
-  if (!warehouseId.value) return toast.add({ severity: 'warn', summary: 'Select a warehouse first', life: 3000 })
-  if (!cart.value.length) return toast.add({ severity: 'warn', summary: 'Cart is empty', life: 3000 })
+  if (!warehouseId.value) return toast.add({ severity: 'warn', summary: pt('Select a warehouse first'), life: 3000 })
+  if (!cart.value.length) return toast.add({ severity: 'warn', summary: pt('Cart is empty'), life: 3000 })
 
   const snapshot = snapshotSale()
   checkingOut.value = true
@@ -291,7 +293,7 @@ async function completeSale() {
     await onSaleComplete(buildSaleReceipt('TAX INVOICE', data, snapshot), snapshot.hasCash)
     resetSale()
   } catch (e: any) {
-    handleError(e, 'Checkout failed')
+    handleError(e, pt('Checkout failed'))
   } finally {
     checkingOut.value = false
   }
@@ -299,8 +301,8 @@ async function completeSale() {
 
 async function completeReturn() {
   errors.value = {}
-  if (!loadedInvoice.value) return toast.add({ severity: 'warn', summary: 'Load an invoice first', life: 3000 })
-  if (!selectedReturnItems.value.length) return toast.add({ severity: 'warn', summary: 'Set a return quantity', life: 3000 })
+  if (!loadedInvoice.value) return toast.add({ severity: 'warn', summary: pt('Load an invoice first'), life: 3000 })
+  if (!selectedReturnItems.value.length) return toast.add({ severity: 'warn', summary: pt('Set a return quantity'), life: 3000 })
 
   checkingOut.value = true
   try {
@@ -311,10 +313,10 @@ async function completeReturn() {
     })
     const receipt = buildReturnReceipt(data.data)
     await onSaleComplete(receipt, refundMode.value === 'cash')
-    toast.add({ severity: 'success', summary: 'Return processed', detail: `${data.data.credit_note_number} · refund ${money(data.data.refund_amount)}`, life: 4000 })
+    toast.add({ severity: 'success', summary: pt('Return processed'), detail: pt('{number} · refund {amount}', { number: data.data.credit_note_number, amount: money(data.data.refund_amount) }), life: 4000 })
     resetReturn()
   } catch (e: any) {
-    handleError(e, 'Return failed')
+    handleError(e, pt('Return failed'))
   } finally {
     checkingOut.value = false
   }
@@ -322,10 +324,10 @@ async function completeReturn() {
 
 async function completeExchange() {
   errors.value = {}
-  if (!loadedInvoice.value) return toast.add({ severity: 'warn', summary: 'Load an invoice first', life: 3000 })
-  if (!selectedReturnItems.value.length) return toast.add({ severity: 'warn', summary: 'Choose items to return', life: 3000 })
-  if (!cart.value.length) return toast.add({ severity: 'warn', summary: 'Add the new items', life: 3000 })
-  if (!warehouseId.value) return toast.add({ severity: 'warn', summary: 'Select a warehouse first', life: 3000 })
+  if (!loadedInvoice.value) return toast.add({ severity: 'warn', summary: pt('Load an invoice first'), life: 3000 })
+  if (!selectedReturnItems.value.length) return toast.add({ severity: 'warn', summary: pt('Choose items to return'), life: 3000 })
+  if (!cart.value.length) return toast.add({ severity: 'warn', summary: pt('Add the new items'), life: 3000 })
+  if (!warehouseId.value) return toast.add({ severity: 'warn', summary: pt('Select a warehouse first'), life: 3000 })
 
   const snapshot = snapshotSale()
   checkingOut.value = true
@@ -344,19 +346,19 @@ async function completeExchange() {
     })
     const receipt = buildSaleReceipt('EXCHANGE', data, snapshot)
     receipt.extra = [
-      { label: 'Credit Note', value: data.exchange?.credit_note_number ?? '' },
-      { label: 'Return Value', value: money(data.exchange?.return_total ?? 0) },
-      { label: 'New Sale', value: money(data.exchange?.new_total ?? 0) },
+      { label: pt('Credit Note'), value: data.exchange?.credit_note_number ?? '' },
+      { label: pt('Return Value'), value: money(data.exchange?.return_total ?? 0) },
+      { label: pt('New Sale'), value: money(data.exchange?.new_total ?? 0) },
       data.exchange?.net_refund > 0
-        ? { label: 'Net Refund', value: money(data.exchange.net_refund) }
-        : { label: 'Net Payable', value: money(data.exchange?.net_payable ?? 0) },
+        ? { label: pt('Net Refund'), value: money(data.exchange.net_refund) }
+        : { label: pt('Net Payable'), value: money(data.exchange?.net_payable ?? 0) },
     ]
     await onSaleComplete(receipt, snapshot.hasCash)
-    toast.add({ severity: 'success', summary: 'Exchange complete', detail: data.exchange?.net_refund > 0 ? `Refund ${money(data.exchange.net_refund)}` : `Collected ${money(data.exchange?.net_payable ?? 0)}`, life: 4500 })
+    toast.add({ severity: 'success', summary: pt('Exchange complete'), detail: data.exchange?.net_refund > 0 ? pt('Refund {amount}', { amount: money(data.exchange.net_refund) }) : pt('Collected {amount}', { amount: money(data.exchange?.net_payable ?? 0) }), life: 4500 })
     resetSale()
     resetReturn()
   } catch (e: any) {
-    handleError(e, 'Exchange failed')
+    handleError(e, pt('Exchange failed'))
   } finally {
     checkingOut.value = false
   }
@@ -376,7 +378,7 @@ function cartPayload() {
 
 function handleError(e: any, summary: string) {
   if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-  toast.add({ severity: 'error', summary, detail: firstError(e) || e.response?.data?.message || 'Failed', life: 6000 })
+  toast.add({ severity: 'error', summary, detail: firstError(e) || e.response?.data?.message || pt('Failed'), life: 6000 })
 }
 function firstError(e: any): string | null {
   const errs = e.response?.data?.errors
@@ -451,8 +453,8 @@ function buildReturnReceipt(d: any): ReceiptData {
     roundOff: rp.header.round_off,
     total: rp.header.total,
     extra: [
-      { label: 'Refund Mode', value: (d.refund_mode || '').toUpperCase() },
-      { label: 'Refund', value: money(d.refund_amount) },
+      { label: pt('Refund Mode'), value: (d.refund_mode || '').toUpperCase() },
+      { label: pt('Refund'), value: money(d.refund_amount) },
     ],
   }
 }
@@ -471,7 +473,7 @@ async function onSaleComplete(receipt: ReceiptData, hasCash: boolean) {
     try {
       await printReceipt(receipt, device.value, { shopName: shopName(), symbol: auth.currencySymbol, hasCash })
     } catch {
-      toast.add({ severity: 'warn', summary: 'Print failed', detail: 'Could not reach the printer/agent.', life: 4000 })
+      toast.add({ severity: 'warn', summary: pt('Print failed'), detail: pt('Could not reach the printer/agent.'), life: 4000 })
     }
   } else if (device.value.openDrawerOnCash && hasCash) {
     openCashDrawer(device.value).catch(() => {})
@@ -487,19 +489,19 @@ async function reprint() {
       hasCash: (lastReceipt.value.payments || []).some((p) => p.mode === 'cash'),
     })
   } catch {
-    toast.add({ severity: 'warn', summary: 'Print failed', life: 3000 })
+    toast.add({ severity: 'warn', summary: pt('Print failed'), life: 3000 })
   }
 }
 
 async function kickDrawer() {
   const ok = await openCashDrawer(device.value).catch(() => false)
-  if (!ok) toast.add({ severity: 'info', summary: 'Cash drawer', detail: 'Drawer kick needs a print agent (see device settings).', life: 4000 })
+  if (!ok) toast.add({ severity: 'info', summary: pt('Cash drawer'), detail: pt('Drawer kick needs a print agent (see device settings).'), life: 4000 })
 }
 
 // ---- Customer display -------------------------------------------------------
 
 function shopName() {
-  return auth.user?.current_company?.name || 'Point of Sale'
+  return auth.user?.current_company?.name || pt('Point of Sale')
 }
 
 function openCustomerDisplay() {
@@ -548,7 +550,7 @@ function broadcastDone(receipt: ReceiptData) {
       balance: receipt.balance,
       change: receipt.change,
       status: 'done',
-      message: 'Thank you!',
+      message: pt('Thank you!'),
     } as CustomerDisplayState,
   })
   setTimeout(() => displayChannel?.postMessage({ type: 'update', payload: displayState('idle') }), 8000)
@@ -564,7 +566,7 @@ function saveSettings() {
   device.value = { ...draftSettings.value }
   saveDeviceSettings(device.value)
   settingsVisible.value = false
-  toast.add({ severity: 'success', summary: 'Device settings saved', life: 2500 })
+  toast.add({ severity: 'success', summary: pt('Device settings saved'), life: 2500 })
 }
 
 // ---- Reset ------------------------------------------------------------------
@@ -663,11 +665,11 @@ onBeforeUnmount(() => {
       <SelectButton v-model="mode" :options="modeOptions" optionLabel="label" optionValue="value" :allowEmpty="false" class="mode-switch">
         <template #option="{ option }"><i :class="option.icon" style="margin-right: 0.4rem" />{{ option.label }}</template>
       </SelectButton>
-      <Select v-model="warehouseId" :options="warehouses" optionLabel="label" optionValue="value" placeholder="Warehouse" class="wh-select" />
+      <Select v-model="warehouseId" :options="warehouses" optionLabel="label" optionValue="value" :placeholder="pt('Warehouse')" class="wh-select" />
       <div class="bar-spacer" />
-      <Button icon="pi pi-desktop" text rounded severity="secondary" title="Open customer display" @click="openCustomerDisplay" />
-      <Button icon="pi pi-inbox" text rounded severity="secondary" title="Open cash drawer" @click="kickDrawer" />
-      <Button icon="pi pi-cog" text rounded severity="secondary" title="Device settings" @click="openSettings" />
+      <Button icon="pi pi-desktop" text rounded severity="secondary" :title="pt('Open customer display')" @click="openCustomerDisplay" />
+      <Button icon="pi pi-inbox" text rounded severity="secondary" :title="pt('Open cash drawer')" @click="kickDrawer" />
+      <Button icon="pi pi-cog" text rounded severity="secondary" :title="pt('Device settings')" @click="openSettings" />
     </div>
 
     <!-- SELL / EXCHANGE: product grid + cart -->
@@ -676,7 +678,7 @@ onBeforeUnmount(() => {
         <div class="pos-toolbar">
           <span class="p-input-icon-left scan-wrap">
             <i class="pi pi-qrcode" />
-            <InputText id="pos-scan" v-model="search" placeholder="Scan barcode or search — Enter to add" class="search-input" @keyup.enter="onScanEnter" autocomplete="off" />
+            <InputText id="pos-scan" v-model="search" :placeholder="pt('Scan barcode or search — Enter to add')" class="search-input" @keyup.enter="onScanEnter" autocomplete="off" />
           </span>
         </div>
         <div class="product-grid">
@@ -684,33 +686,33 @@ onBeforeUnmount(() => {
             <div class="p-name">{{ p.name }}</div>
             <div class="p-sku">{{ p.sku }}</div>
             <div class="p-price">{{ money(p.selling_price) }}</div>
-            <div class="p-stock" v-if="p.available_qty !== undefined">Avail: {{ p.available_qty }}</div>
+            <div class="p-stock" v-if="p.available_qty !== undefined">{{ pt('Avail: {qty}', { qty: p.available_qty }) }}</div>
           </div>
-          <div v-if="!filteredProducts.length" class="muted">No products found.</div>
+          <div v-if="!filteredProducts.length" class="muted">{{ pt('No products found.') }}</div>
         </div>
       </div>
 
       <div class="pos-right">
         <!-- Exchange: returning panel -->
         <div v-if="mode === 'exchange'" class="exch-return">
-          <h3 class="lines-title">Returning</h3>
+          <h3 class="lines-title">{{ pt('Returning') }}</h3>
           <div v-if="!loadedInvoice" class="inv-lookup">
-            <InputText v-model="invoiceSearch" placeholder="Invoice # or customer" class="w-full" @keyup.enter="findInvoices" />
+            <InputText v-model="invoiceSearch" :placeholder="pt('Invoice # or customer')" class="w-full" @keyup.enter="findInvoices" />
             <Button icon="pi pi-search" :loading="searchingInvoices" @click="findInvoices" />
           </div>
           <ul v-if="invoiceResults.length" class="inv-results">
             <li v-for="inv in invoiceResults" :key="inv.id" @click="loadInvoice(inv.id)">
-              <strong>{{ inv.invoice_number }}</strong> · {{ inv.customer || 'Walk-in' }} · {{ money(inv.total) }}
+              <strong>{{ inv.invoice_number }}</strong> · {{ inv.customer || pt('Walk-in') }} · {{ money(inv.total) }}
               <Tag :value="inv.status" class="ml" />
             </li>
           </ul>
           <template v-if="loadedInvoice">
             <div class="inv-head">
-              {{ loadedInvoice.invoice_number }} · {{ loadedInvoice.customer || 'Walk-in' }}
-              <Button label="Change" text size="small" @click="resetReturn" />
+              {{ loadedInvoice.invoice_number }} · {{ loadedInvoice.customer || pt('Walk-in') }}
+              <Button :label="pt('Change Invoice')" text size="small" @click="resetReturn" />
             </div>
             <table class="lines">
-              <thead><tr><th>Item</th><th>Ret. Qty</th><th>Max</th></tr></thead>
+              <thead><tr><th>{{ pt('Item') }}</th><th>{{ pt('Ret. Qty') }}</th><th>{{ pt('Max') }}</th></tr></thead>
               <tbody>
                 <tr v-for="(l, i) in returnLines" :key="i">
                   <td>{{ l.name }}</td>
@@ -719,22 +721,22 @@ onBeforeUnmount(() => {
                 </tr>
               </tbody>
             </table>
-            <div class="ret-total"><span>Return Value</span><strong>{{ money(returnTotal) }}</strong></div>
+            <div class="ret-total"><span>{{ pt('Return Value') }}</span><strong>{{ money(returnTotal) }}</strong></div>
           </template>
         </div>
 
         <div class="fld">
-          <label>Customer</label>
-          <Select v-model="customerId" :options="customers" optionLabel="label" optionValue="value" filter showClear placeholder="Walk-in Customer" class="w-full" />
+          <label>{{ pt('Customer') }}</label>
+          <Select v-model="customerId" :options="customers" optionLabel="label" optionValue="value" filter showClear :placeholder="pt('Walk-in Customer')" class="w-full" />
         </div>
         <div class="fld">
-          <label>Broker</label>
-          <Select v-model="brokerId" :options="brokers" optionLabel="label" optionValue="value" filter showClear placeholder="No broker" class="w-full" />
+          <label>{{ pt('Broker') }}</label>
+          <Select v-model="brokerId" :options="brokers" optionLabel="label" optionValue="value" filter showClear :placeholder="pt('No broker')" class="w-full" />
         </div>
 
-        <h3 class="lines-title">{{ mode === 'exchange' ? 'New Items' : 'Cart' }}</h3>
+        <h3 class="lines-title">{{ mode === 'exchange' ? pt('New Items') : pt('Cart') }}</h3>
         <table class="lines">
-          <thead><tr><th>Item</th><th>Qty</th><th>Disc</th><th>Total</th><th></th></tr></thead>
+          <thead><tr><th>{{ pt('Item') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Disc') }}</th><th>{{ pt('Total') }}</th><th></th></tr></thead>
           <tbody>
             <tr v-for="(l, i) in cart" :key="i">
               <td>{{ l.name }}</td>
@@ -746,36 +748,36 @@ onBeforeUnmount(() => {
               <td>{{ money(pricing.lines[i]?.line_total ?? 0) }}</td>
               <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeLine(i)" /></td>
             </tr>
-            <tr v-if="!cart.length"><td colspan="5" class="muted" style="text-align: center">Scan or tap a product.</td></tr>
+            <tr v-if="!cart.length"><td colspan="5" class="muted" style="text-align: center">{{ pt('Scan or tap a product.') }}</td></tr>
           </tbody>
         </table>
         <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
         <div class="overall-disc">
-          <label>Invoice Discount</label>
+          <label>{{ pt('Invoice Discount') }}</label>
           <Select v-model="overallDiscountType" :options="discountTypes" optionLabel="label" optionValue="value" showClear placeholder="—" class="disc-type" />
           <InputNumber v-model="overallDiscountValue" :minFractionDigits="0" :maxFractionDigits="2" class="disc-val" :disabled="!overallDiscountType" />
         </div>
 
         <div class="totals">
-          <div><span>Subtotal</span><span>{{ money(pricing.header.subtotal) }}</span></div>
-          <div v-if="pricing.header.item_discount_total"><span>Item Discount</span><span>−{{ money(pricing.header.item_discount_total) }}</span></div>
-          <div v-if="pricing.header.discount_amount"><span>Invoice Discount</span><span>−{{ money(pricing.header.discount_amount) }}</span></div>
-          <div><span>GST</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
-          <div v-if="pricing.header.round_off"><span>Round Off</span><span>{{ money(pricing.header.round_off) }}</span></div>
-          <div class="grand"><span>{{ mode === 'exchange' ? 'New Sale Total' : 'Grand Total' }}</span><span>{{ money(total) }}</span></div>
+          <div><span>{{ pt('Subtotal') }}</span><span>{{ money(pricing.header.subtotal) }}</span></div>
+          <div v-if="pricing.header.item_discount_total"><span>{{ pt('Item Discount') }}</span><span>−{{ money(pricing.header.item_discount_total) }}</span></div>
+          <div v-if="pricing.header.discount_amount"><span>{{ pt('Invoice Discount') }}</span><span>−{{ money(pricing.header.discount_amount) }}</span></div>
+          <div><span>{{ pt('GST') }}</span><span>{{ money(pricing.header.tax_amount) }}</span></div>
+          <div v-if="pricing.header.round_off"><span>{{ pt('Round Off') }}</span><span>{{ money(pricing.header.round_off) }}</span></div>
+          <div class="grand"><span>{{ mode === 'exchange' ? pt('New Sale Total') : pt('Grand Total') }}</span><span>{{ money(total) }}</span></div>
         </div>
 
         <!-- Exchange net settlement -->
         <div v-if="mode === 'exchange'" class="exch-net" :class="{ refund: netRefund > 0 }">
-          <div><span>Less Return Value</span><span>−{{ money(returnTotal) }}</span></div>
+          <div><span>{{ pt('Less Return Value') }}</span><span>−{{ money(returnTotal) }}</span></div>
           <div class="net-grand">
-            <span>{{ netRefund > 0 ? 'Net Refund' : 'Net Payable' }}</span>
+            <span>{{ netRefund > 0 ? pt('Net Refund') : pt('Net Payable') }}</span>
             <strong>{{ money(netRefund > 0 ? netRefund : netPayable) }}</strong>
           </div>
         </div>
 
-        <h3 class="lines-title">{{ mode === 'exchange' && netRefund > 0 ? 'Refund' : 'Payment' }}</h3>
+        <h3 class="lines-title">{{ mode === 'exchange' && netRefund > 0 ? pt('Refund') : pt('Payment') }}</h3>
         <template v-if="!(mode === 'exchange' && netRefund > 0)">
           <div v-for="(p, i) in payments" :key="i" class="pay-line">
             <Select v-model="p.mode" :options="paymentModes" optionLabel="label" optionValue="value" class="pay-mode" />
@@ -783,40 +785,40 @@ onBeforeUnmount(() => {
             <Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removePaymentLine(i)" :disabled="payments.length === 1" />
           </div>
           <div class="quick-cash">
-            <Button label="Exact" size="small" outlined @click="exactCash" />
+            <Button :label="pt('Exact')" size="small" outlined @click="exactCash" />
             <Button label="+100" size="small" outlined @click="addCash(100)" />
             <Button label="+500" size="small" outlined @click="addCash(500)" />
             <Button label="+2000" size="small" outlined @click="addCash(2000)" />
-            <Button icon="pi pi-plus" label="Line" size="small" text @click="addPaymentLine" />
+            <Button icon="pi pi-plus" :label="pt('Line')" size="small" text @click="addPaymentLine" />
           </div>
         </template>
         <div v-else class="fld">
-          <label>Refund Mode</label>
+          <label>{{ pt('Refund Mode') }}</label>
           <Select v-model="refundMode" :options="paymentModes" optionLabel="label" optionValue="value" class="w-full" />
         </div>
         <small v-if="errors.payments" class="err block">{{ errors.payments[0] }}</small>
 
         <div v-if="!(mode === 'exchange' && netRefund > 0)" class="balance" :class="{ due: balance > 0.005, over: change > 0.005 }">
-          <template v-if="change > 0.005">Change: <strong>{{ money(change) }}</strong></template>
-          <template v-else>Balance: <strong>{{ money(balance) }}</strong></template>
+          <template v-if="change > 0.005">{{ pt('Change:') }} <strong>{{ money(change) }}</strong></template>
+          <template v-else>{{ pt('Balance:') }} <strong>{{ money(balance) }}</strong></template>
         </div>
 
-        <Button v-if="mode === 'sell'" label="Complete Sale (F9)" icon="pi pi-check" class="complete-btn" :loading="checkingOut" @click="completeSale" />
-        <Button v-else label="Complete Exchange (F9)" icon="pi pi-sync" class="complete-btn" :loading="checkingOut" :disabled="!loadedInvoice" @click="completeExchange" />
+        <Button v-if="mode === 'sell'" :label="pt('Complete Sale (F9)')" icon="pi pi-check" class="complete-btn" :loading="checkingOut" @click="completeSale" />
+        <Button v-else :label="pt('Complete Exchange (F9)')" icon="pi pi-sync" class="complete-btn" :loading="checkingOut" :disabled="!loadedInvoice" @click="completeExchange" />
       </div>
     </div>
 
     <!-- RETURN: invoice-driven credit note -->
     <div v-else class="pos-return">
       <div class="return-panel">
-        <h3 class="lines-title">Find Invoice</h3>
+        <h3 class="lines-title">{{ pt('Find Invoice') }}</h3>
         <div class="inv-lookup">
-          <InputText v-model="invoiceSearch" placeholder="Invoice # or customer name" class="w-full" @keyup.enter="findInvoices" autofocus />
-          <Button icon="pi pi-search" label="Search" :loading="searchingInvoices" @click="findInvoices" />
+          <InputText v-model="invoiceSearch" :placeholder="pt('Invoice # or customer name')" class="w-full" @keyup.enter="findInvoices" autofocus />
+          <Button icon="pi pi-search" :label="pt('Search')" :loading="searchingInvoices" @click="findInvoices" />
         </div>
         <ul v-if="invoiceResults.length" class="inv-results">
           <li v-for="inv in invoiceResults" :key="inv.id" @click="loadInvoice(inv.id)">
-            <strong>{{ inv.invoice_number }}</strong> · {{ inv.invoice_date }} · {{ inv.customer || 'Walk-in' }} · {{ money(inv.total) }}
+            <strong>{{ inv.invoice_number }}</strong> · {{ inv.invoice_date }} · {{ inv.customer || pt('Walk-in') }} · {{ money(inv.total) }}
             <Tag :value="inv.status" class="ml" />
             <Tag v-if="inv.channel === 'pos'" value="POS" severity="info" class="ml" />
           </li>
@@ -825,16 +827,16 @@ onBeforeUnmount(() => {
         <template v-if="loadedInvoice">
           <div class="inv-head">
             <div>
-              <strong>{{ loadedInvoice.invoice_number }}</strong> · {{ loadedInvoice.customer || 'Walk-in' }}
-              <span class="muted"> · {{ loadedInvoice.invoice_date }} · Total {{ money(loadedInvoice.total) }}</span>
+              <strong>{{ loadedInvoice.invoice_number }}</strong> · {{ loadedInvoice.customer || pt('Walk-in') }}
+              <span class="muted"> · {{ loadedInvoice.invoice_date }} · {{ pt('Total') }} {{ money(loadedInvoice.total) }}</span>
             </div>
             <div>
-              <Button label="Return All" text size="small" @click="returnAll" />
-              <Button label="Change Invoice" text size="small" severity="secondary" @click="resetReturn" />
+              <Button :label="pt('Return All')" text size="small" @click="returnAll" />
+              <Button :label="pt('Change Invoice')" text size="small" severity="secondary" @click="resetReturn" />
             </div>
           </div>
           <table class="lines return-lines">
-            <thead><tr><th>Item</th><th>Sold</th><th>Returned</th><th>Return Qty</th><th>Unit</th><th>Reason</th></tr></thead>
+            <thead><tr><th>{{ pt('Item') }}</th><th>{{ pt('Sold') }}</th><th>{{ pt('Returned') }}</th><th>{{ pt('Return Qty') }}</th><th>{{ pt('Unit') }}</th><th>{{ pt('Reason') }}</th></tr></thead>
             <tbody>
               <tr v-for="(l, i) in returnLines" :key="i">
                 <td>{{ l.name }}<br /><small class="muted">{{ l.sku }}</small></td>
@@ -844,74 +846,74 @@ onBeforeUnmount(() => {
                 <td>{{ money(l.unit_price) }}</td>
                 <td><InputText v-model="l.reason" placeholder="—" class="reason-input" /></td>
               </tr>
-              <tr v-if="!returnLines.length"><td colspan="6" class="muted" style="text-align: center">No returnable lines.</td></tr>
+              <tr v-if="!returnLines.length"><td colspan="6" class="muted" style="text-align: center">{{ pt('No returnable lines.') }}</td></tr>
             </tbody>
           </table>
           <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
           <div class="return-foot">
             <div class="totals">
-              <div class="grand"><span>Credit / Refund</span><span>{{ money(returnTotal) }}</span></div>
+              <div class="grand"><span>{{ pt('Credit / Refund') }}</span><span>{{ money(returnTotal) }}</span></div>
             </div>
             <div class="refund-controls">
-              <label>Refund via</label>
+              <label>{{ pt('Refund via') }}</label>
               <Select v-model="refundMode" :options="paymentModes" optionLabel="label" optionValue="value" class="refund-select" />
-              <small class="muted">Choose <strong>Credit</strong> to leave the amount on the customer's account instead of refunding cash.</small>
+              <small class="muted">{{ pt('Choose') }} <strong>{{ pt('Credit') }}</strong> {{ pt("to leave the amount on the customer's account instead of refunding cash.") }}</small>
             </div>
-            <Button label="Process Return (F9)" icon="pi pi-replay" class="complete-btn" :loading="checkingOut" @click="completeReturn" />
+            <Button :label="pt('Process Return (F9)')" icon="pi pi-replay" class="complete-btn" :loading="checkingOut" @click="completeReturn" />
           </div>
         </template>
       </div>
     </div>
 
     <!-- Receipt dialog -->
-    <Dialog v-model:visible="receiptVisible" modal header="Complete" :style="{ width: '440px' }">
+    <Dialog v-model:visible="receiptVisible" modal :header="pt('Complete')" :style="{ width: '440px' }">
       <template v-if="lastReceipt">
         <p class="rcpt-head"><strong>{{ lastReceipt.title }}</strong> — {{ lastReceipt.docNumber }}</p>
         <div class="inv-summary">
-          <div class="inv-cell"><span class="inv-label">Total</span><span class="inv-value">{{ money(lastReceipt.total) }}</span></div>
-          <div class="inv-cell" v-if="lastReceipt.change"><span class="inv-label">Change</span><span class="inv-value">{{ money(lastReceipt.change) }}</span></div>
-          <div class="inv-cell" v-if="lastReceipt.balance"><span class="inv-label">Balance Due</span><span class="inv-value due">{{ money(lastReceipt.balance) }}</span></div>
+          <div class="inv-cell"><span class="inv-label">{{ pt('Total') }}</span><span class="inv-value">{{ money(lastReceipt.total) }}</span></div>
+          <div class="inv-cell" v-if="lastReceipt.change"><span class="inv-label">{{ pt('Change') }}</span><span class="inv-value">{{ money(lastReceipt.change) }}</span></div>
+          <div class="inv-cell" v-if="lastReceipt.balance"><span class="inv-label">{{ pt('Balance Due') }}</span><span class="inv-value due">{{ money(lastReceipt.balance) }}</span></div>
           <div class="inv-cell" v-for="(x, i) in lastReceipt.extra" :key="i"><span class="inv-label">{{ x.label }}</span><span class="inv-value">{{ x.value }}</span></div>
         </div>
       </template>
       <template #footer>
-        <Button label="Reprint" icon="pi pi-print" text @click="reprint" />
-        <Button label="Done" icon="pi pi-check" @click="receiptVisible = false" />
+        <Button :label="pt('Reprint')" icon="pi pi-print" text @click="reprint" />
+        <Button :label="pt('Done')" icon="pi pi-check" @click="receiptVisible = false" />
       </template>
     </Dialog>
 
     <!-- Device settings dialog -->
-    <Dialog v-model:visible="settingsVisible" modal header="POS Device Settings" :style="{ width: '480px' }">
+    <Dialog v-model:visible="settingsVisible" modal :header="pt('POS Device Settings')" :style="{ width: '480px' }">
       <div class="settings">
         <div class="fld">
-          <label>Paper Width</label>
+          <label>{{ pt('Paper Width') }}</label>
           <Select v-model="draftSettings.paperWidth" :options="[{ label: '58 mm', value: '58' }, { label: '80 mm', value: '80' }]" optionLabel="label" optionValue="value" class="w-full" />
         </div>
         <div class="fld">
-          <label>Print Method</label>
-          <Select v-model="draftSettings.printMode" :options="[{ label: 'Browser print dialog', value: 'browser' }, { label: 'Local print agent (raw ESC/POS)', value: 'agent' }]" optionLabel="label" optionValue="value" class="w-full" />
-          <small class="muted">The cash drawer can only be kicked via a local print agent.</small>
+          <label>{{ pt('Print Method') }}</label>
+          <Select v-model="draftSettings.printMode" :options="[{ label: pt('Browser print dialog'), value: 'browser' }, { label: pt('Local print agent (raw ESC/POS)'), value: 'agent' }]" optionLabel="label" optionValue="value" class="w-full" />
+          <small class="muted">{{ pt('The cash drawer can only be kicked via a local print agent.') }}</small>
         </div>
         <div class="fld" v-if="draftSettings.printMode === 'agent'">
-          <label>Print Agent URL</label>
+          <label>{{ pt('Print Agent URL') }}</label>
           <InputText v-model="draftSettings.agentUrl" class="w-full" placeholder="http://localhost:8080/print" />
         </div>
-        <label class="chk"><input type="checkbox" v-model="draftSettings.autoPrint" /> Auto-print receipt on completion</label>
-        <label class="chk"><input type="checkbox" v-model="draftSettings.openDrawerOnCash" /> Open cash drawer on cash sale</label>
-        <label class="chk"><input type="checkbox" v-model="draftSettings.beepOnScan" /> Beep on successful scan</label>
+        <label class="chk"><input type="checkbox" v-model="draftSettings.autoPrint" /> {{ pt('Auto-print receipt on completion') }}</label>
+        <label class="chk"><input type="checkbox" v-model="draftSettings.openDrawerOnCash" /> {{ pt('Open cash drawer on cash sale') }}</label>
+        <label class="chk"><input type="checkbox" v-model="draftSettings.beepOnScan" /> {{ pt('Beep on successful scan') }}</label>
         <div class="fld">
-          <label>Receipt Header Lines (address, GSTIN, phone)</label>
+          <label>{{ pt('Receipt Header Lines (address, GSTIN, phone)') }}</label>
           <Textarea v-model="draftSettings.headerLines" rows="3" class="w-full" autoResize />
         </div>
         <div class="fld">
-          <label>Footer Note</label>
+          <label>{{ pt('Footer Note') }}</label>
           <InputText v-model="draftSettings.footerNote" class="w-full" />
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="settingsVisible = false" />
-        <Button label="Save" icon="pi pi-check" @click="saveSettings" />
+        <Button :label="pt('Cancel')" text @click="settingsVisible = false" />
+        <Button :label="pt('Save')" icon="pi pi-check" @click="saveSettings" />
       </template>
     </Dialog>
   </div>

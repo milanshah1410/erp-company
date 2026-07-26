@@ -9,6 +9,7 @@ import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -218,7 +219,7 @@ onMounted(load)
 
 <template>
   <div class="settings-page">
-    <h1>Company Settings</h1>
+    <PageHeader title="Company Settings" />
 
     <div class="card">
       <h2>Document Numbering</h2>

@@ -14,8 +14,11 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
+const pt = usePt()
 const auth = useAuthStore()
 
 const detailVisible = ref(false)
@@ -39,21 +42,21 @@ const sortOrder = ref<1 | -1 | null>(null)
 const statusColors: Record<string, string> = {
   draft: 'secondary', sending: 'info', sent: 'success', failed: 'danger',
 }
-const statusFilterOptions = [
-  { label: 'Draft', value: 'draft' },
-  { label: 'Sending', value: 'sending' },
-  { label: 'Sent', value: 'sent' },
-  { label: 'Failed', value: 'failed' },
-]
+const statusFilterOptions = computed(() => [
+  { label: pt('Draft'), value: 'draft' },
+  { label: pt('Sending'), value: 'sending' },
+  { label: pt('Sent'), value: 'sent' },
+  { label: pt('Failed'), value: 'failed' },
+])
 const audienceLabels: Record<string, string> = {
   all: 'All customers', category: 'Customer category', manual: 'Manual list',
 }
 
-const audienceOptions = [
-  { label: 'All customers (with email)', value: 'all' },
-  { label: 'A customer category', value: 'category' },
-  { label: 'Manual address list', value: 'manual' },
-]
+const audienceOptions = computed(() => [
+  { label: pt('All customers (with email)'), value: 'all' },
+  { label: pt('A customer category'), value: 'category' },
+  { label: pt('Manual address list'), value: 'manual' },
+])
 
 const categories = ref<any[]>([])
 
@@ -79,7 +82,7 @@ async function reload() {
     total.value = data.total ?? items.value.length
     currentPage.value = data.current_page ?? currentPage.value
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Failed to load campaigns', life: 3500 })
+    toast.add({ severity: 'error', summary: pt('Failed to load campaigns'), life: 3500 })
   } finally {
     loading.value = false
   }
@@ -152,7 +155,7 @@ async function openEdit(row: any) {
     }
     dialogVisible.value = true
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load campaign', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load campaign'), life: 3000 })
   }
 }
 
@@ -165,7 +168,7 @@ async function preview() {
     const { data } = await http.post('/marketing-campaigns/preview', p)
     previewCount.value = data.data.count
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Preview failed', detail: e.response?.data?.message ?? '', life: 3500 })
+    toast.add({ severity: 'error', summary: pt('Preview failed'), detail: e.response?.data?.message ?? '', life: 3500 })
   } finally {
     previewing.value = false
   }
@@ -180,16 +183,16 @@ async function save() {
   try {
     if (editingId.value) {
       await http.put(`/marketing-campaigns/${editingId.value}`, buildPayload())
-      toast.add({ severity: 'success', summary: 'Campaign updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Campaign updated'), life: 2500 })
     } else {
       await http.post('/marketing-campaigns', buildPayload())
-      toast.add({ severity: 'success', summary: 'Campaign created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Campaign created'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Save failed', detail: e.response?.data?.message ?? 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Save failed'), detail: e.response?.data?.message ?? pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -197,32 +200,32 @@ async function save() {
 
 async function sendCampaign(row: any) {
   const res = await Swal.fire({
-    title: `Send "${row.name}"?`,
-    text: 'This will email every recipient in the selected audience.',
-    icon: 'question', showCancelButton: true, confirmButtonText: 'Send now',
+    title: pt('Send "{name}"?', { name: row.name }),
+    text: pt('This will email every recipient in the selected audience.'),
+    icon: 'question', showCancelButton: true, confirmButtonText: pt('Send now'), cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     const { data } = await http.post(`/marketing-campaigns/${row.id}/send`)
-    toast.add({ severity: 'success', summary: 'Campaign sending', detail: data.message, life: 4000 })
+    toast.add({ severity: 'success', summary: pt('Campaign sending'), detail: data.message, life: 4000 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot send', detail: e.response?.data?.message ?? 'Failed', life: 5000 })
+    toast.add({ severity: 'error', summary: pt('Cannot send'), detail: e.response?.data?.message ?? pt('Failed'), life: 5000 })
   }
 }
 
 async function confirmDelete(row: any) {
   const res = await Swal.fire({
-    title: `Delete "${row.name}"?`, icon: 'warning', showCancelButton: true,
-    confirmButtonColor: '#dc2626', confirmButtonText: 'Delete',
+    title: pt('Delete "{name}"?', { name: row.name }), icon: 'warning', showCancelButton: true,
+    confirmButtonColor: '#dc2626', confirmButtonText: pt('Delete'), cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/marketing-campaigns/${row.id}`)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Delete failed', detail: e.response?.data?.message ?? 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Delete failed'), detail: e.response?.data?.message ?? pt('Failed'), life: 4000 })
   }
 }
 
@@ -238,34 +241,34 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Marketing Campaigns</h1>
-      <Button v-if="canCreate" label="New Campaign" icon="pi pi-megaphone" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Marketing Campaigns')">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Campaign')" icon="pi pi-megaphone" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <p class="hint">
       <i class="pi pi-info-circle" />
-      Compose an email blast and send it to all customers, a customer category, or a manual address list.
-      Delivery is queued; per-recipient status appears in the Email Log.
+      {{ pt('Compose an email blast and send it to all customers, a customer category, or a manual address list. Delivery is queued; per-recipient status appears in the Email Log.') }}
     </p>
 
     <div class="toolbar">
       <span class="search">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search name / subject..." @keyup.enter="reload" />
+        <InputText v-model="search" :placeholder="pt('Search name / subject...')" @keyup.enter="reload" />
       </span>
-      <Select v-model="statusFilter" :options="statusFilterOptions" optionLabel="label" optionValue="value" placeholder="All status" showClear class="filter" @change="reload" />
-      <Button label="Search" outlined @click="reload" />
+      <Select v-model="statusFilter" :options="statusFilterOptions" optionLabel="label" optionValue="value" :placeholder="pt('All status')" showClear class="filter" @change="reload" />
+      <Button :label="pt('Search')" outlined @click="reload" />
       <span class="toolbar-spacer" />
-      <TableExportButtons title="Marketing Campaigns" endpoint="/marketing-campaigns"
+      <TableExportButtons :title="pt('Marketing Campaigns')" endpoint="/marketing-campaigns"
         :params="() => ({ search: search || undefined, status: statusFilter || undefined })"
         :columns="[
-          { key: 'name', label: 'Name' },
-          { key: 'subject', label: 'Subject' },
-          { key: 'audience', label: 'Audience' },
-          { key: 'sent_count', label: 'Sent' },
-          { key: 'recipient_count', label: 'Recipients' },
-          { key: 'status', label: 'Status' },
+          { key: 'name', label: pt('Name') },
+          { key: 'subject', label: pt('Subject') },
+          { key: 'audience', label: pt('Audience') },
+          { key: 'sent_count', label: pt('Sent') },
+          { key: 'recipient_count', label: pt('Recipients') },
+          { key: 'status', label: pt('Status') },
         ]" />
     </div>
 
@@ -274,87 +277,87 @@ onMounted(() => {
       :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm"
       removableSort :sortField="sortField ?? undefined" :sortOrder="sortOrder ?? undefined" @sort="onSort"
     >
-      <Column field="name" header="Name" sortable />
-      <Column field="subject" header="Subject" sortable />
-      <Column header="Audience" style="width: 12rem">
+      <Column field="name" :header="pt('Name')" sortable />
+      <Column field="subject" :header="pt('Subject')" sortable />
+      <Column :header="pt('Audience')" style="width: 12rem">
         <template #body="{ data }">
-          {{ audienceLabels[data.audience] ?? data.audience }}
+          {{ pt(audienceLabels[data.audience] ?? data.audience) }}
           <span v-if="data.customer_category" class="cat">· {{ data.customer_category }}</span>
         </template>
       </Column>
-      <Column field="recipient_count" header="Recipients" style="width: 9rem" sortable>
+      <Column field="recipient_count" :header="pt('Recipients')" style="width: 9rem" sortable>
         <template #body="{ data }">
           <span v-if="data.status === 'draft'">—</span>
-          <span v-else>{{ data.sent_count }} / {{ data.recipient_count }}<span v-if="data.failed_count" class="fail"> ({{ data.failed_count }} failed)</span></span>
+          <span v-else>{{ data.sent_count }} / {{ data.recipient_count }}<span v-if="data.failed_count" class="fail"> ({{ pt('{n} failed', { n: data.failed_count }) }})</span></span>
         </template>
       </Column>
-      <Column field="status" header="Status" style="width: 8rem" sortable>
-        <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="data.status" /></template>
+      <Column field="status" :header="pt('Status')" style="width: 8rem" sortable>
+        <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="pt(data.status)" /></template>
       </Column>
-      <Column header="Actions" style="width: 12rem">
+      <Column :header="pt('Actions')" style="width: 12rem">
         <template #body="{ data }">
-          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
-          <Button v-if="canEdit && ['draft', 'failed'].includes(data.status)" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
-          <Button v-if="canCreate && data.status !== 'sending'" icon="pi pi-send" text rounded size="small" severity="success" title="Send" @click="sendCampaign(data)" />
-          <Button v-if="canDelete && data.status !== 'sending'" icon="pi pi-trash" text rounded size="small" severity="danger" title="Delete" @click="confirmDelete(data)" />
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" :title="pt('View')" @click="openDetail(data)" />
+          <Button v-if="canEdit && ['draft', 'failed'].includes(data.status)" icon="pi pi-pencil" text rounded size="small" :title="pt('Edit')" @click="openEdit(data)" />
+          <Button v-if="canCreate && data.status !== 'sending'" icon="pi pi-send" text rounded size="small" severity="success" :title="pt('Send')" @click="sendCampaign(data)" />
+          <Button v-if="canDelete && data.status !== 'sending'" icon="pi pi-trash" text rounded size="small" severity="danger" :title="pt('Delete')" @click="confirmDelete(data)" />
         </template>
       </Column>
-      <template #empty>No campaigns yet.</template>
+      <template #empty>{{ pt('No campaigns yet.') }}</template>
     </DataTable>
 
     <!-- Compose dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editingId ? 'Edit Campaign' : 'New Campaign'" :style="{ width: '640px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editingId ? pt('Edit Campaign') : pt('New Campaign')" :style="{ width: '640px' }">
       <div class="form-grid">
         <div class="fld full">
-          <label>Campaign Name <span class="req">*</span></label>
+          <label>{{ pt('Campaign Name') }} <span class="req">*</span></label>
           <InputText v-model="form.name" :class="{ invalid: fieldError('name') }" />
           <small v-if="fieldError('name')" class="err">{{ fieldError('name') }}</small>
         </div>
         <div class="fld full">
-          <label>Subject <span class="req">*</span></label>
+          <label>{{ pt('Subject') }} <span class="req">*</span></label>
           <InputText v-model="form.subject" :class="{ invalid: fieldError('subject') }" />
           <small v-if="fieldError('subject')" class="err">{{ fieldError('subject') }}</small>
         </div>
         <div class="fld">
-          <label>Audience</label>
+          <label>{{ pt('Audience') }}</label>
           <Select v-model="form.audience" :options="audienceOptions" optionLabel="label" optionValue="value" />
         </div>
         <div class="fld" v-if="form.audience === 'category'">
-          <label>Customer Category <span class="req">*</span></label>
-          <Select v-model="form.customer_category_id" :options="categories" optionLabel="label" optionValue="value" filter placeholder="Select" :class="{ invalid: fieldError('customer_category_id') }" />
+          <label>{{ pt('Customer Category') }} <span class="req">*</span></label>
+          <Select v-model="form.customer_category_id" :options="categories" optionLabel="label" optionValue="value" filter :placeholder="pt('Select')" :class="{ invalid: fieldError('customer_category_id') }" />
           <small v-if="fieldError('customer_category_id')" class="err">{{ fieldError('customer_category_id') }}</small>
         </div>
         <div class="fld full" v-if="form.audience === 'manual'">
-          <label>Recipients <small class="muted">(one per line: email or email,Name)</small> <span class="req">*</span></label>
+          <label>{{ pt('Recipients') }} <small class="muted">{{ pt('(one per line: email or email,Name)') }}</small> <span class="req">*</span></label>
           <Textarea v-model="form.manual_text" rows="4" placeholder="jane@acme.com,Jane&#10;info@beta.com" :class="{ invalid: fieldError('manual_recipients') }" />
           <small v-if="fieldError('manual_recipients')" class="err">{{ fieldError('manual_recipients') }}</small>
         </div>
         <div class="fld full">
-          <label>Email Body <small class="muted">(HTML allowed)</small> <span class="req">*</span></label>
+          <label>{{ pt('Email Body') }} <small class="muted">{{ pt('(HTML allowed)') }}</small> <span class="req">*</span></label>
           <Textarea v-model="form.body" rows="7" :class="{ invalid: fieldError('body') }" />
           <small v-if="fieldError('body')" class="err">{{ fieldError('body') }}</small>
         </div>
         <div class="preview-row">
-          <Button label="Preview recipients" icon="pi pi-users" text size="small" :loading="previewing" @click="preview" />
-          <span v-if="previewCount !== null" class="preview-count">{{ previewCount }} recipient(s)</span>
+          <Button :label="pt('Preview recipients')" icon="pi pi-users" text size="small" :loading="previewing" @click="preview" />
+          <span v-if="previewCount !== null" class="preview-count">{{ pt('{n} recipient(s)', { n: previewCount }) }}</span>
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editingId ? 'Save' : 'Create'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editingId ? pt('Save') : pt('Create')" :loading="saving" @click="save" />
       </template>
     </Dialog>
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Campaign Details" :fields="[
-      { key: 'name', label: 'Name' },
-      { key: 'subject', label: 'Subject' },
-      { key: 'audience', label: 'Audience', format:(v)=>audienceLabels[v] ?? v },
-      { key: 'customer_category', label: 'Category' },
-      { key: 'recipient_count', label: 'Recipients' },
-      { key: 'sent_count', label: 'Sent' },
-      { key: 'failed_count', label: 'Failed' },
-      { key: 'status', label: 'Status' },
-      { key: 'body', label: 'Email Body', full: true },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('Campaign Details')" :fields="[
+      { key: 'name', label: pt('Name') },
+      { key: 'subject', label: pt('Subject') },
+      { key: 'audience', label: pt('Audience'), format:(v)=>pt(audienceLabels[v] ?? v) },
+      { key: 'customer_category', label: pt('Category') },
+      { key: 'recipient_count', label: pt('Recipients') },
+      { key: 'sent_count', label: pt('Sent') },
+      { key: 'failed_count', label: pt('Failed') },
+      { key: 'status', label: pt('Status') },
+      { key: 'body', label: pt('Email Body'), full: true },
     ]" />
   </div>
 </template>

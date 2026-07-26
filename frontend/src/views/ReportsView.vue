@@ -29,6 +29,7 @@ import SupplierLedgerReport from '../components/reports/SupplierLedgerReport.vue
 import StockAgeingReport from '../components/reports/StockAgeingReport.vue'
 import SlowMovingReport from '../components/reports/SlowMovingReport.vue'
 import FastMovingReport from '../components/reports/FastMovingReport.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 interface ReportItem {
   key: string
@@ -74,8 +75,7 @@ const activeReport = computed(() => reports.find((r) => r.key === route.params.t
 
 <template>
   <div>
-    <h1>{{ activeReport.label }}</h1>
-    <p class="subtitle">Reports · CSV / Excel / PDF export</p>
+    <PageHeader :title="activeReport.label" subtitle="Reports · CSV / Excel / PDF export" />
 
     <component :is="activeReport.component" />
   </div>

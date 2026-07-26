@@ -19,6 +19,7 @@ import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const route = useRoute()
 const toast = useToast()
@@ -243,10 +244,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>{{ isPending ? 'Pending Dispatch' : 'Received' }}</h1>
-      <Button v-if="isPending && canCreate" label="New Dispatch" icon="pi pi-plus" @click="openDispatch" />
-    </div>
+    <PageHeader :title="isPending ? 'Pending Dispatch' : 'Received'">
+      <template #actions>
+        <Button v-if="isPending && canCreate" label="New Dispatch" icon="pi pi-plus" @click="openDispatch" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <span class="search">

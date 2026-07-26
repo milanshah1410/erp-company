@@ -5,6 +5,7 @@ import InputText from 'primevue/inputtext'
 import SelectButton from 'primevue/selectbutton'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
+import PageHeader from '../components/PageHeader.vue'
 
 /**
  * Chat-based ERP Search + Gujarati Voice Assistant (SRS §22). Typed or spoken
@@ -210,18 +211,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="assistant">
-    <div class="header">
-      <div>
-        <h1>AI Assistant</h1>
-        <p class="subtitle">Chat &amp; voice search across your ERP</p>
-      </div>
-      <div class="head-controls">
+    <PageHeader title="AI Assistant" subtitle="Chat &amp; voice search across your ERP">
+      <template #actions>
         <SelectButton v-model="lang" :options="langOptions" optionLabel="label" optionValue="value" :allowEmpty="false" size="small" />
         <button class="tts-toggle" :class="{ on: speakReplies }" :disabled="!ttsSupported" @click="speakReplies = !speakReplies" title="Speak replies">
           <i :class="speakReplies && ttsSupported ? 'pi pi-volume-up' : 'pi pi-volume-off'" />
         </button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="chat-card">
       <div ref="scroller" class="messages">

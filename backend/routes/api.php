@@ -40,8 +40,12 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Public pricing / plan catalogue (for the signup + upgrade pages).
+// Public pricing / plan catalogue (for the signup + upgrade pages). Each plan
+// carries `feature_limits.modules` — the module keys that plan may switch on.
 Route::get('/plans', [PlanController::class, 'index']);
+
+// The module catalogue the onboarding wizard renders in step 3.
+Route::get('/modules', [PlanController::class, 'modules']);
 
 // Self-serve tenant registration + email verification + provisioning status.
 Route::get('/check-email', [RegistrationController::class, 'checkEmail']);

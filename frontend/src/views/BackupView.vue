@@ -7,6 +7,7 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -95,10 +96,11 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Backup &amp; Restore</h1>
-      <Button v-if="canCreate" label="Run Backup Now" icon="pi pi-cloud-upload" :loading="running" @click="runBackup" />
-    </div>
+    <PageHeader title="Backup &amp; Restore">
+      <template #actions>
+        <Button v-if="canCreate" label="Run Backup Now" icon="pi pi-cloud-upload" :loading="running" @click="runBackup" />
+      </template>
+    </PageHeader>
 
     <p class="note">
       Each backup archive contains a full database dump plus application storage files (uploads, generated documents).

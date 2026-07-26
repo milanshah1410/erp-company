@@ -16,15 +16,18 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import {
   MANUFACTURING_STAGES,
   STAGE_STATUS_COLORS,
   STAGE_STATUS_OPTIONS,
 } from '../constants/manufacturingStages'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 const crud = useCrud('/manufacturing-orders')
 
 const products = ref<any[]>([])
@@ -52,12 +55,21 @@ const statusLabels: Record<string, string> = {
 
 const search = ref('')
 const statusFilter = ref<string | null>(null)
-const statusOptions = [
-  { label: 'Draft', value: 'draft' },
-  { label: 'In Progress', value: 'in_progress' },
-  { label: 'Completed', value: 'completed' },
-  { label: 'Cancelled', value: 'cancelled' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Draft'), value: 'draft' },
+  { label: pt('In Progress'), value: 'in_progress' },
+  { label: pt('Completed'), value: 'completed' },
+  { label: pt('Cancelled'), value: 'cancelled' },
+])
+
+// Stage status picker options with translated labels (values stay as keys).
+const stageStatusOptions = computed(() =>
+  STAGE_STATUS_OPTIONS.map((o) => ({ label: pt(o.label), value: o.value })),
+)
+function stageStatusLabel(status: string) {
+  const opt = STAGE_STATUS_OPTIONS.find((o) => o.value === status)
+  return opt ? pt(opt.label) : status.replace('_', ' ')
+}
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -169,7 +181,7 @@ async function applyBom() {
   if (!form.value.bom_id) return
   const qty = Number(form.value.quantity_to_produce) || 0
   if (qty <= 0) {
-    toast.add({ severity: 'warn', summary: 'Set a quantity to produce first', life: 3000 })
+    toast.add({ severity: 'warn', summary: pt('Set a quantity to produce first'), life: 3000 })
     return
   }
   loadingBom.value = true
@@ -181,9 +193,9 @@ async function applyBom() {
       unit_cost: Number(m.unit_cost),
       remarks: m.remarks || '',
     }))
-    toast.add({ severity: 'success', summary: 'Materials loaded from BOM', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Materials loaded from BOM'), life: 2500 })
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Could not load BOM', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Could not load BOM'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     loadingBom.value = false
   }
@@ -238,7 +250,7 @@ async function openEdit(row: any) {
     form.value.bom_id = savedBomId
     editVisible.value = true
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load order', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load order'), life: 3000 })
   }
 }
 
@@ -265,16 +277,16 @@ async function saveOrder() {
   try {
     if (isEditing.value) {
       await http.put(`/manufacturing-orders/${form.value.id}`, payload)
-      toast.add({ severity: 'success', summary: 'Order updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Order updated'), life: 2500 })
     } else {
       await http.post('/manufacturing-orders', payload)
-      toast.add({ severity: 'success', summary: 'Manufacturing order created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Manufacturing order created'), life: 2500 })
     }
     editVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -283,75 +295,78 @@ async function saveOrder() {
 // --- Workflow actions ---
 async function startOrder(row: any) {
   const res = await Swal.fire({
-    title: `Start ${row.mo_number}?`,
-    text: 'Raw materials will be consumed from stock.',
+    title: pt('Start {n}?', { n: row.mo_number }),
+    text: pt('Raw materials will be consumed from stock.'),
     icon: 'question',
     showCancelButton: true,
-    confirmButtonText: 'Start Production',
+    confirmButtonText: pt('Start Production'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await http.post(`/manufacturing-orders/${row.id}/start`)
-    toast.add({ severity: 'success', summary: 'Production started', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Production started'), life: 2500 })
     reload()
     if (detail.value?.id === row.id) openDetail(row)
   } catch (e: any) {
-    const msg = e.response?.data?.errors?.materials?.[0] || e.response?.data?.message || 'Failed'
-    toast.add({ severity: 'error', summary: 'Cannot start', detail: msg, life: 6000 })
+    const msg = e.response?.data?.errors?.materials?.[0] || e.response?.data?.message || pt('Failed')
+    toast.add({ severity: 'error', summary: pt('Cannot start'), detail: msg, life: 6000 })
   }
 }
 
 async function completeOrder(row: any) {
   const { value: qty } = await Swal.fire({
-    title: `Complete ${row.mo_number}?`,
+    title: pt('Complete {n}?', { n: row.mo_number }),
     input: 'text',
-    inputLabel: 'Quantity produced',
+    inputLabel: pt('Quantity produced'),
     inputValue: String(row.quantity_to_produce),
-    text: 'The finished product will be added to stock.',
+    text: pt('The finished product will be added to stock.'),
     icon: 'question',
     showCancelButton: true,
-    confirmButtonText: 'Complete',
+    confirmButtonText: pt('Complete'),
+    cancelButtonText: pt('Cancel'),
   })
   if (qty === undefined) return
   try {
     await http.post(`/manufacturing-orders/${row.id}/complete`, { quantity_produced: Number(qty) })
-    toast.add({ severity: 'success', summary: 'Order completed — stock received', life: 3000 })
+    toast.add({ severity: 'success', summary: pt('Order completed — stock received'), life: 3000 })
     reload()
     if (detail.value?.id === row.id) closeDetail()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot complete', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Cannot complete'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 
 async function cancelOrder(row: any) {
   const res = await Swal.fire({
-    title: `Cancel ${row.mo_number}?`,
-    text: row.materials_consumed ? 'Consumed materials will be returned to stock.' : undefined,
+    title: pt('Cancel {n}?', { n: row.mo_number }),
+    text: row.materials_consumed ? pt('Consumed materials will be returned to stock.') : undefined,
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'Cancel Order',
+    confirmButtonText: pt('Cancel Order'),
+    cancelButtonText: pt('Cancel'),
     confirmButtonColor: '#dc2626',
   })
   if (!res.isConfirmed) return
   try {
     await http.post(`/manufacturing-orders/${row.id}/cancel`)
-    toast.add({ severity: 'success', summary: 'Order cancelled', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Order cancelled'), life: 2500 })
     reload()
     if (detail.value?.id === row.id) closeDetail()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot cancel', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Cannot cancel'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 
 async function deleteOrder(row: any) {
-  const res = await Swal.fire({ title: `Delete ${row.mo_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#dc2626' })
+  const res = await Swal.fire({ title: pt('Delete {n}?', { n: row.mo_number }), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Delete'), cancelButtonText: pt('Cancel'), confirmButtonColor: '#dc2626' })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/manufacturing-orders/${row.id}`)
-    toast.add({ severity: 'success', summary: 'Order deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Order deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot delete', detail: e.response?.data?.message || 'Failed', life: 5000 })
+    toast.add({ severity: 'error', summary: pt('Cannot delete'), detail: e.response?.data?.message || pt('Failed'), life: 5000 })
   }
 }
 
@@ -370,7 +385,7 @@ async function openDetail(row: any) {
     const { data } = await http.get(`/manufacturing-orders/${row.id}`)
     detail.value = data.data
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load order', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load order'), life: 3000 })
     detailVisible.value = false
   }
 }
@@ -392,11 +407,11 @@ async function saveStage(stage: any) {
       remarks: stage.remarks || null,
     })
     detail.value = data.data
-    toast.add({ severity: 'success', summary: `${stage.name} saved`, life: 2000 })
+    toast.add({ severity: 'success', summary: pt('{stage} saved', { stage: pt(stage.name) }), life: 2000 })
     reload()
   } catch (e: any) {
     const msg = e.response?.data?.errors ? Object.values(e.response.data.errors)[0] : e.response?.data?.message
-    toast.add({ severity: 'error', summary: 'Cannot save stage', detail: (msg as any) || 'Failed', life: 5000 })
+    toast.add({ severity: 'error', summary: pt('Cannot save stage'), detail: (msg as any) || pt('Failed'), life: 5000 })
   } finally {
     stageSaving.value = null
   }
@@ -420,9 +435,9 @@ async function onFileChosen(e: Event) {
     // Refresh the detail so the new image URL shows.
     const { data } = await http.get(`/manufacturing-orders/${detail.value.id}`)
     detail.value = data.data
-    toast.add({ severity: 'success', summary: 'Image uploaded', life: 2000 })
+    toast.add({ severity: 'success', summary: pt('Image uploaded'), life: 2000 })
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Upload failed', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Upload failed'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     uploadingStage.value = null
     pendingStageId = null
@@ -454,107 +469,106 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Manufacturing Orders</h1>
-      <div class="header-actions" style="display: flex; gap: 0.75rem; align-items: center">
-        <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
-        </span>
-        <Button label="Search" outlined @click="reload" />
-        <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
-        <TableExportButtons title="Manufacturing Orders" endpoint="/manufacturing-orders"
-          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
-          :columns="[
-            { key: 'mo_number', label: 'MO #' },
-            { key: 'product.name', label: 'Product' },
-            { key: 'warehouse.name', label: 'Warehouse' },
-            { key: 'quantity_to_produce', label: 'Qty' },
-            { key: 'order_date', label: 'Date' },
-            { key: 'total_cost', label: 'Total Cost' },
-            { key: 'status', label: 'Status' },
-          ]" />
-        <Button v-if="canCreate" label="New Manufacturing Order" icon="pi pi-plus" @click="openCreate" />
-      </div>
+    <PageHeader :title="pt('Manufacturing Orders')" :count="crud.total.value" />
+
+    <div class="toolbar no-print">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
+      </span>
+      <Button :label="pt('Search')" outlined @click="reload" />
+      <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+        :placeholder="pt('All statuses')" @change="reload" class="status-filter" />
+      <TableExportButtons :title="pt('Manufacturing Orders')" endpoint="/manufacturing-orders"
+        :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+        :columns="[
+          { key: 'mo_number', label: pt('MO #') },
+          { key: 'product.name', label: pt('Product') },
+          { key: 'warehouse.name', label: pt('Warehouse') },
+          { key: 'quantity_to_produce', label: pt('Qty') },
+          { key: 'order_date', label: pt('Date') },
+          { key: 'total_cost', label: pt('Total Cost') },
+          { key: 'status', label: pt('Status') },
+        ]" />
+      <Button v-if="canCreate" :label="pt('New Manufacturing Order')" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="mo_number" header="MO #" />
-      <Column header="Product"><template #body="{ data }">{{ data.product?.name }}</template></Column>
-      <Column header="Warehouse"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
-      <Column header="Qty"><template #body="{ data }">{{ Number(data.quantity_to_produce) }}</template></Column>
-      <Column field="order_date" header="Date" />
-      <Column header="Total Cost"><template #body="{ data }">{{ money(data.total_cost) }}</template></Column>
-      <Column header="Status">
+      <Column field="mo_number" :header="pt('MO #')" />
+      <Column :header="pt('Product')"><template #body="{ data }">{{ data.product?.name }}</template></Column>
+      <Column :header="pt('Warehouse')"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
+      <Column :header="pt('Qty')"><template #body="{ data }">{{ Number(data.quantity_to_produce) }}</template></Column>
+      <Column field="order_date" :header="pt('Date')" />
+      <Column :header="pt('Total Cost')"><template #body="{ data }">{{ money(data.total_cost) }}</template></Column>
+      <Column :header="pt('Status')">
         <template #body="{ data }">
-          <Tag :severity="statusColors[data.status]" :value="statusLabels[data.status]" />
+          <Tag :severity="statusColors[data.status]" :value="pt(statusLabels[data.status])" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 22rem">
+      <Column :header="pt('Actions')" style="width: 22rem">
         <template #body="{ data }">
-          <Button label="Stages" icon="pi pi-list" size="small" outlined @click="openDetail(data)" />
-          <Button v-if="canEdit && data.status === 'draft'" label="Edit" size="small" outlined @click="openEdit(data)" style="margin-left: 4px" />
-          <Button v-if="canEdit && data.status === 'draft'" label="Start" size="small" severity="info" @click="startOrder(data)" style="margin-left: 4px" />
-          <Button v-if="canEdit && data.status === 'in_progress'" label="Complete" size="small" severity="success" @click="completeOrder(data)" style="margin-left: 4px" />
-          <Button v-if="canEdit && ['draft', 'in_progress'].includes(data.status)" label="Cancel" size="small" outlined severity="danger" @click="cancelOrder(data)" style="margin-left: 4px" />
+          <Button :label="pt('Stages')" icon="pi pi-list" size="small" outlined @click="openDetail(data)" />
+          <Button v-if="canEdit && data.status === 'draft'" :label="pt('Edit')" size="small" outlined @click="openEdit(data)" style="margin-left: 4px" />
+          <Button v-if="canEdit && data.status === 'draft'" :label="pt('Start')" size="small" severity="info" @click="startOrder(data)" style="margin-left: 4px" />
+          <Button v-if="canEdit && data.status === 'in_progress'" :label="pt('Complete')" size="small" severity="success" @click="completeOrder(data)" style="margin-left: 4px" />
+          <Button v-if="canEdit && ['draft', 'in_progress'].includes(data.status)" :label="pt('Cancel')" size="small" outlined severity="danger" @click="cancelOrder(data)" style="margin-left: 4px" />
           <Button v-if="canDelete && data.status === 'draft'" icon="pi pi-trash" size="small" text severity="danger" @click="deleteOrder(data)" style="margin-left: 4px" />
         </template>
       </Column>
-      <template #empty>No manufacturing orders yet.</template>
+      <template #empty>{{ pt('No manufacturing orders yet.') }}</template>
     </DataTable>
 
     <!-- Create / edit dialog -->
-    <Dialog v-model:visible="editVisible" modal :header="isEditing ? 'Edit Manufacturing Order' : 'New Manufacturing Order'" :style="{ width: '860px' }">
+    <Dialog v-model:visible="editVisible" modal :header="isEditing ? pt('Edit Manufacturing Order') : pt('New Manufacturing Order')" :style="{ width: '860px' }">
       <div class="form-top">
         <div class="fld">
-          <label>Finished Product *</label>
-          <Select v-model="form.product_id" :options="products" optionLabel="name" optionValue="id" filter placeholder="Select product" @change="onFinishedProductPick" />
+          <label>{{ pt('Finished Product') }} *</label>
+          <Select v-model="form.product_id" :options="products" optionLabel="name" optionValue="id" filter :placeholder="pt('Select product')" @change="onFinishedProductPick" />
           <small v-if="errors.product_id" class="err">{{ errors.product_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Warehouse *</label>
-          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" placeholder="Select warehouse" />
+          <label>{{ pt('Warehouse') }} *</label>
+          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" :placeholder="pt('Select warehouse')" />
           <small v-if="errors.warehouse_id" class="err">{{ errors.warehouse_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Quantity to Produce *</label>
+          <label>{{ pt('Quantity to Produce') }} *</label>
           <InputNumber v-model="form.quantity_to_produce" :minFractionDigits="0" :maxFractionDigits="3" class="w-full" />
           <small v-if="errors.quantity_to_produce" class="err">{{ errors.quantity_to_produce[0] }}</small>
         </div>
         <div class="fld">
-          <label>Order Date *</label>
+          <label>{{ pt('Order Date') }} *</label>
           <input type="date" v-model="form.order_date" class="date-input" />
           <small v-if="errors.order_date" class="err">{{ errors.order_date[0] }}</small>
         </div>
         <div class="fld">
-          <label>Expected Completion</label>
+          <label>{{ pt('Expected Completion') }}</label>
           <input type="date" v-model="form.expected_completion_date" class="date-input" />
         </div>
       </div>
 
-      <h3 class="lines-title">Raw Materials</h3>
+      <h3 class="lines-title">{{ pt('Raw Materials') }}</h3>
       <div v-if="boms.length" class="bom-bar">
         <i class="pi pi-sitemap" />
-        <span class="bom-label">Seed from BOM</span>
-        <Select v-model="form.bom_id" :options="boms" optionValue="id" filter showClear placeholder="Select a bill of materials" class="bom-select">
-          <template #option="{ option }">{{ option.bom_number }} — {{ option.name }}<span v-if="option.is_default" class="bom-default"> (default)</span></template>
+        <span class="bom-label">{{ pt('Seed from BOM') }}</span>
+        <Select v-model="form.bom_id" :options="boms" optionValue="id" filter showClear :placeholder="pt('Select a bill of materials')" class="bom-select">
+          <template #option="{ option }">{{ option.bom_number }} — {{ option.name }}<span v-if="option.is_default" class="bom-default"> {{ pt('(default)') }}</span></template>
           <template #value="{ value }">
             <template v-if="value">{{ boms.find((b) => b.id === value)?.bom_number }} — {{ boms.find((b) => b.id === value)?.name }}</template>
-            <template v-else>Select a bill of materials</template>
+            <template v-else>{{ pt('Select a bill of materials') }}</template>
           </template>
         </Select>
-        <Button label="Load Materials" icon="pi pi-download" size="small" outlined :loading="loadingBom" :disabled="!form.bom_id" @click="applyBom" />
+        <Button :label="pt('Load Materials')" icon="pi pi-download" size="small" outlined :loading="loadingBom" :disabled="!form.bom_id" @click="applyBom" />
       </div>
       <table class="lines">
         <thead>
-          <tr><th style="width: 40%">Material</th><th>Qty</th><th>Unit Cost</th><th>Line Cost</th><th>Remarks</th><th></th></tr>
+          <tr><th style="width: 40%">{{ pt('Material') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Unit Cost') }}</th><th>{{ pt('Line Cost') }}</th><th>{{ pt('Remarks') }}</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="(m, i) in form.materials" :key="i">
             <td>
-              <Select v-model="m.product_id" :options="products" optionLabel="name" optionValue="id" filter placeholder="Material" class="w-full" @change="onMaterialProductPick(m)" />
+              <Select v-model="m.product_id" :options="products" optionLabel="name" optionValue="id" filter :placeholder="pt('Material')" class="w-full" @change="onMaterialProductPick(m)" />
             </td>
             <td><InputNumber v-model="m.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
             <td><InputNumber v-model="m.unit_cost" :minFractionDigits="2" :maxFractionDigits="4" class="num" /></td>
@@ -562,79 +576,79 @@ onMounted(async () => {
             <td><input v-model="m.remarks" class="text-input" placeholder="—" /></td>
             <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeMaterial(i)" /></td>
           </tr>
-          <tr v-if="!form.materials.length"><td colspan="6" class="muted" style="text-align: center; padding: 0.75rem">No materials — add the raw materials this order consumes.</td></tr>
+          <tr v-if="!form.materials.length"><td colspan="6" class="muted" style="text-align: center; padding: 0.75rem">{{ pt('No materials — add the raw materials this order consumes.') }}</td></tr>
         </tbody>
       </table>
-      <Button label="Add Material" icon="pi pi-plus" text size="small" @click="addMaterial" />
+      <Button :label="pt('Add Material')" icon="pi pi-plus" text size="small" @click="addMaterial" />
 
-      <h3 class="lines-title">Production Costing</h3>
-      <small class="muted block" style="margin-bottom: 0.5rem">Raw material is totalled from the lines above; enter the rest. Finished Product Cost updates automatically.</small>
+      <h3 class="lines-title">{{ pt('Production Costing') }}</h3>
+      <small class="muted block" style="margin-bottom: 0.5rem">{{ pt('Raw material is totalled from the lines above; enter the rest. Finished Product Cost updates automatically.') }}</small>
       <div class="costing">
         <div class="cost-row">
-          <span class="cost-label">Raw Material</span>
-          <span class="cost-auto">{{ money(materialCost) }}<em>auto</em></span>
+          <span class="cost-label">{{ pt('Raw Material') }}</span>
+          <span class="cost-auto">{{ money(materialCost) }}<em>{{ pt('auto') }}</em></span>
         </div>
         <div class="cost-row" v-for="b in COST_BUCKETS" :key="b.key">
-          <span class="cost-label">{{ b.label }}</span>
+          <span class="cost-label">{{ pt(b.label) }}</span>
           <InputNumber v-model="form[b.key]" :min="0" :minFractionDigits="2" :maxFractionDigits="2" class="cost-input" />
         </div>
         <div class="cost-row total">
-          <span class="cost-label">Finished Product Cost</span>
+          <span class="cost-label">{{ pt('Finished Product Cost') }}</span>
           <span class="cost-total">{{ money(finishedCost) }}</span>
         </div>
         <div class="cost-row per-unit">
-          <span class="cost-label">Per Unit ({{ Number(form.quantity_to_produce) || 0 }})</span>
+          <span class="cost-label">{{ pt('Per Unit') }} ({{ Number(form.quantity_to_produce) || 0 }})</span>
           <span>{{ money(finishedUnitCost) }}</span>
         </div>
       </div>
 
-      <h3 class="lines-title">Production Stages</h3>
-      <small class="muted block" style="margin-bottom: 0.5rem">Untick the stages that don't apply to this order.</small>
+      <h3 class="lines-title">{{ pt('Production Stages') }}</h3>
+      <small class="muted block" style="margin-bottom: 0.5rem">{{ pt("Untick the stages that don't apply to this order.") }}</small>
       <div class="stage-picker">
         <label v-for="s in MANUFACTURING_STAGES" :key="s.key" class="stage-check">
           <Checkbox :modelValue="isStageSelected(s.key)" :binary="true" @update:modelValue="toggleStage(s.key)" />
-          <span>{{ s.name }}</span>
+          <span>{{ pt(s.name) }}</span>
         </label>
       </div>
       <small v-if="errors.stages" class="err block">{{ errors.stages[0] }}</small>
 
       <div class="fld full">
-        <label>Notes</label>
+        <label>{{ pt('Notes') }}</label>
         <Textarea v-model="form.notes" rows="2" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="editVisible = false" />
-        <Button :label="isEditing ? 'Save Changes' : 'Create Order'" :loading="saving" @click="saveOrder" />
+        <Button :label="pt('Cancel')" text @click="editVisible = false" />
+        <Button :label="isEditing ? pt('Save Changes') : pt('Create Order')" :loading="saving" @click="saveOrder" />
       </template>
     </Dialog>
 
     <!-- Detail / stage tracking dialog -->
-    <Dialog v-model:visible="detailVisible" modal :header="detail ? detail.mo_number : 'Manufacturing Order'" :style="{ width: '960px' }">
-      <div v-if="!detail" class="muted">Loading…</div>
+    <Dialog v-model:visible="detailVisible" modal :header="detail ? detail.mo_number : pt('Manufacturing Order')" :style="{ width: '960px' }">
+      <div v-if="!detail" class="muted">{{ pt('Loading…') }}</div>
       <template v-else>
         <div class="detail-head">
-          <div class="dh-cell"><span class="dh-label">Product</span><span class="dh-value">{{ detail.product?.name }}</span></div>
-          <div class="dh-cell"><span class="dh-label">Warehouse</span><span class="dh-value">{{ detail.warehouse?.name }}</span></div>
-          <div class="dh-cell"><span class="dh-label">Qty to Produce</span><span class="dh-value">{{ Number(detail.quantity_to_produce) }}</span></div>
-          <div class="dh-cell"><span class="dh-label">Status</span><Tag :severity="statusColors[detail.status]" :value="statusLabels[detail.status]" /></div>
-          <div class="dh-cell"><span class="dh-label">Finished Product Cost</span><span class="dh-value strong">{{ money(detail.total_cost) }}</span></div>
-          <div class="dh-cell"><span class="dh-label">Per Unit</span><span class="dh-value">{{ money(detail.unit_production_cost) }}</span></div>
+          <div class="dh-cell"><span class="dh-label">{{ pt('Product') }}</span><span class="dh-value">{{ detail.product?.name }}</span></div>
+          <div class="dh-cell"><span class="dh-label">{{ pt('Warehouse') }}</span><span class="dh-value">{{ detail.warehouse?.name }}</span></div>
+          <div class="dh-cell"><span class="dh-label">{{ pt('Qty to Produce') }}</span><span class="dh-value">{{ Number(detail.quantity_to_produce) }}</span></div>
+          <div class="dh-cell"><span class="dh-label">{{ pt('Status') }}</span><Tag :severity="statusColors[detail.status]" :value="pt(statusLabels[detail.status])" /></div>
+          <div class="dh-cell"><span class="dh-label">{{ pt('Finished Product Cost') }}</span><span class="dh-value strong">{{ money(detail.total_cost) }}</span></div>
+          <div class="dh-cell"><span class="dh-label">{{ pt('Per Unit') }}</span><span class="dh-value">{{ money(detail.unit_production_cost) }}</span></div>
         </div>
 
-        <h3 class="lines-title">Production Costing</h3>
+        <h3 class="lines-title">{{ pt('Production Costing') }}</h3>
         <table class="lines costing-table">
           <thead>
-            <tr><th style="width: 50%">Cost Component</th><th class="ta-right">Total</th><th class="ta-right">Per Unit</th></tr>
+            <tr><th style="width: 50%">{{ pt('Cost Component') }}</th><th class="ta-right">{{ pt('Total') }}</th><th class="ta-right">{{ pt('Per Unit') }}</th></tr>
           </thead>
           <tbody>
             <tr v-for="l in COSTING_LINES" :key="l.key">
-              <td>{{ l.label }}</td>
+              <td>{{ pt(l.label) }}</td>
               <td class="ta-right">{{ money(detail.costing?.lines?.[l.key]?.total ?? 0) }}</td>
               <td class="ta-right muted">{{ money(detail.costing?.lines?.[l.key]?.per_unit ?? 0) }}</td>
             </tr>
             <tr class="grand-row">
-              <td>Finished Product Cost ({{ Number(detail.costing?.quantity) || 0 }} unit)</td>
+              <td>{{ pt('Finished Product Cost') }} ({{ Number(detail.costing?.quantity) || 0 }} {{ pt('unit') }})</td>
               <td class="ta-right">{{ money(detail.costing?.total ?? detail.total_cost) }}</td>
               <td class="ta-right">{{ money(detail.costing?.per_unit_total ?? detail.unit_production_cost) }}</td>
             </tr>
@@ -642,15 +656,15 @@ onMounted(async () => {
         </table>
 
         <div class="detail-actions">
-          <Button v-if="canEdit && detail.status === 'draft'" label="Start Production" icon="pi pi-play" size="small" severity="info" @click="startOrder(detail)" />
-          <Button v-if="canEdit && detail.status === 'in_progress'" label="Complete" icon="pi pi-check" size="small" severity="success" @click="completeOrder(detail)" />
-          <Button v-if="canEdit && ['draft', 'in_progress'].includes(detail.status)" label="Cancel Order" size="small" outlined severity="danger" @click="cancelOrder(detail)" />
+          <Button v-if="canEdit && detail.status === 'draft'" :label="pt('Start Production')" icon="pi pi-play" size="small" severity="info" @click="startOrder(detail)" />
+          <Button v-if="canEdit && detail.status === 'in_progress'" :label="pt('Complete')" icon="pi pi-check" size="small" severity="success" @click="completeOrder(detail)" />
+          <Button v-if="canEdit && ['draft', 'in_progress'].includes(detail.status)" :label="pt('Cancel Order')" size="small" outlined severity="danger" @click="cancelOrder(detail)" />
         </div>
 
         <div v-if="detail.materials?.length" class="materials-summary">
-          <h3 class="lines-title">Materials</h3>
+          <h3 class="lines-title">{{ pt('Materials') }}</h3>
           <table class="lines">
-            <thead><tr><th>Material</th><th>Qty</th><th>Unit Cost</th><th>Line Cost</th><th>Consumed</th></tr></thead>
+            <thead><tr><th>{{ pt('Material') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Unit Cost') }}</th><th>{{ pt('Line Cost') }}</th><th>{{ pt('Consumed') }}</th></tr></thead>
             <tbody>
               <tr v-for="m in detail.materials" :key="m.id">
                 <td>{{ m.product?.name }}</td>
@@ -663,52 +677,52 @@ onMounted(async () => {
           </table>
         </div>
 
-        <h3 class="lines-title">Stages</h3>
+        <h3 class="lines-title">{{ pt('Stages') }}</h3>
         <div class="stages">
           <div v-for="stage in detail.stages" :key="stage.id" class="stage-card">
             <div class="stage-top">
               <span class="stage-seq">{{ stage.sequence }}</span>
-              <span class="stage-name">{{ stage.name }}</span>
-              <Tag :severity="STAGE_STATUS_COLORS[stage.status]" :value="stage.status.replace('_', ' ')" class="stage-status" />
+              <span class="stage-name">{{ pt(stage.name) }}</span>
+              <Tag :severity="STAGE_STATUS_COLORS[stage.status]" :value="stageStatusLabel(stage.status)" class="stage-status" />
             </div>
             <div class="stage-grid">
               <div class="fld">
-                <label>Employee</label>
-                <Select v-model="stage.assigned_employee_id" :options="employees" optionLabel="label" optionValue="value" filter showClear placeholder="Unassigned" :disabled="!stageEditable" />
+                <label>{{ pt('Employee') }}</label>
+                <Select v-model="stage.assigned_employee_id" :options="employees" optionLabel="label" optionValue="value" filter showClear :placeholder="pt('Unassigned')" :disabled="!stageEditable" />
               </div>
               <div class="fld">
-                <label>Status</label>
-                <Select v-model="stage.status" :options="STAGE_STATUS_OPTIONS" optionLabel="label" optionValue="value" :disabled="!stageEditable" />
+                <label>{{ pt('Status') }}</label>
+                <Select v-model="stage.status" :options="stageStatusOptions" optionLabel="label" optionValue="value" :disabled="!stageEditable" />
               </div>
               <div class="fld">
-                <label>Start Date</label>
+                <label>{{ pt('Start Date') }}</label>
                 <input type="date" v-model="stage.start_date" class="date-input" :disabled="!stageEditable" />
               </div>
               <div class="fld">
-                <label>End Date</label>
+                <label>{{ pt('End Date') }}</label>
                 <input type="date" v-model="stage.end_date" class="date-input" :disabled="!stageEditable" />
               </div>
               <div class="fld">
-                <label>Image</label>
+                <label>{{ pt('Image') }}</label>
                 <div class="stage-image">
                   <a v-if="stage.image_url" :href="stage.image_url" target="_blank"><img :src="stage.image_url" class="thumb" /></a>
-                  <span v-else class="muted no-img">No image</span>
+                  <span v-else class="muted no-img">{{ pt('No image') }}</span>
                   <Button v-if="stageEditable" :icon="uploadingStage === stage.id ? 'pi pi-spin pi-spinner' : 'pi pi-upload'" size="small" text @click="triggerUpload(stage.id)" />
                 </div>
               </div>
             </div>
             <div class="fld full">
-              <label>Remarks</label>
+              <label>{{ pt('Remarks') }}</label>
               <Textarea v-model="stage.remarks" rows="1" :disabled="!stageEditable" />
             </div>
             <div class="stage-save" v-if="stageEditable">
-              <Button label="Save Stage" size="small" :loading="stageSaving === stage.id" @click="saveStage(stage)" />
+              <Button :label="pt('Save Stage')" size="small" :loading="stageSaving === stage.id" @click="saveStage(stage)" />
             </div>
           </div>
         </div>
       </template>
       <template #footer>
-        <Button label="Close" text @click="closeDetail" />
+        <Button :label="pt('Close')" text @click="closeDetail" />
       </template>
     </Dialog>
 

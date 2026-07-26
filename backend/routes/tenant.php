@@ -101,6 +101,7 @@ use App\Http\Controllers\Api\PaymentVoucherController;
 use App\Http\Controllers\Api\PosController;
 use App\Http\Controllers\Api\PriceListController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProductVariantController;
 use App\Http\Controllers\Api\PurchaseIndentController;
 use App\Http\Controllers\Api\PurchaseInvoiceController;
@@ -214,6 +215,14 @@ Route::middleware('api')->prefix('api')->group(function () {
     Route::middleware(['auth:sanctum', 'resolve.tenant', 'tenant.active'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+
+        // Own profile (no permission gate — everyone maintains their own record).
+        // Managing *other* users stays on /users behind the users.* permissions.
+        Route::get('/profile', [ProfileController::class, 'show']);
+        Route::match(['put', 'patch'], '/profile', [ProfileController::class, 'update']);
+        Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
+        Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
+        Route::delete('/profile/avatar', [ProfileController::class, 'deleteAvatar']);
 
         // Global omni-search (SRS §22): products + customers + invoices, each
         // scoped to the current tenant and gated per-group by the caller's

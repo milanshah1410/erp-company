@@ -23,8 +23,18 @@ class BranchController extends Controller
                 $q->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%");
             });
         }
+        if ($request->filled('is_active')) {
+            $query->where('is_active', $request->boolean('is_active'));
+        }
 
-        $query->orderBy('name');
+        $sort = $request->query('sort', 'name');
+        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
+        if (in_array($sort, ['code', 'name', 'city', 'is_active', 'created_at'], true)) {
+            $query->orderBy($sort, $direction);
+        } else {
+            $query->orderBy('name');
+        }
+
         $perPage = min((int) $request->query('per_page', 15), 100);
 
         return BranchResource::collection($query->paginate($perPage));

@@ -9,6 +9,7 @@ import InputText from 'primevue/inputtext'
 import Dialog from 'primevue/dialog'
 import http from '../api/http'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -117,8 +118,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Audit Logs</h1>
-    <p class="subtitle">Immutable record of who changed what, and when</p>
+    <PageHeader title="Audit Logs" subtitle="Immutable record of who changed what, and when" />
 
     <div class="toolbar">
       <InputText v-model="search" placeholder="Search description…" @keyup.enter="applyFilters" />

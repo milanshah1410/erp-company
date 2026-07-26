@@ -16,7 +16,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'phone', 'is_active', 'tenant_id', 'current_company_id', 'current_branch_id'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'avatar', 'is_active', 'tenant_id', 'current_company_id', 'current_branch_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -100,6 +100,9 @@ class User extends Authenticatable
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
+            'phone' => $this->phone,
+            // Signed URL so the top bar can show the profile photo directly.
+            'avatar_url' => \App\Support\TenantStorage::temporaryUrl($this->avatar),
             'roles' => $this->getRoleNames(),
             'permissions' => $this->getAllPermissions()->pluck('name'),
             'current_company' => $this->currentCompany ? [

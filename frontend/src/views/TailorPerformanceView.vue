@@ -10,6 +10,7 @@ import ReportToolbar from '../components/reports/ReportToolbar.vue'
 import http from '../api/http'
 import { useReportExport } from '../composables/useReportExport'
 import { formatCurrency } from '../utils/currency'
+import PageHeader from '../components/PageHeader.vue'
 
 const route = useRoute()
 
@@ -94,11 +95,12 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Tailor Performance</h1>
-      <SelectButton v-model="tab" :options="tabOptions" optionLabel="label" optionValue="value"
+    <PageHeader title="Tailor Performance">
+      <template #actions>
+        <SelectButton v-model="tab" :options="tabOptions" optionLabel="label" optionValue="value"
         :allowEmpty="false" @change="switchTab" />
-    </div>
+      </template>
+    </PageHeader>
 
     <ReportToolbar v-model:date-from="dateFrom" v-model:date-to="dateTo" :exporting="exporting"
       @refresh="load" @export="doExport">

@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -247,27 +248,26 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Cycle Counts</h1>
-      <div style="display: flex; gap: 0.5rem; align-items: center">
-        <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
-        </span>
-        <Button label="Search" outlined @click="reload" />
-        <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
-        <TableExportButtons title="Cycle Counts" endpoint="/cycle-counts"
-          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
-          :columns="[
-            { key: 'count_number', label: 'Count #' },
-            { key: 'warehouse.name', label: 'Warehouse' },
-            { key: 'count_date', label: 'Date' },
-            { key: 'items_count', label: 'Items' },
-            { key: 'status', label: 'Status' },
-          ]" />
-        <Button v-if="canCreate" label="New Cycle Count" icon="pi pi-plus" @click="openCreate" />
-      </div>
+    <PageHeader title="Cycle Counts" :count="crud.total.value" />
+
+    <div class="toolbar no-print">
+      <span class="search-box">
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+      </span>
+      <Button label="Search" outlined @click="reload" />
+      <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
+        placeholder="All statuses" @change="reload" class="status-filter" />
+      <TableExportButtons title="Cycle Counts" endpoint="/cycle-counts"
+        :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+        :columns="[
+          { key: 'count_number', label: 'Count #' },
+          { key: 'warehouse.name', label: 'Warehouse' },
+          { key: 'count_date', label: 'Date' },
+          { key: 'items_count', label: 'Items' },
+          { key: 'status', label: 'Status' },
+        ]" />
+      <Button v-if="canCreate" label="New Cycle Count" icon="pi pi-plus" @click="openCreate" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"

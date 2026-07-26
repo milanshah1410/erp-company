@@ -63,6 +63,25 @@ export const useMenuStore = defineStore('menu', {
       walk(state.menu)
       return map
     },
+    /**
+     * Flat map of route → top-level module label ("Masters", "Sales", …), used
+     * by PageHeader to show the module name above a screen's title without
+     * every view hard-coding it.
+     */
+    moduleByRoute(state): Record<string, string> {
+      const map: Record<string, string> = {}
+      const walk = (nodes: MenuNode[], root: string) => {
+        for (const n of nodes) {
+          if (n.to) map[n.to] = root
+          if (n.children?.length) walk(n.children, root)
+        }
+      }
+      for (const top of state.menu) {
+        if (top.to) map[top.to] = top.label
+        walk(top.children ?? [], top.label)
+      }
+      return map
+    },
     isFavorite(state) {
       return (id?: number) => !!id && state.favorites.some((f) => f.id === id)
     },

@@ -9,6 +9,7 @@ import Tag from 'primevue/tag'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const crud = useCrud('/channel-sync-logs')
 const integrations = ref<any[]>([])
@@ -55,37 +56,38 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Sync History</h1>
-      <div class="header-actions">
+    <PageHeader title="Sync History" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search message / channel..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search message / channel..." @keyup.enter="reload" />
         </span>
         <Select v-model="integrationFilter" :options="integrations" optionLabel="name" optionValue="id" showClear placeholder="All channels" class="filter" @change="reload" />
         <Select v-model="typeFilter" :options="typeOptions" optionLabel="label" optionValue="value" showClear placeholder="All types" class="filter-sm" @change="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear placeholder="All statuses" class="filter-sm" @change="reload" />
         <Button icon="pi pi-refresh" text rounded @click="reload" title="Refresh" />
         <TableExportButtons title="Sync History" endpoint="/channel-sync-logs"
-          :params="() => ({
-            ...(integrationFilter ? { channel_integration_id: integrationFilter } : {}),
-            ...(typeFilter ? { type: typeFilter } : {}),
-            ...(statusFilter ? { status: statusFilter } : {}),
-            ...(search ? { search } : {}),
-          })"
-          :columns="[
-            { key: 'created_at', label: 'When' },
-            { key: 'integration.name', label: 'Channel' },
-            { key: 'type', label: 'Type' },
-            { key: 'direction', label: 'Direction' },
-            { key: 'status', label: 'Status' },
-            { key: 'processed', label: 'Processed' },
-            { key: 'succeeded', label: 'Succeeded' },
-            { key: 'failed', label: 'Failed' },
-            { key: 'message', label: 'Message' },
-          ]" />
-      </div>
-    </div>
+        :params="() => ({
+        ...(integrationFilter ? { channel_integration_id: integrationFilter } : {}),
+        ...(typeFilter ? { type: typeFilter } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(search ? { search } : {}),
+        })"
+        :columns="[
+        { key: 'created_at', label: 'When' },
+        { key: 'integration.name', label: 'Channel' },
+        { key: 'type', label: 'Type' },
+        { key: 'direction', label: 'Direction' },
+        { key: 'status', label: 'Status' },
+        { key: 'processed', label: 'Processed' },
+        { key: 'succeeded', label: 'Succeeded' },
+        { key: 'failed', label: 'Failed' },
+        { key: 'message', label: 'Message' },
+        ]" />
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[20, 50, 100]" dataKey="id" @page="onPage" class="p-datatable-sm">

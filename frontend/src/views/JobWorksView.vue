@@ -14,11 +14,14 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 const crud = useCrud('/job-works')
 
 const detailVisible = ref(false)
@@ -42,14 +45,14 @@ const statusColors: Record<string, string> = {
   closed: 'contrast',
   cancelled: 'danger',
 }
-const statusOptions = [
-  { label: 'Draft', value: 'draft' },
-  { label: 'Issued', value: 'issued' },
-  { label: 'Partial', value: 'partial' },
-  { label: 'Completed', value: 'completed' },
-  { label: 'Closed', value: 'closed' },
-  { label: 'Cancelled', value: 'cancelled' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Draft'), value: 'draft' },
+  { label: pt('Issued'), value: 'issued' },
+  { label: pt('Partial'), value: 'partial' },
+  { label: pt('Completed'), value: 'completed' },
+  { label: pt('Closed'), value: 'closed' },
+  { label: pt('Cancelled'), value: 'cancelled' },
+])
 
 // --- Tabs ---
 const tab = ref<'orders' | 'pending' | 'damage' | 'shortage'>('orders')
@@ -129,7 +132,7 @@ async function openEdit(row: any) {
     errors.value = {}
     dialogVisible.value = true
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load job work', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load job work'), life: 3000 })
   }
 }
 
@@ -139,16 +142,16 @@ async function saveJobWork() {
   try {
     if (editingId.value) {
       await http.put(`/job-works/${editingId.value}`, form.value)
-      toast.add({ severity: 'success', summary: 'Job work updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Job work updated'), life: 2500 })
     } else {
       await http.post('/job-works', form.value)
-      toast.add({ severity: 'success', summary: 'Job work created as draft', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Job work created as draft'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -179,7 +182,7 @@ async function openReceive(row: any) {
     receiveError.value = null
     receiveVisible.value = true
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load job work', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load job work'), life: 3000 })
   }
 }
 
@@ -190,7 +193,7 @@ function lineTotal(l: any) {
 async function submitReceive() {
   const overfilled = receiveLines.value.find((l) => lineTotal(l) - l.pending > 0.0001)
   if (overfilled) {
-    receiveError.value = `${overfilled.product?.name}: received + damage + shortage exceeds pending (${overfilled.pending}).`
+    receiveError.value = pt('{name}: received + damage + shortage exceeds pending ({pending}).', { name: overfilled.product?.name, pending: overfilled.pending })
     return
   }
   receiving.value = true
@@ -204,11 +207,11 @@ async function submitReceive() {
         shortage_qty: l.shortage_qty || 0,
       })),
     })
-    toast.add({ severity: 'success', summary: 'Material received', life: 3000 })
+    toast.add({ severity: 'success', summary: pt('Material received'), life: 3000 })
     receiveVisible.value = false
     reload()
   } catch (e: any) {
-    receiveError.value = e.response?.data?.errors?.items?.[0] || e.response?.data?.message || 'Failed to receive.'
+    receiveError.value = e.response?.data?.errors?.items?.[0] || e.response?.data?.message || pt('Failed to receive.')
   } finally {
     receiving.value = false
   }
@@ -217,62 +220,64 @@ async function submitReceive() {
 // --- Workflow actions ---
 async function issueJob(row: any) {
   const res = await Swal.fire({
-    title: `Issue material for ${row.job_work_number}?`,
-    text: `Material will leave ${row.warehouse?.name} and go to ${row.supplier?.name}.`,
+    title: pt('Issue material for {n}?', { n: row.job_work_number }),
+    text: pt('Material will leave {w} and go to {s}.', { w: row.warehouse?.name, s: row.supplier?.name }),
     icon: 'question',
     showCancelButton: true,
-    confirmButtonText: 'Issue',
+    confirmButtonText: pt('Issue'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await http.post(`/job-works/${row.id}/issue`)
-    toast.add({ severity: 'success', summary: 'Material issued to vendor', life: 3000 })
+    toast.add({ severity: 'success', summary: pt('Material issued to vendor'), life: 3000 })
     reload()
   } catch (e: any) {
-    const detail = e.response?.data?.errors?.items?.[0] || e.response?.data?.message || 'Failed'
-    toast.add({ severity: 'error', summary: 'Cannot issue', detail, life: 5000 })
+    const detail = e.response?.data?.errors?.items?.[0] || e.response?.data?.message || pt('Failed')
+    toast.add({ severity: 'error', summary: pt('Cannot issue'), detail, life: 5000 })
   }
 }
 
 async function closeJob(row: any) {
   const res = await Swal.fire({
-    title: `Close ${row.job_work_number}?`,
-    text: 'Any remaining pending quantity will be written off. This cannot be undone.',
+    title: pt('Close {n}?', { n: row.job_work_number }),
+    text: pt('Any remaining pending quantity will be written off. This cannot be undone.'),
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'Close job work',
+    confirmButtonText: pt('Close job work'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await http.post(`/job-works/${row.id}/close`)
-    toast.add({ severity: 'success', summary: 'Job work closed', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Job work closed'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
 async function cancelJob(row: any) {
-  const res = await Swal.fire({ title: `Cancel ${row.job_work_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Cancel job work' })
+  const res = await Swal.fire({ title: pt('Cancel {n}?', { n: row.job_work_number }), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Cancel job work'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.post(`/job-works/${row.id}/cancel`)
-    toast.add({ severity: 'success', summary: 'Cancelled', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Cancelled'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
 async function removeJob(row: any) {
-  const res = await Swal.fire({ title: `Delete ${row.job_work_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete' })
+  const res = await Swal.fire({ title: pt('Delete {n}?', { n: row.job_work_number }), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Delete'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/job-works/${row.id}`)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
@@ -300,34 +305,35 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Job Work</h1>
-      <div class="header-actions">
+    <PageHeader :title="pt('Job Work')" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span v-if="tab === 'orders'" class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
         </span>
-        <Button v-if="tab === 'orders'" label="Search" outlined @click="reload" />
+        <Button v-if="tab === 'orders'" :label="pt('Search')" outlined @click="reload" />
         <Select v-if="tab === 'orders'" v-model="statusFilter" :options="statusOptions" optionLabel="label"
-          optionValue="value" showClear placeholder="All statuses" @change="reload" class="status-filter" />
-        <TableExportButtons v-if="tab === 'orders'" title="Job Work" endpoint="/job-works"
-          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
-          :columns="[
-            { key: 'job_work_number', label: 'Job Work #' },
-            { key: 'supplier.name', label: 'Vendor' },
-            { key: 'warehouse.name', label: 'Warehouse' },
-            { key: 'job_type', label: 'Type' },
-            { key: 'job_work_date', label: 'Date' },
-            { key: 'items_count', label: 'Lines' },
-            { key: 'status', label: 'Status' },
-          ]" />
-        <Button v-if="canCreate && tab === 'orders'" label="New Job Work" icon="pi pi-plus" @click="openCreate" />
-      </div>
-    </div>
+        optionValue="value" showClear :placeholder="pt('All statuses')" @change="reload" class="status-filter" />
+        <TableExportButtons v-if="tab === 'orders'" :title="pt('Job Work')" endpoint="/job-works"
+        :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+        :columns="[
+        { key: 'job_work_number', label: pt('Job Work #') },
+        { key: 'supplier.name', label: pt('Vendor') },
+        { key: 'warehouse.name', label: pt('Warehouse') },
+        { key: 'job_type', label: pt('Type') },
+        { key: 'job_work_date', label: pt('Date') },
+        { key: 'items_count', label: pt('Lines') },
+        { key: 'status', label: pt('Status') },
+        ]" />
+        <Button v-if="canCreate && tab === 'orders'" :label="pt('New Job Work')" icon="pi pi-plus" @click="openCreate" />
+        </div>
+      </template>
+    </PageHeader>
 
     <div class="tabbar">
       <button v-for="t in tabs" :key="t.key" class="tab" :class="{ active: tab === t.key }" @click="switchTab(t.key)">
-        <i :class="t.icon" /> {{ t.label }}
+        <i :class="t.icon" /> {{ pt(t.label) }}
       </button>
     </div>
 
@@ -335,146 +341,146 @@ onMounted(async () => {
     <DataTable v-if="tab === 'orders'" :value="crud.items.value" :loading="crud.loading.value" lazy paginator
       :rows="crud.perPage.value" :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id"
       @page="onPage" class="p-datatable-sm">
-      <Column field="job_work_number" header="Job Work #" />
-      <Column header="Vendor">
+      <Column field="job_work_number" :header="pt('Job Work #')" />
+      <Column :header="pt('Vendor')">
         <template #body="{ data }">{{ data.supplier?.name }}</template>
       </Column>
-      <Column header="Warehouse">
+      <Column :header="pt('Warehouse')">
         <template #body="{ data }">{{ data.warehouse?.name }}</template>
       </Column>
-      <Column field="job_type" header="Type">
+      <Column field="job_type" :header="pt('Type')">
         <template #body="{ data }">{{ data.job_type || '—' }}</template>
       </Column>
-      <Column field="job_work_date" header="Date" />
-      <Column field="items_count" header="Lines" style="width: 5rem" />
-      <Column header="Status">
+      <Column field="job_work_date" :header="pt('Date')" />
+      <Column field="items_count" :header="pt('Lines')" style="width: 5rem" />
+      <Column :header="pt('Status')">
         <template #body="{ data }">
-          <Tag :severity="statusColors[data.status]" :value="data.status" />
+          <Tag :severity="statusColors[data.status]" :value="pt(data.status)" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 16rem">
+      <Column :header="pt('Actions')" style="width: 16rem">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openDetail(data)" />
           <template v-if="data.status === 'draft'">
-            <Button v-if="canApprove" label="Issue" size="small" severity="success" outlined @click="issueJob(data)" />
+            <Button v-if="canApprove" :label="pt('Issue')" size="small" severity="success" outlined @click="issueJob(data)" />
             <Button v-if="canEdit" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
-            <Button v-if="canEdit" icon="pi pi-ban" size="small" text severity="warn" title="Cancel" @click="cancelJob(data)" />
+            <Button v-if="canEdit" icon="pi pi-ban" size="small" text severity="warn" :title="pt('Cancel')" @click="cancelJob(data)" />
             <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="removeJob(data)" />
           </template>
           <template v-if="data.status === 'issued' || data.status === 'partial'">
-            <Button v-if="canEdit" label="Receive" size="small" severity="success" @click="openReceive(data)" />
-            <Button v-if="canApprove" icon="pi pi-lock" size="small" text severity="secondary" title="Close (write off pending)" @click="closeJob(data)" />
+            <Button v-if="canEdit" :label="pt('Receive')" size="small" severity="success" @click="openReceive(data)" />
+            <Button v-if="canApprove" icon="pi pi-lock" size="small" text severity="secondary" :title="pt('Close (write off pending)')" @click="closeJob(data)" />
           </template>
         </template>
       </Column>
-      <template #empty>No job works yet.</template>
+      <template #empty>{{ pt('No job works yet.') }}</template>
     </DataTable>
 
     <!-- Report tabs -->
     <DataTable v-else :value="reportRows" :loading="reportLoading" dataKey="id" class="p-datatable-sm" paginator :rows="20">
-      <Column field="job_work_number" header="Job Work #" />
-      <Column header="Vendor">
+      <Column field="job_work_number" :header="pt('Job Work #')" />
+      <Column :header="pt('Vendor')">
         <template #body="{ data }">{{ data.supplier }}</template>
       </Column>
-      <Column header="Product">
+      <Column :header="pt('Product')">
         <template #body="{ data }">{{ data.product?.name }}</template>
       </Column>
-      <Column field="job_work_date" header="Issued On" />
-      <Column header="Issued" style="text-align: right">
+      <Column field="job_work_date" :header="pt('Issued On')" />
+      <Column :header="pt('Issued')" style="text-align: right">
         <template #body="{ data }">{{ Number(data.issued_qty) }}</template>
       </Column>
-      <Column header="Received" style="text-align: right">
+      <Column :header="pt('Received')" style="text-align: right">
         <template #body="{ data }">{{ Number(data.received_qty) }}</template>
       </Column>
-      <Column v-if="tab === 'damage'" header="Damage" style="text-align: right">
+      <Column v-if="tab === 'damage'" :header="pt('Damage')" style="text-align: right">
         <template #body="{ data }"><strong class="dmg">{{ Number(data.damage_qty) }}</strong></template>
       </Column>
-      <Column v-if="tab === 'shortage'" header="Shortage" style="text-align: right">
+      <Column v-if="tab === 'shortage'" :header="pt('Shortage')" style="text-align: right">
         <template #body="{ data }"><strong class="dmg">{{ Number(data.shortage_qty) }}</strong></template>
       </Column>
-      <Column header="Pending" style="text-align: right">
+      <Column :header="pt('Pending')" style="text-align: right">
         <template #body="{ data }"><strong class="pend">{{ Number(data.pending_qty) }}</strong></template>
       </Column>
-      <Column header="Status">
-        <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="data.status" /></template>
+      <Column :header="pt('Status')">
+        <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="pt(data.status)" /></template>
       </Column>
-      <template #empty>Nothing to show.</template>
+      <template #empty>{{ pt('Nothing to show.') }}</template>
     </DataTable>
 
     <!-- Create / edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editingId ? 'Edit Job Work' : 'New Job Work'" :style="{ width: '820px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editingId ? pt('Edit Job Work') : pt('New Job Work')" :style="{ width: '820px' }">
       <div class="form-top">
         <div class="fld">
-          <label>Outside Vendor *</label>
-          <Select v-model="form.supplier_id" :options="suppliers" optionLabel="label" optionValue="value" filter placeholder="Vendor (supplier)" />
+          <label>{{ pt('Outside Vendor') }} *</label>
+          <Select v-model="form.supplier_id" :options="suppliers" optionLabel="label" optionValue="value" filter :placeholder="pt('Vendor (supplier)')" />
           <small v-if="errors.supplier_id" class="err">{{ errors.supplier_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Warehouse *</label>
-          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" placeholder="Issue / receive from" />
+          <label>{{ pt('Warehouse') }} *</label>
+          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" :placeholder="pt('Issue / receive from')" />
           <small v-if="errors.warehouse_id" class="err">{{ errors.warehouse_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Job Type</label>
-          <InputText v-model="form.job_type" placeholder="e.g. Stitching, Washing" />
+          <label>{{ pt('Job Type') }}</label>
+          <InputText v-model="form.job_type" :placeholder="pt('e.g. Stitching, Washing')" />
         </div>
         <div class="fld">
-          <label>Job Work Date *</label>
+          <label>{{ pt('Job Work Date') }} *</label>
           <input type="date" v-model="form.job_work_date" class="date-input" />
           <small v-if="errors.job_work_date" class="err">{{ errors.job_work_date[0] }}</small>
         </div>
         <div class="fld">
-          <label>Expected Return</label>
+          <label>{{ pt('Expected Return') }}</label>
           <input type="date" v-model="form.expected_date" class="date-input" />
         </div>
       </div>
 
-      <h3 class="lines-title">Material Lines</h3>
-      <p class="hint">Issue cost is snapshotted from the warehouse when the job work is issued. Leave "Finished Product" blank if the same product is returned.</p>
+      <h3 class="lines-title">{{ pt('Material Lines') }}</h3>
+      <p class="hint">{{ pt('Issue cost is snapshotted from the warehouse when the job work is issued. Leave "Finished Product" blank if the same product is returned.') }}</p>
       <table class="lines">
         <thead>
-          <tr><th style="width: 38%">Material Issued</th><th style="width: 38%">Finished Product Received</th><th>Qty</th><th></th></tr>
+          <tr><th style="width: 38%">{{ pt('Material Issued') }}</th><th style="width: 38%">{{ pt('Finished Product Received') }}</th><th>{{ pt('Qty') }}</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="(line, i) in form.items" :key="i">
             <td>
-              <Select v-model="line.product_id" :options="products" optionLabel="name" optionValue="id" filter placeholder="Raw material" class="w-full" />
+              <Select v-model="line.product_id" :options="products" optionLabel="name" optionValue="id" filter :placeholder="pt('Raw material')" class="w-full" />
             </td>
             <td>
-              <Select v-model="line.finished_product_id" :options="products" optionLabel="name" optionValue="id" filter showClear placeholder="Same as issued" class="w-full" />
+              <Select v-model="line.finished_product_id" :options="products" optionLabel="name" optionValue="id" filter showClear :placeholder="pt('Same as issued')" class="w-full" />
             </td>
             <td><InputNumber v-model="line.issued_qty" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
             <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeLine(i)" /></td>
           </tr>
         </tbody>
       </table>
-      <Button label="Add Line" icon="pi pi-plus" text size="small" @click="addLine" />
+      <Button :label="pt('Add Line')" icon="pi pi-plus" text size="small" @click="addLine" />
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
       <div class="fld full">
-        <label>Notes</label>
-        <Textarea v-model="form.notes" rows="2" placeholder="Instructions to the vendor, reference, etc." />
+        <label>{{ pt('Notes') }}</label>
+        <Textarea v-model="form.notes" rows="2" :placeholder="pt('Instructions to the vendor, reference, etc.')" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editingId ? 'Save Changes' : 'Create Draft'" :loading="saving" @click="saveJobWork" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editingId ? pt('Save Changes') : pt('Create Draft')" :loading="saving" @click="saveJobWork" />
       </template>
     </Dialog>
 
     <!-- Receive dialog -->
-    <Dialog v-model:visible="receiveVisible" modal :header="`Receive Material — ${receiveJob?.job_work_number}`" :style="{ width: '780px' }">
-      <p class="hint">Enter the quantities received back, damaged and short for this receipt. Received goods are added to
-        <strong>{{ receiveJob?.warehouse?.name }}</strong>. Damage and shortage reduce the pending balance without returning stock.</p>
+    <Dialog v-model:visible="receiveVisible" modal :header="pt('Receive Material — {n}', { n: receiveJob?.job_work_number })" :style="{ width: '780px' }">
+      <p class="hint">{{ pt('Enter the quantities received back, damaged and short for this receipt. Received goods are added to') }}
+        <strong>{{ receiveJob?.warehouse?.name }}</strong>. {{ pt('Damage and shortage reduce the pending balance without returning stock.') }}</p>
       <table class="lines">
         <thead>
-          <tr><th style="width: 34%">Finished Product</th><th>Pending</th><th>Received</th><th>Damage</th><th>Shortage</th></tr>
+          <tr><th style="width: 34%">{{ pt('Finished Product') }}</th><th>{{ pt('Pending') }}</th><th>{{ pt('Received') }}</th><th>{{ pt('Damage') }}</th><th>{{ pt('Shortage') }}</th></tr>
         </thead>
         <tbody>
           <tr v-for="line in receiveLines" :key="line.item_id" :class="{ over: lineTotal(line) - line.pending > 0.0001 }">
             <td>
               <div class="prod">{{ line.finished_product?.name }}</div>
-              <small v-if="line.finished_product?.id !== line.product?.id" class="from">from {{ line.product?.name }}</small>
+              <small v-if="line.finished_product?.id !== line.product?.id" class="from">{{ pt('from {n}', { n: line.product?.name }) }}</small>
             </td>
             <td class="pend-cell">{{ line.pending }}</td>
             <td><InputNumber v-model="line.received_qty" :min="0" :minFractionDigits="0" :maxFractionDigits="3" class="num sm" /></td>
@@ -483,25 +489,25 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-      <p v-if="!receiveLines.length" class="hint">Nothing pending on this job work.</p>
+      <p v-if="!receiveLines.length" class="hint">{{ pt('Nothing pending on this job work.') }}</p>
       <small v-if="receiveError" class="err block">{{ receiveError }}</small>
 
       <template #footer>
-        <Button label="Cancel" text @click="receiveVisible = false" />
-        <Button label="Receive Material" :loading="receiving" :disabled="!receiveLines.length" @click="submitReceive" />
+        <Button :label="pt('Cancel')" text @click="receiveVisible = false" />
+        <Button :label="pt('Receive Material')" :loading="receiving" :disabled="!receiveLines.length" @click="submitReceive" />
       </template>
     </Dialog>
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Job Work Details" :fields="[
-      { key: 'job_work_number', label: 'Job Work #' },
-      { key: 'supplier.name', label: 'Vendor' },
-      { key: 'warehouse.name', label: 'Warehouse' },
-      { key: 'job_type', label: 'Job Type' },
-      { key: 'job_work_date', label: 'Job Work Date' },
-      { key: 'expected_date', label: 'Expected Return' },
-      { key: 'items_count', label: 'Lines' },
-      { key: 'status', label: 'Status' },
-      { key: 'notes', label: 'Notes', full: true },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('Job Work Details')" :fields="[
+      { key: 'job_work_number', label: pt('Job Work #') },
+      { key: 'supplier.name', label: pt('Vendor') },
+      { key: 'warehouse.name', label: pt('Warehouse') },
+      { key: 'job_type', label: pt('Job Type') },
+      { key: 'job_work_date', label: pt('Job Work Date') },
+      { key: 'expected_date', label: pt('Expected Return') },
+      { key: 'items_count', label: pt('Lines') },
+      { key: 'status', label: pt('Status') },
+      { key: 'notes', label: pt('Notes'), full: true },
     ]" />
   </div>
 </template>

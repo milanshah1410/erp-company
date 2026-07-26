@@ -19,8 +19,11 @@ import { openPdfBlob } from '../utils/blob'
 import SendEmailDialog from '../components/SendEmailDialog.vue'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
+const pt = usePt()
 const auth = useAuthStore()
 const crud = useCrud('/purchase-orders')
 
@@ -42,7 +45,7 @@ async function previewPdf(row: any) {
     const res = await http.get(`/purchase-orders/${row.id}/pdf`, { responseType: 'blob' })
     openPdfBlob(res.data)
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not open PDF', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not open PDF'), life: 3000 })
   }
 }
 
@@ -53,7 +56,7 @@ const emailCtx = ref<{ endpoint: string; title: string; defaultTo: string; defau
 function openEmail(row: any) {
   emailCtx.value = {
     endpoint: `/email/purchase-orders/${row.id}`,
-    title: `Email Purchase Order ${row.po_number}`,
+    title: pt('Email Purchase Order {n}', { n: row.po_number }),
     defaultTo: row.supplier?.email ?? '',
     defaultSubject: `Purchase Order ${row.po_number}`,
   }
@@ -71,14 +74,14 @@ const statusColors: Record<string, string> = {
 
 const search = ref('')
 const statusFilter = ref<string | null>(null)
-const statusOptions = [
-  { label: 'Draft', value: 'draft' },
-  { label: 'Pending Approval', value: 'pending_approval' },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Partially Received', value: 'partially_received' },
-  { label: 'Received', value: 'received' },
-  { label: 'Cancelled', value: 'cancelled' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Draft'), value: 'draft' },
+  { label: pt('Pending Approval'), value: 'pending_approval' },
+  { label: pt('Approved'), value: 'approved' },
+  { label: pt('Partially Received'), value: 'partially_received' },
+  { label: pt('Received'), value: 'received' },
+  { label: pt('Cancelled'), value: 'cancelled' },
+])
 
 // --- Create dialog ---
 const createVisible = ref(false)
@@ -123,12 +126,12 @@ async function saveOrder() {
   errors.value = {}
   try {
     await http.post('/purchase-orders', form.value)
-    toast.add({ severity: 'success', summary: 'Purchase order created', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Purchase order created'), life: 2500 })
     createVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
@@ -139,15 +142,15 @@ function isAwaitingFinalApproval(row: any): boolean {
 }
 
 async function approve(row: any) {
-  const res = await Swal.fire({ title: `Approve ${row.po_number}?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Approve' })
+  const res = await Swal.fire({ title: pt('Approve {n}?', { n: row.po_number }), icon: 'question', showCancelButton: true, confirmButtonText: pt('Approve'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.post(`/purchase-orders/${row.id}/approve`)
-    toast.add({ severity: 'success', summary: 'Approved', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Approved'), life: 2500 })
     reload()
   } catch (e: any) {
-    const detail = e.response?.data?.errors?.approval?.[0] || e.response?.data?.message || 'Failed'
-    toast.add({ severity: 'error', summary: 'Error', detail, life: 5000 })
+    const detail = e.response?.data?.errors?.approval?.[0] || e.response?.data?.message || pt('Failed')
+    toast.add({ severity: 'error', summary: pt('Error'), detail, life: 5000 })
   }
 }
 
@@ -159,10 +162,10 @@ const grnDate = ref(today())
 const grnLines = ref<any[]>([])
 const grnLocations = ref<any[]>([]) // put-away options for the PO's warehouse
 const grnCharges = ref<any>({ freight_amount: 0, duty_amount: 0, other_amount: 0, allocation_method: 'value' })
-const allocationMethods = [
-  { label: 'By Value', value: 'value' },
-  { label: 'By Quantity', value: 'quantity' },
-]
+const allocationMethods = computed(() => [
+  { label: pt('By Value'), value: 'value' },
+  { label: pt('By Quantity'), value: 'quantity' },
+])
 
 async function openReceive(row: any) {
   try {
@@ -193,7 +196,7 @@ async function openReceive(row: any) {
       }))
     grnVisible.value = true
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load order', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load order'), life: 3000 })
   }
 }
 
@@ -226,11 +229,11 @@ async function saveGrn() {
     }
     if (hasLandedCharges()) payload.landed_cost = grnCharges.value
     await http.post('/goods-receipts', payload)
-    toast.add({ severity: 'success', summary: 'Goods received — stock updated', life: 3000 })
+    toast.add({ severity: 'success', summary: pt('Goods received — stock updated'), life: 3000 })
     grnVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Receipt failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Receipt failed'), life: 4000 })
   } finally {
     grnSaving.value = false
   }
@@ -273,89 +276,90 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Purchase Orders</h1>
-      <Button v-if="canCreate" label="New Purchase Order" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Purchase Orders')" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Purchase Order')" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.5rem;align-items:center;margin-bottom:1rem">
       <span class="search-box">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
       </span>
-      <Button label="Search" outlined @click="reload" />
+      <Button :label="pt('Search')" outlined @click="reload" />
       <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-        placeholder="All statuses" @change="reload" class="status-filter" />
-      <TableExportButtons title="Purchase Orders" only="export" endpoint="/purchase-orders"
+        :placeholder="pt('All statuses')" @change="reload" class="status-filter" />
+      <TableExportButtons :title="pt('Purchase Orders')" only="export" endpoint="/purchase-orders"
         :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
         :columns="[
-          { key: 'po_number', label: 'PO #' },
-          { key: 'supplier.name', label: 'Supplier' },
-          { key: 'warehouse.name', label: 'Warehouse' },
-          { key: 'order_date', label: 'Date' },
-          { key: 'total', label: 'Total' },
-          { key: 'status', label: 'Status' },
+          { key: 'po_number', label: pt('PO #') },
+          { key: 'supplier.name', label: pt('Supplier') },
+          { key: 'warehouse.name', label: pt('Warehouse') },
+          { key: 'order_date', label: pt('Date') },
+          { key: 'total', label: pt('Total') },
+          { key: 'status', label: pt('Status') },
         ]" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="po_number" header="PO #" />
-      <Column header="Supplier"><template #body="{ data }">{{ data.supplier?.name }}</template></Column>
-      <Column header="Warehouse"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
-      <Column field="order_date" header="Date" />
-      <Column header="Total"><template #body="{ data }">{{ money(data.total) }}</template></Column>
-      <Column header="Status">
+      <Column field="po_number" :header="pt('PO #')" />
+      <Column :header="pt('Supplier')"><template #body="{ data }">{{ data.supplier?.name }}</template></Column>
+      <Column :header="pt('Warehouse')"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
+      <Column field="order_date" :header="pt('Date')" />
+      <Column :header="pt('Total')"><template #body="{ data }">{{ money(data.total) }}</template></Column>
+      <Column :header="pt('Status')">
         <template #body="{ data }">
-          <Tag v-if="isAwaitingFinalApproval(data)" severity="warn" value="awaiting final approval" />
-          <Tag v-else :severity="statusColors[data.status]" :value="data.status.replace('_', ' ')" />
+          <Tag v-if="isAwaitingFinalApproval(data)" severity="warn" :value="pt('awaiting final approval')" />
+          <Tag v-else :severity="statusColors[data.status]" :value="pt(data.status.replace('_', ' '))" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 16rem">
+      <Column :header="pt('Actions')" style="width: 16rem">
         <template #body="{ data }">
-          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
-          <Button icon="pi pi-file-pdf" text rounded size="small" title="View PDF" @click="previewPdf(data)" />
-          <Button v-if="canEmail" icon="pi pi-envelope" text rounded size="small" title="Email to supplier" @click="openEmail(data)" />
-          <Button v-if="canApprove && ['draft', 'pending_approval'].includes(data.status)" label="Approve" size="small" outlined @click="approve(data)" style="margin-left: 4px" />
-          <Button v-if="canCreate && ['approved', 'partially_received'].includes(data.status)" label="Receive" size="small" severity="success" @click="openReceive(data)" style="margin-left: 4px" />
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" :title="pt('View')" @click="openDetail(data)" />
+          <Button icon="pi pi-file-pdf" text rounded size="small" :title="pt('View PDF')" @click="previewPdf(data)" />
+          <Button v-if="canEmail" icon="pi pi-envelope" text rounded size="small" :title="pt('Email to supplier')" @click="openEmail(data)" />
+          <Button v-if="canApprove && ['draft', 'pending_approval'].includes(data.status)" :label="pt('Approve')" size="small" outlined @click="approve(data)" style="margin-left: 4px" />
+          <Button v-if="canCreate && ['approved', 'partially_received'].includes(data.status)" :label="pt('Receive')" size="small" severity="success" @click="openReceive(data)" style="margin-left: 4px" />
         </template>
       </Column>
-      <template #empty>No purchase orders yet.</template>
+      <template #empty>{{ pt('No purchase orders yet.') }}</template>
     </DataTable>
 
     <!-- Create PO dialog -->
-    <Dialog v-model:visible="createVisible" modal header="New Purchase Order" :style="{ width: '820px' }">
+    <Dialog v-model:visible="createVisible" modal :header="pt('New Purchase Order')" :style="{ width: '820px' }">
       <div class="form-top">
         <div class="fld">
-          <label>Supplier *</label>
-          <Select v-model="form.supplier_id" :options="suppliers" optionLabel="label" optionValue="value" filter placeholder="Select supplier" />
+          <label>{{ pt('Supplier') }} *</label>
+          <Select v-model="form.supplier_id" :options="suppliers" optionLabel="label" optionValue="value" filter :placeholder="pt('Select supplier')" />
           <small v-if="errors.supplier_id" class="err">{{ errors.supplier_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Warehouse *</label>
-          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" placeholder="Select warehouse" />
+          <label>{{ pt('Warehouse') }} *</label>
+          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" :placeholder="pt('Select warehouse')" />
           <small v-if="errors.warehouse_id" class="err">{{ errors.warehouse_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Order Date *</label>
+          <label>{{ pt('Order Date') }} *</label>
           <input type="date" v-model="form.order_date" class="date-input" />
         </div>
         <div class="fld">
-          <label>Expected Date</label>
+          <label>{{ pt('Expected Date') }}</label>
           <input type="date" v-model="form.expected_date" class="date-input" />
         </div>
       </div>
 
-      <h3 class="lines-title">Line Items</h3>
+      <h3 class="lines-title">{{ pt('Line Items') }}</h3>
       <table class="lines">
         <thead>
-          <tr><th style="width: 38%">Product</th><th>Qty</th><th>Unit Cost</th><th>Tax %</th><th>Line Total</th><th></th></tr>
+          <tr><th style="width: 38%">{{ pt('Product') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Unit Cost') }}</th><th>{{ pt('Tax %') }}</th><th>{{ pt('Line Total') }}</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="(line, i) in form.items" :key="i">
             <td>
               <Select v-model="line.product_id" :options="products" optionLabel="name" optionValue="id" filter
-                placeholder="Product" class="w-full" @change="onProductPick(line)" />
+                :placeholder="pt('Product')" class="w-full" @change="onProductPick(line)" />
             </td>
             <td><InputNumber v-model="line.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
             <td><InputNumber v-model="line.unit_cost" :minFractionDigits="2" :maxFractionDigits="2" class="num" /></td>
@@ -365,61 +369,61 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-      <Button label="Add Line" icon="pi pi-plus" text size="small" @click="addLine" />
+      <Button :label="pt('Add Line')" icon="pi pi-plus" text size="small" @click="addLine" />
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
-      <div class="grand">Total: <strong>{{ money(grandTotal) }}</strong></div>
+      <div class="grand">{{ pt('Total:') }} <strong>{{ money(grandTotal) }}</strong></div>
 
       <div class="fld full">
-        <label>Notes</label>
+        <label>{{ pt('Notes') }}</label>
         <Textarea v-model="form.notes" rows="2" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="createVisible = false" />
-        <Button label="Create Order" :loading="saving" @click="saveOrder" />
+        <Button :label="pt('Cancel')" text @click="createVisible = false" />
+        <Button :label="pt('Create Order')" :loading="saving" @click="saveOrder" />
       </template>
     </Dialog>
 
     <!-- Receive (GRN) dialog -->
-    <Dialog v-model:visible="grnVisible" modal :header="`Receive Goods — ${grnPo?.po_number}`" :style="{ width: '640px' }">
+    <Dialog v-model:visible="grnVisible" modal :header="pt('Receive Goods — {n}', { n: grnPo?.po_number })" :style="{ width: '640px' }">
       <div class="fld" style="margin-bottom: 1rem">
-        <label>Received Date *</label>
+        <label>{{ pt('Received Date') }} *</label>
         <input type="date" v-model="grnDate" class="date-input" />
       </div>
       <table class="lines">
-        <thead><tr><th>Product</th><th>Outstanding</th><th>Receive Now</th><th v-if="grnLocations.length">Put Away To</th></tr></thead>
+        <thead><tr><th>{{ pt('Product') }}</th><th>{{ pt('Outstanding') }}</th><th>{{ pt('Receive Now') }}</th><th v-if="grnLocations.length">{{ pt('Put Away To') }}</th></tr></thead>
         <tbody>
           <template v-for="line in grnLines" :key="line.purchase_item_id">
             <tr>
               <td>
                 {{ line.product?.name }}
                 <div class="track-tags">
-                  <Tag v-if="line.product?.track_batch" value="batch" severity="info" />
-                  <Tag v-if="line.product?.track_expiry" value="expiry" severity="warn" />
-                  <Tag v-if="line.product?.track_serial" value="serial" severity="secondary" />
+                  <Tag v-if="line.product?.track_batch" :value="pt('batch')" severity="info" />
+                  <Tag v-if="line.product?.track_expiry" :value="pt('expiry')" severity="warn" />
+                  <Tag v-if="line.product?.track_serial" :value="pt('serial')" severity="secondary" />
                 </div>
               </td>
               <td>{{ line.outstanding }}</td>
               <td><InputNumber v-model="line.quantity" :min="0" :max="line.outstanding" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
               <td v-if="grnLocations.length">
-                <Select v-model="line.location_id" :options="grnLocations" optionLabel="label" optionValue="value" showClear filter placeholder="No location" class="loc-select" />
+                <Select v-model="line.location_id" :options="grnLocations" optionLabel="label" optionValue="value" showClear filter :placeholder="pt('No location')" class="loc-select" />
               </td>
             </tr>
             <tr v-if="line.product?.track_batch || line.product?.track_expiry || line.product?.track_serial" class="track-row">
               <td :colspan="grnLocations.length ? 4 : 3">
                 <div class="track-grid">
                   <div v-if="line.product?.track_batch" class="fld">
-                    <label>Batch Number *</label>
+                    <label>{{ pt('Batch Number') }} *</label>
                     <input v-model="line.batch_number" class="date-input" placeholder="e.g. BATCH-2026-07" />
                   </div>
                   <div v-if="line.product?.track_expiry" class="fld">
-                    <label>Expiry Date *</label>
+                    <label>{{ pt('Expiry Date') }} *</label>
                     <input type="date" v-model="line.expiry_date" class="date-input" />
                   </div>
                   <div v-if="line.product?.track_serial" class="fld serials">
                     <label>
-                      Serial Numbers * (comma or newline separated)
+                      {{ pt('Serial Numbers * (comma or newline separated)') }}
                       <span class="count">{{ serialCount(line) }}/{{ line.quantity || 0 }}</span>
                     </label>
                     <textarea v-model="line.serials" rows="2" class="date-input" placeholder="SN001, SN002, ..." />
@@ -428,33 +432,33 @@ onMounted(async () => {
               </td>
             </tr>
           </template>
-          <tr v-if="!grnLines.length"><td :colspan="grnLocations.length ? 4 : 3" style="text-align: center; color: #6b7280">Nothing left to receive.</td></tr>
+          <tr v-if="!grnLines.length"><td :colspan="grnLocations.length ? 4 : 3" style="text-align: center; color: #6b7280">{{ pt('Nothing left to receive.') }}</td></tr>
         </tbody>
       </table>
 
-      <h3 class="lines-title">Additional Charges (optional)</h3>
+      <h3 class="lines-title">{{ pt('Additional Charges (optional)') }}</h3>
       <div class="charges-grid">
         <div class="fld">
-          <label>Freight</label>
+          <label>{{ pt('Freight') }}</label>
           <InputNumber v-model="grnCharges.freight_amount" :minFractionDigits="2" :maxFractionDigits="2" />
         </div>
         <div class="fld">
-          <label>Duty / Customs</label>
+          <label>{{ pt('Duty / Customs') }}</label>
           <InputNumber v-model="grnCharges.duty_amount" :minFractionDigits="2" :maxFractionDigits="2" />
         </div>
         <div class="fld">
-          <label>Other</label>
+          <label>{{ pt('Other') }}</label>
           <InputNumber v-model="grnCharges.other_amount" :minFractionDigits="2" :maxFractionDigits="2" />
         </div>
         <div class="fld">
-          <label>Allocate</label>
+          <label>{{ pt('Allocate') }}</label>
           <Select v-model="grnCharges.allocation_method" :options="allocationMethods" optionLabel="label" optionValue="value" />
         </div>
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="grnVisible = false" />
-        <Button label="Confirm Receipt" :loading="grnSaving" :disabled="!grnLines.length" @click="saveGrn" />
+        <Button :label="pt('Cancel')" text @click="grnVisible = false" />
+        <Button :label="pt('Confirm Receipt')" :loading="grnSaving" :disabled="!grnLines.length" @click="saveGrn" />
       </template>
     </Dialog>
 
@@ -466,15 +470,15 @@ onMounted(async () => {
       :defaultSubject="emailCtx.defaultSubject"
     />
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Purchase Order Details" :fields="[
-      { key: 'po_number', label: 'PO #' },
-      { key: 'supplier.name', label: 'Supplier' },
-      { key: 'warehouse.name', label: 'Warehouse' },
-      { key: 'order_date', label: 'Order Date' },
-      { key: 'expected_date', label: 'Expected Date' },
-      { key: 'status', label: 'Status' },
-      { key: 'total', label: 'Total', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
-      { key: 'notes', label: 'Notes', full: true },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('Purchase Order Details')" :fields="[
+      { key: 'po_number', label: pt('PO #') },
+      { key: 'supplier.name', label: pt('Supplier') },
+      { key: 'warehouse.name', label: pt('Warehouse') },
+      { key: 'order_date', label: pt('Order Date') },
+      { key: 'expected_date', label: pt('Expected Date') },
+      { key: 'status', label: pt('Status') },
+      { key: 'total', label: pt('Total'), format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'notes', label: pt('Notes'), full: true },
     ]" />
   </div>
 </template>

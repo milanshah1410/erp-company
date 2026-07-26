@@ -16,11 +16,14 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import { usePt } from '../i18n/pt'
 import CustomerDetailDialog from '../components/CustomerDetailDialog.vue'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 
 const canView = computed(() => auth.can('customers.view'))
 const canCreate = computed(() => auth.can('customers.create'))
@@ -45,29 +48,29 @@ const typeColors: Record<string, string> = {
   retailer: 'info',
 }
 
-const typeOptions = [
-  { label: 'Retail', value: 'retail' },
-  { label: 'Wholesale', value: 'wholesale' },
-  { label: 'Dealer', value: 'dealer' },
-  { label: 'Distributor', value: 'distributor' },
-  { label: 'Retailer', value: 'retailer' },
-]
+const typeOptions = computed(() => [
+  { label: pt('Retail'), value: 'retail' },
+  { label: pt('Wholesale'), value: 'wholesale' },
+  { label: pt('Dealer'), value: 'dealer' },
+  { label: pt('Distributor'), value: 'distributor' },
+  { label: pt('Retailer'), value: 'retailer' },
+])
 
-const gstTypeOptions = [
-  { label: 'Regular', value: 'regular' },
-  { label: 'Composition', value: 'composition' },
-  { label: 'Unregistered', value: 'unregistered' },
-  { label: 'Consumer', value: 'consumer' },
-  { label: 'Overseas', value: 'overseas' },
-]
+const gstTypeOptions = computed(() => [
+  { label: pt('Regular'), value: 'regular' },
+  { label: pt('Composition'), value: 'composition' },
+  { label: pt('Unregistered'), value: 'unregistered' },
+  { label: pt('Consumer'), value: 'consumer' },
+  { label: pt('Overseas'), value: 'overseas' },
+])
 
-const priceLevelOptions = [
-  { label: 'Category default', value: null },
-  { label: 'MRP', value: 'mrp' },
-  { label: 'Wholesale', value: 'wholesale' },
-  { label: 'Retail', value: 'retail' },
-  { label: 'Discount', value: 'discount' },
-]
+const priceLevelOptions = computed(() => [
+  { label: pt('Category default'), value: null },
+  { label: pt('MRP'), value: 'mrp' },
+  { label: pt('Wholesale'), value: 'wholesale' },
+  { label: pt('Retail'), value: 'retail' },
+  { label: pt('Discount'), value: 'discount' },
+])
 
 // Customer categories for the assignment dropdown + filter.
 const categories = ref<any[]>([])
@@ -193,10 +196,10 @@ async function save() {
   try {
     if (editing.value) {
       await crud.value.update(editing.value.id, form.value)
-      toast.add({ severity: 'success', summary: 'Customer updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Customer updated'), life: 2500 })
     } else {
       await crud.value.create(form.value)
-      toast.add({ severity: 'success', summary: 'Customer created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Customer created'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
@@ -204,10 +207,10 @@ async function save() {
     if (e.response?.status === 422) {
       errors.value = e.response.data.errors || {}
       if (!Object.keys(errors.value).length && e.response.data.message) {
-        toast.add({ severity: 'error', summary: 'Error', detail: e.response.data.message, life: 4000 })
+        toast.add({ severity: 'error', summary: pt('Error'), detail: e.response.data.message, life: 4000 })
       }
     } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Request failed', life: 4000 })
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
     }
   } finally {
     saving.value = false
@@ -216,20 +219,21 @@ async function save() {
 
 async function confirmDelete(row: any) {
   const res = await Swal.fire({
-    title: `Delete "${row.name}"?`,
-    text: 'This action cannot be undone.',
+    title: pt('Delete "{name}"?', { name: row.name }),
+    text: pt('This action cannot be undone.'),
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Delete',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await crud.value.remove(row.id)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -261,20 +265,20 @@ const invoiceStatusColors: Record<string, string> = {
   paid: 'success',
 }
 
-const historyStatusOptions = [
-  { label: 'All', value: null },
-  { label: 'draft', value: 'draft' },
-  { label: 'confirmed', value: 'confirmed' },
-  { label: 'delivered', value: 'delivered' },
-  { label: 'cancelled', value: 'cancelled' },
-]
+const historyStatusOptions = computed(() => [
+  { label: pt('All'), value: null },
+  { label: pt('draft'), value: 'draft' },
+  { label: pt('confirmed'), value: 'confirmed' },
+  { label: pt('delivered'), value: 'delivered' },
+  { label: pt('cancelled'), value: 'cancelled' },
+])
 
 const historyMeta = computed(() => {
   const s = historySummary.value
   if (!s) return ''
   const credit = s.credit_limit != null ? money(s.credit_limit) : '—'
   const last = s.last_order_date || '—'
-  return `Credit limit: ${credit} · Last order: ${last}`
+  return pt('Credit limit: {credit} · Last order: {last}', { credit, last })
 })
 
 const outstandingBalance = computed(() => Number(historySummary.value?.outstanding_balance ?? 0))
@@ -290,7 +294,7 @@ async function loadHistory() {
     historyTotal.value = data.meta?.total ?? historyOrders.value.length
     historySummary.value = data.summary ?? null
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed to load purchase history', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed to load purchase history'), life: 4000 })
   } finally {
     historyLoading.value = false
   }
@@ -352,7 +356,7 @@ async function savePortal() {
       portal_enabled: portalForm.value.portal_enabled,
       password: portalForm.value.password || null,
     })
-    toast.add({ severity: 'success', summary: 'Portal access updated', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Portal access updated'), life: 2500 })
     portalVisible.value = false
     reload()
   } catch (e: any) {
@@ -360,7 +364,7 @@ async function savePortal() {
       portalErrors.value = e.response.data.errors || {}
       portalError.value = e.response.data.message || null
     } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
     }
   } finally {
     portalSaving.value = false
@@ -376,41 +380,42 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Customers</h1>
-      <Button v-if="canCreate" label="New Customer" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Customers')">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Customer')" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <span class="search">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
       </span>
       <Select
         v-model="categoryFilter"
         :options="categories"
         optionLabel="label"
         optionValue="value"
-        placeholder="All categories"
+        :placeholder="pt('All categories')"
         showClear
         class="cat-filter"
         @change="reload"
       />
-      <Button label="Search" outlined @click="reload" />
+      <Button :label="pt('Search')" outlined @click="reload" />
       <span class="toolbar-spacer" />
-      <TableExportButtons title="Customers" endpoint="/customers"
+      <TableExportButtons :title="pt('Customers')" endpoint="/customers"
         :params="() => ({
           ...(search ? { search } : {}),
           ...(categoryFilter ? { customer_category_id: categoryFilter } : {}),
         })"
         :columns="[
-          { key: 'code', label: 'Code' },
-          { key: 'name', label: 'Name' },
-          { key: 'company_name', label: 'Company' },
-          { key: 'type', label: 'Type' },
-          { key: 'phone', label: 'Phone' },
-          { key: 'outstanding_balance', label: 'Outstanding' },
-          { key: 'is_active', label: 'Active', format: (v) => v ? 'Yes' : 'No' },
+          { key: 'code', label: pt('Code') },
+          { key: 'name', label: pt('Name') },
+          { key: 'company_name', label: pt('Company') },
+          { key: 'type', label: pt('Type') },
+          { key: 'phone', label: pt('Phone') },
+          { key: 'outstanding_balance', label: pt('Outstanding') },
+          { key: 'is_active', label: pt('Active'), format: (v) => v ? pt('Yes') : pt('No') },
         ]" />
     </div>
 
@@ -430,71 +435,71 @@ onMounted(() => {
       @page="onPage"
       class="p-datatable-sm"
     >
-      <Column field="code" header="Code" sortable />
-      <Column field="name" header="Name" sortable>
+      <Column field="code" :header="pt('Code')" sortable />
+      <Column field="name" :header="pt('Name')" sortable>
         <template #body="{ data }">
           <span>{{ data.name }}</span>
           <span v-if="data.company_name" class="muted-sub">{{ data.company_name }}</span>
         </template>
       </Column>
-      <Column header="Type">
+      <Column :header="pt('Type')">
         <template #body="{ data }">
           <Tag :severity="typeColors[data.type]" :value="data.type" />
           <span v-if="data.category" class="muted-sub">{{ data.category.name }}</span>
         </template>
       </Column>
-      <Column field="phone" header="Phone" />
-      <Column header="Outstanding">
+      <Column field="phone" :header="pt('Phone')" />
+      <Column :header="pt('Outstanding')">
         <template #body="{ data }">
           <span :class="Number(data.outstanding_balance) > 0 ? 'amount-due' : 'amount-clear'">
             {{ money(data.outstanding_balance) }}
           </span>
           <span v-if="data.available_credit != null" class="muted-sub">
-            {{ money(data.available_credit) }} avail.
+            {{ pt('{amount} avail.', { amount: money(data.available_credit) }) }}
           </span>
         </template>
       </Column>
-      <Column field="is_active" header="Active">
+      <Column field="is_active" :header="pt('Active')">
         <template #body="{ data }">
-          <Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? 'Yes' : 'No'" />
+          <Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? pt('Yes') : pt('No')" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 12rem">
+      <Column :header="pt('Actions')" style="width: 12rem">
         <template #body="{ data }">
-          <Button v-if="canView" icon="pi pi-wallet" text rounded size="small" title="Account (ledger / payments / addresses / prices)" @click="openDetail(data)" />
-          <Button v-if="canView" icon="pi pi-history" text rounded size="small" title="Purchase History" @click="openHistory(data)" />
+          <Button v-if="canView" icon="pi pi-wallet" text rounded size="small" :title="pt('Account (ledger / payments / addresses / prices)')" @click="openDetail(data)" />
+          <Button v-if="canView" icon="pi pi-history" text rounded size="small" :title="pt('Purchase History')" @click="openHistory(data)" />
           <Button v-if="canEdit" :icon="data.portal_enabled ? 'pi pi-globe' : 'pi pi-lock'" text rounded size="small"
-            :severity="data.portal_enabled ? 'success' : 'secondary'" title="B2B Portal Access" @click="openPortal(data)" />
-          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
-          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
+            :severity="data.portal_enabled ? 'success' : 'secondary'" :title="pt('B2B Portal Access')" @click="openPortal(data)" />
+          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" :title="pt('Edit')" @click="openEdit(data)" />
+          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" :title="pt('Delete')" @click="confirmDelete(data)" />
         </template>
       </Column>
-      <template #empty>No records found.</template>
+      <template #empty>{{ pt('No records found.') }}</template>
     </DataTable>
 
     <!-- Customer create / edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editing ? 'Edit Customer' : 'New Customer'" :style="{ width: '640px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editing ? pt('Edit Customer') : pt('New Customer')" :style="{ width: '640px' }">
       <div class="form-grid">
         <div class="fld">
-          <label>Code <span class="req">*</span></label>
+          <label>{{ pt('Code') }} <span class="req">*</span></label>
           <InputText v-model="form.code" :class="{ invalid: fieldError('code') }" />
           <small v-if="fieldError('code')" class="error-text">{{ fieldError('code') }}</small>
         </div>
 
         <div class="fld">
-          <label>Name <span class="req">*</span></label>
+          <label>{{ pt('Name') }} <span class="req">*</span></label>
           <InputText v-model="form.name" :class="{ invalid: fieldError('name') }" />
           <small v-if="fieldError('name')" class="error-text">{{ fieldError('name') }}</small>
         </div>
 
         <div class="fld">
-          <label>Company Name</label>
+          <label>{{ pt('Company Name') }}</label>
           <InputText v-model="form.company_name" :class="{ invalid: fieldError('company_name') }" />
           <small v-if="fieldError('company_name')" class="error-text">{{ fieldError('company_name') }}</small>
         </div>
 
         <div class="fld">
-          <label>Type <span class="req">*</span></label>
+          <label>{{ pt('Type') }} <span class="req">*</span></label>
           <Select
             v-model="form.type"
             :options="typeOptions"
@@ -506,13 +511,13 @@ onMounted(() => {
         </div>
 
         <div class="fld">
-          <label>Category</label>
+          <label>{{ pt('Category') }}</label>
           <Select
             v-model="form.customer_category_id"
             :options="categories"
             optionLabel="label"
             optionValue="value"
-            placeholder="None"
+            :placeholder="pt('None')"
             showClear
             :class="{ invalid: fieldError('customer_category_id') }"
           />
@@ -520,25 +525,25 @@ onMounted(() => {
         </div>
 
         <div class="fld">
-          <label>Email</label>
+          <label>{{ pt('Email') }}</label>
           <InputText v-model="form.email" :class="{ invalid: fieldError('email') }" />
           <small v-if="fieldError('email')" class="error-text">{{ fieldError('email') }}</small>
         </div>
 
         <div class="fld">
-          <label>Phone</label>
+          <label>{{ pt('Phone') }}</label>
           <InputText v-model="form.phone" :class="{ invalid: fieldError('phone') }" />
           <small v-if="fieldError('phone')" class="error-text">{{ fieldError('phone') }}</small>
         </div>
 
         <div class="fld">
-          <label>GST Number</label>
+          <label>{{ pt('GST Number') }}</label>
           <InputText v-model="form.gst_number" :class="{ invalid: fieldError('gst_number') }" />
           <small v-if="fieldError('gst_number')" class="error-text">{{ fieldError('gst_number') }}</small>
         </div>
 
         <div class="fld">
-          <label>GST Registration Type</label>
+          <label>{{ pt('GST Registration Type') }}</label>
           <Select
             v-model="form.gst_registration_type"
             :options="gstTypeOptions"
@@ -550,19 +555,19 @@ onMounted(() => {
         </div>
 
         <div class="fld">
-          <label>PAN</label>
+          <label>{{ pt('PAN') }}</label>
           <InputText v-model="form.pan" :class="{ invalid: fieldError('pan') }" />
           <small v-if="fieldError('pan')" class="error-text">{{ fieldError('pan') }}</small>
         </div>
 
         <div class="fld">
-          <label>Place of Supply</label>
-          <InputText v-model="form.place_of_supply" placeholder="e.g. Maharashtra (27)" :class="{ invalid: fieldError('place_of_supply') }" />
+          <label>{{ pt('Place of Supply') }}</label>
+          <InputText v-model="form.place_of_supply" :placeholder="pt('e.g. Maharashtra (27)')" :class="{ invalid: fieldError('place_of_supply') }" />
           <small v-if="fieldError('place_of_supply')" class="error-text">{{ fieldError('place_of_supply') }}</small>
         </div>
 
         <div class="fld">
-          <label>Default Price Level</label>
+          <label>{{ pt('Default Price Level') }}</label>
           <Select
             v-model="form.default_price_level"
             :options="priceLevelOptions"
@@ -574,25 +579,25 @@ onMounted(() => {
         </div>
 
         <div class="fld">
-          <label>Date of Birth</label>
+          <label>{{ pt('Date of Birth') }}</label>
           <InputText type="date" v-model="form.date_of_birth" :class="{ invalid: fieldError('date_of_birth') }" />
           <small v-if="fieldError('date_of_birth')" class="error-text">{{ fieldError('date_of_birth') }}</small>
         </div>
 
         <div class="fld">
-          <label>Anniversary</label>
+          <label>{{ pt('Anniversary') }}</label>
           <InputText type="date" v-model="form.anniversary_date" :class="{ invalid: fieldError('anniversary_date') }" />
           <small v-if="fieldError('anniversary_date')" class="error-text">{{ fieldError('anniversary_date') }}</small>
         </div>
 
         <div class="fld">
-          <label>Referred By</label>
+          <label>{{ pt('Referred By') }}</label>
           <Select
             v-model="form.referred_by_customer_id"
             :options="customerOptions"
             optionLabel="label"
             optionValue="value"
-            placeholder="None"
+            :placeholder="pt('None')"
             showClear filter
             :class="{ invalid: fieldError('referred_by_customer_id') }"
           />
@@ -600,53 +605,53 @@ onMounted(() => {
         </div>
 
         <div class="fld">
-          <label>Credit Limit</label>
+          <label>{{ pt('Credit Limit') }}</label>
           <InputNumber v-model="form.credit_limit" :minFractionDigits="2" :maxFractionDigits="2" :class="{ invalid: fieldError('credit_limit') }" />
           <small v-if="fieldError('credit_limit')" class="error-text">{{ fieldError('credit_limit') }}</small>
         </div>
 
         <div class="fld">
-          <label>Opening Balance</label>
+          <label>{{ pt('Opening Balance') }}</label>
           <InputNumber v-model="form.opening_balance" :minFractionDigits="2" :maxFractionDigits="2" :class="{ invalid: fieldError('opening_balance') }" />
           <small v-if="fieldError('opening_balance')" class="error-text">{{ fieldError('opening_balance') }}</small>
         </div>
 
         <div class="fld">
-          <label>Status</label>
+          <label>{{ pt('Status') }}</label>
           <div class="checkbox-row">
             <Checkbox v-model="form.is_active" binary inputId="cust_is_active" />
-            <label for="cust_is_active">Active</label>
+            <label for="cust_is_active">{{ pt('Active') }}</label>
           </div>
         </div>
 
         <div class="fld full">
-          <label>Address</label>
+          <label>{{ pt('Address') }}</label>
           <Textarea v-model="form.address" rows="2" :class="{ invalid: fieldError('address') }" />
           <small v-if="fieldError('address')" class="error-text">{{ fieldError('address') }}</small>
         </div>
 
         <div class="fld">
-          <label>City</label>
+          <label>{{ pt('City') }}</label>
           <InputText v-model="form.city" :class="{ invalid: fieldError('city') }" />
           <small v-if="fieldError('city')" class="error-text">{{ fieldError('city') }}</small>
         </div>
 
         <div class="fld">
-          <label>State</label>
+          <label>{{ pt('State') }}</label>
           <InputText v-model="form.state" :class="{ invalid: fieldError('state') }" />
           <small v-if="fieldError('state')" class="error-text">{{ fieldError('state') }}</small>
         </div>
 
         <div class="fld">
-          <label>Pincode</label>
+          <label>{{ pt('Pincode') }}</label>
           <InputText v-model="form.pincode" :class="{ invalid: fieldError('pincode') }" />
           <small v-if="fieldError('pincode')" class="error-text">{{ fieldError('pincode') }}</small>
         </div>
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editing ? pt('Update') : pt('Create')" :loading="saving" @click="save" />
       </template>
     </Dialog>
 
@@ -654,31 +659,31 @@ onMounted(() => {
     <Dialog
       v-model:visible="historyVisible"
       modal
-      :header="`Purchase History — ${historyCustomer?.name ?? ''}`"
+      :header="pt('Purchase History — {name}', { name: historyCustomer?.name ?? '' })"
       :style="{ width: '780px' }"
     >
       <div class="stat-grid">
         <div class="stat-tile">
           <div class="stat-value">{{ historySummary?.total_orders ?? 0 }}</div>
-          <div class="stat-label">Total Orders</div>
+          <div class="stat-label">{{ pt('Total Orders') }}</div>
         </div>
         <div class="stat-tile">
           <div class="stat-value">{{ money(historySummary?.total_value) }}</div>
-          <div class="stat-label">Lifetime Value</div>
+          <div class="stat-label">{{ pt('Lifetime Value') }}</div>
         </div>
         <div class="stat-tile">
           <div class="stat-value">{{ historySummary?.open_orders ?? 0 }}</div>
-          <div class="stat-label">Open Orders</div>
+          <div class="stat-label">{{ pt('Open Orders') }}</div>
         </div>
         <div class="stat-tile">
           <div class="stat-value">{{ money(historySummary?.open_value) }}</div>
-          <div class="stat-label">Open Value</div>
+          <div class="stat-label">{{ pt('Open Value') }}</div>
         </div>
         <div class="stat-tile">
           <div class="stat-value" :class="outstandingBalance > 0 ? 'balance-due' : 'balance-clear'">
             {{ money(historySummary?.outstanding_balance) }}
           </div>
-          <div class="stat-label">Outstanding Balance</div>
+          <div class="stat-label">{{ pt('Outstanding Balance') }}</div>
         </div>
       </div>
 
@@ -690,7 +695,7 @@ onMounted(() => {
           :options="historyStatusOptions"
           optionLabel="label"
           optionValue="value"
-          placeholder="All"
+          :placeholder="pt('All')"
           class="status-filter"
           @change="onHistoryStatusChange"
         />
@@ -708,15 +713,15 @@ onMounted(() => {
         @page="onHistoryPage"
         class="p-datatable-sm"
       >
-        <Column field="so_number" header="SO #" />
-        <Column field="order_date" header="Date" />
-        <Column header="Warehouse">
+        <Column field="so_number" :header="pt('SO #')" />
+        <Column field="order_date" :header="pt('Date')" />
+        <Column :header="pt('Warehouse')">
           <template #body="{ data }">{{ data.warehouse?.name }}</template>
         </Column>
-        <Column header="Total">
+        <Column :header="pt('Total')">
           <template #body="{ data }">{{ money(data.total) }}</template>
         </Column>
-        <Column header="Invoice">
+        <Column :header="pt('Invoice')">
           <template #body="{ data }">
             <template v-if="data.invoice">
               <span class="invoice-number">{{ data.invoice.invoice_number }}</span>
@@ -725,12 +730,12 @@ onMounted(() => {
             <template v-else>—</template>
           </template>
         </Column>
-        <Column header="Status">
+        <Column :header="pt('Status')">
           <template #body="{ data }">
             <Tag :severity="statusColors[data.status]" :value="data.status" />
           </template>
         </Column>
-        <template #empty>No sales orders for this customer yet.</template>
+        <template #empty>{{ pt('No sales orders for this customer yet.') }}</template>
       </DataTable>
     </Dialog>
 
@@ -738,33 +743,32 @@ onMounted(() => {
     <CustomerDetailDialog v-model:visible="detailVisible" :customer="detailCustomer" :can-edit="canEdit" />
 
     <!-- B2B portal access -->
-    <Dialog v-model:visible="portalVisible" modal :header="`B2B Portal Access — ${portalCustomer?.name ?? ''}`" :style="{ width: '460px' }">
+    <Dialog v-model:visible="portalVisible" modal :header="pt('B2B Portal Access — {name}', { name: portalCustomer?.name ?? '' })" :style="{ width: '460px' }">
       <p class="portal-hint">
-        Let this customer sign in to the B2B portal to browse the catalogue, see their prices and live stock, and place
-        orders for approval. They log in with their email
-        <strong>{{ portalCustomer?.email || '(no email set)' }}</strong> and the password you set here.
+        {{ pt('Let this customer sign in to the B2B portal to browse the catalogue, see their prices and live stock, and place orders for approval. They log in with their email') }}
+        <strong>{{ portalCustomer?.email || pt('(no email set)') }}</strong> {{ pt('and the password you set here.') }}
       </p>
 
       <div class="checkbox-row">
         <Checkbox v-model="portalForm.portal_enabled" binary inputId="portal_enabled" />
-        <label for="portal_enabled">Portal login enabled</label>
+        <label for="portal_enabled">{{ pt('Portal login enabled') }}</label>
       </div>
 
       <div class="fld full" style="margin-top: 1rem">
-        <label>{{ portalCustomer?.has_portal_password ? 'Reset password' : 'Set password' }}</label>
+        <label>{{ portalCustomer?.has_portal_password ? pt('Reset password') : pt('Set password') }}</label>
         <InputText v-model="portalForm.password" type="password" autocomplete="new-password"
-          :placeholder="portalCustomer?.has_portal_password ? 'Leave blank to keep current' : 'At least 6 characters'" />
+          :placeholder="portalCustomer?.has_portal_password ? pt('Leave blank to keep current') : pt('At least 6 characters')" />
         <small v-if="portalErrors.password" class="error-text">{{ portalErrors.password[0] }}</small>
         <small v-else-if="portalCustomer?.portal_last_login_at" class="muted-sub">
-          Last login: {{ new Date(portalCustomer.portal_last_login_at).toLocaleString() }}
+          {{ pt('Last login: {time}', { time: new Date(portalCustomer.portal_last_login_at).toLocaleString() }) }}
         </small>
       </div>
 
       <p v-if="portalError" class="error-text" style="margin-top: 0.75rem">{{ portalError }}</p>
 
       <template #footer>
-        <Button label="Cancel" text @click="portalVisible = false" />
-        <Button label="Save" :loading="portalSaving" @click="savePortal" />
+        <Button :label="pt('Cancel')" text @click="portalVisible = false" />
+        <Button :label="pt('Save')" :loading="portalSaving" @click="savePortal" />
       </template>
     </Dialog>
   </div>

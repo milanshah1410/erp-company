@@ -11,6 +11,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -71,24 +72,25 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Reorder Suggestions</h1>
-      <div class="header-actions">
+    <PageHeader title="Reorder Suggestions">
+      <template #actions>
+        <div class="header-actions">
         <Select v-model="warehouseId" :options="warehouses" optionLabel="label" optionValue="value" showClear
-          placeholder="All warehouses" class="wh-filter" @change="load" />
+        placeholder="All warehouses" class="wh-filter" @change="load" />
         <TableExportButtons title="Reorder Suggestions" :rows="rows" :columns="[
-          { key: 'product.name', label: 'Product' },
-          { key: 'product.sku', label: 'SKU' },
-          { key: 'warehouse.name', label: 'Warehouse' },
-          { key: 'on_hand', label: 'On Hand' },
-          { key: 'reorder_level', label: 'Reorder Level' },
-          { key: 'suggested_quantity', label: 'Suggested Qty' },
-          { key: 'supplier.name', label: 'Supplier' },
+        { key: 'product.name', label: 'Product' },
+        { key: 'product.sku', label: 'SKU' },
+        { key: 'warehouse.name', label: 'Warehouse' },
+        { key: 'on_hand', label: 'On Hand' },
+        { key: 'reorder_level', label: 'Reorder Level' },
+        { key: 'suggested_quantity', label: 'Suggested Qty' },
+        { key: 'supplier.name', label: 'Supplier' },
         ]" />
         <Button v-if="canGenerate" label="Generate Purchase Orders" icon="pi pi-file-plus" :loading="generating"
-          :disabled="!rows.length" @click="generate" />
-      </div>
-    </div>
+        :disabled="!rows.length" @click="generate" />
+        </div>
+      </template>
+    </PageHeader>
     <p class="subtitle">Products at or below their reorder level, grouped by preferred supplier</p>
     <p v-if="needsSupplierCount" class="warning-note">
       <i class="pi pi-exclamation-triangle" /> {{ needsSupplierCount }} item(s) have no preferred supplier set on the product and will be skipped.

@@ -11,6 +11,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -165,9 +166,8 @@ function fmt(dt: string | null) {
 
 <template>
   <div>
-    <div class="header">
-      <h1>E-commerce Integration</h1>
-      <div style="display: flex; gap: 0.5rem; align-items: center">
+    <PageHeader title="E-commerce Integration">
+      <template #actions>
         <TableExportButtons title="E-commerce Integrations" filenameBase="ecommerce-integrations" :rows="integrations"
           :columns="[
             { key: 'name', label: 'Name' },
@@ -180,8 +180,8 @@ function fmt(dt: string | null) {
             { key: 'last_inventory_sync_at', label: 'Stock Pushed' },
           ]" />
         <Button icon="pi pi-refresh" text rounded @click="loadAll" title="Refresh" />
-      </div>
-    </div>
+      </template>
+    </PageHeader>
     <p class="subtitle">Connect marketplaces and storefronts to pull orders, map listings, and push live stock.</p>
 
     <!-- Connected integrations -->

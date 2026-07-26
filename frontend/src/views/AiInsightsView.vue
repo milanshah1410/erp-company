@@ -11,6 +11,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import { useAuthStore } from '../stores/auth'
+import PageHeader from '../components/PageHeader.vue'
 
 /**
  * AI Insights (SRS §22): sales forecast, demand prediction, forecast-driven
@@ -191,13 +192,11 @@ onMounted(() => {
 
 <template>
   <div class="ai-insights">
-    <div class="header">
-      <div>
-        <h1>AI Insights</h1>
-        <p class="subtitle">Forecasting &amp; predictions from your business data</p>
-      </div>
-      <span v-if="providerLabel" class="provider-badge"><i class="pi pi-microchip-ai" /> {{ providerLabel }}</span>
-    </div>
+    <PageHeader title="AI Insights" subtitle="Forecasting &amp; predictions from your business data">
+      <template #actions>
+        <span v-if="providerLabel" class="provider-badge"><i class="pi pi-microchip-ai" /> {{ providerLabel }}</span>
+      </template>
+    </PageHeader>
 
     <div class="tabbar">
       <button

@@ -11,6 +11,7 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import PageHeader from '../components/PageHeader.vue'
 
 /**
  * Admin surface for the tenant's online payment gateways (SRS §16): which of
@@ -151,9 +152,7 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Payment Gateways</h1>
-    </div>
+    <PageHeader title="Payment Gateways" />
     <p class="hint">
       <i class="pi pi-info-circle" />
       Enable the providers you collect online payments through. Each uses your own merchant account; credentials are

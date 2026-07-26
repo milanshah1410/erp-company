@@ -17,8 +17,11 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
+const pt = usePt()
 const auth = useAuthStore()
 const crud = useCrud('/purchase-indents')
 
@@ -49,23 +52,23 @@ const statusColors: Record<string, string> = {
 const priorityColors: Record<string, string> = {
   low: 'secondary', normal: 'info', high: 'warn', urgent: 'danger',
 }
-const priorities = [
-  { label: 'Low', value: 'low' },
-  { label: 'Normal', value: 'normal' },
-  { label: 'High', value: 'high' },
-  { label: 'Urgent', value: 'urgent' },
-]
+const priorities = computed(() => [
+  { label: pt('Low'), value: 'low' },
+  { label: pt('Normal'), value: 'normal' },
+  { label: pt('High'), value: 'high' },
+  { label: pt('Urgent'), value: 'urgent' },
+])
 
 const search = ref('')
 const statusFilter = ref<string | null>(null)
-const statusOptions = [
-  { label: 'Draft', value: 'draft' },
-  { label: 'Pending Approval', value: 'pending_approval' },
-  { label: 'Approved', value: 'approved' },
-  { label: 'Rejected', value: 'rejected' },
-  { label: 'Converted', value: 'converted' },
-  { label: 'Cancelled', value: 'cancelled' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Draft'), value: 'draft' },
+  { label: pt('Pending Approval'), value: 'pending_approval' },
+  { label: pt('Approved'), value: 'approved' },
+  { label: pt('Rejected'), value: 'rejected' },
+  { label: pt('Converted'), value: 'converted' },
+  { label: pt('Cancelled'), value: 'cancelled' },
+])
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -126,46 +129,46 @@ async function save() {
   try {
     if (editingId.value) {
       await http.put(`/purchase-indents/${editingId.value}`, form.value)
-      toast.add({ severity: 'success', summary: 'Indent updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Indent updated'), life: 2500 })
     } else {
       await http.post('/purchase-indents', form.value)
-      toast.add({ severity: 'success', summary: 'Indent created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Indent created'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
   } catch (e: any) {
     if (e.response?.status === 422) errors.value = e.response.data.errors || {}
-    else toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    else toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     saving.value = false
   }
 }
 
 async function submit(row: any) {
-  await act(`/purchase-indents/${row.id}/submit`, 'Submitted for approval')
+  await act(`/purchase-indents/${row.id}/submit`, pt('Submitted for approval'))
 }
 async function approve(row: any) {
-  const res = await Swal.fire({ title: `Approve ${row.indent_number}?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Approve' })
+  const res = await Swal.fire({ title: pt('Approve {n}?', { n: row.indent_number }), icon: 'question', showCancelButton: true, confirmButtonText: pt('Approve'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
-  await act(`/purchase-indents/${row.id}/approve`, 'Indent approved')
+  await act(`/purchase-indents/${row.id}/approve`, pt('Indent approved'))
 }
 async function reject(row: any) {
   const res = await Swal.fire({
-    title: `Reject ${row.indent_number}?`, input: 'text', inputLabel: 'Reason (optional)',
-    icon: 'warning', showCancelButton: true, confirmButtonText: 'Reject',
+    title: pt('Reject {n}?', { n: row.indent_number }), input: 'text', inputLabel: pt('Reason (optional)'),
+    icon: 'warning', showCancelButton: true, confirmButtonText: pt('Reject'), cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
-  await act(`/purchase-indents/${row.id}/reject`, 'Indent rejected', { reason: res.value })
+  await act(`/purchase-indents/${row.id}/reject`, pt('Indent rejected'), { reason: res.value })
 }
 async function remove(row: any) {
-  const res = await Swal.fire({ title: `Delete ${row.indent_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#dc2626' })
+  const res = await Swal.fire({ title: pt('Delete {n}?', { n: row.indent_number }), icon: 'warning', showCancelButton: true, confirmButtonText: pt('Delete'), cancelButtonText: pt('Cancel'), confirmButtonColor: '#dc2626' })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/purchase-indents/${row.id}`)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2000 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2000 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 async function act(url: string, msg: string, body: any = {}) {
@@ -174,7 +177,7 @@ async function act(url: string, msg: string, body: any = {}) {
     toast.add({ severity: 'success', summary: msg, life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
@@ -191,17 +194,17 @@ function openConvertRfq(row: any) {
 }
 async function convertToRfq() {
   if (!rfqForm.value.supplier_ids.length) {
-    toast.add({ severity: 'warn', summary: 'Pick at least one vendor', life: 3000 })
+    toast.add({ severity: 'warn', summary: pt('Pick at least one vendor'), life: 3000 })
     return
   }
   rfqSaving.value = true
   try {
     const { data } = await http.post(`/purchase-indents/${rfqSource.value.id}/convert-to-rfq`, rfqForm.value)
-    toast.add({ severity: 'success', summary: `RFQ ${data.data.rfq_number} created`, life: 3500 })
+    toast.add({ severity: 'success', summary: pt('RFQ {n} created', { n: data.data.rfq_number }), life: 3500 })
     rfqVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     rfqSaving.value = false
   }
@@ -220,17 +223,17 @@ function openConvertPo(row: any) {
 }
 async function convertToPo() {
   if (!poForm.value.supplier_id || !poForm.value.warehouse_id) {
-    toast.add({ severity: 'warn', summary: 'Supplier and warehouse are required', life: 3000 })
+    toast.add({ severity: 'warn', summary: pt('Supplier and warehouse are required'), life: 3000 })
     return
   }
   poSaving.value = true
   try {
     const { data } = await http.post(`/purchase-indents/${poSource.value.id}/convert-to-po`, poForm.value)
-    toast.add({ severity: 'success', summary: `PO ${data.data.po_number} created (draft)`, life: 3500 })
+    toast.add({ severity: 'success', summary: pt('PO {n} created (draft)', { n: data.data.po_number }), life: 3500 })
     poVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     poSaving.value = false
   }
@@ -265,161 +268,162 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Purchase Indents</h1>
-      <Button v-if="canCreate" label="New Indent" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Purchase Indents')" :count="crud.total.value">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Indent')" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar no-print" style="display:flex;justify-content:flex-end;gap:0.5rem;align-items:center;margin-bottom:1rem">
       <span class="search-box">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
       </span>
-      <Button label="Search" outlined @click="reload" />
+      <Button :label="pt('Search')" outlined @click="reload" />
       <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-        placeholder="All statuses" @change="reload" class="status-filter" />
-      <TableExportButtons title="Purchase Indents" endpoint="/purchase-indents"
+        :placeholder="pt('All statuses')" @change="reload" class="status-filter" />
+      <TableExportButtons :title="pt('Purchase Indents')" endpoint="/purchase-indents"
         :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
         :columns="[
-          { key: 'indent_number', label: 'Indent #' },
-          { key: 'department.name', label: 'Department' },
-          { key: 'indent_date', label: 'Date' },
-          { key: 'required_date', label: 'Required' },
-          { key: 'priority', label: 'Priority' },
-          { key: 'items_count', label: 'Items' },
-          { key: 'status', label: 'Status' },
+          { key: 'indent_number', label: pt('Indent #') },
+          { key: 'department.name', label: pt('Department') },
+          { key: 'indent_date', label: pt('Date') },
+          { key: 'required_date', label: pt('Required') },
+          { key: 'priority', label: pt('Priority') },
+          { key: 'items_count', label: pt('Items') },
+          { key: 'status', label: pt('Status') },
         ]" />
     </div>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="indent_number" header="Indent #" />
-      <Column header="Department"><template #body="{ data }">{{ data.department?.name || '—' }}</template></Column>
-      <Column field="indent_date" header="Date" />
-      <Column header="Required"><template #body="{ data }">{{ data.required_date || '—' }}</template></Column>
-      <Column header="Priority">
-        <template #body="{ data }"><Tag :severity="priorityColors[data.priority]" :value="data.priority" /></template>
+      <Column field="indent_number" :header="pt('Indent #')" />
+      <Column :header="pt('Department')"><template #body="{ data }">{{ data.department?.name || '—' }}</template></Column>
+      <Column field="indent_date" :header="pt('Date')" />
+      <Column :header="pt('Required')"><template #body="{ data }">{{ data.required_date || '—' }}</template></Column>
+      <Column :header="pt('Priority')">
+        <template #body="{ data }"><Tag :severity="priorityColors[data.priority]" :value="pt(data.priority)" /></template>
       </Column>
-      <Column header="Items"><template #body="{ data }">{{ data.items_count ?? '—' }}</template></Column>
-      <Column header="Status">
-        <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="data.status.replace('_', ' ')" /></template>
+      <Column :header="pt('Items')"><template #body="{ data }">{{ data.items_count ?? '—' }}</template></Column>
+      <Column :header="pt('Status')">
+        <template #body="{ data }"><Tag :severity="statusColors[data.status]" :value="pt(data.status.replace('_', ' '))" /></template>
       </Column>
-      <Column header="Actions" style="width: 20rem">
+      <Column :header="pt('Actions')" style="width: 20rem">
         <template #body="{ data }">
           <div class="actions">
-            <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
-            <Button v-if="canEdit && ['draft', 'rejected'].includes(data.status)" label="Submit" size="small" outlined @click="submit(data)" />
-            <Button v-if="canApprove && data.status === 'pending_approval'" label="Approve" size="small" severity="success" outlined @click="approve(data)" />
-            <Button v-if="canApprove && data.status === 'pending_approval'" label="Reject" size="small" severity="danger" outlined @click="reject(data)" />
-            <Button v-if="canRfq && data.status === 'approved'" label="→ RFQ" size="small" outlined @click="openConvertRfq(data)" />
-            <Button v-if="canPo && data.status === 'approved'" label="→ PO" size="small" severity="info" outlined @click="openConvertPo(data)" />
+            <Button icon="pi pi-eye" text rounded size="small" severity="secondary" :title="pt('View')" @click="openDetail(data)" />
+            <Button v-if="canEdit && ['draft', 'rejected'].includes(data.status)" :label="pt('Submit')" size="small" outlined @click="submit(data)" />
+            <Button v-if="canApprove && data.status === 'pending_approval'" :label="pt('Approve')" size="small" severity="success" outlined @click="approve(data)" />
+            <Button v-if="canApprove && data.status === 'pending_approval'" :label="pt('Reject')" size="small" severity="danger" outlined @click="reject(data)" />
+            <Button v-if="canRfq && data.status === 'approved'" :label="pt('→ RFQ')" size="small" outlined @click="openConvertRfq(data)" />
+            <Button v-if="canPo && data.status === 'approved'" :label="pt('→ PO')" size="small" severity="info" outlined @click="openConvertPo(data)" />
             <Button v-if="canEdit && ['draft', 'rejected'].includes(data.status)" icon="pi pi-pencil" size="small" text @click="openEdit(data)" />
             <Button v-if="canDelete && ['draft', 'rejected'].includes(data.status)" icon="pi pi-trash" size="small" text severity="danger" @click="remove(data)" />
           </div>
         </template>
       </Column>
-      <template #empty>No purchase indents yet.</template>
+      <template #empty>{{ pt('No purchase indents yet.') }}</template>
     </DataTable>
 
     <!-- Create/edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editingId ? 'Edit Indent' : 'New Purchase Indent'" :style="{ width: '820px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editingId ? pt('Edit Indent') : pt('New Purchase Indent')" :style="{ width: '820px' }">
       <div class="form-top">
         <div class="fld">
-          <label>Department</label>
-          <Select v-model="form.department_id" :options="departments" optionLabel="label" optionValue="value" showClear filter placeholder="Select department" />
+          <label>{{ pt('Department') }}</label>
+          <Select v-model="form.department_id" :options="departments" optionLabel="label" optionValue="value" showClear filter :placeholder="pt('Select department')" />
         </div>
         <div class="fld">
-          <label>Warehouse</label>
-          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" showClear placeholder="Select warehouse" />
+          <label>{{ pt('Warehouse') }}</label>
+          <Select v-model="form.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" showClear :placeholder="pt('Select warehouse')" />
         </div>
         <div class="fld">
-          <label>Priority</label>
+          <label>{{ pt('Priority') }}</label>
           <Select v-model="form.priority" :options="priorities" optionLabel="label" optionValue="value" />
         </div>
         <div class="fld">
-          <label>Indent Date *</label>
+          <label>{{ pt('Indent Date') }} *</label>
           <input type="date" v-model="form.indent_date" class="date-input" />
         </div>
         <div class="fld">
-          <label>Required By</label>
+          <label>{{ pt('Required By') }}</label>
           <input type="date" v-model="form.required_date" class="date-input" />
         </div>
       </div>
 
-      <h3 class="lines-title">Requested Items</h3>
+      <h3 class="lines-title">{{ pt('Requested Items') }}</h3>
       <table class="lines">
         <thead>
-          <tr><th style="width: 34%">Product</th><th>Qty</th><th>Est. Cost</th><th>Notes</th><th></th></tr>
+          <tr><th style="width: 34%">{{ pt('Product') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Est. Cost') }}</th><th>{{ pt('Notes') }}</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="(line, i) in form.items" :key="i">
             <td>
-              <Select v-model="line.product_id" :options="products" optionLabel="name" optionValue="id" filter placeholder="Product" class="w-full" @change="onProductPick(line)" />
+              <Select v-model="line.product_id" :options="products" optionLabel="name" optionValue="id" filter :placeholder="pt('Product')" class="w-full" @change="onProductPick(line)" />
             </td>
             <td><InputNumber v-model="line.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
             <td><InputNumber v-model="line.estimated_cost" :minFractionDigits="2" :maxFractionDigits="2" class="num" /></td>
-            <td><input v-model="line.notes" class="date-input" placeholder="Optional" /></td>
+            <td><input v-model="line.notes" class="date-input" :placeholder="pt('Optional')" /></td>
             <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeLine(i)" /></td>
           </tr>
         </tbody>
       </table>
-      <Button label="Add Line" icon="pi pi-plus" text size="small" @click="addLine" />
+      <Button :label="pt('Add Line')" icon="pi pi-plus" text size="small" @click="addLine" />
       <small v-if="errors.items" class="err block">{{ errors.items[0] }}</small>
 
       <div class="fld full">
-        <label>Notes</label>
+        <label>{{ pt('Notes') }}</label>
         <Textarea v-model="form.notes" rows="2" />
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editingId ? 'Save' : 'Create Indent'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editingId ? pt('Save') : pt('Create Indent')" :loading="saving" @click="save" />
       </template>
     </Dialog>
 
     <!-- Convert to RFQ -->
-    <Dialog v-model:visible="rfqVisible" modal :header="`Create RFQ from ${rfqSource?.indent_number}`" :style="{ width: '520px' }">
+    <Dialog v-model:visible="rfqVisible" modal :header="pt('Create RFQ from {n}', { n: rfqSource?.indent_number })" :style="{ width: '520px' }">
       <div class="fld">
-        <label>Invite Vendors *</label>
-        <MultiSelect v-model="rfqForm.supplier_ids" :options="suppliers" optionLabel="label" optionValue="value" filter display="chip" placeholder="Select vendors to invite" />
+        <label>{{ pt('Invite Vendors') }} *</label>
+        <MultiSelect v-model="rfqForm.supplier_ids" :options="suppliers" optionLabel="label" optionValue="value" filter display="chip" :placeholder="pt('Select vendors to invite')" />
       </div>
       <div class="fld" style="margin-top: 1rem">
-        <label>Response Deadline</label>
+        <label>{{ pt('Response Deadline') }}</label>
         <input type="date" v-model="rfqForm.response_deadline" class="date-input" />
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="rfqVisible = false" />
-        <Button label="Create RFQ" :loading="rfqSaving" @click="convertToRfq" />
+        <Button :label="pt('Cancel')" text @click="rfqVisible = false" />
+        <Button :label="pt('Create RFQ')" :loading="rfqSaving" @click="convertToRfq" />
       </template>
     </Dialog>
 
     <!-- Convert to PO -->
-    <Dialog v-model:visible="poVisible" modal :header="`Create PO from ${poSource?.indent_number}`" :style="{ width: '520px' }">
-      <p class="hint">Line costs default to the indent's estimated cost (or the product's cost price).</p>
+    <Dialog v-model:visible="poVisible" modal :header="pt('Create PO from {n}', { n: poSource?.indent_number })" :style="{ width: '520px' }">
+      <p class="hint">{{ pt("Line costs default to the indent's estimated cost (or the product's cost price).") }}</p>
       <div class="fld">
-        <label>Supplier *</label>
-        <Select v-model="poForm.supplier_id" :options="suppliers" optionLabel="label" optionValue="value" filter placeholder="Select supplier" />
+        <label>{{ pt('Supplier') }} *</label>
+        <Select v-model="poForm.supplier_id" :options="suppliers" optionLabel="label" optionValue="value" filter :placeholder="pt('Select supplier')" />
       </div>
       <div class="fld" style="margin-top: 1rem">
-        <label>Warehouse *</label>
-        <Select v-model="poForm.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" placeholder="Select warehouse" />
+        <label>{{ pt('Warehouse') }} *</label>
+        <Select v-model="poForm.warehouse_id" :options="warehouses" optionLabel="label" optionValue="value" :placeholder="pt('Select warehouse')" />
       </div>
       <template #footer>
-        <Button label="Cancel" text @click="poVisible = false" />
-        <Button label="Create PO" :loading="poSaving" @click="convertToPo" />
+        <Button :label="pt('Cancel')" text @click="poVisible = false" />
+        <Button :label="pt('Create PO')" :loading="poSaving" @click="convertToPo" />
       </template>
     </Dialog>
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Purchase Indent Details" :fields="[
-      { key: 'indent_number', label: 'Indent #' },
-      { key: 'department.name', label: 'Department' },
-      { key: 'warehouse.name', label: 'Warehouse' },
-      { key: 'priority', label: 'Priority' },
-      { key: 'indent_date', label: 'Indent Date' },
-      { key: 'required_date', label: 'Required By' },
-      { key: 'items_count', label: 'Items' },
-      { key: 'status', label: 'Status' },
-      { key: 'notes', label: 'Notes', full: true },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('Purchase Indent Details')" :fields="[
+      { key: 'indent_number', label: pt('Indent #') },
+      { key: 'department.name', label: pt('Department') },
+      { key: 'warehouse.name', label: pt('Warehouse') },
+      { key: 'priority', label: pt('Priority') },
+      { key: 'indent_date', label: pt('Indent Date') },
+      { key: 'required_date', label: pt('Required By') },
+      { key: 'items_count', label: pt('Items') },
+      { key: 'status', label: pt('Status') },
+      { key: 'notes', label: pt('Notes'), full: true },
     ]" />
   </div>
 </template>

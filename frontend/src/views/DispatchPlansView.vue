@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -206,30 +207,31 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Dispatch Planning</h1>
-      <div class="header-actions">
+    <PageHeader title="Dispatch Planning" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
         </span>
         <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
+        placeholder="All statuses" @change="reload" class="status-filter" />
         <TableExportButtons title="Dispatch Plans" endpoint="/dispatch-plans"
-          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
-          :columns="[
-            { key: 'dispatch_number', label: 'Dispatch #' },
-            { key: 'dispatch_date', label: 'Date' },
-            { key: 'vehicle', label: 'Vehicle' },
-            { key: 'driver', label: 'Driver' },
-            { key: 'route', label: 'Route' },
-            { key: 'items_count', label: 'Drops' },
-            { key: 'status', label: 'Status' },
-          ]" />
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+        :columns="[
+        { key: 'dispatch_number', label: 'Dispatch #' },
+        { key: 'dispatch_date', label: 'Date' },
+        { key: 'vehicle', label: 'Vehicle' },
+        { key: 'driver', label: 'Driver' },
+        { key: 'route', label: 'Route' },
+        { key: 'items_count', label: 'Drops' },
+        { key: 'status', label: 'Status' },
+        ]" />
         <Button v-if="canCreate" label="New Dispatch" icon="pi pi-plus" @click="openCreate" />
-      </div>
-    </div>
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">

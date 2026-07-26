@@ -15,6 +15,7 @@ import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -130,30 +131,31 @@ onMounted(reload)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Proof of Delivery</h1>
-      <div class="header-actions">
+    <PageHeader title="Proof of Delivery" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
         </span>
         <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
+        placeholder="All statuses" @change="reload" class="status-filter" />
         <TableExportButtons title="Proof of Delivery" endpoint="/dispatch-pods"
-          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { delivery_status: statusFilter } : {}) })"
-          :columns="[
-            { key: 'dispatch_number', label: 'Dispatch #' },
-            { key: 'dispatch_date', label: 'Date' },
-            { key: 'customer', label: 'Customer' },
-            { key: 'sales_order', label: 'Sales Order' },
-            { key: 'packages', label: 'Pkgs' },
-            { key: 'cod_amount', label: 'COD' },
-            { key: 'delivery_status', label: 'Status' },
-            { key: 'received_by', label: 'Received By' },
-          ]" />
-      </div>
-    </div>
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { delivery_status: statusFilter } : {}) })"
+        :columns="[
+        { key: 'dispatch_number', label: 'Dispatch #' },
+        { key: 'dispatch_date', label: 'Date' },
+        { key: 'customer', label: 'Customer' },
+        { key: 'sales_order', label: 'Sales Order' },
+        { key: 'packages', label: 'Pkgs' },
+        { key: 'cod_amount', label: 'COD' },
+        { key: 'delivery_status', label: 'Status' },
+        { key: 'received_by', label: 'Received By' },
+        ]" />
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">

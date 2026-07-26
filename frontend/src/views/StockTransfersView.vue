@@ -16,6 +16,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -210,30 +211,31 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Stock Transfers</h1>
-      <div class="header-actions">
+    <PageHeader title="Stock Transfers" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
         </span>
         <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
+        placeholder="All statuses" @change="reload" class="status-filter" />
         <TableExportButtons title="Stock Transfers" endpoint="/stock-transfers"
-          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
-          :columns="[
-            { key: 'transfer_number', label: 'Transfer #' },
-            { key: 'from_warehouse.name', label: 'From' },
-            { key: 'to_warehouse.name', label: 'To' },
-            { key: 'transfer_date', label: 'Date' },
-            { key: 'items_count', label: 'Lines' },
-            { key: 'status', label: 'Status' },
-            { key: 'received_date', label: 'Received' },
-          ]" />
+        :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+        :columns="[
+        { key: 'transfer_number', label: 'Transfer #' },
+        { key: 'from_warehouse.name', label: 'From' },
+        { key: 'to_warehouse.name', label: 'To' },
+        { key: 'transfer_date', label: 'Date' },
+        { key: 'items_count', label: 'Lines' },
+        { key: 'status', label: 'Status' },
+        { key: 'received_date', label: 'Received' },
+        ]" />
         <Button v-if="canCreate" label="New Transfer" icon="pi pi-plus" @click="openCreate" />
-      </div>
-    </div>
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">

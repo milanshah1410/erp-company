@@ -10,6 +10,7 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -53,6 +54,39 @@ function actionLabel(permission: string): string {
   return permission.slice(permission.lastIndexOf('.') + 1)
 }
 
+// The matrix is tenant-scoped: /permissions only returns the groups belonging to
+// modules this tenant switched on (plus core groups, reported as "Core"). Section
+// the cards by that module so the screen reads module → permissions.
+const hiddenModules = ref<{ key: string; label: string }[]>([])
+
+const moduleSections = computed(() => {
+  const sections: { label: string; groups: any[] }[] = []
+  for (const mod of modules.value) {
+    const label = mod.module_label || 'Core'
+    let section = sections.find((s) => s.label === label)
+    if (!section) {
+      section = { label, groups: [] }
+      sections.push(section)
+    }
+    section.groups.push(mod)
+  }
+  // Core last — a tenant looks for its business modules first.
+  return sections.sort((a, b) => Number(a.label === 'Core') - Number(b.label === 'Core'))
+})
+
+function isSectionAllSelected(section: { groups: any[] }): boolean {
+  return section.groups.every((g) => g.permissions.every((p: string) => selectedPermissions.value.includes(p)))
+}
+
+function toggleSection(section: { groups: any[] }, checked: boolean) {
+  const perms = section.groups.flatMap((g) => g.permissions as string[])
+  if (checked) {
+    selectedPermissions.value = [...new Set([...selectedPermissions.value, ...perms])]
+  } else {
+    selectedPermissions.value = selectedPermissions.value.filter((p) => !perms.includes(p))
+  }
+}
+
 async function loadRoles() {
   rolesLoading.value = true
   try {
@@ -69,8 +103,10 @@ async function loadPermissionModules() {
   try {
     const { data } = await http.get('/permissions')
     modules.value = data.modules ?? []
+    hiddenModules.value = data.hidden_modules ?? []
   } catch {
     modules.value = []
+    hiddenModules.value = []
   }
 }
 
@@ -189,10 +225,11 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Roles &amp; Permissions</h1>
-      <Button v-if="canCreate" label="New Role" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader title="Roles &amp; Permissions">
+      <template #actions>
+        <Button v-if="canCreate" label="New Role" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar no-print" style="display:flex;justify-content:flex-end;margin-bottom:1rem">
       <TableExportButtons title="Roles" :rows="roles"
@@ -251,28 +288,56 @@ onMounted(async () => {
           </div>
           <small v-if="errors.permissions" class="error-text">{{ errors.permissions[0] }}</small>
 
-          <div class="modules">
-            <div v-for="mod in modules" :key="mod.module" class="module-card">
-              <div class="module-head">
-                <h3>{{ mod.module }}</h3>
-                <div class="checkbox-row">
-                  <Checkbox
-                    :modelValue="isModuleAllSelected(mod)"
-                    binary
-                    :inputId="`all-${mod.module}`"
-                    @update:modelValue="toggleModule(mod, $event as boolean)"
-                  />
-                  <label :for="`all-${mod.module}`">Select all</label>
-                </div>
+          <!-- Permissions are grouped module → resource, and only this tenant's
+               modules are listed (plus the always-on Core group). -->
+          <div v-for="section in moduleSections" :key="section.label" class="perm-section">
+            <div class="section-head">
+              <span class="section-name">
+                <i :class="section.label === 'Core' ? 'pi pi-shield' : 'pi pi-th-large'" />
+                {{ section.label }}
+              </span>
+              <span class="section-count">{{ section.groups.length }} groups</span>
+              <div class="checkbox-row section-all">
+                <Checkbox
+                  :modelValue="isSectionAllSelected(section)"
+                  binary
+                  :inputId="`sec-${section.label}`"
+                  @update:modelValue="toggleSection(section, $event as boolean)"
+                />
+                <label :for="`sec-${section.label}`">Select all</label>
               </div>
-              <div class="perm-grid">
-                <div v-for="perm in mod.permissions" :key="perm" class="checkbox-row">
-                  <Checkbox v-model="selectedPermissions" :value="perm" :inputId="perm" />
-                  <label :for="perm">{{ actionLabel(perm) }}</label>
+            </div>
+
+            <div class="modules">
+              <div v-for="mod in section.groups" :key="mod.module" class="module-card">
+                <div class="module-head">
+                  <h3>{{ mod.module }}</h3>
+                  <div class="checkbox-row">
+                    <Checkbox
+                      :modelValue="isModuleAllSelected(mod)"
+                      binary
+                      :inputId="`all-${mod.module}`"
+                      @update:modelValue="toggleModule(mod, $event as boolean)"
+                    />
+                    <label :for="`all-${mod.module}`">Select all</label>
+                  </div>
+                </div>
+                <div class="perm-grid">
+                  <div v-for="perm in mod.permissions" :key="perm" class="checkbox-row">
+                    <Checkbox v-model="selectedPermissions" :value="perm" :inputId="perm" />
+                    <label :for="perm">{{ actionLabel(perm) }}</label>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+
+          <p v-if="hiddenModules.length" class="hidden-note">
+            <i class="pi pi-lock" />
+            {{ hiddenModules.length }} module{{ hiddenModules.length === 1 ? '' : 's' }} not enabled for this
+            workspace — their permissions are hidden:
+            <b>{{ hiddenModules.map((m) => m.label).join(', ') }}</b>
+          </p>
         </template>
       </div>
     </div>
@@ -386,6 +451,57 @@ onMounted(async () => {
 }
 .name-field :deep(.p-inputtext) {
   width: 100%;
+}
+/* One section per module (Sales, Inventory, …) with its resource groups inside. */
+.perm-section {
+  margin-top: 1.2rem;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  background: var(--surface-2, #f2f0ea);
+  border: 1px solid var(--border, #e3ded3);
+}
+.section-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--graphite, #1e2328);
+  letter-spacing: 0.01em;
+}
+.section-name i {
+  color: var(--safety-amber, #e8a33d);
+  font-size: 0.85rem;
+}
+.section-count {
+  font-size: 0.72rem;
+  color: var(--muted, #6f7680);
+}
+.section-all {
+  margin-left: auto;
+}
+.section-all label {
+  font-size: 0.76rem;
+  color: var(--muted, #6f7680);
+}
+.hidden-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 1.4rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #8a5a12;
+  background: color-mix(in srgb, var(--safety-amber, #e8a33d) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--safety-amber, #e8a33d) 30%, transparent);
 }
 .modules {
   display: grid;

@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RoleResource;
+use App\Support\EnabledModules;
+use App\Support\Modules;
+use App\Support\TenantContext;
 use App\Support\TenantRoleCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,10 +54,34 @@ class RoleController extends Controller
         return new RoleResource($role->load('permissions'));
     }
 
+    /**
+     * Role names are unique *within a guard and tenant*, not globally: the same
+     * name legitimately exists on the central guard (SaaS-owner roles) and in
+     * other tenants. An unscoped unique rule rejected those as duplicates, so
+     * editing e.g. "super-admin" here failed validation before it ever saved.
+     */
+    private function nameRule(?Role $role = null): \Illuminate\Validation\Rules\Unique
+    {
+        $guard = $role->guard_name ?? 'web';
+        $tenantId = $role ? $role->tenant_id : app(TenantContext::class)->id();
+
+        $rule = Rule::unique('roles', 'name')->where(function ($query) use ($guard, $tenantId) {
+            $query->where('guard_name', $guard);
+
+            // Global (tenant_id NULL) rows are visible to every tenant, so a
+            // clash with one is still a clash for this tenant.
+            return $tenantId === null
+                ? $query->whereNull('tenant_id')
+                : $query->where(fn ($q) => $q->where('tenant_id', $tenantId)->orWhereNull('tenant_id'));
+        });
+
+        return $role ? $rule->ignore($role->id) : $rule;
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255', Rule::unique('roles', 'name')],
+            'name' => ['required', 'string', 'max:255', $this->nameRule()],
             'permissions' => ['array'],
             'permissions.*' => ['string', 'exists:permissions,name'],
         ]);
@@ -68,7 +95,7 @@ class RoleController extends Controller
     public function update(Request $request, Role $role)
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255', Rule::unique('roles', 'name')->ignore($role->id)],
+            'name' => ['required', 'string', 'max:255', $this->nameRule($role)],
             'permissions' => ['array'],
             'permissions.*' => ['string', 'exists:permissions,name'],
         ]);
@@ -79,7 +106,7 @@ class RoleController extends Controller
             $role->save();
         }
         if (array_key_exists('permissions', $data)) {
-            $role->syncPermissions($data['permissions'] ?? []);
+            $role->syncPermissions($this->withHiddenPreserved($role, $data['permissions'] ?? []));
         }
 
         return new RoleResource($role->load('permissions'));
@@ -99,21 +126,71 @@ class RoleController extends Controller
         return response()->json(['message' => 'Role deleted.']);
     }
 
-    /** All permissions grouped by module, for the permission-matrix UI. */
+    /**
+     * Keep permissions the matrix never displayed.
+     *
+     * The UI posts the boxes it rendered, and it only renders the tenant's own
+     * modules — so a plain sync would silently strip, say, a role's tailoring
+     * permissions while a Starter tenant edits it. Those survive here and come
+     * back into view if the tenant upgrades.
+     *
+     * @param  array<int, string>  $submitted
+     * @return array<int, string>
+     */
+    private function withHiddenPreserved(Role $role, array $submitted): array
+    {
+        $enabled = EnabledModules::forTenant(app(TenantContext::class)->id());
+        if ($enabled === null) {
+            return $submitted;
+        }
+
+        $map = EnabledModules::permissionGroupMap();
+
+        $hidden = $role->loadMissing('permissions')->permissions
+            ->pluck('name')
+            ->reject(fn (string $name) => EnabledModules::groupAvailable(EnabledModules::groupOf($name), $enabled, $map))
+            ->all();
+
+        return array_values(array_unique(array_merge($submitted, $hidden)));
+    }
+
+    /**
+     * Permissions for the matrix UI, grouped by resource and **scoped to this
+     * tenant's modules**: a Starter tenant assigning roles should not be shown
+     * tailoring or e-commerce permissions it cannot reach. Each group also
+     * reports the module it belongs to, so the UI can section the matrix by
+     * module (core groups — users, settings, companies … — report null).
+     */
     public function permissions()
     {
-        $grouped = Permission::orderBy('name')->pluck('name')->groupBy(function ($name) {
-            $pos = strrpos($name, '.');
+        $enabled = EnabledModules::forTenant(app(TenantContext::class)->id());
+        $map = EnabledModules::permissionGroupMap();
+        $catalogue = Modules::CATALOGUE;
 
-            return $pos === false ? 'other' : substr($name, 0, $pos);
-        });
+        $grouped = Permission::orderBy('name')->pluck('name')
+            ->groupBy(fn (string $name) => EnabledModules::groupOf($name))
+            ->filter(fn ($perms, $group) => EnabledModules::groupAvailable((string) $group, $enabled, $map));
+
+        $modules = $grouped->map(function ($perms, $group) use ($map, $catalogue) {
+            $moduleKey = $map[$group] ?? null;
+
+            return [
+                'module' => $group,
+                'module_key' => $moduleKey,
+                'module_label' => $moduleKey ? ($catalogue[$moduleKey]['label'] ?? $moduleKey) : 'Core',
+                'permissions' => $perms->values(),
+            ];
+        })->values();
 
         return response()->json([
-            'modules' => $grouped->map(fn ($perms, $module) => [
-                'module' => $module,
-                'permissions' => $perms->values(),
-            ])->values(),
-            'all' => Permission::orderBy('name')->pluck('name'),
+            'modules' => $modules,
+            'all' => $modules->pluck('permissions')->flatten()->values(),
+            // Context for the UI: what is switched on, and what got filtered out.
+            'enabled_modules' => $enabled,
+            'hidden_modules' => $enabled === null ? [] : collect($catalogue)
+                ->reject(fn ($meta, $key) => in_array($key, $enabled, true))
+                ->map(fn ($meta, $key) => ['key' => $key, 'label' => $meta['label']])
+                ->values(),
         ]);
     }
 }

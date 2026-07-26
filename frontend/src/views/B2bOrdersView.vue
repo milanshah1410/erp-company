@@ -14,7 +14,10 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
 
+const pt = usePt()
 const toast = useToast()
 const auth = useAuthStore()
 const crud = useCrud('/b2b-orders')
@@ -29,24 +32,24 @@ const statusColors: Record<string, string> = {
   delivered: 'success',
   cancelled: 'danger',
 }
-const statusLabels: Record<string, string> = {
-  pending_approval: 'Pending approval',
-  draft: 'Draft',
-  confirmed: 'Confirmed',
-  backordered: 'Backordered',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-}
+const statusLabels = computed<Record<string, string>>(() => ({
+  pending_approval: pt('Pending approval'),
+  draft: pt('Draft'),
+  confirmed: pt('Confirmed'),
+  backordered: pt('Backordered'),
+  delivered: pt('Delivered'),
+  cancelled: pt('Cancelled'),
+}))
 
 const search = ref('')
 const statusFilter = ref<string | null>('pending_approval')
-const statusOptions = [
-  { label: 'Pending approval', value: 'pending_approval' },
-  { label: 'Confirmed', value: 'confirmed' },
-  { label: 'Backordered', value: 'backordered' },
-  { label: 'Delivered', value: 'delivered' },
-  { label: 'Cancelled', value: 'cancelled' },
-]
+const statusOptions = computed(() => [
+  { label: pt('Pending approval'), value: 'pending_approval' },
+  { label: pt('Confirmed'), value: 'confirmed' },
+  { label: pt('Backordered'), value: 'backordered' },
+  { label: pt('Delivered'), value: 'delivered' },
+  { label: pt('Cancelled'), value: 'cancelled' },
+])
 
 // --- Detail dialog ---
 const detailVisible = ref(false)
@@ -61,7 +64,7 @@ async function openDetail(row: any) {
     const { data } = await http.get(`/b2b-orders/${row.id}`)
     detail.value = data.data
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not load order', life: 3000 })
+    toast.add({ severity: 'error', summary: pt('Could not load order'), life: 3000 })
   } finally {
     loadingDetail.value = false
   }
@@ -69,41 +72,43 @@ async function openDetail(row: any) {
 
 async function approve(row: any) {
   const res = await Swal.fire({
-    title: `Approve ${row.so_number}?`,
-    text: 'The credit limit will be checked and available stock reserved. The order then enters normal fulfilment.',
+    title: pt('Approve {number}?', { number: row.so_number }),
+    text: pt('The credit limit will be checked and available stock reserved. The order then enters normal fulfilment.'),
     icon: 'question',
     showCancelButton: true,
-    confirmButtonText: 'Approve',
+    confirmButtonText: pt('Approve'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await http.post(`/b2b-orders/${row.id}/approve`)
-    toast.add({ severity: 'success', summary: 'Order approved', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Order approved'), life: 2500 })
     detailVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Cannot approve', detail: e.response?.data?.message || 'Failed', life: 6000 })
+    toast.add({ severity: 'error', summary: pt('Cannot approve'), detail: e.response?.data?.message || pt('Failed'), life: 6000 })
   }
 }
 
 async function reject(row: any) {
   const res = await Swal.fire({
-    title: `Reject ${row.so_number}?`,
+    title: pt('Reject {number}?', { number: row.so_number }),
     input: 'text',
-    inputLabel: 'Reason (optional)',
-    inputPlaceholder: 'e.g. item unavailable',
+    inputLabel: pt('Reason (optional)'),
+    inputPlaceholder: pt('e.g. item unavailable'),
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonText: 'Reject',
+    confirmButtonText: pt('Reject'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await http.post(`/b2b-orders/${row.id}/reject`, { reason: res.value || null })
-    toast.add({ severity: 'success', summary: 'Order rejected', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Order rejected'), life: 2500 })
     detailVisible.value = false
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
@@ -127,34 +132,35 @@ onMounted(reload)
 
 <template>
   <div>
-    <div class="header">
-      <h1>B2B Orders</h1>
-      <div class="header-actions">
+    <PageHeader :title="pt('B2B Orders')" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
         </span>
-        <Button label="Search" outlined @click="reload" />
+        <Button :label="pt('Search')" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
-        <TableExportButtons title="B2B Orders" endpoint="/b2b-orders"
-          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
-          :columns="[
-            { key: 'so_number', label: 'Order #' },
-            { key: 'customer.name', label: 'Customer' },
-            { key: 'order_date', label: 'Date' },
-            { key: 'items.length', label: 'Items' },
-            { key: 'total', label: 'Total' },
-            { key: 'status', label: 'Status' },
-          ]" />
-        <Button icon="pi pi-refresh" text rounded @click="reload" title="Refresh" />
-      </div>
-    </div>
+        :placeholder="pt('All statuses')" @change="reload" class="status-filter" />
+        <TableExportButtons :title="pt('B2B Orders')" endpoint="/b2b-orders"
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}) })"
+        :columns="[
+        { key: 'so_number', label: pt('Order #') },
+        { key: 'customer.name', label: pt('Customer') },
+        { key: 'order_date', label: pt('Date') },
+        { key: 'items.length', label: pt('Items') },
+        { key: 'total', label: pt('Total') },
+        { key: 'status', label: pt('Status') },
+        ]" />
+        <Button icon="pi pi-refresh" text rounded @click="reload" :title="pt('Refresh')" />
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="so_number" header="Order #" />
-      <Column header="Customer">
+      <Column field="so_number" :header="pt('Order #')" />
+      <Column :header="pt('Customer')">
         <template #body="{ data }">
           <div class="cust">
             <span>{{ data.customer?.name }}</span>
@@ -162,46 +168,46 @@ onMounted(reload)
           </div>
         </template>
       </Column>
-      <Column field="order_date" header="Date" />
-      <Column header="Items"><template #body="{ data }">{{ data.items?.length ?? '—' }}</template></Column>
-      <Column header="Total"><template #body="{ data }">{{ money(data.total) }}</template></Column>
-      <Column header="Status">
+      <Column field="order_date" :header="pt('Date')" />
+      <Column :header="pt('Items')"><template #body="{ data }">{{ data.items?.length ?? '—' }}</template></Column>
+      <Column :header="pt('Total')"><template #body="{ data }">{{ money(data.total) }}</template></Column>
+      <Column :header="pt('Status')">
         <template #body="{ data }">
           <Tag :severity="statusColors[data.status]" :value="statusLabels[data.status] || data.status" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 16rem">
+      <Column :header="pt('Actions')" style="width: 16rem">
         <template #body="{ data }">
-          <Button label="View" size="small" text @click="openDetail(data)" />
+          <Button :label="pt('View')" size="small" text @click="openDetail(data)" />
           <template v-if="canApprove && data.status === 'pending_approval'">
-            <Button label="Approve" size="small" severity="success" outlined @click="approve(data)" />
-            <Button label="Reject" size="small" severity="danger" text @click="reject(data)" />
+            <Button :label="pt('Approve')" size="small" severity="success" outlined @click="approve(data)" />
+            <Button :label="pt('Reject')" size="small" severity="danger" text @click="reject(data)" />
           </template>
         </template>
       </Column>
-      <template #empty>No B2B orders.</template>
+      <template #empty>{{ pt('No B2B orders.') }}</template>
     </DataTable>
 
     <!-- Detail dialog -->
-    <Dialog v-model:visible="detailVisible" modal header="B2B Order" :style="{ width: '760px' }">
-      <div v-if="loadingDetail" class="muted">Loading…</div>
+    <Dialog v-model:visible="detailVisible" modal :header="pt('B2B Order')" :style="{ width: '760px' }">
+      <div v-if="loadingDetail" class="muted">{{ pt('Loading…') }}</div>
       <div v-else-if="detail">
         <div class="detail-top">
-          <div class="d-cell"><span class="d-label">Order #</span><span class="d-value">{{ detail.so_number }}</span></div>
-          <div class="d-cell"><span class="d-label">Customer</span><span class="d-value">{{ detail.customer?.name }}</span></div>
-          <div class="d-cell"><span class="d-label">Date</span><span class="d-value">{{ detail.order_date }}</span></div>
-          <div class="d-cell"><span class="d-label">Status</span><span class="d-value">
+          <div class="d-cell"><span class="d-label">{{ pt('Order #') }}</span><span class="d-value">{{ detail.so_number }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Customer') }}</span><span class="d-value">{{ detail.customer?.name }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Date') }}</span><span class="d-value">{{ detail.order_date }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Status') }}</span><span class="d-value">
             <Tag :severity="statusColors[detail.status]" :value="statusLabels[detail.status] || detail.status" /></span></div>
-          <div class="d-cell"><span class="d-label">Warehouse</span><span class="d-value">{{ detail.warehouse?.name || '—' }}</span></div>
-          <div class="d-cell"><span class="d-label">Total</span><span class="d-value">{{ money(detail.total) }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Warehouse') }}</span><span class="d-value">{{ detail.warehouse?.name || '—' }}</span></div>
+          <div class="d-cell"><span class="d-label">{{ pt('Total') }}</span><span class="d-value">{{ money(detail.total) }}</span></div>
         </div>
 
-        <p v-if="detail.notes" class="notes"><strong>Notes:</strong> {{ detail.notes }}</p>
-        <p v-if="detail.rejected_reason" class="notes err"><strong>Rejected:</strong> {{ detail.rejected_reason }}</p>
+        <p v-if="detail.notes" class="notes"><strong>{{ pt('Notes:') }}</strong> {{ detail.notes }}</p>
+        <p v-if="detail.rejected_reason" class="notes err"><strong>{{ pt('Rejected:') }}</strong> {{ detail.rejected_reason }}</p>
 
         <table class="lines">
           <thead>
-            <tr><th style="width: 40%">Product</th><th>Qty</th><th>Unit Price</th><th>Tax %</th><th>Line Total</th></tr>
+            <tr><th style="width: 40%">{{ pt('Product') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Unit Price') }}</th><th>{{ pt('Tax %') }}</th><th>{{ pt('Line Total') }}</th></tr>
           </thead>
           <tbody>
             <tr v-for="(i, idx) in detail.items" :key="idx">
@@ -216,10 +222,10 @@ onMounted(reload)
       </div>
 
       <template #footer>
-        <Button label="Close" text @click="detailVisible = false" />
+        <Button :label="pt('Close')" text @click="detailVisible = false" />
         <template v-if="canApprove && detail && detail.status === 'pending_approval'">
-          <Button label="Reject" severity="danger" text @click="reject(detail)" />
-          <Button label="Approve" severity="success" @click="approve(detail)" />
+          <Button :label="pt('Reject')" severity="danger" text @click="reject(detail)" />
+          <Button :label="pt('Approve')" severity="success" @click="approve(detail)" />
         </template>
       </template>
     </Dialog>

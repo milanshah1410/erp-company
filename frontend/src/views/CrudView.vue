@@ -13,16 +13,19 @@ import Checkbox from 'primevue/checkbox'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
-import { resources, type ResourceConfig, type FieldConfig } from '../config/resources'
+import { resources, type ResourceConfig, type FieldConfig, type FilterConfig } from '../config/resources'
+import { usePt } from '../i18n/pt'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import { useTableExport, type ExportColumn } from '../composables/useTableExport'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
+import PageHeader from '../components/PageHeader.vue'
 
 const route = useRoute()
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 
 const config = ref<ResourceConfig>(resources[route.meta.resource as string])
 const crud = ref(useCrud(config.value.endpoint))
@@ -31,6 +34,10 @@ const search = ref('')
 // via the `is_active` query param). Only surfaced when the resource has an
 // is_active column.
 const statusFilter = ref<'' | '1' | '0'>('')
+// Resource-declared dropdown filters (config.filters), keyed by filter key —
+// e.g. Branches filtered by company_id. Empty/null means "no filter".
+const extraFilters = ref<Record<string, any>>({})
+const filterOptions = ref<Record<string, any[]>>({})
 const sortField = ref<string | null>(null)
 const sortOrder = ref<1 | -1 | null>(null)
 
@@ -52,11 +59,17 @@ const canDelete = computed(() => auth.can(`${config.value.permission}.delete`))
 const hasStatusFilter = computed(() =>
   config.value.columns.some((c) => c.type === 'boolean' && c.key === 'is_active'),
 )
-const statusOptions = [
-  { label: 'All', value: '' },
-  { label: 'Active', value: '1' },
-  { label: 'Inactive', value: '0' },
-]
+// Computed so the labels follow the active UI language.
+const statusOptions = computed(() => [
+  { label: pt('All'), value: '' },
+  { label: pt('Active'), value: '1' },
+  { label: pt('Inactive'), value: '0' },
+])
+
+// English singular of the resource title ("Products" → "Product") — used in
+// the New/Details labels; pt() translates the result when a dictionary entry
+// for the singular form exists.
+const singularTitle = computed(() => config.value.title.replace(/s$/, ''))
 
 function blankForm() {
   const f: Record<string, any> = {}
@@ -66,22 +79,43 @@ function blankForm() {
   return f
 }
 
+async function fetchOptions(endpoint: string, optionLabel?: string) {
+  try {
+    const { data } = await http.get(endpoint, { params: { per_page: 100 } })
+    return (data.data ?? data).map((o: any) => ({
+      label: o[optionLabel || 'name'],
+      value: o.id,
+    }))
+  } catch {
+    return []
+  }
+}
+
 async function loadSelectOptions() {
   for (const field of config.value.fields) {
     if (field.optionsFrom) {
-      try {
-        const { data } = await http.get(field.optionsFrom, { params: { per_page: 100 } })
-        selectOptions.value[field.key] = (data.data ?? data).map((o: any) => ({
-          label: o[field.optionLabel || 'name'],
-          value: o.id,
-        }))
-      } catch {
-        selectOptions.value[field.key] = []
-      }
+      selectOptions.value[field.key] = await fetchOptions(field.optionsFrom, field.optionLabel)
     } else if (field.options) {
       selectOptions.value[field.key] = field.options
     }
   }
+}
+
+/** Options for each resource-declared toolbar filter. */
+async function loadFilterOptions() {
+  for (const filter of config.value.filters ?? []) {
+    filterOptions.value[filter.key] = filter.optionsFrom
+      ? await fetchOptions(filter.optionsFrom, filter.optionLabel)
+      : (filter.options ?? [])
+  }
+}
+
+/** The "All …" entry is prepended here (not at load) so it follows the active UI language. */
+function optionsForFilter(filter: FilterConfig) {
+  return [
+    { label: pt('All {item}', { item: pt(filter.label) }), value: null },
+    ...(filterOptions.value[filter.key] || []),
+  ]
 }
 
 /** Query params reflecting the current search + filters + sort. */
@@ -89,6 +123,9 @@ function queryParams(): Record<string, any> {
   const params: Record<string, any> = {}
   if (search.value) params.search = search.value
   if (statusFilter.value !== '') params.is_active = statusFilter.value
+  for (const [key, value] of Object.entries(extraFilters.value)) {
+    if (value !== null && value !== undefined && value !== '') params[key] = value
+  }
   if (sortField.value && sortOrder.value) {
     params.sort = sortField.value
     params.direction = sortOrder.value === 1 ? 'asc' : 'desc'
@@ -121,16 +158,31 @@ function applyFilters() {
 function clearFilters() {
   search.value = ''
   statusFilter.value = ''
+  extraFilters.value = blankExtraFilters()
   applyFilters()
 }
+
+function blankExtraFilters() {
+  const f: Record<string, any> = {}
+  for (const filter of config.value.filters ?? []) f[filter.key] = null
+  return f
+}
+
+/** Drives visibility of the Clear button. */
+const hasActiveFilters = computed(
+  () =>
+    !!search.value ||
+    statusFilter.value !== '' ||
+    Object.values(extraFilters.value).some((v) => v !== null && v !== undefined && v !== ''),
+)
 
 // --- Export / Print (whole result set, honouring current search + filters) ---
 function exportColumns(): ExportColumn[] {
   return config.value.columns.map((col) => ({
     key: col.key,
-    label: col.label,
+    label: pt(col.label),
     format: (value: unknown) => {
-      if (col.type === 'boolean') return value ? 'Yes' : 'No'
+      if (col.type === 'boolean') return value ? pt('Yes') : pt('No')
       if (col.type === 'currency') return formatCurrency(value as number)
       if (col.type === 'date') return formatDate(value)
       return value == null ? '' : String(value)
@@ -143,16 +195,16 @@ async function onExport() {
     const rows = await fetchAll(config.value.endpoint, queryParams())
     exportCsv(exportColumns(), rows, config.value.title.replace(/\s+/g, '-').toLowerCase())
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Export failed', detail: e.response?.data?.message || 'Could not export', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Export failed'), detail: e.response?.data?.message || pt('Could not export'), life: 4000 })
   }
 }
 
 async function onPrint() {
   try {
     const rows = await fetchAll(config.value.endpoint, queryParams())
-    printRows(config.value.title, exportColumns(), rows)
+    printRows(pt(config.value.title), exportColumns(), rows)
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Print failed', detail: e.response?.data?.message || 'Could not print', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Print failed'), detail: e.response?.data?.message || pt('Could not print'), life: 4000 })
   }
 }
 
@@ -184,10 +236,10 @@ async function save() {
   try {
     if (editing.value) {
       await crud.value.update(editing.value.id, form.value)
-      toast.add({ severity: 'success', summary: 'Updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Updated'), life: 2500 })
     } else {
       await crud.value.create(form.value)
-      toast.add({ severity: 'success', summary: 'Created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Created'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
@@ -195,7 +247,7 @@ async function save() {
     if (e.response?.status === 422) {
       errors.value = e.response.data.errors || {}
     } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Request failed', life: 4000 })
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
     }
   } finally {
     saving.value = false
@@ -204,20 +256,21 @@ async function save() {
 
 async function confirmDelete(row: any) {
   const res = await Swal.fire({
-    title: 'Delete this record?',
-    text: 'This action cannot be undone.',
+    title: pt('Delete this record?'),
+    text: pt('This action cannot be undone.'),
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Delete',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await crud.value.remove(row.id)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -239,7 +292,7 @@ function optionsFor(field: FieldConfig) {
 function displayValue(field: FieldConfig, row: any): string {
   const raw = row[field.key]
   if (raw == null || raw === '') return '—'
-  if (field.type === 'checkbox') return raw ? 'Yes' : 'No'
+  if (field.type === 'checkbox') return raw ? pt('Yes') : pt('No')
   if (field.type === 'number') return String(raw)
   if (field.type === 'date' || field.type === 'month') return formatDate(raw)
   if (field.type === 'select') {
@@ -257,7 +310,9 @@ async function reinit() {
   sortField.value = null
   sortOrder.value = null
   selectOptions.value = {}
-  await loadSelectOptions()
+  filterOptions.value = {}
+  extraFilters.value = blankExtraFilters()
+  await Promise.all([loadSelectOptions(), loadFilterOptions()])
   reload()
 }
 
@@ -267,16 +322,27 @@ onMounted(reinit)
 
 <template>
   <div class="crud">
-    <div class="crud-header">
-      <h1>{{ config.title }}</h1>
-      <Button v-if="canCreate" :label="`New ${config.title.replace(/s$/, '')}`" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt(config.title)">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New {item}', { item: pt(singularTitle) })" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="crud-toolbar no-print">
       <span class="search">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search..." @keyup.enter="applyFilters" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="applyFilters" />
       </span>
+      <Select
+        v-for="filter in config.filters ?? []"
+        :key="filter.key"
+        v-model="extraFilters[filter.key]"
+        :options="optionsForFilter(filter)"
+        optionLabel="label"
+        optionValue="value"
+        class="status-filter"
+        @change="applyFilters"
+      />
       <Select
         v-if="hasStatusFilter"
         v-model="statusFilter"
@@ -286,17 +352,17 @@ onMounted(reinit)
         class="status-filter"
         @change="applyFilters"
       />
-      <Button label="Search" outlined @click="applyFilters" />
+      <Button :label="pt('Search')" outlined @click="applyFilters" />
       <Button
-        v-if="search || statusFilter !== ''"
-        label="Clear"
+        v-if="hasActiveFilters"
+        :label="pt('Clear')"
         severity="secondary"
         text
         @click="clearFilters"
       />
       <span class="toolbar-spacer" />
-      <Button label="Export" icon="pi pi-download" outlined :loading="exporting" @click="onExport" />
-      <Button label="Print" icon="pi pi-print" outlined :loading="exporting" @click="onPrint" />
+      <Button :label="pt('Export')" icon="pi pi-download" outlined :loading="exporting" @click="onExport" />
+      <Button :label="pt('Print')" icon="pi pi-print" outlined :loading="exporting" @click="onPrint" />
     </div>
 
     <DataTable
@@ -315,29 +381,29 @@ onMounted(reinit)
       @sort="onSort"
       class="p-datatable-sm"
     >
-      <Column v-for="col in config.columns" :key="col.key" :field="col.key" :header="col.label" sortable>
+      <Column v-for="col in config.columns" :key="col.key" :field="col.key" :header="pt(col.label)" sortable>
         <template #body="{ data }">
-          <Tag v-if="col.type === 'boolean'" :severity="data[col.key] ? 'success' : 'danger'" :value="data[col.key] ? 'Yes' : 'No'" />
+          <Tag v-if="col.type === 'boolean'" :severity="data[col.key] ? 'success' : 'danger'" :value="data[col.key] ? pt('Yes') : pt('No')" />
           <span v-else-if="col.type === 'currency'">{{ formatCurrency(data[col.key]) }}</span>
           <span v-else-if="col.type === 'date'">{{ formatDate(data[col.key]) }}</span>
           <span v-else>{{ data[col.key] }}</span>
         </template>
       </Column>
-      <Column header="Actions" style="width: 10rem">
+      <Column :header="pt('Actions')" style="width: 10rem">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" @click="openView(data)" />
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
           <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDelete(data)" />
         </template>
       </Column>
-      <template #empty>No records found.</template>
+      <template #empty>{{ pt('No records found.') }}</template>
     </DataTable>
 
     <!-- Create / Edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editing ? `Edit ${config.title}` : `New ${config.title}`" :style="{ width: '540px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editing ? pt('Edit {item}', { item: pt(config.title) }) : pt('New {item}', { item: pt(config.title) })" :style="{ width: '540px' }">
       <div class="form-grid">
         <div v-for="field in config.fields" :key="field.key" class="form-field" :class="{ full: field.type === 'textarea' }">
-          <label>{{ field.label }} <span v-if="field.required" class="req">*</span></label>
+          <label>{{ pt(field.label) }} <span v-if="field.required" class="req">*</span></label>
 
           <InputText v-if="field.type === 'text'" v-model="form[field.key]" :class="{ invalid: fieldError(field.key) }" />
           <InputText v-else-if="field.type === 'date' || field.type === 'month'" type="date" v-model="form[field.key]" :class="{ invalid: fieldError(field.key) }" />
@@ -350,13 +416,13 @@ onMounted(reinit)
             :options="optionsFor(field)"
             optionLabel="label"
             optionValue="value"
-            :placeholder="`Select ${field.label}`"
+            :placeholder="pt('Select {item}', { item: pt(field.label) })"
             showClear
             :class="{ invalid: fieldError(field.key) }"
           />
           <div v-else-if="field.type === 'checkbox'" class="checkbox-row">
             <Checkbox v-model="form[field.key]" binary :inputId="field.key" />
-            <label :for="field.key">Enabled</label>
+            <label :for="field.key">{{ pt('Enabled') }}</label>
           </div>
 
           <small v-if="fieldError(field.key)" class="error-text">{{ fieldError(field.key) }}</small>
@@ -364,22 +430,22 @@ onMounted(reinit)
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editing ? pt('Update') : pt('Create')" :loading="saving" @click="save" />
       </template>
     </Dialog>
 
     <!-- Read-only detail dialog -->
-    <Dialog v-model:visible="viewVisible" modal :header="config.title.replace(/s$/, '') + ' Details'" :style="{ width: '540px' }">
+    <Dialog v-model:visible="viewVisible" modal :header="pt('{item} Details', { item: pt(singularTitle) })" :style="{ width: '540px' }">
       <div v-if="viewing" class="detail-grid">
         <div v-for="field in config.fields" :key="field.key" class="detail-row" :class="{ full: field.type === 'textarea' }">
-          <span class="detail-label">{{ field.label }}</span>
+          <span class="detail-label">{{ pt(field.label) }}</span>
           <span class="detail-value">{{ displayValue(field, viewing) }}</span>
         </div>
       </div>
       <template #footer>
-        <Button v-if="canEdit && viewing" label="Edit" icon="pi pi-pencil" outlined @click="viewVisible = false; openEdit(viewing)" />
-        <Button label="Close" text @click="viewVisible = false" />
+        <Button v-if="canEdit && viewing" :label="pt('Edit')" icon="pi pi-pencil" outlined @click="viewVisible = false; openEdit(viewing)" />
+        <Button :label="pt('Close')" text @click="viewVisible = false" />
       </template>
     </Dialog>
   </div>

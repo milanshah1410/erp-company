@@ -13,6 +13,7 @@ import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -129,29 +130,30 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="header">
-      <h1>E-Invoices (IRN)</h1>
-      <div class="header-actions">
+    <PageHeader title="E-Invoices (IRN)">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search invoice #..." @keyup.enter="load" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search invoice #..." @keyup.enter="load" />
         </span>
         <Button label="Search" outlined @click="load" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All" @change="load" class="filter" />
+        placeholder="All" @change="load" class="filter" />
         <TableExportButtons title="E-Invoices" filenameBase="e-invoices" endpoint="/e-invoices"
-          :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
-          :columns="[
-            { key: 'invoice_number', label: 'Invoice #' },
-            { key: 'invoice_date', label: 'Date' },
-            { key: 'customer_name', label: 'Customer' },
-            { key: 'customer_gstin', label: 'GSTIN' },
-            { key: 'total', label: 'Total' },
-            { key: 'einvoice.status', label: 'E-Invoice' },
-          ]" />
+        :params="() => ({ status: statusFilter || undefined, search: search || undefined })"
+        :columns="[
+        { key: 'invoice_number', label: 'Invoice #' },
+        { key: 'invoice_date', label: 'Date' },
+        { key: 'customer_name', label: 'Customer' },
+        { key: 'customer_gstin', label: 'GSTIN' },
+        { key: 'total', label: 'Total' },
+        { key: 'einvoice.status', label: 'E-Invoice' },
+        ]" />
         <Button icon="pi pi-refresh" text rounded @click="load" title="Refresh" />
-      </div>
-    </div>
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
       :rowsPerPageOptions="[15, 30, 50]" dataKey="invoice_id" @page="onPage" class="p-datatable-sm">

@@ -7,12 +7,14 @@ const http = axios.create({
   },
 })
 
-// Attach bearer token from localStorage on every request.
+// Attach bearer token from localStorage on every request, plus the UI
+// language so backend responses (validation errors etc.) match it.
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem('sims_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  config.headers['X-Locale'] = localStorage.getItem('sims_locale') || 'en'
   return config
 })
 

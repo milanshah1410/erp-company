@@ -13,10 +13,13 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 
 const canCreate = computed(() => auth.can('categories.create'))
 const canEdit = computed(() => auth.can('categories.edit'))
@@ -54,7 +57,7 @@ async function loadTree() {
     collectExpanded(nodes.value, exp)
     expandedKeys.value = exp
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed to load categories', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed to load categories'), life: 4000 })
   } finally {
     loading.value = false
   }
@@ -69,7 +72,7 @@ const exportRows = computed(() => {
         name: c.name,
         parent: parentName || '—',
         products_count: c.products_count ?? 0,
-        is_active: c.is_active ? 'Yes' : 'No',
+        is_active: c.is_active ? pt('Yes') : pt('No'),
       })
       if (c.children?.length) walk(c.children, c.name)
     }
@@ -98,7 +101,7 @@ function collectIds(cat: any, acc: number[] = []): number[] {
 const dialogVisible = ref(false)
 const saving = ref(false)
 const editing = ref<any>(null)
-const parentContextLabel = ref('— none —')
+const parentContextLabel = ref(pt('— none —'))
 const form = ref<any>({ name: '', parent_id: null, description: '', is_active: true, attributes: [] })
 const errors = ref<Record<string, string[]>>({})
 const inheritedNames = ref<string[]>([])
@@ -115,11 +118,11 @@ function blankRow() {
   return { name: '', type: 'text', optionsText: '', required: false }
 }
 
-const typeOptions = [
-  { label: 'Text', value: 'text' },
-  { label: 'Number', value: 'number' },
-  { label: 'Select', value: 'select' },
-]
+const typeOptions = computed(() => [
+  { label: pt('Text'), value: 'text' },
+  { label: pt('Number'), value: 'number' },
+  { label: pt('Select'), value: 'select' },
+])
 
 function addRow() {
   form.value.attributes.push(blankRow())
@@ -130,7 +133,7 @@ function removeRow(i: number | string) {
 
 function openCreateRoot() {
   editing.value = null
-  parentContextLabel.value = '— none —'
+  parentContextLabel.value = pt('— none —')
   inheritedNames.value = []
   form.value = { name: '', parent_id: null, description: '', is_active: true, attributes: [blankRow()] }
   errors.value = {}
@@ -205,10 +208,10 @@ async function save() {
   try {
     if (editing.value) {
       await http.put(`/categories/${editing.value.id}`, buildPayload())
-      toast.add({ severity: 'success', summary: 'Category updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Category updated'), life: 2500 })
     } else {
       await http.post('/categories', buildPayload())
-      toast.add({ severity: 'success', summary: 'Category created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Category created'), life: 2500 })
     }
     dialogVisible.value = false
     loadTree()
@@ -218,13 +221,13 @@ async function save() {
       const nested = Object.keys(errors.value).filter((k) => k.startsWith('attributes.'))
       if (nested.length) {
         const detail = nested.map((k) => errors.value[k].join(' ')).join(' ')
-        toast.add({ severity: 'error', summary: 'Attribute errors', detail, life: 6000 })
+        toast.add({ severity: 'error', summary: pt('Attribute errors'), detail, life: 6000 })
       }
       if (!Object.keys(errors.value).length && e.response.data.message) {
-        toast.add({ severity: 'error', summary: 'Error', detail: e.response.data.message, life: 4000 })
+        toast.add({ severity: 'error', summary: pt('Error'), detail: e.response.data.message, life: 4000 })
       }
     } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Request failed', life: 4000 })
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
     }
   } finally {
     saving.value = false
@@ -233,20 +236,21 @@ async function save() {
 
 async function confirmDelete(cat: any) {
   const res = await Swal.fire({
-    title: `Delete "${cat.name}"?`,
-    text: 'This action cannot be undone.',
+    title: pt('Delete "{name}"?', { name: cat.name }),
+    text: pt('This action cannot be undone.'),
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Delete',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/categories/${cat.id}`)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     loadTree()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -259,59 +263,60 @@ onMounted(loadTree)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Categories</h1>
-      <div class="header-actions">
-        <TableExportButtons title="Categories" :rows="exportRows" size="small" :columns="[
-          { key: 'name', label: 'Name' },
-          { key: 'parent', label: 'Parent' },
-          { key: 'products_count', label: 'Products' },
-          { key: 'is_active', label: 'Active' },
+    <PageHeader :title="pt('Categories')">
+      <template #actions>
+        <div class="header-actions">
+        <TableExportButtons :title="pt('Categories')" :rows="exportRows" size="small" :columns="[
+        { key: 'name', label: pt('Name') },
+        { key: 'parent', label: pt('Parent') },
+        { key: 'products_count', label: pt('Products') },
+        { key: 'is_active', label: pt('Active') },
         ]" />
-        <Button v-if="canCreate" label="New Root Category" icon="pi pi-plus" @click="openCreateRoot" />
-      </div>
-    </div>
+        <Button v-if="canCreate" :label="pt('New Root Category')" icon="pi pi-plus" @click="openCreateRoot" />
+        </div>
+      </template>
+    </PageHeader>
 
     <div class="tree-card">
       <Tree :value="nodes" v-model:expandedKeys="expandedKeys" :loading="loading" class="cat-tree"
-        :filter="true" filterMode="lenient" filterPlaceholder="Search categories...">
+        :filter="true" filterMode="lenient" :filterPlaceholder="pt('Search categories...')">
         <template #default="{ node }">
           <div class="node-row">
             <span class="node-name">{{ node.label }}</span>
-            <span class="node-count">({{ node.data.products_count ?? 0 }} products)</span>
+            <span class="node-count">({{ pt('{n} products', { n: node.data.products_count ?? 0 }) }})</span>
             <span class="node-tags">
               <Tag v-for="attr in node.data.attributes || []" :key="attr.name" :value="attr.name" severity="info" />
-              <Tag v-if="!node.data.is_active" value="inactive" severity="danger" />
+              <Tag v-if="!node.data.is_active" :value="pt('inactive')" severity="danger" />
             </span>
             <span class="node-actions">
-              <Button v-if="canCreate" icon="pi pi-plus" text rounded size="small" title="Add sub-category" @click.stop="openAddChild(node.data)" />
-              <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click.stop="openEdit(node.data)" />
-              <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click.stop="confirmDelete(node.data)" />
+              <Button v-if="canCreate" icon="pi pi-plus" text rounded size="small" :title="pt('Add sub-category')" @click.stop="openAddChild(node.data)" />
+              <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" :title="pt('Edit')" @click.stop="openEdit(node.data)" />
+              <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" :title="pt('Delete')" @click.stop="confirmDelete(node.data)" />
             </span>
           </div>
         </template>
       </Tree>
-      <p v-if="!loading && !nodes.length" class="empty">No categories yet.</p>
+      <p v-if="!loading && !nodes.length" class="empty">{{ pt('No categories yet.') }}</p>
     </div>
 
     <!-- Create / Edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editing ? 'Edit Category' : 'New Category'" :style="{ width: '600px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editing ? pt('Edit Category') : pt('New Category')" :style="{ width: '600px' }">
       <div class="form-grid">
         <div class="fld">
-          <label>Name <span class="req">*</span></label>
+          <label>{{ pt('Name') }} <span class="req">*</span></label>
           <InputText v-model="form.name" :class="{ invalid: fieldError('name') }" />
           <small v-if="fieldError('name')" class="error-text">{{ fieldError('name') }}</small>
         </div>
 
         <div class="fld">
-          <label>Parent Category</label>
+          <label>{{ pt('Parent Category') }}</label>
           <Select
             v-if="editing"
             v-model="form.parent_id"
             :options="parentOptions"
             optionLabel="label"
             optionValue="value"
-            placeholder="— none (root) —"
+            :placeholder="pt('— none (root) —')"
             showClear
             :class="{ invalid: fieldError('parent_id') }"
           />
@@ -320,49 +325,49 @@ onMounted(loadTree)
         </div>
 
         <div class="fld full">
-          <label>Description</label>
+          <label>{{ pt('Description') }}</label>
           <Textarea v-model="form.description" rows="2" :class="{ invalid: fieldError('description') }" />
           <small v-if="fieldError('description')" class="error-text">{{ fieldError('description') }}</small>
         </div>
 
         <div class="fld">
-          <label>Status</label>
+          <label>{{ pt('Status') }}</label>
           <div class="checkbox-row">
             <Checkbox v-model="form.is_active" binary inputId="cat_is_active" />
-            <label for="cat_is_active">Active</label>
+            <label for="cat_is_active">{{ pt('Active') }}</label>
           </div>
         </div>
       </div>
 
-      <h3 class="attrs-title">Attribute Definitions</h3>
+      <h3 class="attrs-title">{{ pt('Attribute Definitions') }}</h3>
       <p v-if="inheritedNames.length" class="inherited">
-        Inherited attributes: {{ inheritedNames.join(', ') }} (from ancestors)
+        {{ pt('Inherited attributes: {names} (from ancestors)', { names: inheritedNames.join(', ') }) }}
       </p>
       <table class="attrs">
         <thead>
-          <tr><th style="width: 30%">Name</th><th style="width: 20%">Type</th><th>Options</th><th style="width: 5rem">Required</th><th style="width: 2.5rem"></th></tr>
+          <tr><th style="width: 30%">{{ pt('Name') }}</th><th style="width: 20%">{{ pt('Type') }}</th><th>{{ pt('Options') }}</th><th style="width: 5rem">{{ pt('Required') }}</th><th style="width: 2.5rem"></th></tr>
         </thead>
         <tbody>
           <tr v-for="(row, i) in form.attributes" :key="i">
-            <td><InputText v-model="row.name" placeholder="e.g. Color" class="w-full" /></td>
+            <td><InputText v-model="row.name" :placeholder="pt('e.g. Color')" class="w-full" /></td>
             <td><Select v-model="row.type" :options="typeOptions" optionLabel="label" optionValue="value" class="w-full" /></td>
             <td>
-              <InputText v-if="row.type === 'select'" v-model="row.optionsText" placeholder="Comma-separated values" class="w-full" />
+              <InputText v-if="row.type === 'select'" v-model="row.optionsText" :placeholder="pt('Comma-separated values')" class="w-full" />
               <span v-else class="na">—</span>
             </td>
             <td class="center"><Checkbox v-model="row.required" binary /></td>
             <td><Button icon="pi pi-times" text rounded severity="danger" size="small" @click="removeRow(i)" /></td>
           </tr>
           <tr v-if="!form.attributes.length">
-            <td colspan="5" class="no-attrs">No attribute definitions.</td>
+            <td colspan="5" class="no-attrs">{{ pt('No attribute definitions.') }}</td>
           </tr>
         </tbody>
       </table>
-      <Button label="Add attribute" icon="pi pi-plus" text size="small" @click="addRow" />
+      <Button :label="pt('Add attribute')" icon="pi pi-plus" text size="small" @click="addRow" />
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editing ? pt('Update') : pt('Create')" :loading="saving" @click="save" />
       </template>
     </Dialog>
   </div>

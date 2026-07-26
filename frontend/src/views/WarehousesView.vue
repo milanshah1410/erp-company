@@ -17,10 +17,13 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 
 const canView = computed(() => auth.can('warehouses.view'))
 const canCreate = computed(() => auth.can('warehouses.create'))
@@ -34,12 +37,12 @@ const search = ref('')
 const sortField = ref<string | null>(null)
 const sortOrder = ref<1 | -1 | null>(null)
 
-const typeOptions = [
-  { label: 'Main', value: 'main' },
-  { label: 'Branch', value: 'branch' },
-  { label: 'Transit', value: 'transit' },
-  { label: 'Damaged', value: 'damaged' },
-]
+const typeOptions = computed(() => [
+  { label: pt('Main'), value: 'main' },
+  { label: pt('Branch'), value: 'branch' },
+  { label: pt('Transit'), value: 'transit' },
+  { label: pt('Damaged'), value: 'damaged' },
+])
 
 function typeSeverity(type: string): string {
   switch (type) {
@@ -57,7 +60,7 @@ function typeSeverity(type: string): string {
 }
 
 function typeLabel(type: string): string {
-  return typeOptions.find((o) => o.value === type)?.label ?? type
+  return typeOptions.value.find((o) => o.value === type)?.label ?? type
 }
 
 function reload() {
@@ -162,10 +165,10 @@ async function save() {
   try {
     if (editing.value) {
       await crud.value.update(editing.value.id, form.value)
-      toast.add({ severity: 'success', summary: 'Warehouse updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Warehouse updated'), life: 2500 })
     } else {
       await crud.value.create(form.value)
-      toast.add({ severity: 'success', summary: 'Warehouse created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Warehouse created'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
@@ -173,10 +176,10 @@ async function save() {
     if (e.response?.status === 422) {
       errors.value = e.response.data.errors || {}
       if (!Object.keys(errors.value).length && e.response.data.message) {
-        toast.add({ severity: 'error', summary: 'Error', detail: e.response.data.message, life: 4000 })
+        toast.add({ severity: 'error', summary: pt('Error'), detail: e.response.data.message, life: 4000 })
       }
     } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Request failed', life: 4000 })
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
     }
   } finally {
     saving.value = false
@@ -185,20 +188,21 @@ async function save() {
 
 async function confirmDelete(row: any) {
   const res = await Swal.fire({
-    title: `Delete "${row.name}"?`,
-    text: 'This action cannot be undone.',
+    title: pt('Delete "{name}"?', { name: row.name }),
+    text: pt('This action cannot be undone.'),
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Delete',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await crud.value.remove(row.id)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -215,12 +219,12 @@ const locationNodes = ref<TreeNode[]>([])
 const expandedKeys = ref<Record<string, boolean>>({})
 const locView = ref<'tree' | 'stock'>('tree')
 
-const locationTypeOptions = [
-  { label: 'Zone', value: 'zone' },
-  { label: 'Rack', value: 'rack' },
-  { label: 'Shelf', value: 'shelf' },
-  { label: 'Bin', value: 'bin' },
-]
+const locationTypeOptions = computed(() => [
+  { label: pt('Zone'), value: 'zone' },
+  { label: pt('Rack'), value: 'rack' },
+  { label: pt('Shelf'), value: 'shelf' },
+  { label: pt('Bin'), value: 'bin' },
+])
 
 const childType: Record<string, string> = { zone: 'rack', rack: 'shelf', shelf: 'bin' }
 
@@ -266,7 +270,7 @@ async function loadLocations() {
     collectExpanded(locationNodes.value, exp)
     expandedKeys.value = exp
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed to load locations', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed to load locations'), life: 4000 })
   } finally {
     locationsLoading.value = false
   }
@@ -303,7 +307,7 @@ function collectIds(loc: any, acc: number[] = []): number[] {
 const locDialogVisible = ref(false)
 const locSaving = ref(false)
 const locEditing = ref<any>(null)
-const locParentLabel = ref('— root —')
+const locParentLabel = ref(pt('— root —'))
 const locForm = ref<any>({ code: '', name: '', type: 'zone', parent_id: null, is_active: true })
 const locErrors = ref<Record<string, string[]>>({})
 
@@ -317,7 +321,7 @@ const locParentOptions = computed(() => {
 
 function openLocCreateRoot() {
   locEditing.value = null
-  locParentLabel.value = '— root —'
+  locParentLabel.value = pt('— root —')
   locForm.value = { code: '', name: '', type: 'zone', parent_id: null, is_active: true }
   locErrors.value = {}
   locDialogVisible.value = true
@@ -359,10 +363,10 @@ async function saveLocation() {
   try {
     if (locEditing.value) {
       await http.put(`${base}/${locEditing.value.id}`, locForm.value)
-      toast.add({ severity: 'success', summary: 'Location updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Location updated'), life: 2500 })
     } else {
       await http.post(base, locForm.value)
-      toast.add({ severity: 'success', summary: 'Location created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Location created'), life: 2500 })
     }
     locDialogVisible.value = false
     loadLocations()
@@ -370,10 +374,10 @@ async function saveLocation() {
     if (e.response?.status === 422) {
       locErrors.value = e.response.data.errors || {}
       if (!Object.keys(locErrors.value).length && e.response.data.message) {
-        toast.add({ severity: 'error', summary: 'Error', detail: e.response.data.message, life: 4000 })
+        toast.add({ severity: 'error', summary: pt('Error'), detail: e.response.data.message, life: 4000 })
       }
     } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Request failed', life: 4000 })
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
     }
   } finally {
     locSaving.value = false
@@ -382,20 +386,21 @@ async function saveLocation() {
 
 async function confirmDeleteLocation(loc: any) {
   const res = await Swal.fire({
-    title: `Delete "${loc.name}"?`,
-    text: 'This action cannot be undone.',
+    title: pt('Delete "{name}"?', { name: loc.name }),
+    text: pt('This action cannot be undone.'),
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Delete',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/warehouses/${locationsWarehouse.value.id}/locations/${loc.id}`)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     loadLocations()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -416,7 +421,7 @@ async function loadStock() {
     stockRows.value = data.data ?? []
     stockLoaded.value = true
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed to load stock', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed to load stock'), life: 4000 })
   } finally {
     stockLoading.value = false
   }
@@ -432,25 +437,26 @@ onMounted(reload)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Warehouses</h1>
-      <Button v-if="canCreate" label="New Warehouse" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Warehouses')">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Warehouse')" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <span class="search">
         <i class="pi pi-search" />
-        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <InputText v-model="search" :placeholder="pt('Search...')" @keyup.enter="reload" />
       </span>
-      <Button label="Search" outlined @click="reload" />
+      <Button :label="pt('Search')" outlined @click="reload" />
       <span class="toolbar-spacer" />
-      <TableExportButtons title="Warehouses" endpoint="/warehouses" :params="() => (search ? { search } : {})"
+      <TableExportButtons :title="pt('Warehouses')" endpoint="/warehouses" :params="() => (search ? { search } : {})"
         :columns="[
-          { key: 'code', label: 'Code' },
-          { key: 'name', label: 'Name' },
-          { key: 'type', label: 'Type' },
-          { key: 'city', label: 'City' },
-          { key: 'is_active', label: 'Active', format: (v) => (v ? 'Yes' : 'No') },
+          { key: 'code', label: pt('Code') },
+          { key: 'name', label: pt('Name') },
+          { key: 'type', label: pt('Type') },
+          { key: 'city', label: pt('City') },
+          { key: 'is_active', label: pt('Active'), format: (v) => (v ? pt('Yes') : pt('No')) },
         ]" />
     </div>
 
@@ -470,73 +476,73 @@ onMounted(reload)
       @page="onPage"
       class="p-datatable-sm"
     >
-      <Column field="code" header="Code" sortable />
-      <Column field="name" header="Name" sortable />
-      <Column field="type" header="Type">
+      <Column field="code" :header="pt('Code')" sortable />
+      <Column field="name" :header="pt('Name')" sortable />
+      <Column field="type" :header="pt('Type')">
         <template #body="{ data }">
           <Tag :severity="typeSeverity(data.type)" :value="typeLabel(data.type)" />
         </template>
       </Column>
-      <Column field="city" header="City" />
-      <Column field="is_active" header="Active">
+      <Column field="city" :header="pt('City')" />
+      <Column field="is_active" :header="pt('Active')">
         <template #body="{ data }">
-          <Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? 'Yes' : 'No'" />
+          <Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? pt('Yes') : pt('No')" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 10rem">
+      <Column :header="pt('Actions')" style="width: 10rem">
         <template #body="{ data }">
-          <Button v-if="canView" icon="pi pi-map-marker" text rounded size="small" title="Locations" @click="openLocations(data)" />
-          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
-          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
+          <Button v-if="canView" icon="pi pi-map-marker" text rounded size="small" :title="pt('Locations')" @click="openLocations(data)" />
+          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" :title="pt('Edit')" @click="openEdit(data)" />
+          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" :title="pt('Delete')" @click="confirmDelete(data)" />
         </template>
       </Column>
-      <template #empty>No records found.</template>
+      <template #empty>{{ pt('No records found.') }}</template>
     </DataTable>
 
     <!-- Warehouse create / edit dialog -->
-    <Dialog v-model:visible="dialogVisible" modal :header="editing ? 'Edit Warehouse' : 'New Warehouse'" :style="{ width: '640px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editing ? pt('Edit Warehouse') : pt('New Warehouse')" :style="{ width: '640px' }">
       <div class="form-grid">
         <div class="fld">
-          <label>Code <span class="req">*</span></label>
+          <label>{{ pt('Code') }} <span class="req">*</span></label>
           <InputText v-model="form.code" :class="{ invalid: fieldError('code') }" />
           <small v-if="fieldError('code')" class="error-text">{{ fieldError('code') }}</small>
         </div>
 
         <div class="fld">
-          <label>Name <span class="req">*</span></label>
+          <label>{{ pt('Name') }} <span class="req">*</span></label>
           <InputText v-model="form.name" :class="{ invalid: fieldError('name') }" />
           <small v-if="fieldError('name')" class="error-text">{{ fieldError('name') }}</small>
         </div>
 
         <div class="fld">
-          <label>Type <span class="req">*</span></label>
-          <Select v-model="form.type" :options="typeOptions" optionLabel="label" optionValue="value" placeholder="Select Type" :class="{ invalid: fieldError('type') }" />
+          <label>{{ pt('Type') }} <span class="req">*</span></label>
+          <Select v-model="form.type" :options="typeOptions" optionLabel="label" optionValue="value" :placeholder="pt('Select Type')" :class="{ invalid: fieldError('type') }" />
           <small v-if="fieldError('type')" class="error-text">{{ fieldError('type') }}</small>
         </div>
 
         <div class="fld">
-          <label>Contact Person</label>
+          <label>{{ pt('Contact Person') }}</label>
           <InputText v-model="form.contact_person" :class="{ invalid: fieldError('contact_person') }" />
           <small v-if="fieldError('contact_person')" class="error-text">{{ fieldError('contact_person') }}</small>
         </div>
 
         <div class="fld">
-          <label>Mobile</label>
+          <label>{{ pt('Mobile') }}</label>
           <InputText v-model="form.phone" :class="{ invalid: fieldError('phone') }" />
           <small v-if="fieldError('phone')" class="error-text">{{ fieldError('phone') }}</small>
         </div>
 
         <div class="fld">
-          <label>Email</label>
+          <label>{{ pt('Email') }}</label>
           <InputText v-model="form.email" :class="{ invalid: fieldError('email') }" />
           <small v-if="fieldError('email')" class="error-text">{{ fieldError('email') }}</small>
         </div>
 
         <div class="fld full">
-          <label>Address Line 1 <span class="req">*</span></label>
+          <label>{{ pt('Address Line 1') }} <span class="req">*</span></label>
           <GoogleAddressAutocomplete
             v-model="form.address"
-            placeholder="Start typing to search address..."
+            :placeholder="pt('Start typing to search address...')"
             :invalid="!!fieldError('address')"
             @place-selected="onPlaceSelected"
           />
@@ -544,71 +550,71 @@ onMounted(reload)
         </div>
 
         <div class="fld full">
-          <label>Address Line 2</label>
+          <label>{{ pt('Address Line 2') }}</label>
           <InputText v-model="form.address_line2" :class="{ invalid: fieldError('address_line2') }" />
           <small v-if="fieldError('address_line2')" class="error-text">{{ fieldError('address_line2') }}</small>
         </div>
 
         <div class="fld">
-          <label>Landmark</label>
+          <label>{{ pt('Landmark') }}</label>
           <InputText v-model="form.landmark" :class="{ invalid: fieldError('landmark') }" />
           <small v-if="fieldError('landmark')" class="error-text">{{ fieldError('landmark') }}</small>
         </div>
 
         <div class="fld">
-          <label>Area / Locality</label>
+          <label>{{ pt('Area / Locality') }}</label>
           <InputText v-model="form.area" :class="{ invalid: fieldError('area') }" />
           <small v-if="fieldError('area')" class="error-text">{{ fieldError('area') }}</small>
         </div>
 
         <div class="fld">
-          <label>City <span class="req">*</span></label>
+          <label>{{ pt('City') }} <span class="req">*</span></label>
           <InputText v-model="form.city" :class="{ invalid: fieldError('city') }" />
           <small v-if="fieldError('city')" class="error-text">{{ fieldError('city') }}</small>
         </div>
 
         <div class="fld">
-          <label>State <span class="req">*</span></label>
+          <label>{{ pt('State') }} <span class="req">*</span></label>
           <InputText v-model="form.state" :class="{ invalid: fieldError('state') }" />
           <small v-if="fieldError('state')" class="error-text">{{ fieldError('state') }}</small>
         </div>
 
         <div class="fld">
-          <label>Country <span class="req">*</span></label>
+          <label>{{ pt('Country') }} <span class="req">*</span></label>
           <InputText v-model="form.country" :class="{ invalid: fieldError('country') }" />
           <small v-if="fieldError('country')" class="error-text">{{ fieldError('country') }}</small>
         </div>
 
         <div class="fld">
-          <label>Pincode <span class="req">*</span></label>
+          <label>{{ pt('Pincode') }} <span class="req">*</span></label>
           <InputText v-model="form.pincode" :class="{ invalid: fieldError('pincode') }" />
           <small v-if="fieldError('pincode')" class="error-text">{{ fieldError('pincode') }}</small>
         </div>
 
         <div class="fld">
-          <label>Latitude</label>
+          <label>{{ pt('Latitude') }}</label>
           <InputText v-model="form.latitude" :class="{ invalid: fieldError('latitude') }" />
           <small v-if="fieldError('latitude')" class="error-text">{{ fieldError('latitude') }}</small>
         </div>
 
         <div class="fld">
-          <label>Longitude</label>
+          <label>{{ pt('Longitude') }}</label>
           <InputText v-model="form.longitude" :class="{ invalid: fieldError('longitude') }" />
           <small v-if="fieldError('longitude')" class="error-text">{{ fieldError('longitude') }}</small>
         </div>
 
         <div class="fld">
-          <label>Status</label>
+          <label>{{ pt('Status') }}</label>
           <div class="checkbox-row">
             <Checkbox v-model="form.is_active" binary inputId="wh_is_active" />
-            <label for="wh_is_active">Active</label>
+            <label for="wh_is_active">{{ pt('Active') }}</label>
           </div>
         </div>
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editing ? pt('Update') : pt('Create')" :loading="saving" @click="save" />
       </template>
     </Dialog>
 
@@ -616,15 +622,15 @@ onMounted(reload)
     <Dialog
       v-model:visible="locationsVisible"
       modal
-      :header="`Locations — ${locationsWarehouse?.name ?? ''}`"
+      :header="pt('Locations — {name}', { name: locationsWarehouse?.name ?? '' })"
       :style="{ width: '700px' }"
     >
       <div class="loc-toolbar">
         <div class="view-switch">
-          <Button label="Tree" size="small" :outlined="locView !== 'tree'" @click="switchView('tree')" />
-          <Button v-if="canViewStock" label="Stock by location" size="small" :outlined="locView !== 'stock'" @click="switchView('stock')" />
+          <Button :label="pt('Tree')" size="small" :outlined="locView !== 'tree'" @click="switchView('tree')" />
+          <Button v-if="canViewStock" :label="pt('Stock by location')" size="small" :outlined="locView !== 'stock'" @click="switchView('stock')" />
         </div>
-        <Button v-if="canCreate && locView === 'tree'" label="Add Zone/Location" icon="pi pi-plus" size="small" @click="openLocCreateRoot" />
+        <Button v-if="canCreate && locView === 'tree'" :label="pt('Add Zone/Location')" icon="pi pi-plus" size="small" @click="openLocCreateRoot" />
       </div>
 
       <template v-if="locView === 'tree'">
@@ -634,8 +640,8 @@ onMounted(reload)
               <Tag :severity="locTypeSeverity(node.data.type)" :value="node.data.type" />
               <span class="node-code">{{ node.data.code }}</span>
               <span class="node-name">{{ node.data.name }}</span>
-              <span v-if="node.data.stock_quantity > 0" class="node-qty">qty: {{ node.data.stock_quantity }}</span>
-              <Tag v-if="!node.data.is_active" value="inactive" severity="danger" />
+              <span v-if="node.data.stock_quantity > 0" class="node-qty">{{ pt('qty: {n}', { n: node.data.stock_quantity }) }}</span>
+              <Tag v-if="!node.data.is_active" :value="pt('inactive')" severity="danger" />
               <span class="node-actions">
                 <Button
                   v-if="canCreate && node.data.type !== 'bin'"
@@ -643,70 +649,70 @@ onMounted(reload)
                   text
                   rounded
                   size="small"
-                  title="Add child location"
+                  :title="pt('Add child location')"
                   @click.stop="openLocAddChild(node.data)"
                 />
-                <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click.stop="openLocEdit(node.data)" />
-                <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click.stop="confirmDeleteLocation(node.data)" />
+                <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" :title="pt('Edit')" @click.stop="openLocEdit(node.data)" />
+                <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" :title="pt('Delete')" @click.stop="confirmDeleteLocation(node.data)" />
               </span>
             </div>
           </template>
         </Tree>
-        <p v-if="!locationsLoading && !locationNodes.length" class="empty">No locations yet.</p>
+        <p v-if="!locationsLoading && !locationNodes.length" class="empty">{{ pt('No locations yet.') }}</p>
       </template>
 
       <template v-else>
         <DataTable :value="stockRows" :loading="stockLoading" dataKey="id" class="p-datatable-sm">
-          <Column header="Location code">
+          <Column :header="pt('Location code')">
             <template #body="{ data }">{{ data.location?.code }}</template>
           </Column>
-          <Column header="Location name">
+          <Column :header="pt('Location name')">
             <template #body="{ data }">{{ data.location?.name }}</template>
           </Column>
-          <Column header="Product">
+          <Column :header="pt('Product')">
             <template #body="{ data }">
               <span>{{ data.product?.name }}</span>
               <span class="muted-sku">{{ data.product?.sku }}</span>
             </template>
           </Column>
-          <Column header="Qty">
+          <Column :header="pt('Qty')">
             <template #body="{ data }">{{ data.quantity }}</template>
           </Column>
-          <template #empty>No stock placed at locations yet.</template>
+          <template #empty>{{ pt('No stock placed at locations yet.') }}</template>
         </DataTable>
       </template>
     </Dialog>
 
     <!-- Location create / edit sub-dialog -->
-    <Dialog v-model:visible="locDialogVisible" modal :header="locEditing ? 'Edit Location' : 'New Location'" :style="{ width: '480px' }">
+    <Dialog v-model:visible="locDialogVisible" modal :header="locEditing ? pt('Edit Location') : pt('New Location')" :style="{ width: '480px' }">
       <div class="form-grid">
         <div class="fld">
-          <label>Code <span class="req">*</span></label>
+          <label>{{ pt('Code') }} <span class="req">*</span></label>
           <InputText v-model="locForm.code" :class="{ invalid: locFieldError('code') }" />
           <small v-if="locFieldError('code')" class="error-text">{{ locFieldError('code') }}</small>
         </div>
 
         <div class="fld">
-          <label>Name <span class="req">*</span></label>
+          <label>{{ pt('Name') }} <span class="req">*</span></label>
           <InputText v-model="locForm.name" :class="{ invalid: locFieldError('name') }" />
           <small v-if="locFieldError('name')" class="error-text">{{ locFieldError('name') }}</small>
         </div>
 
         <div class="fld">
-          <label>Type <span class="req">*</span></label>
+          <label>{{ pt('Type') }} <span class="req">*</span></label>
           <Select v-model="locForm.type" :options="locationTypeOptions" optionLabel="label" optionValue="value" :class="{ invalid: locFieldError('type') }" />
           <small v-if="locFieldError('type')" class="error-text">{{ locFieldError('type') }}</small>
         </div>
 
         <div class="fld">
-          <label>Parent</label>
+          <label>{{ pt('Parent') }}</label>
           <Select
             v-if="locEditing"
             v-model="locForm.parent_id"
             :options="locParentOptions"
             optionLabel="label"
             optionValue="value"
-            placeholder="— root —"
+            :placeholder="pt('— root —')"
             showClear
             :class="{ invalid: locFieldError('parent_id') }"
           />
@@ -715,17 +721,17 @@ onMounted(reload)
         </div>
 
         <div class="fld">
-          <label>Status</label>
+          <label>{{ pt('Status') }}</label>
           <div class="checkbox-row">
             <Checkbox v-model="locForm.is_active" binary inputId="loc_is_active" />
-            <label for="loc_is_active">Active</label>
+            <label for="loc_is_active">{{ pt('Active') }}</label>
           </div>
         </div>
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="locDialogVisible = false" />
-        <Button :label="locEditing ? 'Update' : 'Create'" :loading="locSaving" @click="saveLocation" />
+        <Button :label="pt('Cancel')" text @click="locDialogVisible = false" />
+        <Button :label="locEditing ? pt('Update') : pt('Create')" :loading="locSaving" @click="saveLocation" />
       </template>
     </Dialog>
   </div>

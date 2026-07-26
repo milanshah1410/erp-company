@@ -7,6 +7,7 @@ import Tag from 'primevue/tag'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const customers = ref<{ label: string; value: number }[]>([])
 const customerId = ref<number | null>(null)
@@ -44,9 +45,7 @@ onMounted(loadCustomers)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Customer Ledger</h1>
-    </div>
+    <PageHeader title="Customer Ledger" />
 
     <div class="toolbar">
       <Select v-model="customerId" :options="customers" optionLabel="label" optionValue="value"

@@ -297,6 +297,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'payroll', component: PayrollView, meta: { permission: 'payroll.view' } },
       { path: 'users', component: UsersView, meta: { permission: 'users.view' } },
       { path: 'roles', component: RolesView, meta: { permission: 'roles.view' } },
+      // Own profile — no permission gate; every signed-in user has one.
+      { path: 'profile', name: 'profile', component: () => import('../views/ProfileView.vue') },
       { path: 'settings', component: SettingsView, meta: { permission: 'settings.view' } },
       { path: 'system-tools', component: () => import('../views/SystemToolsView.vue'), meta: { permission: 'settings.view' } },
       { path: 'workflows', component: () => import('../views/WorkflowsView.vue'), meta: { permission: 'workflows.view' } },

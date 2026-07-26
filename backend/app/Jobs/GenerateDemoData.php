@@ -32,7 +32,18 @@ class GenerateDemoData implements ShouldQueue
         public int $userId,
         public array $modules,
         public int $count,
-    ) {}
+    ) {
+        // Rows are created one model at a time (observers/workflow triggers have
+        // to fire), so the bulk volumes need hours, not minutes. Scale the
+        // worker timeout to the requested volume instead of failing mid-run.
+        $perModule = match (true) {
+            $count >= 1_000_000 => 21_600, // 6h
+            $count >= 100_000 => 7_200,    // 2h
+            default => 900,                // 15m
+        };
+
+        $this->timeout = $perModule * max(1, count($modules));
+    }
 
     public function handle(TenantContext $context): void
     {

@@ -15,6 +15,7 @@ import { useCrud } from '../composables/useCrud'
 import { useExpenseWorkflow } from '../composables/useExpenseWorkflow'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const auth = useAuthStore()
 const crud = useCrud('/asset-maintenances')
@@ -182,9 +183,8 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Asset Maintenance</h1>
-      <div style="display: flex; gap: 0.5rem; align-items: center">
+    <PageHeader title="Asset Maintenance" :count="crud.total.value">
+      <template #actions>
         <TableExportButtons title="Asset Maintenance" endpoint="/asset-maintenances" :params="() => activeParams()"
           :columns="[
             { key: 'maintenance_number', label: 'Record #' },
@@ -197,8 +197,8 @@ onMounted(async () => {
             { key: 'is_paid', label: 'Paid', format: (v) => v ? 'Yes' : 'No' },
           ]" />
         <Button v-if="canCreate" label="New Record" icon="pi pi-plus" @click="openCreate" />
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div class="tabbar">
       <button class="tab" :class="{ active: tab === 'list' }" @click="switchTab('list')"><i class="pi pi-cog" /> Records</button>

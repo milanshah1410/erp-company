@@ -7,9 +7,12 @@
  */
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { createDisplayChannel, type CustomerDisplayState } from '../utils/posDevice'
+import { usePt } from '../i18n/pt'
+
+const pt = usePt()
 
 const state = ref<CustomerDisplayState>({
-  shopName: 'Point of Sale',
+  shopName: pt('Point of Sale'),
   currencySymbol: '₹',
   lines: [],
   subtotal: 0,
@@ -45,14 +48,14 @@ onBeforeUnmount(() => channel?.close())
   <div class="cd" :class="state.status">
     <header class="cd-head">
       <div class="shop">{{ state.shopName }}</div>
-      <div class="tag" v-if="state.status === 'done'">Thank you!</div>
-      <div class="tag" v-else-if="state.status === 'selling'">Welcome</div>
+      <div class="tag" v-if="state.status === 'done'">{{ pt('Thank you!') }}</div>
+      <div class="tag" v-else-if="state.status === 'selling'">{{ pt('Welcome') }}</div>
     </header>
 
     <div class="cd-body">
       <div class="items" v-if="state.lines.length">
         <div class="row head">
-          <span>Item</span><span class="q">Qty</span><span class="a">Amount</span>
+          <span>{{ pt('Item') }}</span><span class="q">{{ pt('Qty') }}</span><span class="a">{{ pt('Amount') }}</span>
         </div>
         <transition-group name="pop" tag="div">
           <div class="row" v-for="(l, i) in state.lines" :key="l.name + i">
@@ -64,22 +67,22 @@ onBeforeUnmount(() => channel?.close())
       </div>
       <div class="empty" v-else>
         <i class="pi pi-shopping-cart"></i>
-        <p>{{ state.message || 'Welcome' }}</p>
+        <p>{{ state.message || pt('Welcome') }}</p>
       </div>
     </div>
 
     <footer class="cd-foot">
       <div class="sub-lines" v-if="state.lines.length">
-        <div><span>Subtotal</span><span>{{ money(state.subtotal) }}</span></div>
-        <div v-if="state.discount"><span>Discount</span><span>−{{ money(state.discount) }}</span></div>
-        <div><span>GST</span><span>{{ money(state.tax) }}</span></div>
+        <div><span>{{ pt('Subtotal') }}</span><span>{{ money(state.subtotal) }}</span></div>
+        <div v-if="state.discount"><span>{{ pt('Discount') }}</span><span>−{{ money(state.discount) }}</span></div>
+        <div><span>{{ pt('GST') }}</span><span>{{ money(state.tax) }}</span></div>
       </div>
       <div class="grand">
-        <span>{{ state.status === 'done' ? 'PAID' : 'TOTAL' }}</span>
+        <span>{{ state.status === 'done' ? pt('PAID') : pt('TOTAL') }}</span>
         <span>{{ money(state.total) }}</span>
       </div>
-      <div class="pay" v-if="state.change && state.change > 0">Change: {{ money(state.change) }}</div>
-      <div class="pay due" v-else-if="state.balance && state.balance > 0">Balance: {{ money(state.balance) }}</div>
+      <div class="pay" v-if="state.change && state.change > 0">{{ pt('Change:') }} {{ money(state.change) }}</div>
+      <div class="pay due" v-else-if="state.balance && state.balance > 0">{{ pt('Balance:') }} {{ money(state.balance) }}</div>
     </footer>
   </div>
 </template>

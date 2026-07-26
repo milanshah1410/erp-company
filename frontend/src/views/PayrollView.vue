@@ -11,10 +11,13 @@ import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 
 const month = ref<Date>(new Date())
 const rows = ref<any[]>([])
@@ -48,18 +51,19 @@ async function load() {
 
 async function generate() {
   const res = await Swal.fire({
-    title: `Generate payroll for ${month.value.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}?`,
-    text: 'Draft payslips are (re)computed from each active salary structure. Already-paid payslips are left untouched.',
-    icon: 'question', showCancelButton: true, confirmButtonText: 'Generate',
+    title: pt('Generate payroll for {month}?', { month: month.value.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) }),
+    text: pt('Draft payslips are (re)computed from each active salary structure. Already-paid payslips are left untouched.'),
+    icon: 'question', showCancelButton: true, confirmButtonText: pt('Generate'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   generating.value = true
   try {
     const { data } = await http.post('/payroll/generate', { month: monthString(month.value) })
-    toast.add({ severity: 'success', summary: 'Payroll generated', detail: data.message, life: 3500 })
+    toast.add({ severity: 'success', summary: pt('Payroll generated'), detail: data.message, life: 3500 })
     await load()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Generation failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Generation failed'), life: 4000 })
   } finally {
     generating.value = false
   }
@@ -68,41 +72,42 @@ async function generate() {
 async function pay(row: any) {
   try {
     await http.post(`/payroll/${row.id}/pay`)
-    toast.add({ severity: 'success', summary: 'Paid', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Paid'), life: 2500 })
     await load()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   }
 }
 
 async function payAll() {
   const res = await Swal.fire({
-    title: `Pay all ${draftCount.value} draft payslip(s)?`,
-    text: 'This settles overtime, bonuses, advance recoveries and loan EMIs for the month.',
-    icon: 'warning', showCancelButton: true, confirmButtonColor: '#16a34a', confirmButtonText: 'Pay All',
+    title: pt('Pay all {n} draft payslip(s)?', { n: draftCount.value }),
+    text: pt('This settles overtime, bonuses, advance recoveries and loan EMIs for the month.'),
+    icon: 'warning', showCancelButton: true, confirmButtonColor: '#16a34a', confirmButtonText: pt('Pay All'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   paying.value = true
   try {
     const { data } = await http.post('/payroll/pay-all', { month: monthString(month.value) })
-    toast.add({ severity: 'success', summary: 'Payroll paid', detail: data.message, life: 3500 })
+    toast.add({ severity: 'success', summary: pt('Payroll paid'), detail: data.message, life: 3500 })
     await load()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Failed'), life: 4000 })
   } finally {
     paying.value = false
   }
 }
 
 async function removeSlip(row: any) {
-  const res = await Swal.fire({ title: 'Delete this draft payslip?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Delete' })
+  const res = await Swal.fire({ title: pt('Delete this draft payslip?'), icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: pt('Delete'), cancelButtonText: pt('Cancel') })
   if (!res.isConfirmed) return
   try {
     await http.delete(`/payroll/${row.id}`)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     await load()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -116,85 +121,84 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Payroll Processing</h1>
-      <div class="actions">
+    <PageHeader :title="pt('Payroll Processing')">
+      <template #actions>
         <DatePicker v-model="month" view="month" dateFormat="MM yy" showIcon iconDisplay="input" @update:modelValue="load" />
-        <Button v-if="canGenerate" label="Generate" icon="pi pi-cog" :loading="generating" @click="generate" />
-        <Button v-if="canPay && draftCount > 0" label="Pay All" icon="pi pi-check-circle" severity="success" :loading="paying" @click="payAll" />
-        <TableExportButtons title="Payroll" :rows="rows"
+        <Button v-if="canGenerate" :label="pt('Generate')" icon="pi pi-cog" :loading="generating" @click="generate" />
+        <Button v-if="canPay && draftCount > 0" :label="pt('Pay All')" icon="pi pi-check-circle" severity="success" :loading="paying" @click="payAll" />
+        <TableExportButtons :title="pt('Payroll')" :rows="rows"
           :columns="[
-            { key: 'employee_name', label: 'Employee' },
-            { key: 'paid_days', label: 'Paid Days' },
-            { key: 'gross', label: 'Gross' },
-            { key: 'pf_employee', label: 'PF' },
-            { key: 'esi_employee', label: 'ESI' },
-            { key: 'professional_tax', label: 'PT' },
-            { key: 'advance_deduction', label: 'Advance' },
-            { key: 'loan_deduction', label: 'Loan' },
-            { key: 'net_salary', label: 'Net' },
-            { key: 'status', label: 'Status' },
+            { key: 'employee_name', label: pt('Employee') },
+            { key: 'paid_days', label: pt('Paid Days') },
+            { key: 'gross', label: pt('Gross') },
+            { key: 'pf_employee', label: pt('PF') },
+            { key: 'esi_employee', label: pt('ESI') },
+            { key: 'professional_tax', label: pt('PT') },
+            { key: 'advance_deduction', label: pt('Advance') },
+            { key: 'loan_deduction', label: pt('Loan') },
+            { key: 'net_salary', label: pt('Net') },
+            { key: 'status', label: pt('Status') },
           ]" />
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div v-if="summary" class="tiles">
-      <div class="tile"><span>Payslips</span><strong>{{ summary.count }}</strong></div>
-      <div class="tile"><span>Gross</span><strong>{{ money(summary.gross) }}</strong></div>
-      <div class="tile"><span>Net Payable</span><strong>{{ money(summary.net) }}</strong></div>
-      <div class="tile"><span>PF (EE+ER)</span><strong>{{ money(summary.pf_employee + summary.pf_employer) }}</strong></div>
-      <div class="tile"><span>ESI (EE+ER)</span><strong>{{ money(summary.esi_employee + summary.esi_employer) }}</strong></div>
-      <div class="tile"><span>Prof. Tax</span><strong>{{ money(summary.professional_tax) }}</strong></div>
-      <div class="tile"><span>Advance / Loan</span><strong>{{ money(summary.advance_deduction + summary.loan_deduction) }}</strong></div>
+      <div class="tile"><span>{{ pt('Payslips') }}</span><strong>{{ summary.count }}</strong></div>
+      <div class="tile"><span>{{ pt('Gross') }}</span><strong>{{ money(summary.gross) }}</strong></div>
+      <div class="tile"><span>{{ pt('Net Payable') }}</span><strong>{{ money(summary.net) }}</strong></div>
+      <div class="tile"><span>{{ pt('PF (EE+ER)') }}</span><strong>{{ money(summary.pf_employee + summary.pf_employer) }}</strong></div>
+      <div class="tile"><span>{{ pt('ESI (EE+ER)') }}</span><strong>{{ money(summary.esi_employee + summary.esi_employer) }}</strong></div>
+      <div class="tile"><span>{{ pt('Prof. Tax') }}</span><strong>{{ money(summary.professional_tax) }}</strong></div>
+      <div class="tile"><span>{{ pt('Advance / Loan') }}</span><strong>{{ money(summary.advance_deduction + summary.loan_deduction) }}</strong></div>
     </div>
 
     <DataTable :value="rows" :loading="loading" dataKey="id" class="p-datatable-sm" scrollable>
-      <Column field="employee_name" header="Employee" frozen />
-      <Column header="Paid Days"><template #body="{ data }">{{ data.paid_days }}/{{ data.working_days }}</template></Column>
-      <Column header="Gross"><template #body="{ data }">{{ money(data.gross) }}</template></Column>
-      <Column header="PF"><template #body="{ data }">{{ money(data.pf_employee) }}</template></Column>
-      <Column header="ESI"><template #body="{ data }">{{ money(data.esi_employee) }}</template></Column>
-      <Column header="PT"><template #body="{ data }">{{ money(data.professional_tax) }}</template></Column>
-      <Column header="Advance"><template #body="{ data }">{{ money(data.advance_deduction) }}</template></Column>
-      <Column header="Loan"><template #body="{ data }">{{ money(data.loan_deduction) }}</template></Column>
-      <Column header="Net"><template #body="{ data }"><strong>{{ money(data.net_salary) }}</strong></template></Column>
-      <Column header="Status"><template #body="{ data }"><Tag :value="data.status" :severity="data.status === 'paid' ? 'success' : 'warn'" /></template></Column>
-      <Column header="Actions" style="width: 12rem">
+      <Column field="employee_name" :header="pt('Employee')" frozen />
+      <Column :header="pt('Paid Days')"><template #body="{ data }">{{ data.paid_days }}/{{ data.working_days }}</template></Column>
+      <Column :header="pt('Gross')"><template #body="{ data }">{{ money(data.gross) }}</template></Column>
+      <Column :header="pt('PF')"><template #body="{ data }">{{ money(data.pf_employee) }}</template></Column>
+      <Column :header="pt('ESI')"><template #body="{ data }">{{ money(data.esi_employee) }}</template></Column>
+      <Column :header="pt('PT')"><template #body="{ data }">{{ money(data.professional_tax) }}</template></Column>
+      <Column :header="pt('Advance')"><template #body="{ data }">{{ money(data.advance_deduction) }}</template></Column>
+      <Column :header="pt('Loan')"><template #body="{ data }">{{ money(data.loan_deduction) }}</template></Column>
+      <Column :header="pt('Net')"><template #body="{ data }"><strong>{{ money(data.net_salary) }}</strong></template></Column>
+      <Column :header="pt('Status')"><template #body="{ data }"><Tag :value="data.status" :severity="data.status === 'paid' ? 'success' : 'warn'" /></template></Column>
+      <Column :header="pt('Actions')" style="width: 12rem">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" @click="openSlip(data)" />
-          <Button v-if="canPay && data.status === 'draft'" label="Pay" icon="pi pi-check" text severity="success" size="small" @click="pay(data)" />
+          <Button v-if="canPay && data.status === 'draft'" :label="pt('Pay')" icon="pi pi-check" text severity="success" size="small" @click="pay(data)" />
           <Button v-if="canDelete && data.status === 'draft'" icon="pi pi-trash" text rounded severity="danger" size="small" @click="removeSlip(data)" />
         </template>
       </Column>
-      <template #empty>No payslips for this month. Click Generate to create them.</template>
+      <template #empty>{{ pt('No payslips for this month. Click Generate to create them.') }}</template>
     </DataTable>
 
-    <Dialog v-model:visible="slipVisible" modal :header="`Payslip — ${slip?.employee_name || ''}`" :style="{ width: '480px' }">
+    <Dialog v-model:visible="slipVisible" modal :header="pt('Payslip — {name}', { name: slip?.employee_name || '' })" :style="{ width: '480px' }">
       <div v-if="slip" class="slip">
         <div class="slip-sec">
-          <h3>Earnings</h3>
-          <div class="line"><span>Basic</span><span>{{ money(slip.basic) }}</span></div>
-          <div class="line"><span>HRA</span><span>{{ money(slip.hra) }}</span></div>
-          <div class="line"><span>Conveyance</span><span>{{ money(slip.conveyance) }}</span></div>
-          <div class="line"><span>Medical</span><span>{{ money(slip.medical) }}</span></div>
-          <div class="line"><span>Special Allowance</span><span>{{ money(slip.special_allowance) }}</span></div>
-          <div class="line"><span>Other</span><span>{{ money(slip.other_earnings) }}</span></div>
-          <div class="line"><span>Overtime</span><span>{{ money(slip.overtime_amount) }}</span></div>
-          <div class="line"><span>Bonus</span><span>{{ money(slip.bonus_amount) }}</span></div>
-          <div class="line total"><span>Gross</span><span>{{ money(slip.gross) }}</span></div>
+          <h3>{{ pt('Earnings') }}</h3>
+          <div class="line"><span>{{ pt('Basic') }}</span><span>{{ money(slip.basic) }}</span></div>
+          <div class="line"><span>{{ pt('HRA') }}</span><span>{{ money(slip.hra) }}</span></div>
+          <div class="line"><span>{{ pt('Conveyance') }}</span><span>{{ money(slip.conveyance) }}</span></div>
+          <div class="line"><span>{{ pt('Medical') }}</span><span>{{ money(slip.medical) }}</span></div>
+          <div class="line"><span>{{ pt('Special Allowance') }}</span><span>{{ money(slip.special_allowance) }}</span></div>
+          <div class="line"><span>{{ pt('Other') }}</span><span>{{ money(slip.other_earnings) }}</span></div>
+          <div class="line"><span>{{ pt('Overtime') }}</span><span>{{ money(slip.overtime_amount) }}</span></div>
+          <div class="line"><span>{{ pt('Bonus') }}</span><span>{{ money(slip.bonus_amount) }}</span></div>
+          <div class="line total"><span>{{ pt('Gross') }}</span><span>{{ money(slip.gross) }}</span></div>
         </div>
         <div class="slip-sec">
-          <h3>Deductions</h3>
-          <div class="line"><span>PF (employee)</span><span>{{ money(slip.pf_employee) }}</span></div>
-          <div class="line"><span>ESI (employee)</span><span>{{ money(slip.esi_employee) }}</span></div>
-          <div class="line"><span>Professional Tax</span><span>{{ money(slip.professional_tax) }}</span></div>
-          <div class="line"><span>TDS</span><span>{{ money(slip.tds) }}</span></div>
-          <div class="line"><span>Advance Recovery</span><span>{{ money(slip.advance_deduction) }}</span></div>
-          <div class="line"><span>Loan EMI</span><span>{{ money(slip.loan_deduction) }}</span></div>
-          <div class="line total"><span>Total Deductions</span><span>{{ money(slip.deductions) }}</span></div>
+          <h3>{{ pt('Deductions') }}</h3>
+          <div class="line"><span>{{ pt('PF (employee)') }}</span><span>{{ money(slip.pf_employee) }}</span></div>
+          <div class="line"><span>{{ pt('ESI (employee)') }}</span><span>{{ money(slip.esi_employee) }}</span></div>
+          <div class="line"><span>{{ pt('Professional Tax') }}</span><span>{{ money(slip.professional_tax) }}</span></div>
+          <div class="line"><span>{{ pt('TDS') }}</span><span>{{ money(slip.tds) }}</span></div>
+          <div class="line"><span>{{ pt('Advance Recovery') }}</span><span>{{ money(slip.advance_deduction) }}</span></div>
+          <div class="line"><span>{{ pt('Loan EMI') }}</span><span>{{ money(slip.loan_deduction) }}</span></div>
+          <div class="line total"><span>{{ pt('Total Deductions') }}</span><span>{{ money(slip.deductions) }}</span></div>
         </div>
-        <div class="line net"><span>Net Salary</span><span>{{ money(slip.net_salary) }}</span></div>
-        <div class="line muted"><span>Employer PF / ESI</span><span>{{ money(slip.pf_employer) }} / {{ money(slip.esi_employer) }}</span></div>
+        <div class="line net"><span>{{ pt('Net Salary') }}</span><span>{{ money(slip.net_salary) }}</span></div>
+        <div class="line muted"><span>{{ pt('Employer PF / ESI') }}</span><span>{{ money(slip.pf_employer) }} / {{ money(slip.esi_employer) }}</span></div>
       </div>
     </Dialog>
   </div>

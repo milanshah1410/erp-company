@@ -10,6 +10,10 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import http from '../api/http'
 import { formatCurrency } from '../utils/currency'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import { usePt } from '../i18n/pt'
+import PageHeader from '../components/PageHeader.vue'
+
+const pt = usePt()
 
 const rows = ref<any[]>([])
 const loading = ref(false)
@@ -62,44 +66,43 @@ onMounted(() => {
 
 <template>
   <div>
-    <h1>Current Stock</h1>
-    <p class="subtitle">On-hand quantity and valuation per warehouse</p>
+    <PageHeader :title="pt('Current Stock')" :subtitle="pt('On-hand quantity and valuation per warehouse')" />
 
     <div class="toolbar">
-      <span class="search"><i class="pi pi-search" /><InputText v-model="search" placeholder="Search product..." @keyup.enter="page = 1; load()" /></span>
-      <Button label="Search" outlined @click="page = 1; load()" />
+      <span class="search"><i class="pi pi-search" /><InputText v-model="search" :placeholder="pt('Search product...')" @keyup.enter="page = 1; load()" /></span>
+      <Button :label="pt('Search')" outlined @click="page = 1; load()" />
       <Select v-model="warehouseId" :options="warehouses" optionLabel="label" optionValue="value" showClear
-        placeholder="All warehouses" class="wh-filter" @change="page = 1; load()" />
-      <label class="low"><ToggleSwitch v-model="lowOnly" @change="page = 1; load()" /> Low stock only</label>
-      <TableExportButtons title="Current Stock" endpoint="/stock"
+        :placeholder="pt('All warehouses')" class="wh-filter" @change="page = 1; load()" />
+      <label class="low"><ToggleSwitch v-model="lowOnly" @change="page = 1; load()" /> {{ pt('Low stock only') }}</label>
+      <TableExportButtons :title="pt('Current Stock')" endpoint="/stock"
         :params="() => ({ search: search || undefined, low_stock: lowOnly || undefined, warehouse_id: warehouseId || undefined })"
         :columns="[
-          { key: 'product.name', label: 'Product' },
-          { key: 'product.sku', label: 'SKU' },
-          { key: 'warehouse.name', label: 'Warehouse' },
-          { key: 'quantity', label: 'On Hand' },
-          { key: 'available_quantity', label: 'Available' },
-          { key: 'average_cost', label: 'Avg Cost' },
-          { key: 'stock_value', label: 'Stock Value' },
+          { key: 'product.name', label: pt('Product') },
+          { key: 'product.sku', label: pt('SKU') },
+          { key: 'warehouse.name', label: pt('Warehouse') },
+          { key: 'quantity', label: pt('On Hand') },
+          { key: 'available_quantity', label: pt('Available') },
+          { key: 'average_cost', label: pt('Avg Cost') },
+          { key: 'stock_value', label: pt('Stock Value') },
         ]" />
     </div>
 
     <DataTable :value="rows" :loading="loading" lazy paginator :rows="perPage" :totalRecords="total"
       :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column header="Product">
+      <Column :header="pt('Product')">
         <template #body="{ data }"><strong>{{ data.product?.name }}</strong><br /><small style="color: #6b7280">{{ data.product?.sku }}</small></template>
       </Column>
-      <Column header="Warehouse"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
-      <Column header="On Hand">
+      <Column :header="pt('Warehouse')"><template #body="{ data }">{{ data.warehouse?.name }}</template></Column>
+      <Column :header="pt('On Hand')">
         <template #body="{ data }">
           {{ data.quantity }}
-          <Tag v-if="data.is_low" severity="danger" value="LOW" style="margin-left: 6px" />
+          <Tag v-if="data.is_low" severity="danger" :value="pt('LOW')" style="margin-left: 6px" />
         </template>
       </Column>
-      <Column header="Available"><template #body="{ data }">{{ data.available_quantity }}</template></Column>
-      <Column header="Avg Cost"><template #body="{ data }">{{ money(data.average_cost) }}</template></Column>
-      <Column header="Stock Value"><template #body="{ data }">{{ money(data.stock_value) }}</template></Column>
-      <template #empty>No stock records.</template>
+      <Column :header="pt('Available')"><template #body="{ data }">{{ data.available_quantity }}</template></Column>
+      <Column :header="pt('Avg Cost')"><template #body="{ data }">{{ money(data.average_cost) }}</template></Column>
+      <Column :header="pt('Stock Value')"><template #body="{ data }">{{ money(data.stock_value) }}</template></Column>
+      <template #empty>{{ pt('No stock records.') }}</template>
     </DataTable>
   </div>
 </template>

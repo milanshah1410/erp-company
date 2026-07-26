@@ -6,13 +6,20 @@ import Aura from '@primevue/themes/aura'
 import ToastService from 'primevue/toastservice'
 import 'primeicons/primeicons.css'
 import './style.css'
+// Shared listing-screen design (page head / toolbar card / table card / cell
+// atoms). Loaded after style.css so every module's list view inherits it.
+import './styles/list-design.css'
 
 import App from './App.vue'
 import router from './router'
 import { initTheme } from './composables/useTheme'
+import i18n, { getStoredLocale } from './i18n'
 
 // Apply the saved light/dark preference before mount to avoid a flash.
 initTheme()
+
+// Reflect the saved UI language (en/hi/gu) on the document element.
+document.documentElement.setAttribute('lang', getStoredLocale())
 
 // "Warehouse Ledger" theme — safety-amber (#E8A33D) as the primary accent,
 // ink-blue as the secondary/highlight tone.
@@ -54,6 +61,7 @@ const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
+app.use(i18n)
 app.use(PrimeVue, {
   theme: {
     preset: WarehouseLedgerPreset,

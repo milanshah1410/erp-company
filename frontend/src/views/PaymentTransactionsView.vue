@@ -14,6 +14,7 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 /**
  * Payment links / online-collection transactions (SRS §16): staff generate a
@@ -160,10 +161,11 @@ onMounted(reload)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Payment Links</h1>
-      <Button v-if="canCreate" label="New Payment Link" icon="pi pi-link" @click="openNew" />
-    </div>
+    <PageHeader title="Payment Links">
+      <template #actions>
+        <Button v-if="canCreate" label="New Payment Link" icon="pi pi-link" @click="openNew" />
+      </template>
+    </PageHeader>
 
     <p class="hint">
       <i class="pi pi-info-circle" />

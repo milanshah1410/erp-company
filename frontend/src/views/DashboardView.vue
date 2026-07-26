@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Chart from 'primevue/chart'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
@@ -26,21 +27,22 @@ interface Kpis {
 
 interface WidgetState { key: string; visible: boolean }
 
-// Widget metadata: title + which layout column type it occupies. Stat tiles sit
-// in the top grid; panels take a full-width row.
-const WIDGET_META: Record<string, { title: string; kind: 'stat' | 'panel' }> = {
-  today_sales: { title: "Today's Sales", kind: 'stat' },
-  purchase_summary: { title: 'Purchases (this month)', kind: 'stat' },
-  pending_orders: { title: 'Pending Orders', kind: 'stat' },
-  profit_loss: { title: 'Gross Profit', kind: 'stat' },
-  low_stock: { title: 'Low Stock Alert', kind: 'stat' },
-  out_of_stock: { title: 'Out of Stock', kind: 'stat' },
-  total_stock_value: { title: 'Stock Value', kind: 'stat' },
-  products_count: { title: 'Products', kind: 'stat' },
-  top_products: { title: 'Top Selling Products', kind: 'panel' },
-  recent_activities: { title: 'Recent Activities', kind: 'panel' },
+// Widget metadata: i18n title key + which layout column type it occupies.
+// Stat tiles sit in the top grid; panels take a full-width row.
+const WIDGET_META: Record<string, { titleKey: string; kind: 'stat' | 'panel' }> = {
+  today_sales: { titleKey: 'dashboard.todaySales', kind: 'stat' },
+  purchase_summary: { titleKey: 'dashboard.purchasesMonth', kind: 'stat' },
+  pending_orders: { titleKey: 'dashboard.pendingOrders', kind: 'stat' },
+  profit_loss: { titleKey: 'dashboard.grossProfit', kind: 'stat' },
+  low_stock: { titleKey: 'dashboard.lowStock', kind: 'stat' },
+  out_of_stock: { titleKey: 'dashboard.outOfStock', kind: 'stat' },
+  total_stock_value: { titleKey: 'dashboard.stockValue', kind: 'stat' },
+  products_count: { titleKey: 'dashboard.products', kind: 'stat' },
+  top_products: { titleKey: 'dashboard.topProducts', kind: 'panel' },
+  recent_activities: { titleKey: 'dashboard.recentActivities', kind: 'panel' },
 }
 
+const { t } = useI18n()
 const toast = useToast()
 const kpis = ref<Kpis>({
   today_sales: { total: 0, count: 0 },
@@ -76,7 +78,7 @@ function timeAgo(iso: string | null) {
   if (!iso) return ''
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
+  if (mins < 1) return t('dashboard.justNow')
   if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
@@ -179,9 +181,9 @@ async function saveLayout() {
     const { data } = await http.put('/dashboard/layout', { widgets: layout.value })
     layout.value = data.widgets
     editing.value = false
-    toast.add({ severity: 'success', summary: 'Dashboard saved', life: 2500 })
+    toast.add({ severity: 'success', summary: t('dashboard.saved'), life: 2500 })
   } catch {
-    toast.add({ severity: 'error', summary: 'Could not save layout', life: 3500 })
+    toast.add({ severity: 'error', summary: t('dashboard.saveFailed'), life: 3500 })
   } finally {
     saving.value = false
   }
@@ -192,17 +194,17 @@ async function saveLayout() {
   <div class="dashboard">
     <div class="dash-head">
       <div>
-        <h1>Dashboard</h1>
-        <p class="subtitle">Overview of your business</p>
+        <h1>{{ t('dashboard.title') }}</h1>
+        <p class="subtitle">{{ t('dashboard.subtitle') }}</p>
       </div>
       <div class="dash-actions">
         <button v-if="!editing" class="btn ghost" @click="editing = true">
-          <i class="pi pi-th-large" /> Customize
+          <i class="pi pi-th-large" /> {{ t('dashboard.customize') }}
         </button>
         <template v-else>
-          <button class="btn ghost" @click="editing = false">Cancel</button>
+          <button class="btn ghost" @click="editing = false">{{ t('common.cancel') }}</button>
           <button class="btn primary" :disabled="saving" @click="saveLayout">
-            <i class="pi pi-check" /> {{ saving ? 'Saving…' : 'Save layout' }}
+            <i class="pi pi-check" /> {{ saving ? t('dashboard.saving') : t('dashboard.saveLayout') }}
           </button>
         </template>
       </div>
@@ -212,7 +214,7 @@ async function saveLayout() {
 
     <!-- Edit mode: full ordered list with drag handles + visibility toggles -->
     <div v-if="editing" class="editor">
-      <p class="editor-hint"><i class="pi pi-arrows-alt" /> Drag to reorder · toggle the eye to show/hide widgets.</p>
+      <p class="editor-hint"><i class="pi pi-arrows-alt" /> {{ t('dashboard.editorHint') }}</p>
       <div
         v-for="(w, i) in layout"
         :key="w.key"
@@ -224,9 +226,9 @@ async function saveLayout() {
         @drop="onDrop(i)"
       >
         <i class="pi pi-bars handle" />
-        <span class="editor-title">{{ WIDGET_META[w.key]?.title ?? w.key }}</span>
+        <span class="editor-title">{{ WIDGET_META[w.key] ? t(WIDGET_META[w.key].titleKey) : w.key }}</span>
         <span class="editor-kind">{{ WIDGET_META[w.key]?.kind }}</span>
-        <button class="eye" :title="w.visible ? 'Hide' : 'Show'" @click="toggleVisible(w.key)">
+        <button class="eye" :title="w.visible ? t('dashboard.hide') : t('dashboard.show')" @click="toggleVisible(w.key)">
           <i :class="w.visible ? 'pi pi-eye' : 'pi pi-eye-slash'" />
         </button>
       </div>
@@ -240,8 +242,8 @@ async function saveLayout() {
             <div class="stat-icon" style="background: linear-gradient(135deg, #5fa483, #4c8b6c)"><i class="pi pi-indian-rupee" /></div>
             <div class="stat-body">
               <div class="stat-value">{{ money(kpis.today_sales.total) }}</div>
-              <div class="stat-label">Today's Sales</div>
-              <div class="stat-sub">{{ kpis.today_sales.count }} invoice(s)</div>
+              <div class="stat-label">{{ t('dashboard.todaySales') }}</div>
+              <div class="stat-sub">{{ t('dashboard.invoices', { n: kpis.today_sales.count }) }}</div>
             </div>
           </template>
           <!-- Purchase Summary -->
@@ -249,8 +251,8 @@ async function saveLayout() {
             <div class="stat-icon" style="background: linear-gradient(135deg, #3d637c, #2c4a5e)"><i class="pi pi-shopping-cart" /></div>
             <div class="stat-body">
               <div class="stat-value">{{ money(kpis.purchase_summary.month_total) }}</div>
-              <div class="stat-label">Purchases (this month)</div>
-              <div class="stat-sub">{{ kpis.purchase_summary.pending_count }} pending PO(s)</div>
+              <div class="stat-label">{{ t('dashboard.purchasesMonth') }}</div>
+              <div class="stat-sub">{{ t('dashboard.pendingPos', { n: kpis.purchase_summary.pending_count }) }}</div>
             </div>
           </template>
           <!-- Pending Orders -->
@@ -258,8 +260,8 @@ async function saveLayout() {
             <div class="stat-icon" style="background: linear-gradient(135deg, #eaad48, #c98730)"><i class="pi pi-clock" /></div>
             <div class="stat-body">
               <div class="stat-value">{{ kpis.pending_orders.total }}</div>
-              <div class="stat-label">Pending Orders</div>
-              <div class="stat-sub">{{ kpis.pending_orders.sales }} sales · {{ kpis.pending_orders.purchases }} purchase</div>
+              <div class="stat-label">{{ t('dashboard.pendingOrders') }}</div>
+              <div class="stat-sub">{{ t('dashboard.salesPurchaseSplit', { sales: kpis.pending_orders.sales, purchases: kpis.pending_orders.purchases }) }}</div>
             </div>
           </template>
           <!-- Profit & Loss -->
@@ -267,7 +269,7 @@ async function saveLayout() {
             <div class="stat-icon" style="background: linear-gradient(135deg, #4c8b6c, #2c4a5e)"><i class="pi pi-chart-line" /></div>
             <div class="stat-body">
               <div class="stat-value" :class="{ negative: kpis.profit_loss.gross_profit < 0 }">{{ money(kpis.profit_loss.gross_profit) }}</div>
-              <div class="stat-label">Gross Profit ({{ kpis.profit_loss.period }})</div>
+              <div class="stat-label">{{ t('dashboard.grossProfit') }} ({{ kpis.profit_loss.period }})</div>
               <div class="stat-sub">Rev {{ money(kpis.profit_loss.revenue) }} · COGS {{ money(kpis.profit_loss.cogs) }}</div>
             </div>
           </template>
@@ -276,8 +278,8 @@ async function saveLayout() {
             <div class="stat-icon" style="background: linear-gradient(135deg, #d66a45, #c1502e)"><i class="pi pi-exclamation-triangle" /></div>
             <div class="stat-body">
               <div class="stat-value">{{ kpis.low_stock_count }}</div>
-              <div class="stat-label">Low Stock Alert</div>
-              <div class="stat-sub">at/below reorder level</div>
+              <div class="stat-label">{{ t('dashboard.lowStock') }}</div>
+              <div class="stat-sub">{{ t('dashboard.atBelowReorder') }}</div>
             </div>
           </template>
           <!-- Out of Stock -->
@@ -285,8 +287,8 @@ async function saveLayout() {
             <div class="stat-icon" style="background: linear-gradient(135deg, #b3402b, #8f2f1f)"><i class="pi pi-times-circle" /></div>
             <div class="stat-body">
               <div class="stat-value">{{ kpis.out_of_stock_count }}</div>
-              <div class="stat-label">Out of Stock</div>
-              <div class="stat-sub">products with no stock</div>
+              <div class="stat-label">{{ t('dashboard.outOfStock') }}</div>
+              <div class="stat-sub">{{ t('dashboard.noStockProducts') }}</div>
             </div>
           </template>
           <!-- Total Stock Value -->
@@ -294,8 +296,8 @@ async function saveLayout() {
             <div class="stat-icon" style="background: linear-gradient(135deg, #6b7280, #374151)"><i class="pi pi-database" /></div>
             <div class="stat-body">
               <div class="stat-value">{{ money(kpis.total_stock_value) }}</div>
-              <div class="stat-label">Stock Value</div>
-              <div class="stat-sub">on-hand valuation</div>
+              <div class="stat-label">{{ t('dashboard.stockValue') }}</div>
+              <div class="stat-sub">{{ t('dashboard.onHandValuation') }}</div>
             </div>
           </template>
           <!-- Products Count -->
@@ -303,8 +305,8 @@ async function saveLayout() {
             <div class="stat-icon" style="background: linear-gradient(135deg, #8a5cf6, #6d28d9)"><i class="pi pi-box" /></div>
             <div class="stat-body">
               <div class="stat-value">{{ kpis.products_count }}</div>
-              <div class="stat-label">Products</div>
-              <div class="stat-sub">active catalogue</div>
+              <div class="stat-label">{{ t('dashboard.products') }}</div>
+              <div class="stat-sub">{{ t('dashboard.activeCatalogue') }}</div>
             </div>
           </template>
         </div>
@@ -314,9 +316,9 @@ async function saveLayout() {
       <div class="trend-card">
         <div class="trend-head">
           <div>
-            <h2>Sales Trend <small>last 14 days</small></h2>
+            <h2>{{ t('dashboard.salesTrend') }} <small>{{ t('dashboard.last14Days') }}</small></h2>
             <div class="trend-total">{{ money(trendTotal) }}</div>
-            <div class="trend-sub">{{ trendCount }} invoice(s) · today {{ money(kpis.today_sales.total) }}</div>
+            <div class="trend-sub">{{ t('dashboard.invoices', { n: trendCount }) }} · {{ t('dashboard.today') }} {{ money(kpis.today_sales.total) }}</div>
           </div>
           <div class="trend-badge"><i class="pi pi-chart-line" /></div>
         </div>
@@ -329,9 +331,9 @@ async function saveLayout() {
         <div v-for="w in visiblePanels" :key="w.key" class="panel">
           <!-- Top Selling Products -->
           <template v-if="w.key === 'top_products'">
-            <h2>Top Selling Products <small>(last 30 days)</small></h2>
+            <h2>{{ t('dashboard.topProducts') }} <small>{{ t('dashboard.last30Days') }}</small></h2>
             <table class="mini-table" v-if="kpis.top_products.length">
-              <thead><tr><th>SKU</th><th>Name</th><th class="num">Qty Sold</th></tr></thead>
+              <thead><tr><th>{{ t('dashboard.sku') }}</th><th>{{ t('common.name') }}</th><th class="num">{{ t('dashboard.qtySold') }}</th></tr></thead>
               <tbody>
                 <tr v-for="s in kpis.top_products" :key="s.sku">
                   <td>{{ s.sku }}</td>
@@ -340,12 +342,12 @@ async function saveLayout() {
                 </tr>
               </tbody>
             </table>
-            <p v-else class="empty">No sales activity in the last 30 days.</p>
+            <p v-else class="empty">{{ t('dashboard.noSales30') }}</p>
             <Chart v-if="kpis.top_products.length" type="bar" :data="chartData" :options="chartOptions" class="chart" />
           </template>
           <!-- Recent Activities -->
           <template v-else-if="w.key === 'recent_activities'">
-            <h2>Recent Activities</h2>
+            <h2>{{ t('dashboard.recentActivities') }}</h2>
             <ul class="activity" v-if="kpis.recent_activities.length">
               <li v-for="(a, i) in kpis.recent_activities" :key="i">
                 <span class="dot" />
@@ -358,7 +360,7 @@ async function saveLayout() {
                 <span class="act-time">{{ timeAgo(a.at) }}</span>
               </li>
             </ul>
-            <p v-else class="empty">No recent activity yet.</p>
+            <p v-else class="empty">{{ t('dashboard.noActivity') }}</p>
           </template>
         </div>
       </div>

@@ -13,11 +13,14 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import { formatCurrency } from '../utils/currency'
+import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
+const pt = usePt()
 
 const detailVisible = ref(false)
 const detailRecord = ref<any>(null)
@@ -27,12 +30,12 @@ const canCreate = computed(() => auth.can('price-lists.create'))
 const canEdit = computed(() => auth.can('price-lists.edit'))
 const canDelete = computed(() => auth.can('price-lists.delete'))
 
-const levelOptions = [
-  { label: 'MRP', value: 'mrp' },
-  { label: 'Wholesale', value: 'wholesale' },
-  { label: 'Retail', value: 'retail' },
-  { label: 'Discount', value: 'discount' },
-]
+const levelOptions = computed(() => [
+  { label: pt('MRP'), value: 'mrp' },
+  { label: pt('Wholesale'), value: 'wholesale' },
+  { label: pt('Retail'), value: 'retail' },
+  { label: pt('Discount'), value: 'discount' },
+])
 
 const levelColors: Record<string, string> = {
   mrp: 'info',
@@ -170,10 +173,10 @@ async function save() {
   try {
     if (editing.value) {
       await crud.value.update(editing.value.id, form.value)
-      toast.add({ severity: 'success', summary: 'Price updated', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Price updated'), life: 2500 })
     } else {
       await crud.value.create(form.value)
-      toast.add({ severity: 'success', summary: 'Price created', life: 2500 })
+      toast.add({ severity: 'success', summary: pt('Price created'), life: 2500 })
     }
     dialogVisible.value = false
     reload()
@@ -181,7 +184,7 @@ async function save() {
     if (e.response?.status === 422) {
       errors.value = e.response.data.errors || {}
     } else {
-      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Request failed', life: 4000 })
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
     }
   } finally {
     saving.value = false
@@ -190,20 +193,21 @@ async function save() {
 
 async function confirmDelete(row: any) {
   const res = await Swal.fire({
-    title: 'Delete this price entry?',
-    text: 'This action cannot be undone.',
+    title: pt('Delete this price entry?'),
+    text: pt('This action cannot be undone.'),
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#dc2626',
-    confirmButtonText: 'Delete',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
   })
   if (!res.isConfirmed) return
   try {
     await crud.value.remove(row.id)
-    toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
+    toast.add({ severity: 'success', summary: pt('Deleted'), life: 2500 })
     reload()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Delete failed', life: 4000 })
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
   }
 }
 
@@ -219,10 +223,11 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Price Lists</h1>
-      <Button v-if="canCreate" label="New Price" icon="pi pi-plus" @click="openCreate" />
-    </div>
+    <PageHeader :title="pt('Price Lists')">
+      <template #actions>
+        <Button v-if="canCreate" :label="pt('New Price')" icon="pi pi-plus" @click="openCreate" />
+      </template>
+    </PageHeader>
 
     <div class="toolbar">
       <Select
@@ -230,7 +235,7 @@ onMounted(() => {
         :options="products"
         optionLabel="label"
         optionValue="value"
-        placeholder="All Products"
+        :placeholder="pt('All Products')"
         filter
         showClear
         class="filter"
@@ -241,19 +246,19 @@ onMounted(() => {
         :options="levelOptions"
         optionLabel="label"
         optionValue="value"
-        placeholder="All Levels"
+        :placeholder="pt('All Levels')"
         showClear
         class="filter"
         @change="onFilterChange"
       />
       <span class="toolbar-spacer" />
-      <TableExportButtons title="Price Lists" endpoint="/price-lists"
+      <TableExportButtons :title="pt('Price Lists')" endpoint="/price-lists"
         :params="() => ({ product_id: filterProduct || undefined, level: filterLevel || undefined })"
         :columns="[
-          { key: 'product.name', label: 'Product' },
-          { key: 'level', label: 'Level' },
-          { key: 'price', label: 'Price' },
-          { key: 'min_quantity', label: 'Min Qty' },
+          { key: 'product.name', label: pt('Product') },
+          { key: 'level', label: pt('Level') },
+          { key: 'price', label: pt('Price') },
+          { key: 'min_quantity', label: pt('Min Qty') },
         ]" />
     </div>
 
@@ -273,43 +278,43 @@ onMounted(() => {
       @sort="onSort"
       class="p-datatable-sm"
     >
-      <Column header="Product">
+      <Column :header="pt('Product')">
         <template #body="{ data }">
           <span>{{ data.product?.name }}</span>
           <span v-if="data.variant" class="muted-sub">{{ data.variant.sku }}<template v-if="data.variant.name"> — {{ data.variant.name }}</template></span>
         </template>
       </Column>
-      <Column field="level" header="Level" sortable>
+      <Column field="level" :header="pt('Level')" sortable>
         <template #body="{ data }">
           <Tag :severity="levelColors[data.level]" :value="String(data.level).toUpperCase()" />
         </template>
       </Column>
-      <Column field="price" header="Price" sortable>
+      <Column field="price" :header="pt('Price')" sortable>
         <template #body="{ data }">{{ money(data.price) }}</template>
       </Column>
-      <Column field="min_quantity" header="Min Qty" sortable>
+      <Column field="min_quantity" :header="pt('Min Qty')" sortable>
         <template #body="{ data }">{{ Number(data.min_quantity ?? 1) }}</template>
       </Column>
-      <Column header="Actions" style="width: 8rem">
+      <Column :header="pt('Actions')" style="width: 8rem">
         <template #body="{ data }">
-          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
-          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" title="Edit" @click="openEdit(data)" />
-          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" title="Delete" @click="confirmDelete(data)" />
+          <Button icon="pi pi-eye" text rounded size="small" severity="secondary" :title="pt('View')" @click="openDetail(data)" />
+          <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" :title="pt('Edit')" @click="openEdit(data)" />
+          <Button v-if="canDelete" icon="pi pi-trash" text rounded severity="danger" size="small" :title="pt('Delete')" @click="confirmDelete(data)" />
         </template>
       </Column>
-      <template #empty>No price entries found.</template>
+      <template #empty>{{ pt('No price entries found.') }}</template>
     </DataTable>
 
-    <Dialog v-model:visible="dialogVisible" modal :header="editing ? 'Edit Price' : 'New Price'" :style="{ width: '540px' }">
+    <Dialog v-model:visible="dialogVisible" modal :header="editing ? pt('Edit Price') : pt('New Price')" :style="{ width: '540px' }">
       <div class="form-grid">
         <div class="fld full">
-          <label>Product <span class="req">*</span></label>
+          <label>{{ pt('Product') }} <span class="req">*</span></label>
           <Select
             v-model="form.product_id"
             :options="products"
             optionLabel="label"
             optionValue="value"
-            placeholder="Select Product"
+            :placeholder="pt('Select Product')"
             filter
             :class="{ invalid: fieldError('product_id') }"
           />
@@ -317,13 +322,13 @@ onMounted(() => {
         </div>
 
         <div class="fld full">
-          <label>Variant</label>
+          <label>{{ pt('Variant') }}</label>
           <Select
             v-model="form.variant_id"
             :options="variants"
             optionLabel="label"
             optionValue="value"
-            :placeholder="variants.length ? 'Whole product (no variant)' : 'No variants for this product'"
+            :placeholder="variants.length ? pt('Whole product (no variant)') : pt('No variants for this product')"
             :loading="variantsLoading"
             :disabled="!variants.length"
             showClear
@@ -333,7 +338,7 @@ onMounted(() => {
         </div>
 
         <div class="fld">
-          <label>Level <span class="req">*</span></label>
+          <label>{{ pt('Level') }} <span class="req">*</span></label>
           <Select
             v-model="form.level"
             :options="levelOptions"
@@ -345,31 +350,31 @@ onMounted(() => {
         </div>
 
         <div class="fld">
-          <label>Price <span class="req">*</span></label>
+          <label>{{ pt('Price') }} <span class="req">*</span></label>
           <InputNumber v-model="form.price" :minFractionDigits="2" :maxFractionDigits="2" :min="0" :class="{ invalid: fieldError('price') }" />
           <small v-if="fieldError('price')" class="error-text">{{ fieldError('price') }}</small>
         </div>
 
         <div class="fld">
-          <label>Min Quantity</label>
+          <label>{{ pt('Min Quantity') }}</label>
           <InputNumber v-model="form.min_quantity" :minFractionDigits="0" :maxFractionDigits="3" :min="0" :class="{ invalid: fieldError('min_quantity') }" />
           <small v-if="fieldError('min_quantity')" class="error-text">{{ fieldError('min_quantity') }}</small>
         </div>
       </div>
 
       <template #footer>
-        <Button label="Cancel" text @click="dialogVisible = false" />
-        <Button :label="editing ? 'Update' : 'Create'" :loading="saving" @click="save" />
+        <Button :label="pt('Cancel')" text @click="dialogVisible = false" />
+        <Button :label="editing ? pt('Update') : pt('Create')" :loading="saving" @click="save" />
       </template>
     </Dialog>
 
-    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" title="Price Details" :fields="[
-      { key: 'product.name', label: 'Product' },
-      { key: 'variant.sku', label: 'Variant SKU' },
-      { key: 'variant.name', label: 'Variant' },
-      { key: 'level', label: 'Level' },
-      { key: 'price', label: 'Price', format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
-      { key: 'min_quantity', label: 'Min Qty' },
+    <DetailDialog v-model:visible="detailVisible" :record="detailRecord" :title="pt('Price Details')" :fields="[
+      { key: 'product.name', label: pt('Product') },
+      { key: 'variant.sku', label: pt('Variant SKU') },
+      { key: 'variant.name', label: pt('Variant') },
+      { key: 'level', label: pt('Level') },
+      { key: 'price', label: pt('Price'), format: (v) => v == null || v === '' ? '—' : '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 }) },
+      { key: 'min_quantity', label: pt('Min Qty') },
     ]" />
   </div>
 </template>

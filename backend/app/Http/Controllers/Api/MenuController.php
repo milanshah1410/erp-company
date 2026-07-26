@@ -8,9 +8,9 @@ use App\Http\Controllers\Controller;
 use App\Models\MenuFavorite;
 use App\Models\MenuItem;
 use App\Models\MenuRecent;
-use App\Models\Setting;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Support\EnabledModules;
 use App\Support\TenantCache;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +38,7 @@ class MenuController extends Controller
         $tenantId = app(TenantContext::class)->id();
         $user = $request->user();
         $planFeatures = $this->planFeatures($tenantId);
-        $enabledModules = $this->enabledModules();
+        $enabledModules = $this->enabledModules($tenantId);
 
         // Each tenant owns a cloned copy of the navigation catalogue (stamped
         // with its tenant_id at provisioning time), so it can be customised per
@@ -199,22 +199,15 @@ class MenuController extends Controller
     }
 
     /**
-     * The tenant's chosen module set (onboarding wizard). Returns null when the
-     * `enabled_modules` setting is absent or empty so module gating is a no-op
-     * for existing tenants and any tenant that skipped module selection.
+     * The tenant's effective module set (onboarding selection ∩ plan allowance).
+     * Shared with RoleController via App\Support\EnabledModules so the nav and
+     * the permission matrix always agree on what is switched on.
      *
      * @return array<int, string>|null
      */
-    private function enabledModules(): ?array
+    private function enabledModules(?int $tenantId): ?array
     {
-        $raw = Setting::where('key', 'enabled_modules')->value('value');
-        if (empty($raw)) {
-            return null;
-        }
-
-        $modules = is_array($raw) ? $raw : json_decode((string) $raw, true);
-
-        return is_array($modules) && $modules !== [] ? array_values($modules) : null;
+        return EnabledModules::forTenant($tenantId);
     }
 
     /**

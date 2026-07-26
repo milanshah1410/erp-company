@@ -15,6 +15,7 @@ import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -163,34 +164,35 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>Gate Entries</h1>
-      <div class="header-actions">
+    <PageHeader title="Gate Entries" :count="crud.total.value">
+      <template #actions>
+        <div class="header-actions">
         <span class="search-box">
-          <i class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
+        <i class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search..." @keyup.enter="reload" />
         </span>
         <Button label="Search" outlined @click="reload" />
         <Select v-model="directionFilter" :options="directionOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All directions" @change="reload" class="status-filter" />
+        placeholder="All directions" @change="reload" class="status-filter" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
-          placeholder="All statuses" @change="reload" class="status-filter" />
+        placeholder="All statuses" @change="reload" class="status-filter" />
         <Select v-model="warehouseFilter" :options="warehouses" optionLabel="name" optionValue="id" showClear
-          placeholder="All warehouses" @change="reload" class="status-filter" />
+        placeholder="All warehouses" @change="reload" class="status-filter" />
         <TableExportButtons title="Gate Entries" endpoint="/gate-entries"
-          :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}), ...(directionFilter ? { direction: directionFilter } : {}), ...(warehouseFilter ? { warehouse_id: warehouseFilter } : {}) })"
-          :columns="[
-            { key: 'entry_number', label: 'Entry #' },
-            { key: 'warehouse.name', label: 'Warehouse' },
-            { key: 'direction', label: 'Direction' },
-            { key: 'vehicle_number', label: 'Vehicle #' },
-            { key: 'driver_name', label: 'Driver' },
-            { key: 'reference_number', label: 'Reference' },
-            { key: 'status', label: 'Status' },
-          ]" />
+        :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}), ...(directionFilter ? { direction: directionFilter } : {}), ...(warehouseFilter ? { warehouse_id: warehouseFilter } : {}) })"
+        :columns="[
+        { key: 'entry_number', label: 'Entry #' },
+        { key: 'warehouse.name', label: 'Warehouse' },
+        { key: 'direction', label: 'Direction' },
+        { key: 'vehicle_number', label: 'Vehicle #' },
+        { key: 'driver_name', label: 'Driver' },
+        { key: 'reference_number', label: 'Reference' },
+        { key: 'status', label: 'Status' },
+        ]" />
         <Button v-if="canCreate" label="New Gate Entry" icon="pi pi-plus" @click="openCreate" />
-      </div>
-    </div>
+        </div>
+      </template>
+    </PageHeader>
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">

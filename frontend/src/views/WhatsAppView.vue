@@ -14,6 +14,7 @@ import http from '../api/http'
 import { useCrud } from '../composables/useCrud'
 import { useAuthStore } from '../stores/auth'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -147,10 +148,11 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="header">
-      <h1>WhatsApp</h1>
-      <Button v-if="canCreate" label="New Message" icon="pi pi-whatsapp" @click="openCompose" />
-    </div>
+    <PageHeader title="WhatsApp">
+      <template #actions>
+        <Button v-if="canCreate" label="New Message" icon="pi pi-whatsapp" @click="openCompose" />
+      </template>
+    </PageHeader>
 
     <p class="hint">
       <i class="pi pi-info-circle" />

@@ -23,6 +23,7 @@ import BrokerRatesPanel from '../components/broker/BrokerRatesPanel.vue'
 import BrokerWalletPanel from '../components/broker/BrokerWalletPanel.vue'
 import BrokerMonthlyStatement from '../components/broker/BrokerMonthlyStatement.vue'
 import TableExportButtons from '../components/TableExportButtons.vue'
+import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -142,9 +143,7 @@ onMounted(loadBrokers)
 
 <template>
   <div>
-    <div class="header">
-      <h1>Brokers (Dalal)</h1>
-    </div>
+    <PageHeader title="Brokers (Dalal)" />
 
     <div class="toolbar">
       <Select v-model="brokerId" :options="brokers" optionLabel="label" optionValue="value"

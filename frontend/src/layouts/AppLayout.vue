@@ -3,9 +3,12 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useMenuStore, type MenuNode } from '../stores/menu'
 import { useTheme } from '../composables/useTheme'
+import { SUPPORTED_LOCALES, setLocale, type AppLocale } from '../i18n'
+import { useMenuLabel } from '../i18n/menuLabels'
 import http from '../api/http'
 import NotificationBell from '../components/NotificationBell.vue'
 import GlobalSearch from '../components/GlobalSearch.vue'
@@ -26,6 +29,25 @@ const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
 const { isDark, toggle: toggleTheme } = useTheme()
+
+// Initials stand in for a missing profile photo in the top bar.
+const userInitials = computed(() =>
+  (auth.user?.name || '?')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join(''),
+)
+
+// --- UI language (en / hi / gu) ---
+const { t, locale } = useI18n()
+const tMenu = useMenuLabel()
+const localeOptions = SUPPORTED_LOCALES
+const currentLocale = ref<AppLocale>(locale.value as AppLocale)
+function onLocaleChange(code: AppLocale) {
+  setLocale(code)
+}
 
 // --- Company / branch context switcher ---
 const switchingCompany = ref<number | null>(auth.user?.current_company?.id ?? null)
@@ -54,7 +76,7 @@ async function applyContext(companyId: number, branchId: number | null) {
     // context switch changes the cache key and reloads the correct menu.
     await menuStore.fetchMenu()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Could not switch context', detail: e.response?.data?.message || 'Unexpected error', life: 4000 })
+    toast.add({ severity: 'error', summary: t('layout.couldNotSwitch'), detail: e.response?.data?.message || t('layout.unexpectedError'), life: 4000 })
   }
 }
 
@@ -233,7 +255,7 @@ async function logout() {
           :options="auth.user.companies"
           optionLabel="name"
           optionValue="id"
-          placeholder="Company"
+          :placeholder="t('layout.company')"
           class="context-select"
           @update:modelValue="onCompanyChange"
         />
@@ -243,26 +265,42 @@ async function logout() {
           :options="branchOptionsForCompany"
           optionLabel="name"
           optionValue="id"
-          placeholder="Branch"
+          :placeholder="t('layout.branch')"
           showClear
           class="context-select"
           @update:modelValue="onBranchChange"
         />
       </div>
+      <div class="lang-switcher" :title="t('common.language')">
+        <i class="pi pi-globe" />
+        <Select
+          v-model="currentLocale"
+          :options="localeOptions"
+          optionLabel="label"
+          optionValue="code"
+          class="lang-select"
+          @update:modelValue="onLocaleChange"
+        />
+      </div>
       <button
         class="theme-toggle"
-        :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+        :title="isDark ? t('layout.switchToLight') : t('layout.switchToDark')"
         @click="toggleTheme"
       >
         <i :class="isDark ? 'pi pi-sun' : 'pi pi-moon'" />
       </button>
       <NotificationBell />
       <div class="user">
-        <div class="user-info">
-          <span class="user-name">{{ auth.user?.name }}</span>
-          <span class="user-role">{{ auth.user?.roles?.[0] }}</span>
-        </div>
-        <button class="logout" @click="logout" title="Logout"><i class="pi pi-sign-out" /></button>
+        <!-- Avatar + name open the profile screen (name/phone/photo/password). -->
+        <RouterLink to="/profile" class="user-link" :title="t('layout.profile')">
+          <img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" alt="" class="user-avatar" />
+          <span v-else class="user-avatar user-avatar-fallback">{{ userInitials }}</span>
+          <span class="user-info">
+            <span class="user-name">{{ auth.user?.name }}</span>
+            <span class="user-role">{{ auth.user?.roles?.[0] }}</span>
+          </span>
+        </RouterLink>
+        <button class="logout" @click="logout" :title="t('layout.logout')"><i class="pi pi-sign-out" /></button>
       </div>
     </header>
 
@@ -275,7 +313,7 @@ async function logout() {
             v-if="!isGroup(entry)"
             :to="entry.to!"
             class="topnav-item icon-only"
-            :title="entry.label"
+            :title="tMenu(entry.label)"
             @click="onNavLinkClick"
           >
             <i :class="entry.icon" />
@@ -285,7 +323,7 @@ async function logout() {
             v-else
             class="topnav-item icon-only"
             :class="{ active: isGroupActive(entry), open: openGroup === entry.label }"
-            :title="entry.label"
+            :title="tMenu(entry.label)"
             @mouseenter="openGroupHover($event, entry.label)"
             @mouseleave="scheduleClose"
             @click="toggleGroup($event, entry.label)"
@@ -300,7 +338,7 @@ async function logout() {
         <template v-for="entry in scrollNav" :key="entry.label">
           <RouterLink v-if="!isGroup(entry)" :to="entry.to!" class="topnav-item" @click="onNavLinkClick">
             <i :class="entry.icon" />
-            <span>{{ entry.label }}</span>
+            <span>{{ tMenu(entry.label) }}</span>
           </RouterLink>
 
           <button
@@ -312,7 +350,7 @@ async function logout() {
             @click="toggleGroup($event, entry.label)"
           >
             <i :class="entry.icon" />
-            <span>{{ entry.label }}</span>
+            <span>{{ tMenu(entry.label) }}</span>
             <i class="pi pi-chevron-down chev" />
           </button>
         </template>
@@ -329,7 +367,7 @@ async function logout() {
         @mouseenter="cancelClose"
         @mouseleave="scheduleClose"
       >
-        <div class="flyout-title">{{ openGroup }}</div>
+        <div class="flyout-title">{{ tMenu(openGroup) }}</div>
         <NavFlyoutNode
           v-for="child in openChildren"
           :key="child.id ?? child.to ?? child.label"
@@ -348,12 +386,12 @@ async function logout() {
       >
         <i :class="subscription.status === 'suspended' ? 'pi pi-lock' : 'pi pi-clock'" />
         <span v-if="subscription.status === 'suspended'">
-          Your subscription has lapsed — the workspace is read-only until you choose a plan.
+          {{ t('layout.suspendedBanner') }}
         </span>
         <span v-else>
-          You’re on a free trial · <strong>{{ subscription.trial_days_left }} day(s) left</strong>.
+          {{ t('layout.trialBanner') }} · <strong>{{ t('layout.daysLeft', { n: subscription.trial_days_left }) }}</strong>
         </span>
-        <RouterLink to="/billing" class="banner-cta">Choose a plan →</RouterLink>
+        <RouterLink to="/billing" class="banner-cta">{{ t('layout.choosePlan') }}</RouterLink>
       </div>
 
       <main class="content">
@@ -418,10 +456,38 @@ async function logout() {
   align-items: center;
   gap: 0.75rem;
 }
+.user-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.25rem 0.4rem 0.25rem 0.25rem;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.user-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.user-avatar-fallback {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #23292f;
+  background: linear-gradient(135deg, var(--safety-amber-light, #f2c274), var(--safety-amber, #e8a33d));
+}
 .user-info {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   line-height: 1.2;
 }
 .user-name {
@@ -447,6 +513,24 @@ async function logout() {
 .logout:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
+}
+.lang-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: 0.75rem;
+}
+.lang-switcher > i {
+  color: #a9b2bc;
+  font-size: 1rem;
+}
+.lang-select {
+  width: 7.5rem;
+}
+.lang-select :deep(.p-select-label) {
+  font-size: 0.85rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
 }
 .theme-toggle {
   background: none;
