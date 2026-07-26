@@ -26,6 +26,7 @@ const tabs = computed(() =>
     { key: 'backups', label: 'Backups', icon: 'pi pi-database', visible: auth.can('ops-backups.view') },
     { key: 'logs', label: 'Logs', icon: 'pi pi-file', visible: auth.can('ops-logs.view') },
     { key: 'flags', label: 'Feature Flags', icon: 'pi pi-flag', visible: auth.can('feature-flags.view') },
+    { key: 'tools', label: 'Tenant Tools', icon: 'pi pi-wrench', visible: auth.can('ops-tools.view') },
   ].filter((t) => t.visible),
 )
 const activeTab = ref('')
@@ -369,6 +370,126 @@ async function deleteFlag(row: any) {
   }
 }
 
+// ---- Tenant Tools -------------------------------------------------------------
+// Performance diagnostics (§17) and the Demo Data generator (§7) used to live on
+// the tenant's own System Tools screen; they are operator tools, so they run here
+// against a chosen tenant. The tenant keeps Import Data only.
+const canRunTools = computed(() => auth.can('ops-tools.manage'))
+
+const toolTenants = ref<any[]>([])
+const toolTenantId = ref<number | null>(null)
+const toolTenant = computed(() => toolTenants.value.find((t) => t.id === toolTenantId.value) ?? null)
+
+const perf = ref<any>(null)
+const perfLoading = ref(false)
+
+const demoModules = ref<{ key: string; label: string }[]>([])
+const demoCounts = ref<number[]>([10, 20, 50])
+const demoBulkCounts = ref<number[]>([])
+const demoCount = ref(10)
+const demoBulk = ref<number | null>(null)
+const demoSelected = ref<string[]>([])
+const demoRunning = ref(false)
+const demoSearch = ref('')
+
+const demoIsBulk = computed(() => demoBulkCounts.value.includes(demoCount.value))
+const demoBulkOptions = computed(() =>
+  demoBulkCounts.value.map((v) => ({
+    label: `${v >= 1_000_000 ? v / 1_000_000 + 'M' : v / 1_000 + 'K'} (${v.toLocaleString()})`,
+    value: v,
+  })),
+)
+const demoVisibleModules = computed(() => {
+  const q = demoSearch.value.trim().toLowerCase()
+  return q ? demoModules.value.filter((m) => m.label.toLowerCase().includes(q)) : demoModules.value
+})
+
+function pickDemoCount(c: number) {
+  demoCount.value = c
+  demoBulk.value = null
+}
+
+watch(demoBulk, (v) => {
+  demoCount.value = v ?? demoCounts.value[0] ?? 10
+})
+
+function toggleDemoModule(key: string) {
+  const i = demoSelected.value.indexOf(key)
+  if (i >= 0) demoSelected.value.splice(i, 1)
+  else demoSelected.value.push(key)
+}
+
+async function loadTools() {
+  try {
+    const [tenantRes, optRes] = await Promise.all([
+      centralHttp.get('/tenants', { params: { per_page: 200 } }),
+      centralHttp.get('/ops/demo-data/options'),
+    ])
+    toolTenants.value = tenantRes.data.data ?? tenantRes.data
+    toolTenantId.value = toolTenants.value[0]?.id ?? null
+    demoModules.value = optRes.data.modules ?? []
+    demoCounts.value = optRes.data.counts ?? [10, 20, 50]
+    demoBulkCounts.value = optRes.data.bulk_counts ?? []
+    demoCount.value = demoCounts.value[0] ?? 10
+    if (toolTenantId.value) await loadPerformance()
+  } catch (e: any) {
+    apiError(e, 'Could not load tenant tools')
+  }
+}
+
+async function loadPerformance() {
+  if (!toolTenantId.value) return
+  perfLoading.value = true
+  try {
+    const { data } = await centralHttp.get(`/ops/tenant-performance/${toolTenantId.value}`)
+    perf.value = data
+  } catch (e: any) {
+    perf.value = null
+    apiError(e, 'Could not load performance metrics')
+  } finally {
+    perfLoading.value = false
+  }
+}
+
+// Switching tenant re-reads its diagnostics.
+watch(toolTenantId, () => {
+  if (activeTab.value === 'tools') loadPerformance()
+})
+
+async function runDemoData() {
+  if (!toolTenantId.value || !demoSelected.value.length) return
+
+  if (demoIsBulk.value) {
+    const res = await Swal.fire({
+      title: `Generate ${demoCount.value.toLocaleString()} rows per module?`,
+      text: `${demoSelected.value.length} module(s) into ${toolTenant.value?.company_name ?? 'this tenant'}. This runs on the queue and can take hours.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#c1502e',
+      confirmButtonText: 'Queue it',
+    })
+    if (!res.isConfirmed) return
+  }
+
+  demoRunning.value = true
+  try {
+    const { data } = await centralHttp.post(`/ops/demo-data/${toolTenantId.value}`, {
+      modules: demoSelected.value,
+      count: demoCount.value,
+    })
+    toast.add({
+      severity: data.queued ? 'info' : 'success',
+      summary: data.queued ? 'Generation queued' : 'Demo data created',
+      detail: data.message,
+      life: data.queued ? 8000 : 5000,
+    })
+  } catch (e: any) {
+    apiError(e, 'Could not generate demo data')
+  } finally {
+    demoRunning.value = false
+  }
+}
+
 // ---- Lazy per-tab loading ------------------------------------------------------
 const loadedTabs = new Set<string>()
 const tabLoaders: Record<string, () => Promise<void>> = {
@@ -377,6 +498,7 @@ const tabLoaders: Record<string, () => Promise<void>> = {
   backups: loadBackups,
   logs: loadLogFiles,
   flags: loadFlags,
+  tools: loadTools,
 }
 
 watch(activeTab, async (tab) => {
@@ -667,6 +789,114 @@ onMounted(() => {
         </template>
       </Dialog>
     </section>
+
+    <!-- =========================== Tenant Tools =========================== -->
+    <section v-if="activeTab === 'tools'">
+      <div class="section-head">
+        <div class="tenant-pick">
+          <label>Tenant</label>
+          <Select
+            v-model="toolTenantId"
+            :options="toolTenants"
+            optionLabel="company_name"
+            optionValue="id"
+            filter
+            placeholder="Select a tenant"
+            class="tenant-select"
+          />
+        </div>
+        <Button label="Refresh" icon="pi pi-refresh" size="small" outlined :loading="perfLoading" @click="loadPerformance" />
+      </div>
+
+      <!-- Performance diagnostics (§17), read inside the selected tenant -->
+      <h3 class="tool-title"><i class="pi pi-gauge" /> Performance</h3>
+      <div v-if="perf" class="cards">
+        <div class="card">
+          <div class="card-top"><span class="card-title">Cache</span><Tag :value="perf.cache.store" /></div>
+          <div v-for="(v, g) in perf.cache.versions" :key="g" class="tool-kv">
+            <span>{{ g }} version</span><b>{{ v ?? '—' }}</b>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-top"><span class="card-title">Queue</span><Tag :value="perf.queue.driver" /></div>
+          <div class="tool-kv"><span>Pending jobs</span><b :class="{ warn: (perf.queue.pending ?? 0) > 50 }">{{ perf.queue.pending ?? '—' }}</b></div>
+          <div class="tool-kv"><span>Failed jobs</span><b :class="{ fail: (perf.queue.failed ?? 0) > 0 }">{{ perf.queue.failed ?? '—' }}</b></div>
+        </div>
+        <div class="card">
+          <div class="card-top"><span class="card-title">Indexes</span><Tag :value="perf.database.connection_driver ?? perf.database.driver" /></div>
+          <div class="tool-kv"><span>Tables</span><b>{{ perf.database.tables ?? '—' }}</b></div>
+          <div class="tool-kv"><span>Indexes</span><b>{{ perf.database.indexes ?? '—' }}</b></div>
+          <div class="tool-kv">
+            <span>Tenant tables w/o secondary index</span>
+            <b :class="{ warn: perf.database.unindexed_tables.length > 0 }">{{ perf.database.unindexed_tables.length }}</b>
+          </div>
+        </div>
+      </div>
+      <p v-else class="muted">Select a tenant to read its diagnostics.</p>
+      <p v-if="perf?.database.unindexed_tables.length" class="muted small-note">
+        Under-indexed: {{ perf.database.unindexed_tables.join(', ') }}
+      </p>
+
+      <!-- Demo Data generator (§7), writing into the selected tenant -->
+      <h3 class="tool-title"><i class="pi pi-database" /> Demo Data</h3>
+      <p class="muted">
+        Generates sample records into
+        <b>{{ toolTenant?.company_name ?? '—' }}</b>. Pick a volume and the modules, then run.
+      </p>
+
+      <div class="demo-bar">
+        <div class="count-row">
+          <button
+            v-for="c in demoCounts"
+            :key="c"
+            type="button"
+            class="count-btn"
+            :class="{ active: demoCount === c }"
+            @click="pickDemoCount(c)"
+          >
+            {{ c.toLocaleString() }}
+          </button>
+          <Select
+            v-model="demoBulk"
+            :options="demoBulkOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Bulk volume"
+            showClear
+            class="bulk-select"
+          />
+        </div>
+        <InputText v-model="demoSearch" placeholder="Filter modules…" class="demo-search" />
+        <Button
+          :label="demoSelected.length ? `Generate for ${demoSelected.length} module(s)` : 'Select modules'"
+          icon="pi pi-play"
+          :loading="demoRunning"
+          :disabled="!canRunTools || !toolTenantId || !demoSelected.length"
+          @click="runDemoData"
+        />
+      </div>
+
+      <p v-if="demoIsBulk" class="bulk-warn">
+        <i class="pi pi-exclamation-triangle" />
+        {{ demoCount.toLocaleString() }} rows per module runs on the queue worker and can take hours.
+      </p>
+      <p v-if="!canRunTools" class="muted">You need the “ops-tools.manage” permission to generate data.</p>
+
+      <div class="demo-grid">
+        <button
+          v-for="m in demoVisibleModules"
+          :key="m.key"
+          type="button"
+          class="demo-chip"
+          :class="{ picked: demoSelected.includes(m.key) }"
+          :disabled="!canRunTools"
+          @click="toggleDemoModule(m.key)"
+        >
+          <i :class="demoSelected.includes(m.key) ? 'pi pi-check-circle' : 'pi pi-circle'" />
+          {{ m.label }}
+        </button>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -735,4 +965,31 @@ onMounted(() => {
 .hint { color: #6b7280; font-size: 0.75rem; }
 .error-text { color: #dc2626; font-size: 0.78rem; }
 .invalid :deep(.p-inputtext), :deep(.invalid) { border-color: #dc2626 !important; }
+
+/* ---- Tenant Tools tab (performance + demo data for a chosen tenant) ---- */
+.tenant-pick { display: flex; align-items: center; gap: 0.5rem; }
+.tenant-pick label { font-size: 0.8rem; font-weight: 600; color: #6b7280; }
+.tenant-select { min-width: 260px; }
+.tool-title { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; font-weight: 700; margin: 1.4rem 0 0.6rem; }
+.tool-title i { color: #e8a33d; }
+.tool-kv { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.82rem; padding: 0.22rem 0; }
+.tool-kv span { color: #6b7280; }
+.tool-kv b { font-weight: 600; color: #1e2328; }
+.tool-kv b.warn { color: #c98730; }
+.tool-kv b.fail { color: #c1502e; }
+.small-note { margin-top: 0.5rem; }
+.demo-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 0.75rem 0; }
+.count-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.count-btn { border: 1px solid #e3ded3; background: #fff; color: #1e2328; border-radius: 8px; padding: 0.45rem 0.9rem; font-weight: 600; font-size: 0.83rem; cursor: pointer; font-family: inherit; }
+.count-btn.active { background: #e8a33d; border-color: #e8a33d; color: #23292f; }
+.bulk-select { min-width: 11rem; }
+.demo-search { width: 200px; }
+.bulk-warn { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600; color: #c1502e; margin: 0 0 0.5rem; }
+.demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.4rem; margin-top: 0.6rem; }
+.demo-chip { display: flex; align-items: center; gap: 0.4rem; border: 1px solid #e3ded3; background: #fff; border-radius: 9px; padding: 0.45rem 0.6rem; font-size: 0.8rem; font-weight: 600; color: #374151; cursor: pointer; font-family: inherit; text-align: left; }
+.demo-chip i { color: #cfc8b8; font-size: 0.85rem; }
+.demo-chip:hover:not(:disabled) { border-color: #e8c489; }
+.demo-chip.picked { border-color: #e8a33d; background: rgba(232, 163, 61, 0.12); }
+.demo-chip.picked i { color: #4c8b6c; }
+.demo-chip:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>

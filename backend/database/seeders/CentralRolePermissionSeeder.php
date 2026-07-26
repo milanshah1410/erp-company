@@ -61,6 +61,9 @@ class CentralRolePermissionSeeder extends Seeder
         'ops-backups' => ['view', 'create', 'restore'],
         'ops-logs' => ['view'],
         'ops-system' => ['view'],
+        // Tenant tools: performance diagnostics (view) + demo-data generation
+        // into a tenant (manage). Moved off the tenant's System Tools screen.
+        'ops-tools' => ['view', 'manage'],
         'feature-flags' => ['view', 'edit'],
         'api-keys' => ['view', 'manage'],
 
@@ -197,6 +200,7 @@ class CentralRolePermissionSeeder extends Seeder
                 'platform.dashboard.view',
                 'tenants.view',
                 'ops-health.view', 'ops-logs.view', 'ops-queues.view', 'ops-system.view',
+                'ops-tools.view',
                 'feature-flags.view', 'api-keys.view',
             ],
 

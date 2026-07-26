@@ -2,37 +2,38 @@
 
 declare(strict_types=1);
 
-namespace App\Http\Controllers\Api;
+namespace App\Services;
 
-use App\Http\Controllers\Controller;
 use App\Support\TenantCache;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 /**
- * Settings → System Tools → Performance (project-stack.md §17).
+ * Performance diagnostics (project-stack.md §17): which cache and queue drivers
+ * are live, how deep the queue is, how many jobs have failed, and how well the
+ * schema is indexed.
  *
- * A read-only diagnostics surface for the performance subsystem: which cache
- * and queue drivers are live, how deep the queue is, how many jobs have failed,
- * and how well the schema is indexed. Every probe is wrapped so a missing table
- * or unsupported driver degrades to a null/"unavailable" field rather than
- * failing the whole endpoint.
+ * This is an operator tool, not a tenant one — the platform Ops panel calls it
+ * inside a tenant's context (so the cache-group versions come out tenant-scoped)
+ * while the queue/schema probes describe the shared infrastructure. Every probe
+ * is wrapped so a missing table or unsupported driver degrades to null rather
+ * than failing the whole payload.
  */
-class PerformanceController extends Controller
+final class PerformanceMetrics
 {
     /** Cache groups whose invalidation version is worth surfacing. */
     private const CACHE_GROUPS = ['settings', 'menu_items', 'dashboard'];
 
-    public function metrics(): JsonResponse
+    /** @return array<string, mixed> */
+    public function collect(): array
     {
-        return response()->json([
+        return [
             'cache' => $this->cacheMetrics(),
             'queue' => $this->queueMetrics(),
             'database' => $this->databaseMetrics(),
             'generated_at' => now()->toIso8601String(),
-        ]);
+        ];
     }
 
     /** Active cache store + the current version of each tracked group. */

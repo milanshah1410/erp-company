@@ -105,6 +105,10 @@ class User extends Authenticatable
             'avatar_url' => \App\Support\TenantStorage::temporaryUrl($this->avatar),
             'roles' => $this->getRoleNames(),
             'permissions' => $this->getAllPermissions()->pluck('name'),
+            // The tenant's effective module set (onboarding choice ∩ plan), so the
+            // SPA can hide module-specific screens the way MenuController hides
+            // their menu rows. null = no selection on record → nothing is gated.
+            'modules' => \App\Support\EnabledModules::forTenant($this->tenant_id),
             'current_company' => $this->currentCompany ? [
                 'id' => $this->currentCompany->id,
                 'name' => $this->currentCompany->name,

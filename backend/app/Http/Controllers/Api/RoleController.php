@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\RoleResource;
+use App\Models\User;
 use App\Support\EnabledModules;
 use App\Support\Modules;
 use App\Support\TenantContext;
@@ -21,20 +22,47 @@ class RoleController extends Controller
 
     public function index()
     {
-        $roles = Role::query()->withCount('permissions')->orderBy('name')->get();
+        $roles = Role::query()->orderBy('name')->get();
+
+        $tenantId = app(TenantContext::class)->id();
 
         // Count users per role from the pivot directly (avoids guard-model
         // resolution issues on Spatie's users() relation under withCount).
+        //
+        // The role rows themselves are a shared catalogue, but *assignments* are
+        // tenant-scoped (Spatie teams, team key = tenant_id), so the count must
+        // be filtered — otherwise every tenant sees the platform-wide total.
         $userCounts = DB::table('model_has_roles')
             ->select('role_id', DB::raw('COUNT(*) as total'))
+            ->where('model_type', User::class)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->groupBy('role_id')
+            ->pluck('total', 'role_id');
+
+        // Permissions per role, counted within what this tenant can actually
+        // reach: a role holding all 465 permissions reads as (say) 240 in a
+        // workspace whose package covers five modules. Matches the matrix below.
+        $enabled = EnabledModules::forTenant($tenantId);
+        $permCounts = DB::table('role_has_permissions')
+            ->join('permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+            ->when($enabled !== null, function ($q) use ($enabled) {
+                $map = EnabledModules::permissionGroupMap();
+                $visible = Permission::orderBy('name')->pluck('name')
+                    ->filter(fn (string $name) => EnabledModules::groupAvailable(EnabledModules::groupOf($name), $enabled, $map))
+                    ->values();
+
+                return $q->whereIn('permissions.name', $visible);
+            })
+            ->selectRaw('role_id, COUNT(*) as total')
             ->groupBy('role_id')
             ->pluck('total', 'role_id');
 
         // Tag each role with its department (Level-2 org chart) so the UI can
         // group them. Custom roles fall into "Other".
         $order = array_keys(TenantRoleCatalog::departments());
-        $roles->each(function ($role) use ($userCounts) {
+        $roles->each(function ($role) use ($userCounts, $permCounts) {
             $role->users_count = (int) ($userCounts[$role->id] ?? 0);
+            $role->permissions_count = (int) ($permCounts[$role->id] ?? 0);
             $role->department = TenantRoleCatalog::departmentOf($role->name) ?? 'Other';
         });
 

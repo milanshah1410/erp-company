@@ -34,6 +34,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // SaaS-owner (platform operator) context — pins Spatie team to NULL.
             'central.context' => \App\Http\Middleware\ResolveCentralContext::class,
             'plan.limit' => \App\Http\Middleware\EnforcePlanLimit::class,
+            // Tenant module gating (onboarding wizard §3) — the API-side twin of
+            // the menu's module tags.
+            'module' => \App\Http\Middleware\EnsureModuleEnabled::class,
             'tenant.active' => \App\Http\Middleware\EnsureTenantActive::class,
             // B2B customer portal (SRS §14): the tokenable must be a Customer.
             'portal' => \App\Http\Middleware\EnsurePortalCustomer::class,

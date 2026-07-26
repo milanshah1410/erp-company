@@ -13,6 +13,7 @@ use App\Http\Controllers\Central\Ops\FeatureFlagController;
 use App\Http\Controllers\Central\Ops\LogController as OpsLogController;
 use App\Http\Controllers\Central\Ops\QueueController as OpsQueueController;
 use App\Http\Controllers\Central\Ops\SystemHealthController;
+use App\Http\Controllers\Central\Ops\TenantToolController;
 use App\Http\Controllers\Central\PaymentWebhookController;
 use App\Http\Controllers\Central\Support\TenantHealthController as SupportTenantHealthController;
 use App\Http\Controllers\Central\Support\TicketController as SupportTicketController;
@@ -158,6 +159,12 @@ Route::prefix('central')->group(function () {
             Route::get('/logs', [OpsLogController::class, 'index'])->middleware('permission:ops-logs.view,central');
             Route::get('/logs/{filename}', [OpsLogController::class, 'show'])->middleware('permission:ops-logs.view,central');
             Route::get('/logs/{filename}/download', [OpsLogController::class, 'download'])->middleware('permission:ops-logs.view,central');
+
+            // Tenant tools — operator-only surfaces that used to sit on the
+            // tenant's System Tools screen (the tenant keeps Import Data only).
+            Route::get('/tenant-performance/{tenant}', [TenantToolController::class, 'performance'])->middleware('permission:ops-tools.view,central');
+            Route::get('/demo-data/options', [TenantToolController::class, 'demoOptions'])->middleware('permission:ops-tools.view,central');
+            Route::post('/demo-data/{tenant}', [TenantToolController::class, 'generateDemo'])->middleware('permission:ops-tools.manage,central');
 
             Route::get('/feature-flags', [FeatureFlagController::class, 'index'])->middleware('permission:feature-flags.view,central');
             Route::post('/feature-flags', [FeatureFlagController::class, 'store'])->middleware('permission:feature-flags.edit,central');

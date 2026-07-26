@@ -32,7 +32,6 @@ use App\Http\Controllers\Api\EWayBillController;
 use App\Http\Controllers\Api\TaxRegisterController;
 use App\Http\Controllers\Api\TdsTcsRateController;
 use App\Http\Controllers\Api\VoucherController;
-use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\BarcodeController;
 use App\Http\Controllers\Api\BatchController;
 use App\Http\Controllers\Api\BomController;
@@ -467,9 +466,11 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('salesman-expenses/{salesmanExpense}/reject', [SalesmanExpenseController::class, 'reject'])->middleware('permission:salesman-expenses.edit');
         $crud('salesman-expenses', SalesmanExpenseController::class, 'salesman-expenses', 'salesmanExpense');
 
-        // Reports: team incentive/achievement and visit compliance.
-        Route::get('salesman-reports/incentive', [SalesmanReportController::class, 'incentive'])->middleware('permission:salesmen.view');
-        Route::get('salesman-reports/visit-compliance', [SalesmanReportController::class, 'visitCompliance'])->middleware('permission:salesmen.view');
+        // Reports: team incentive/achievement and visit compliance. Module-gated
+        // like the rest of the reports so a tenant without Field Sales can't read
+        // them from a bookmarked URL.
+        Route::get('salesman-reports/incentive', [SalesmanReportController::class, 'incentive'])->middleware(['permission:salesmen.view', 'module:field_sales']);
+        Route::get('salesman-reports/visit-compliance', [SalesmanReportController::class, 'visitCompliance'])->middleware(['permission:salesmen.view', 'module:field_sales']);
 
         /*
         |----------------------------------------------------------------------
@@ -923,10 +924,11 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('accounts/journal', [AccountBookController::class, 'journal'])->middleware('permission:accounts.view');
         Route::get('accounts/petty-cash', [AccountBookController::class, 'pettyCash'])->middleware('permission:accounts.view');
 
-        // Derived financial statements (read-only).
-        Route::get('accounts/trial-balance', [FinancialStatementController::class, 'trialBalance'])->middleware('permission:accounts.view');
-        Route::get('accounts/profit-loss', [FinancialStatementController::class, 'profitAndLoss'])->middleware('permission:accounts.view');
-        Route::get('accounts/balance-sheet', [FinancialStatementController::class, 'balanceSheet'])->middleware('permission:accounts.view');
+        // Derived financial statements (read-only). These are the menu's
+        // "Financial Reports" group, so they carry its module tag as well.
+        Route::get('accounts/trial-balance', [FinancialStatementController::class, 'trialBalance'])->middleware(['permission:accounts.view', 'module:accounts']);
+        Route::get('accounts/profit-loss', [FinancialStatementController::class, 'profitAndLoss'])->middleware(['permission:accounts.view', 'module:accounts']);
+        Route::get('accounts/balance-sheet', [FinancialStatementController::class, 'balanceSheet'])->middleware(['permission:accounts.view', 'module:accounts']);
 
         // TDS / TCS section-rate master.
         $crud('tds-tcs-rates', TdsTcsRateController::class, 'tds-tcs-rates', 'tdsTcsRate');
@@ -953,45 +955,57 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('inventory-alerts/{inventoryAlert}/resolve', [InventoryAlertController::class, 'resolve'])->middleware('permission:advanced-inventory.edit');
         Route::delete('inventory-alerts/{inventoryAlert}', [InventoryAlertController::class, 'destroy'])->middleware('permission:advanced-inventory.delete');
 
-        Route::get('reports/dead-stock', [InventoryReportController::class, 'deadStock'])->middleware('permission:reports.view');
-        Route::get('reports/current-stock', [InventoryReportController::class, 'currentStock'])->middleware('permission:reports.view');
-        Route::get('reports/low-stock', [InventoryReportController::class, 'lowStock'])->middleware('permission:reports.view');
-        Route::get('reports/negative-stock', [InventoryReportController::class, 'negativeStock'])->middleware('permission:reports.view');
-        Route::get('reports/expiry-stock', [InventoryReportController::class, 'expiryStock'])->middleware('permission:reports.view');
-        Route::get('reports/stock-movement', [InventoryReportController::class, 'stockMovementSummary'])->middleware('permission:reports.view');
-        Route::get('reports/fast-slow-moving', [InventoryReportController::class, 'fastSlowMoving'])->middleware('permission:reports.view');
-        Route::get('reports/valuation', [InventoryReportController::class, 'valuation'])->middleware('permission:reports.view');
-        Route::get('reports/purchases', [PurchaseReportController::class, 'summary'])->middleware('permission:reports.view');
-        Route::get('reports/vendor-performance', [PurchaseReportController::class, 'vendorPerformance'])->middleware('permission:reports.view');
-        Route::get('reports/gst-input', [PurchaseReportController::class, 'gstInput'])->middleware('permission:reports.view');
-        Route::get('reports/payables', [PurchaseReportController::class, 'payables'])->middleware('permission:reports.view');
-        Route::get('reports/sales', [SalesReportController::class, 'summary'])->middleware('permission:reports.view');
-        Route::get('reports/profitability', [SalesReportController::class, 'profitability'])->middleware('permission:reports.view');
-        Route::get('reports/gst-output', [SalesReportController::class, 'gstOutput'])->middleware('permission:reports.view');
+        /*
+        |----------------------------------------------------------------------
+        | Reports
+        |----------------------------------------------------------------------
+        | Every report carries `module:<key>` alongside its permission so a tenant
+        | can only pull data from the modules it switched on in onboarding — the
+        | same tags MenuSeeder puts on the Reports submenu, so the sidebar and the
+        | API can never disagree. Keys must stay in sync with those tags
+        | (App\Support\Modules holds the catalogue).
+        */
+        Route::get('reports/dead-stock', [InventoryReportController::class, 'deadStock'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/current-stock', [InventoryReportController::class, 'currentStock'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/low-stock', [InventoryReportController::class, 'lowStock'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/negative-stock', [InventoryReportController::class, 'negativeStock'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/expiry-stock', [InventoryReportController::class, 'expiryStock'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/stock-movement', [InventoryReportController::class, 'stockMovementSummary'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/fast-slow-moving', [InventoryReportController::class, 'fastSlowMoving'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/valuation', [InventoryReportController::class, 'valuation'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/purchases', [PurchaseReportController::class, 'summary'])->middleware(['permission:reports.view', 'module:purchase']);
+        Route::get('reports/vendor-performance', [PurchaseReportController::class, 'vendorPerformance'])->middleware(['permission:reports.view', 'module:purchase']);
+        // The GST screen toggles between input (purchase) and output (sales) tax,
+        // so either the GST module or the side it reads keeps each half reachable.
+        Route::get('reports/gst-input', [PurchaseReportController::class, 'gstInput'])->middleware(['permission:reports.view', 'module:gst,purchase']);
+        Route::get('reports/payables', [PurchaseReportController::class, 'payables'])->middleware(['permission:reports.view', 'module:purchase']);
+        Route::get('reports/sales', [SalesReportController::class, 'summary'])->middleware(['permission:reports.view', 'module:sales']);
+        Route::get('reports/profitability', [SalesReportController::class, 'profitability'])->middleware(['permission:reports.view', 'module:sales']);
+        Route::get('reports/gst-output', [SalesReportController::class, 'gstOutput'])->middleware(['permission:reports.view', 'module:gst,sales']);
         // Consolidated GST (GSTR-3B summary + GSTR-1) and TDS/TCS registers.
-        Route::get('reports/gst-summary', [GstReportController::class, 'summary'])->middleware('permission:reports.view');
-        Route::get('reports/gstr1', [GstReportController::class, 'gstr1'])->middleware('permission:reports.view');
-        Route::get('reports/gstr2', [GstReportController::class, 'gstr2'])->middleware('permission:reports.view');
+        Route::get('reports/gst-summary', [GstReportController::class, 'summary'])->middleware(['permission:reports.view', 'module:gst']);
+        Route::get('reports/gstr1', [GstReportController::class, 'gstr1'])->middleware(['permission:reports.view', 'module:gst']);
+        Route::get('reports/gstr2', [GstReportController::class, 'gstr2'])->middleware(['permission:reports.view', 'module:gst']);
         // Government offline-tool JSON exports (GالسTN upload schema).
-        Route::get('reports/gstr1/json', [GstReportController::class, 'gstr1Json'])->middleware('permission:reports.view');
-        Route::get('reports/gstr3b/json', [GstReportController::class, 'gstr3bJson'])->middleware('permission:reports.view');
-        Route::get('reports/tds-register', [TaxRegisterController::class, 'tds'])->middleware('permission:reports.view');
-        Route::get('reports/tcs-register', [TaxRegisterController::class, 'tcs'])->middleware('permission:reports.view');
-        Route::get('reports/broker-commissions', [BrokerReportController::class, 'commissions'])->middleware('permission:reports.view');
-        Route::get('reports/broker-wise-sales', [BrokerReportController::class, 'brokerWiseSales'])->middleware('permission:reports.view');
-        Route::get('reports/stock-ageing', [InventoryReportController::class, 'stockAgeing'])->middleware('permission:reports.view');
-        Route::get('reports/slow-moving', [InventoryReportController::class, 'slowMoving'])->middleware('permission:reports.view');
-        Route::get('reports/fast-moving', [InventoryReportController::class, 'fastMoving'])->middleware('permission:reports.view');
-        Route::get('reports/manufacturing', [ManufacturingReportController::class, 'summary'])->middleware('permission:reports.view');
-        Route::get('reports/production-cost', [ManufacturingReportController::class, 'productionCost'])->middleware('permission:reports.view');
-        Route::get('reports/tailor', [JobWorkReportController::class, 'tailor'])->middleware('permission:reports.view');
-        Route::get('reports/tailor-performance', [TailorPerformanceController::class, 'index'])->middleware('permission:reports.view');
-        Route::get('reports/tailor-rejections', [TailorPerformanceController::class, 'rejections'])->middleware('permission:reports.view');
-        Route::get('reports/embroidery', [JobWorkReportController::class, 'embroidery'])->middleware('permission:reports.view');
-        Route::get('reports/printing', [JobWorkReportController::class, 'printing'])->middleware('permission:reports.view');
-        Route::get('reports/expenses', [ExpenseController::class, 'report'])->middleware('permission:reports.view');
-        Route::get('reports/customer-ledger', [LedgerReportController::class, 'customer'])->middleware('permission:reports.view');
-        Route::get('reports/supplier-ledger', [LedgerReportController::class, 'supplier'])->middleware('permission:reports.view');
+        Route::get('reports/gstr1/json', [GstReportController::class, 'gstr1Json'])->middleware(['permission:reports.view', 'module:gst']);
+        Route::get('reports/gstr3b/json', [GstReportController::class, 'gstr3bJson'])->middleware(['permission:reports.view', 'module:gst']);
+        Route::get('reports/tds-register', [TaxRegisterController::class, 'tds'])->middleware(['permission:reports.view', 'module:gst']);
+        Route::get('reports/tcs-register', [TaxRegisterController::class, 'tcs'])->middleware(['permission:reports.view', 'module:gst']);
+        Route::get('reports/broker-commissions', [BrokerReportController::class, 'commissions'])->middleware(['permission:reports.view', 'module:broker']);
+        Route::get('reports/broker-wise-sales', [BrokerReportController::class, 'brokerWiseSales'])->middleware(['permission:reports.view', 'module:broker']);
+        Route::get('reports/stock-ageing', [InventoryReportController::class, 'stockAgeing'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/slow-moving', [InventoryReportController::class, 'slowMoving'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/fast-moving', [InventoryReportController::class, 'fastMoving'])->middleware(['permission:reports.view', 'module:inventory']);
+        Route::get('reports/manufacturing', [ManufacturingReportController::class, 'summary'])->middleware(['permission:reports.view', 'module:manufacturing']);
+        Route::get('reports/production-cost', [ManufacturingReportController::class, 'productionCost'])->middleware(['permission:reports.view', 'module:manufacturing']);
+        Route::get('reports/tailor', [JobWorkReportController::class, 'tailor'])->middleware(['permission:reports.view', 'module:tailoring']);
+        Route::get('reports/tailor-performance', [TailorPerformanceController::class, 'index'])->middleware(['permission:reports.view', 'module:tailoring']);
+        Route::get('reports/tailor-rejections', [TailorPerformanceController::class, 'rejections'])->middleware(['permission:reports.view', 'module:tailoring']);
+        Route::get('reports/embroidery', [JobWorkReportController::class, 'embroidery'])->middleware(['permission:reports.view', 'module:embroidery']);
+        Route::get('reports/printing', [JobWorkReportController::class, 'printing'])->middleware(['permission:reports.view', 'module:manufacturing']);
+        Route::get('reports/expenses', [ExpenseController::class, 'report'])->middleware(['permission:reports.view', 'module:accounts']);
+        Route::get('reports/customer-ledger', [LedgerReportController::class, 'customer'])->middleware(['permission:reports.view', 'module:accounts']);
+        Route::get('reports/supplier-ledger', [LedgerReportController::class, 'supplier'])->middleware(['permission:reports.view', 'module:accounts']);
 
         Route::get('dashboard/kpis', [DashboardController::class, 'kpis']);
         // Customizable widget layout (project-stack.md §5), per user.
@@ -1087,20 +1101,15 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('settings', [SettingController::class, 'index'])->middleware('permission:settings.view');
         Route::match(['put', 'patch'], 'settings', [SettingController::class, 'update'])->middleware('permission:settings.edit');
 
-        // System Tools → Demo Data generator (project-stack.md §7).
-        Route::get('system-tools/demo-data/options', [DemoDataController::class, 'options'])->middleware('permission:settings.view');
-        Route::post('system-tools/demo-data', [DemoDataController::class, 'generate'])->middleware('permission:settings.edit');
-
         // System Tools → Import Data (project-stack.md §8): Excel / CSV / JSON.
+        // Import is the only System Tool a tenant gets. The Demo Data generator
+        // (§7) and Performance diagnostics (§17) are operator tools and live on
+        // the platform Ops panel (/api/central/ops/…), scoped to a chosen tenant.
         Route::get('system-tools/import/modules', [DataImportController::class, 'modules'])->middleware('permission:settings.view');
         Route::get('system-tools/import/{module}/template', [DataImportController::class, 'template'])->middleware('permission:settings.view');
         Route::post('system-tools/import/{module}', [DataImportController::class, 'store'])->middleware('permission:settings.edit');
         // Poll a queued (large-file) import by its job id — §17 Performance (Queue).
         Route::get('system-tools/import/status/{jobId}', [DataImportController::class, 'status'])->middleware('permission:settings.view');
-
-        // System Tools → Performance diagnostics (project-stack.md §17): cache /
-        // queue / index health for admins.
-        Route::get('system-tools/performance', [PerformanceController::class, 'metrics'])->middleware('permission:settings.view');
 
         // Workflow Builder (project-stack.md §11).
         Route::get('workflows/meta', [WorkflowController::class, 'meta'])->middleware('permission:workflows.view');
@@ -1186,13 +1195,11 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         /*
         |----------------------------------------------------------------------
-        | Data backup & restore
+        | Data backup & restore — operator-only, see /api/central/ops/backups.
+        | Tenants have no backup surface: archives cover the shared database, so
+        | running or downloading one is a platform concern.
         |----------------------------------------------------------------------
         */
-        Route::get('backups', [BackupController::class, 'index'])->middleware('permission:backups.view');
-        Route::post('backups/run', [BackupController::class, 'run'])->middleware('permission:backups.create');
-        Route::get('backups/{filename}/download', [BackupController::class, 'download'])->middleware('permission:backups.view');
-        Route::delete('backups/{filename}', [BackupController::class, 'destroy'])->middleware('permission:backups.delete');
 
         /*
         |----------------------------------------------------------------------

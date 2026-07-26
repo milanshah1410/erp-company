@@ -34,7 +34,9 @@ class TenantRoleCatalog
         'purchases', 'purchase-invoices', 'sales', 'sales-returns', 'b2b-orders',
         'ecommerce-integrations', 'channel-orders', 'channel-listings',
         'reports', 'users', 'roles', 'settings',
-        'companies', 'branches', 'financial-years', 'gst-registrations', 'backups',
+        // No 'backups': backup & restore is an operator concern and lives on the
+        // platform Ops panel, not in a tenant workspace.
+        'companies', 'branches', 'financial-years', 'gst-registrations',
         'hsn-codes', 'e-invoices', 'e-way-bills',
         'departments', 'employees', 'attendance', 'salaries',
         'leave-types', 'leave-applications', 'overtime', 'employee-bonuses',

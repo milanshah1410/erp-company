@@ -128,7 +128,6 @@ const ReportsView = () => import('../views/ReportsView.vue')
 const BarcodeScanView = () => import('../views/BarcodeScanView.vue')
 const LabelPrintingView = () => import('../views/LabelPrintingView.vue')
 const AuditLogsView = () => import('../views/AuditLogsView.vue')
-const BackupView = () => import('../views/BackupView.vue')
 const GstToolsView = () => import('../views/GstToolsView.vue')
 const EInvoicesView = () => import('../views/EInvoicesView.vue')
 const SearchResultsView = () => import('../views/SearchResultsView.vue')
@@ -197,7 +196,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'salesman-tracking', component: SalesmanTrackingView, meta: { permission: 'salesman-locations.view' } },
       { path: 'salesman-collections', component: SalesmanCollectionsView, meta: { permission: 'salesman-collections.view' } },
       { path: 'salesman-expenses', component: SalesmanExpensesView, meta: { permission: 'salesman-expenses.view' } },
-      { path: 'salesman-reports', component: SalesmanReportsView, meta: { permission: 'salesmen.view' } },
+      { path: 'salesman-reports', component: SalesmanReportsView, meta: { permission: 'salesmen.view', module: 'field_sales' } },
       { path: 'tailors', component: CrudView, meta: { resource: 'tailors', permission: 'tailors.view' } },
       { path: 'contractors', component: CrudView, meta: { resource: 'contractors', permission: 'contractors.view' } },
       { path: 'rate-cards', component: CrudView, meta: { resource: 'rate-cards', permission: 'rate-cards.view' } },
@@ -206,7 +205,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'tailor-works/completed', component: TailorWorkView, meta: { workMode: 'completed', permission: 'tailor-works.view' } },
       { path: 'tailor-alterations', component: CrudView, meta: { resource: 'tailor-alterations', permission: 'tailor-alterations.view' } },
       { path: 'tailor-bonuses', component: TailorBonusView, meta: { permission: 'tailor-bonuses.view' } },
-      { path: 'tailor-performance', component: TailorPerformanceView, meta: { permission: 'reports.view' } },
+      { path: 'tailor-performance', component: TailorPerformanceView, meta: { permission: 'reports.view', module: 'tailoring' } },
       { path: 'tailor-payments', component: TailorPaymentView, meta: { permission: 'tailor-payments.view' } },
       { path: 'tailors/ledger', component: TailorLedgerView, meta: { permission: 'tailors.view' } },
       { path: 'embroidery-vendors', component: CrudView, meta: { resource: 'embroidery-vendors', permission: 'embroidery-vendors.view' } },
@@ -259,9 +258,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'accounts/journal', component: JournalView, meta: { permission: 'accounts.view' } },
       { path: 'accounts/day-book', component: DayBookView, meta: { permission: 'accounts.view' } },
       { path: 'accounts/petty-cash', component: PettyCashView, meta: { permission: 'accounts.view' } },
-      { path: 'accounts/trial-balance', component: TrialBalanceView, meta: { permission: 'accounts.view' } },
-      { path: 'accounts/profit-loss', component: ProfitLossView, meta: { permission: 'accounts.view' } },
-      { path: 'accounts/balance-sheet', component: BalanceSheetView, meta: { permission: 'accounts.view' } },
+      { path: 'accounts/trial-balance', component: TrialBalanceView, meta: { permission: 'accounts.view', module: 'accounts' } },
+      { path: 'accounts/profit-loss', component: ProfitLossView, meta: { permission: 'accounts.view', module: 'accounts' } },
+      { path: 'accounts/balance-sheet', component: BalanceSheetView, meta: { permission: 'accounts.view', module: 'accounts' } },
       { path: 'tds-tcs-rates', component: CrudView, meta: { resource: 'tds-tcs-rates', permission: 'tds-tcs-rates.view' } },
       { path: 'accounts/customer-ledger', component: CustomerLedgerView, meta: { permission: 'customers.view' } },
       { path: 'accounts/supplier-ledger', component: SupplierLedgerView, meta: { permission: 'suppliers.view' } },
@@ -276,7 +275,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'batches', component: BatchesView, meta: { permission: 'advanced-inventory.view' } },
       { path: 'serial-numbers', component: SerialNumbersView, meta: { permission: 'advanced-inventory.view' } },
       { path: 'inventory-alerts', component: InventoryAlertsView, meta: { permission: 'advanced-inventory.view' } },
-      { path: 'dead-stock', component: DeadStockView, meta: { permission: 'advanced-inventory.view' } },
+      { path: 'dead-stock', component: DeadStockView, meta: { permission: 'advanced-inventory.view', module: 'inventory' } },
       { path: 'reorder', component: ReorderView, meta: { permission: 'advanced-inventory.view' } },
       { path: 'reports/:tab?', component: ReportsView, meta: { permission: 'reports.view' } },
       { path: 'barcode-scan', component: BarcodeScanView, meta: { permission: 'barcodes.view' } },
@@ -305,7 +304,6 @@ const routes: RouteRecordRaw[] = [
       { path: 'audit-logs', component: AuditLogsView, meta: { permission: 'audit-logs.view' } },
       { path: 'companies', component: CrudView, meta: { resource: 'companies', permission: 'companies.view' } },
       { path: 'branches', component: CrudView, meta: { resource: 'branches', permission: 'branches.view' } },
-      { path: 'backups', component: BackupView, meta: { permission: 'backups.view' } },
       // Payment Gateways (§16)
       { path: 'payment-gateways', component: PaymentGatewaysView, meta: { permission: 'payment-gateways.view' } },
       { path: 'payment-transactions', component: PaymentTransactionsView, meta: { permission: 'payments.view' } },
@@ -448,6 +446,16 @@ router.beforeEach(async (to) => {
 
   if (to.meta.permission && !auth.can(to.meta.permission as string)) {
     return { path: '/' }
+  }
+
+  // Module gating (onboarding wizard §3): a screen tagged with `module` belongs to
+  // a switchable slice of the product, so it is off-limits when the workspace did
+  // not enable it — the same rule the sidebar and the API middleware apply.
+  if (to.meta.module) {
+    const needed = Array.isArray(to.meta.module) ? (to.meta.module as string[]) : [to.meta.module as string]
+    if (!auth.hasModule(...needed)) {
+      return { path: '/' }
+    }
   }
 
   return true

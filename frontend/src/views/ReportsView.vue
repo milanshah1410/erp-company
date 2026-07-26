@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 import StockOverviewReport from '../components/reports/StockOverviewReport.vue'
 import StockMovementReport from '../components/reports/StockMovementReport.vue'
 import FastSlowMovingReport from '../components/reports/FastSlowMovingReport.vue'
@@ -35,49 +36,109 @@ interface ReportItem {
   key: string
   label: string
   component: Component
+  /**
+   * Modules that keep this report available — any one is enough, matching the
+   * `module:a,b` gate on its API route (routes/tenant.php) and the module tags on
+   * the Reports submenu. Leave unset for a report that belongs to no module.
+   */
+  modules: string[]
 }
 
-// Keys must match the sidebar's "Reports" submenu routes (/reports/<key>) in AppLayout.vue.
+// Keys must match the sidebar's "Reports" submenu routes (/reports/<key>), seeded
+// by MenuSeeder. The `modules` here must stay in sync with those tags — a mismatch
+// shows a report in the nav that the API then refuses.
 const reports: ReportItem[] = [
-  { key: 'stock-overview', label: 'Stock Overview', component: StockOverviewReport },
-  { key: 'stock-movement', label: 'Stock Movement', component: StockMovementReport },
-  { key: 'fast-slow', label: 'Fast / Slow Moving', component: FastSlowMovingReport },
-  { key: 'purchases', label: 'Purchases', component: PurchaseReport },
-  { key: 'vendor-performance', label: 'Vendor Performance', component: VendorPerformanceReport },
-  { key: 'payables', label: 'Payables / Pending Payments', component: PayablesReport },
-  { key: 'sales', label: 'Sales', component: SalesReport },
-  { key: 'broker-commissions', label: 'Broker Commissions', component: BrokerCommissionReport },
-  { key: 'broker-wise-sales', label: 'Broker-wise Sales', component: BrokerWiseSalesReport },
-  { key: 'profitability', label: 'Profitability', component: ProfitabilityReport },
-  { key: 'valuation', label: 'Inventory Valuation', component: ValuationReport },
-  { key: 'gst', label: 'GST / Tax', component: GstReport },
-  { key: 'gst-summary', label: 'GST Summary (GSTR-3B)', component: GstSummaryReport },
-  { key: 'gstr1', label: 'GSTR-1 (Outward)', component: Gstr1Report },
-  { key: 'gstr2', label: 'GSTR-2 (Inward)', component: Gstr2Report },
-  { key: 'tds-register', label: 'TDS Register', component: TdsRegisterReport },
-  { key: 'tcs-register', label: 'TCS Register', component: TcsRegisterReport },
-  { key: 'stock-ageing', label: 'Stock Ageing', component: StockAgeingReport },
-  { key: 'slow-moving', label: 'Slow Moving Stock', component: SlowMovingReport },
-  { key: 'fast-moving', label: 'Fast Moving Stock', component: FastMovingReport },
-  { key: 'manufacturing', label: 'Manufacturing', component: ManufacturingReport },
-  { key: 'production-cost', label: 'Production Cost', component: ProductionCostReport },
-  { key: 'tailor', label: 'Tailor', component: TailorReport },
-  { key: 'embroidery', label: 'Embroidery', component: EmbroideryReport },
-  { key: 'printing', label: 'Printing', component: PrintingReport },
-  { key: 'expenses', label: 'Expenses', component: ExpenseReport },
-  { key: 'customer-ledger', label: 'Customer Ledger', component: CustomerLedgerReport },
-  { key: 'supplier-ledger', label: 'Supplier Ledger', component: SupplierLedgerReport },
+  { key: 'stock-overview', label: 'Stock Overview', component: StockOverviewReport, modules: ['inventory'] },
+  { key: 'stock-movement', label: 'Stock Movement', component: StockMovementReport, modules: ['inventory'] },
+  { key: 'fast-slow', label: 'Fast / Slow Moving', component: FastSlowMovingReport, modules: ['inventory'] },
+  { key: 'purchases', label: 'Purchases', component: PurchaseReport, modules: ['purchase'] },
+  { key: 'vendor-performance', label: 'Vendor Performance', component: VendorPerformanceReport, modules: ['purchase'] },
+  { key: 'payables', label: 'Payables / Pending Payments', component: PayablesReport, modules: ['purchase'] },
+  { key: 'sales', label: 'Sales', component: SalesReport, modules: ['sales'] },
+  { key: 'broker-commissions', label: 'Broker Commissions', component: BrokerCommissionReport, modules: ['broker'] },
+  { key: 'broker-wise-sales', label: 'Broker-wise Sales', component: BrokerWiseSalesReport, modules: ['broker'] },
+  { key: 'profitability', label: 'Profitability', component: ProfitabilityReport, modules: ['sales'] },
+  { key: 'valuation', label: 'Inventory Valuation', component: ValuationReport, modules: ['inventory'] },
+  // The GST/Tax screen reads purchase-side and sales-side tax, so either the GST
+  // module or one of those keeps it useful.
+  { key: 'gst', label: 'GST / Tax', component: GstReport, modules: ['gst', 'purchase', 'sales'] },
+  { key: 'gst-summary', label: 'GST Summary (GSTR-3B)', component: GstSummaryReport, modules: ['gst'] },
+  { key: 'gstr1', label: 'GSTR-1 (Outward)', component: Gstr1Report, modules: ['gst'] },
+  { key: 'gstr2', label: 'GSTR-2 (Inward)', component: Gstr2Report, modules: ['gst'] },
+  { key: 'tds-register', label: 'TDS Register', component: TdsRegisterReport, modules: ['gst'] },
+  { key: 'tcs-register', label: 'TCS Register', component: TcsRegisterReport, modules: ['gst'] },
+  { key: 'stock-ageing', label: 'Stock Ageing', component: StockAgeingReport, modules: ['inventory'] },
+  { key: 'slow-moving', label: 'Slow Moving Stock', component: SlowMovingReport, modules: ['inventory'] },
+  { key: 'fast-moving', label: 'Fast Moving Stock', component: FastMovingReport, modules: ['inventory'] },
+  { key: 'manufacturing', label: 'Manufacturing', component: ManufacturingReport, modules: ['manufacturing'] },
+  { key: 'production-cost', label: 'Production Cost', component: ProductionCostReport, modules: ['manufacturing'] },
+  { key: 'tailor', label: 'Tailor', component: TailorReport, modules: ['tailoring'] },
+  { key: 'embroidery', label: 'Embroidery', component: EmbroideryReport, modules: ['embroidery'] },
+  { key: 'printing', label: 'Printing', component: PrintingReport, modules: ['manufacturing'] },
+  { key: 'expenses', label: 'Expenses', component: ExpenseReport, modules: ['accounts'] },
+  { key: 'customer-ledger', label: 'Customer Ledger', component: CustomerLedgerReport, modules: ['accounts'] },
+  { key: 'supplier-ledger', label: 'Supplier Ledger', component: SupplierLedgerReport, modules: ['accounts'] },
 ]
 
 const route = useRoute()
-const activeReport = computed(() => reports.find((r) => r.key === route.params.tab) ?? reports[0])
+const auth = useAuthStore()
+
+// Only the reports whose module the workspace switched on. The sidebar already
+// hides the rest, but /reports/<key> is also reachable by URL, bookmark, favorite
+// or a recent — and the API answers 403 for those, so render an explanation
+// instead of a report stuck on an error.
+const available = computed(() => reports.filter((r) => auth.hasModule(...r.modules)))
+
+const requested = computed(() => (route.params.tab ? String(route.params.tab) : null))
+
+const activeReport = computed(() => {
+  if (!requested.value) return available.value[0] ?? null
+
+  return available.value.find((r) => r.key === requested.value) ?? null
+})
+
+// A real report that this workspace's modules don't cover (as opposed to a typo'd
+// key) — worth naming the module so the message is actionable.
+const gatedReport = computed(() =>
+  activeReport.value ? null : (reports.find((r) => r.key === requested.value) ?? null),
+)
+
+const moduleLabels: Record<string, string> = {
+  sales: 'Sales',
+  purchase: 'Purchase',
+  inventory: 'Inventory',
+  broker: 'Broker',
+  gst: 'GST & Compliance',
+  accounts: 'Accounts',
+  manufacturing: 'Manufacturing',
+  tailoring: 'Tailoring',
+  embroidery: 'Embroidery',
+}
+
+const gatedModules = computed(() =>
+  (gatedReport.value?.modules ?? []).map((m) => moduleLabels[m] ?? m).join(' or '),
+)
 </script>
 
 <template>
   <div>
-    <PageHeader :title="activeReport.label" subtitle="Reports · CSV / Excel / PDF export" />
+    <PageHeader
+      :title="activeReport?.label ?? gatedReport?.label ?? 'Reports'"
+      subtitle="Reports · CSV / Excel / PDF export"
+    />
 
-    <component :is="activeReport.component" />
+    <component :is="activeReport.component" v-if="activeReport" />
+
+    <div v-else class="report-unavailable">
+      <i class="pi pi-lock" />
+      <p v-if="gatedReport">
+        The <strong>{{ gatedModules }}</strong> module is not enabled for this workspace, so
+        <strong>{{ gatedReport.label }}</strong> is unavailable.
+      </p>
+      <p v-else-if="requested">This report does not exist.</p>
+      <p v-else>No reports are available for the modules enabled on this workspace.</p>
+      <small>An administrator can change the workspace's modules from the subscription plan.</small>
+    </div>
   </div>
 </template>
 
@@ -89,5 +150,23 @@ h1 {
 .subtitle {
   color: #6b7280;
   margin-bottom: 1.25rem;
+}
+.report-unavailable {
+  background: var(--surface-card, #fff);
+  border: 1px solid var(--surface-border, #e5e7eb);
+  border-radius: 10px;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: var(--text-color-secondary, #6b7280);
+}
+.report-unavailable i {
+  font-size: 1.75rem;
+  display: block;
+  margin-bottom: 0.75rem;
+  opacity: 0.6;
+}
+.report-unavailable p {
+  margin: 0 0 0.35rem;
+  color: var(--text-color, #374151);
 }
 </style>

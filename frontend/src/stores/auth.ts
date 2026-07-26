@@ -26,6 +26,9 @@ interface User {
   avatar_url?: string | null
   roles: string[]
   permissions: string[]
+  // Modules the workspace switched on in onboarding, narrowed to what its plan
+  // sells. null means no selection is on record — nothing is module-gated.
+  modules: string[] | null
   current_company: CurrentCompany | null
   current_branch: CompanyRef | null
   companies: CompanyRef[]
@@ -48,6 +51,17 @@ export const useAuthStore = defineStore('auth', {
         return true
       }
       return state.user.permissions.includes(permission)
+    },
+    /**
+     * Is a module switched on for this workspace? Accepts several keys and
+     * answers true when any of them is — the API's `module:a,b` middleware uses
+     * the same any-of rule. Fails open while the profile is loading, and for
+     * tenants with no module selection on record.
+     */
+    hasModule: (state) => (...modules: string[]) => {
+      const enabled = state.user?.modules
+      if (!enabled || modules.length === 0) return true
+      return modules.some((m) => enabled.includes(m))
     },
     currencySymbol: (state) => state.user?.current_company?.currency_symbol ?? '₹',
     currencyCode: (state) => state.user?.current_company?.currency_code ?? 'INR',

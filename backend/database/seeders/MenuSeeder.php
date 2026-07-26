@@ -283,11 +283,14 @@ class MenuSeeder extends Seeder
             ]],
 
             ['label' => 'Reports', 'icon' => 'pi pi-chart-bar', 'feature' => 'reports', 'children' => [
-                ['label' => 'Sales Reports', 'icon' => 'pi pi-shopping-cart', 'module' => 'sales', 'children' => [
-                    ['label' => 'Sales', 'icon' => 'pi pi-shopping-cart', 'to' => '/reports/sales', 'permission' => 'reports.view'],
-                    ['label' => 'Broker Commissions', 'icon' => 'pi pi-percentage', 'to' => '/reports/broker-commissions', 'permission' => 'reports.view'],
-                    ['label' => 'Broker-wise Sales', 'icon' => 'pi pi-users', 'to' => '/reports/broker-wise-sales', 'permission' => 'reports.view'],
-                    ['label' => 'Profitability', 'icon' => 'pi pi-chart-line', 'to' => '/reports/profitability', 'permission' => 'reports.view'],
+                // Mixed-module group: broker figures follow the Broker module, not
+                // Sales, so the tags sit on the leaves and the group is left
+                // untagged (it drops out on its own once no leaf survives).
+                ['label' => 'Sales Reports', 'icon' => 'pi pi-shopping-cart', 'children' => [
+                    ['label' => 'Sales', 'icon' => 'pi pi-shopping-cart', 'to' => '/reports/sales', 'permission' => 'reports.view', 'module' => 'sales'],
+                    ['label' => 'Broker Commissions', 'icon' => 'pi pi-percentage', 'to' => '/reports/broker-commissions', 'permission' => 'reports.view', 'module' => 'broker'],
+                    ['label' => 'Broker-wise Sales', 'icon' => 'pi pi-users', 'to' => '/reports/broker-wise-sales', 'permission' => 'reports.view', 'module' => 'broker'],
+                    ['label' => 'Profitability', 'icon' => 'pi pi-chart-line', 'to' => '/reports/profitability', 'permission' => 'reports.view', 'module' => 'sales'],
                 ]],
                 ['label' => 'Purchase Reports', 'icon' => 'pi pi-shopping-bag', 'module' => 'purchase', 'children' => [
                     ['label' => 'Purchases', 'icon' => 'pi pi-file-edit', 'to' => '/reports/purchases', 'permission' => 'reports.view'],
@@ -308,12 +311,14 @@ class MenuSeeder extends Seeder
                     ['label' => 'Customer Ledger', 'icon' => 'pi pi-book', 'to' => '/reports/customer-ledger', 'permission' => 'reports.view'],
                     ['label' => 'Supplier Ledger', 'icon' => 'pi pi-book', 'to' => '/reports/supplier-ledger', 'permission' => 'reports.view'],
                 ]],
-                ['label' => 'Manufacturing Reports', 'icon' => 'pi pi-cog', 'module' => 'manufacturing', 'children' => [
-                    ['label' => 'Manufacturing', 'icon' => 'pi pi-cog', 'to' => '/reports/manufacturing', 'permission' => 'reports.view'],
-                    ['label' => 'Production Cost', 'icon' => 'pi pi-calculator', 'to' => '/reports/production-cost', 'permission' => 'reports.view'],
-                    ['label' => 'Tailor', 'icon' => 'pi pi-user', 'to' => '/reports/tailor', 'permission' => 'reports.view'],
-                    ['label' => 'Embroidery', 'icon' => 'pi pi-palette', 'to' => '/reports/embroidery', 'permission' => 'reports.view'],
-                    ['label' => 'Printing', 'icon' => 'pi pi-print', 'to' => '/reports/printing', 'permission' => 'reports.view'],
+                // Mixed-module group again: the job-work reports follow Tailoring /
+                // Embroidery, so tag the leaves and leave the group open.
+                ['label' => 'Manufacturing Reports', 'icon' => 'pi pi-cog', 'children' => [
+                    ['label' => 'Manufacturing', 'icon' => 'pi pi-cog', 'to' => '/reports/manufacturing', 'permission' => 'reports.view', 'module' => 'manufacturing'],
+                    ['label' => 'Production Cost', 'icon' => 'pi pi-calculator', 'to' => '/reports/production-cost', 'permission' => 'reports.view', 'module' => 'manufacturing'],
+                    ['label' => 'Tailor', 'icon' => 'pi pi-user', 'to' => '/reports/tailor', 'permission' => 'reports.view', 'module' => 'tailoring'],
+                    ['label' => 'Embroidery', 'icon' => 'pi pi-palette', 'to' => '/reports/embroidery', 'permission' => 'reports.view', 'module' => 'embroidery'],
+                    ['label' => 'Printing', 'icon' => 'pi pi-print', 'to' => '/reports/printing', 'permission' => 'reports.view', 'module' => 'manufacturing'],
                 ]],
                 ['label' => 'HR Reports', 'icon' => 'pi pi-id-card', 'module' => 'hrms', 'children' => [
                     // No HR report screens exist yet; the group stays hidden (a group
@@ -341,7 +346,6 @@ class MenuSeeder extends Seeder
                     ['label' => 'Companies', 'icon' => 'pi pi-sitemap', 'to' => '/companies', 'permission' => 'companies.view'],
                     ['label' => 'Branches', 'icon' => 'pi pi-map-marker', 'to' => '/branches', 'permission' => 'branches.view'],
                     ['label' => 'Billing & Plan', 'icon' => 'pi pi-credit-card', 'to' => '/billing'],
-                    ['label' => 'Backup & Restore', 'icon' => 'pi pi-cloud-upload', 'to' => '/backups', 'permission' => 'backups.view'],
                     ['label' => 'Workflows', 'icon' => 'pi pi-share-alt', 'to' => '/workflows', 'permission' => 'workflows.view'],
                     ['label' => 'Settings', 'icon' => 'pi pi-cog', 'to' => '/settings', 'permission' => 'settings.view'],
                     ['label' => 'System Tools', 'icon' => 'pi pi-wrench', 'to' => '/system-tools', 'permission' => 'settings.view'],

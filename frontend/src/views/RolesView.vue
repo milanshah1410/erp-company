@@ -9,7 +9,6 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
-import TableExportButtons from '../components/TableExportButtons.vue'
 import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
@@ -231,15 +230,6 @@ onMounted(async () => {
       </template>
     </PageHeader>
 
-    <div class="toolbar no-print" style="display:flex;justify-content:flex-end;margin-bottom:1rem">
-      <TableExportButtons title="Roles" :rows="roles"
-        :columns="[
-          { key: 'name', label: 'Role' },
-          { key: 'permissions_count', label: 'Permissions' },
-          { key: 'users_count', label: 'Users' },
-        ]" />
-    </div>
-
     <div class="panels">
       <!-- Left: role list, grouped by department -->
       <div class="panel role-list">
@@ -257,7 +247,12 @@ onMounted(async () => {
                 {{ role.name }}
                 <Tag v-if="SYSTEM_ROLES.includes(role.name)" value="system role" severity="secondary" class="system-tag" />
               </div>
-              <div class="role-sub">{{ role.permissions_count }} perms &middot; {{ role.users_count }} users</div>
+              <!-- Both counts are scoped to this workspace: permissions within the
+                   tenant's enabled modules, users assigned inside this tenant. -->
+              <div class="role-sub">
+                {{ role.permissions_count }} perms &middot;
+                {{ role.users_count }} {{ role.users_count === 1 ? 'user' : 'users' }}
+              </div>
             </div>
             <Button
               v-if="canDelete"

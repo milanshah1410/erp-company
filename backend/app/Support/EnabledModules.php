@@ -33,6 +33,12 @@ final class EnabledModules
      */
     public static function forTenant(?int $tenantId): ?array
     {
+        // Settings are tenant-scoped and the scope fails closed, so outside a
+        // tenant context there is nothing to read — and nothing to gate.
+        if (! app(TenantContext::class)->has()) {
+            return null;
+        }
+
         $raw = Setting::where('key', 'enabled_modules')->value('value');
         if (empty($raw)) {
             return null;
@@ -64,6 +70,11 @@ final class EnabledModules
      * carries a permission, and the module comes from the row or its nearest
      * tagged ancestor. Groups with no menu row (or under an untagged branch) are
      * absent from the map and count as core — always available.
+     *
+     * A group exposed from more than one module is core too. `reports.view` is the
+     * case that matters: it guards every report screen, so tying it to whichever
+     * module happened to be walked first would stop a tenant from granting Reports
+     * at all unless it owned that one module.
      *
      * @return array<string, string>
      */
@@ -97,10 +108,14 @@ final class EnabledModules
 
                 // A group reachable from an untagged branch stays core: if any
                 // menu row exposes it without a module, it can never be hidden.
+                // null is sticky — once core, a later tagged row can't re-gate it.
                 if ($module === null) {
                     $map[$group] = null;
                 } elseif (! array_key_exists($group, $map)) {
                     $map[$group] = $module;
+                } elseif ($map[$group] !== null && $map[$group] !== $module) {
+                    // Two modules expose the same group → no single one owns it.
+                    $map[$group] = null;
                 }
             }
 
