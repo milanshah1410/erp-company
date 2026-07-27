@@ -17,7 +17,9 @@ class CustomerController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Customer::query()->with('category:id,name,default_price_level');
+        $query = Customer::query()->with([
+            'category:id,name,default_price_level', 'countryRef:id,name', 'port:id,name',
+        ]);
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -37,6 +39,15 @@ class CustomerController extends Controller
 
         if ($request->filled('type')) {
             $query->where('type', $request->query('type'));
+        }
+
+        // Import & Export Logistics: the "Overseas Customers" master is this
+        // list narrowed to foreign buyers (?is_overseas=1).
+        if ($request->filled('is_overseas')) {
+            $query->where('is_overseas', $request->boolean('is_overseas'));
+        }
+        if ($request->filled('country_id')) {
+            $query->where('country_id', $request->query('country_id'));
         }
 
         $sort = $request->query('sort', 'created_at');

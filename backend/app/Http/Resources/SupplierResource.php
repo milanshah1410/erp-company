@@ -26,6 +26,16 @@ class SupplierResource extends JsonResource
             'payment_terms_days' => $this->payment_terms_days,
             'opening_balance' => $this->opening_balance,
             'is_active' => $this->is_active,
+            // Import & Export Logistics — overseas supplier attributes.
+            'is_overseas' => (bool) $this->is_overseas,
+            'country_id' => $this->country_id,
+            'country_name' => $this->whenLoaded('countryRef', fn () => $this->countryRef?->name),
+            'currency_code' => $this->currency_code,
+            'incoterm' => $this->incoterm,
+            'port_id' => $this->port_id,
+            'port_name' => $this->whenLoaded('port', fn () => $this->port?->name),
+            'swift_code' => $this->swift_code,
+            'bank_details' => $this->bank_details,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

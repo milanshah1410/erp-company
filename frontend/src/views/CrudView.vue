@@ -76,7 +76,9 @@ function blankForm() {
   for (const field of config.value.fields) {
     f[field.key] = field.default ?? (field.type === 'checkbox' ? false : null)
   }
-  return f
+  // Screen-pinned values (e.g. is_overseas on the Overseas Suppliers master)
+  // are not editable fields, but new records must still carry them.
+  return { ...f, ...(config.value.fixedParams ?? {}) }
 }
 
 async function fetchOptions(endpoint: string, optionLabel?: string) {
@@ -120,7 +122,7 @@ function optionsForFilter(filter: FilterConfig) {
 
 /** Query params reflecting the current search + filters + sort. */
 function queryParams(): Record<string, any> {
-  const params: Record<string, any> = {}
+  const params: Record<string, any> = { ...(config.value.fixedParams ?? {}) }
   if (search.value) params.search = search.value
   if (statusFilter.value !== '') params.is_active = statusFilter.value
   for (const [key, value] of Object.entries(extraFilters.value)) {

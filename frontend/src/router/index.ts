@@ -105,6 +105,17 @@ const FactoryMaintenanceView = () => import('../views/FactoryMaintenanceView.vue
 const AssetMaintenanceView = () => import('../views/AssetMaintenanceView.vue')
 const DispatchPlansView = () => import('../views/DispatchPlansView.vue')
 const ProofOfDeliveryView = () => import('../views/ProofOfDeliveryView.vue')
+// Import & Export Logistics
+const ImportExportDashboardView = () => import('../views/ImportExportDashboardView.vue')
+const ShipmentsView = () => import('../views/ShipmentsView.vue')
+const ShipmentTimelineView = () => import('../views/ShipmentTimelineView.vue')
+const ShipmentEtaEtdView = () => import('../views/ShipmentEtaEtdView.vue')
+const ShipmentDocumentsView = () => import('../views/ShipmentDocumentsView.vue')
+const ShipmentCustomsView = () => import('../views/ShipmentCustomsView.vue')
+const ShipmentPaymentsView = () => import('../views/ShipmentPaymentsView.vue')
+const ShipmentContainersView = () => import('../views/ShipmentContainersView.vue')
+const ShipmentProfitView = () => import('../views/ShipmentProfitView.vue')
+const ShipmentExpensesView = () => import('../views/ShipmentExpensesView.vue')
 const VouchersView = () => import('../views/VouchersView.vue')
 const CashBookView = () => import('../views/CashBookView.vue')
 const PettyCashView = () => import('../views/PettyCashView.vue')
@@ -251,6 +262,29 @@ const routes: RouteRecordRaw[] = [
       { path: 'dispatch-plans', component: DispatchPlansView, meta: { permission: 'dispatch-plans.view' } },
       { path: 'proof-of-delivery', component: ProofOfDeliveryView, meta: { permission: 'dispatch-pods.view' } },
       { path: 'transport-charges', component: CrudView, meta: { resource: 'transport-charges', permission: 'transport-charges.view' } },
+      // Import & Export Logistics — masters
+      { path: 'countries', component: CrudView, meta: { resource: 'countries', permission: 'countries.view' } },
+      { path: 'ports', component: CrudView, meta: { resource: 'ports', permission: 'ports.view' } },
+      { path: 'shipping-lines', component: CrudView, meta: { resource: 'shipping-lines', permission: 'shipping-lines.view' } },
+      { path: 'airlines', component: CrudView, meta: { resource: 'airlines', permission: 'airlines.view' } },
+      { path: 'freight-forwarders', component: CrudView, meta: { resource: 'freight-forwarders', permission: 'freight-forwarders.view' } },
+      { path: 'cha-agents', component: CrudView, meta: { resource: 'cha-agents', permission: 'cha-agents.view' } },
+      { path: 'transporters', component: CrudView, meta: { resource: 'transporters', permission: 'transporters.view' } },
+      { path: 'overseas-suppliers', component: CrudView, meta: { resource: 'overseas-suppliers', permission: 'suppliers.view' } },
+      { path: 'overseas-customers', component: CrudView, meta: { resource: 'overseas-customers', permission: 'customers.view' } },
+      // Import & Export Logistics — shipments. The two shipment lists share one
+      // view; `direction` meta picks the leg.
+      { path: 'import-export', component: ImportExportDashboardView, meta: { permission: 'shipments.view', module: 'logistics' } },
+      { path: 'import-export/import-shipments', component: ShipmentsView, meta: { permission: 'shipments.view', module: 'logistics', direction: 'import' } },
+      { path: 'import-export/export-shipments', component: ShipmentsView, meta: { permission: 'shipments.view', module: 'logistics', direction: 'export' } },
+      { path: 'import-export/timeline', component: ShipmentTimelineView, meta: { permission: 'shipments.view', module: 'logistics' } },
+      { path: 'import-export/eta-etd', component: ShipmentEtaEtdView, meta: { permission: 'shipments.view', module: 'logistics' } },
+      { path: 'import-export/documents', component: ShipmentDocumentsView, meta: { permission: 'shipment-documents.view', module: 'logistics' } },
+      { path: 'import-export/customs', component: ShipmentCustomsView, meta: { permission: 'shipment-customs.view', module: 'logistics' } },
+      { path: 'import-export/payments', component: ShipmentPaymentsView, meta: { permission: 'shipment-payments.view', module: 'logistics' } },
+      { path: 'import-export/containers', component: ShipmentContainersView, meta: { permission: 'shipment-containers.view', module: 'logistics' } },
+      { path: 'import-export/profit', component: ShipmentProfitView, meta: { permission: 'shipments.view', module: 'logistics' } },
+      { path: 'import-export/expenses', component: ShipmentExpensesView, meta: { permission: 'shipment-expenses.view', module: 'logistics' } },
       { path: 'bank-accounts', component: CrudView, meta: { resource: 'bank-accounts', permission: 'bank-accounts.view' } },
       { path: 'vouchers', component: VouchersView, meta: { permission: 'vouchers.view' } },
       { path: 'accounts/cash-book', component: CashBookView, meta: { permission: 'accounts.view' } },

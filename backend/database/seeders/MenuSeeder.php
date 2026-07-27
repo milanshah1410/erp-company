@@ -99,6 +99,20 @@ class MenuSeeder extends Seeder
                     ['label' => 'Broker Ledger', 'icon' => 'pi pi-book', 'to' => '/brokers/ledger', 'permission' => 'brokers.view', 'module' => 'broker'],
                 ]],
                 ['label' => 'Warehouses', 'icon' => 'pi pi-building', 'to' => '/warehouses', 'permission' => 'warehouses.view'],
+                // Import & Export Logistics masters. Overseas suppliers /
+                // customers point at the party masters filtered to foreign
+                // parties, so they carry the suppliers / customers permission.
+                ['label' => 'Import & Export', 'icon' => 'pi pi-globe', 'module' => 'logistics', 'children' => [
+                    ['label' => 'Countries', 'icon' => 'pi pi-flag', 'to' => '/countries', 'permission' => 'countries.view'],
+                    ['label' => 'Ports', 'icon' => 'pi pi-map-marker', 'to' => '/ports', 'permission' => 'ports.view'],
+                    ['label' => 'Shipping Lines', 'icon' => 'pi pi-compass', 'to' => '/shipping-lines', 'permission' => 'shipping-lines.view'],
+                    ['label' => 'Airlines', 'icon' => 'pi pi-send', 'to' => '/airlines', 'permission' => 'airlines.view'],
+                    ['label' => 'Freight Forwarders', 'icon' => 'pi pi-box', 'to' => '/freight-forwarders', 'permission' => 'freight-forwarders.view'],
+                    ['label' => 'CHA Agents', 'icon' => 'pi pi-verified', 'to' => '/cha-agents', 'permission' => 'cha-agents.view'],
+                    ['label' => 'Transporters', 'icon' => 'pi pi-truck', 'to' => '/transporters', 'permission' => 'transporters.view'],
+                    ['label' => 'Overseas Suppliers', 'icon' => 'pi pi-briefcase', 'to' => '/overseas-suppliers', 'permission' => 'suppliers.view'],
+                    ['label' => 'Overseas Customers', 'icon' => 'pi pi-users', 'to' => '/overseas-customers', 'permission' => 'customers.view'],
+                ]],
             ]],
 
             ['label' => 'Sales', 'icon' => 'pi pi-dollar', 'children' => [
@@ -280,6 +294,23 @@ class MenuSeeder extends Seeder
                 ['label' => 'Dispatch Planning', 'icon' => 'pi pi-send', 'to' => '/dispatch-plans', 'permission' => 'dispatch-plans.view'],
                 ['label' => 'Proof of Delivery', 'icon' => 'pi pi-check-circle', 'to' => '/proof-of-delivery', 'permission' => 'dispatch-pods.view'],
                 ['label' => 'Transport Charges', 'icon' => 'pi pi-indian-rupee', 'to' => '/transport-charges', 'permission' => 'transport-charges.view'],
+            ]],
+
+            // Import & Export Logistics — the operational screens. The masters
+            // behind them (countries, ports, carriers, CHA …) sit under
+            // Masters → Import & Export, and both follow the logistics module.
+            ['label' => 'Import & Export Logistics', 'icon' => 'pi pi-globe', 'module' => 'logistics', 'children' => [
+                ['label' => 'Dashboard', 'icon' => 'pi pi-gauge', 'to' => '/import-export', 'permission' => 'shipments.view'],
+                ['label' => 'Active Import Shipments', 'icon' => 'pi pi-arrow-down-left', 'to' => '/import-export/import-shipments', 'permission' => 'shipments.view'],
+                ['label' => 'Active Export Shipments', 'icon' => 'pi pi-arrow-up-right', 'to' => '/import-export/export-shipments', 'permission' => 'shipments.view'],
+                ['label' => 'Shipment Timeline', 'icon' => 'pi pi-clock', 'to' => '/import-export/timeline', 'permission' => 'shipments.view'],
+                ['label' => 'ETA / ETD', 'icon' => 'pi pi-calendar-clock', 'to' => '/import-export/eta-etd', 'permission' => 'shipments.view'],
+                ['label' => 'Pending Documents', 'icon' => 'pi pi-file-import', 'to' => '/import-export/documents', 'permission' => 'shipment-documents.view'],
+                ['label' => 'Pending Customs', 'icon' => 'pi pi-verified', 'to' => '/import-export/customs', 'permission' => 'shipment-customs.view'],
+                ['label' => 'Pending Payments', 'icon' => 'pi pi-wallet', 'to' => '/import-export/payments', 'permission' => 'shipment-payments.view'],
+                ['label' => 'Container Status', 'icon' => 'pi pi-box', 'to' => '/import-export/containers', 'permission' => 'shipment-containers.view'],
+                ['label' => 'Shipment Profit', 'icon' => 'pi pi-chart-line', 'to' => '/import-export/profit', 'permission' => 'shipments.view'],
+                ['label' => 'Logistics Expenses', 'icon' => 'pi pi-indian-rupee', 'to' => '/import-export/expenses', 'permission' => 'shipment-expenses.view'],
             ]],
 
             ['label' => 'Reports', 'icon' => 'pi pi-chart-bar', 'feature' => 'reports', 'children' => [

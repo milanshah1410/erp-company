@@ -32,6 +32,14 @@ class SupplierRequest extends FormRequest
             'payment_terms_days' => ['nullable', 'integer', 'min:0'],
             'opening_balance' => ['nullable', 'numeric'],
             'is_active' => ['boolean'],
+            // Import & Export Logistics — overseas supplier attributes.
+            'is_overseas' => ['boolean'],
+            'country_id' => ['nullable', 'exists:countries,id'],
+            'currency_code' => ['nullable', 'string', 'size:3'],
+            'incoterm' => ['nullable', 'string', 'max:10'],
+            'port_id' => ['nullable', 'exists:ports,id'],
+            'swift_code' => ['nullable', 'string', 'max:20'],
+            'bank_details' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

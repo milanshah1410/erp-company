@@ -52,6 +52,15 @@ class TenantRoleCatalog
         'employee-claims', 'vehicle-expenses', 'fuel-expenses',
         'electricity-bills', 'factory-maintenances', 'asset-maintenances',
         'drivers', 'delivery-routes', 'dispatch-plans', 'dispatch-pods', 'transport-charges',
+        // Import & Export Logistics masters. Overseas suppliers/customers reuse
+        // the 'suppliers' / 'customers' permissions — same records, filtered view.
+        'countries', 'ports', 'shipping-lines', 'airlines',
+        'freight-forwarders', 'cha-agents', 'transporters',
+        // Import & Export Logistics shipments. Customs is split out from
+        // 'shipments' because filing entries and paying duty is the CHA desk's
+        // job, not the documentation desk's.
+        'shipments', 'shipment-containers', 'shipment-documents',
+        'shipment-customs', 'shipment-expenses', 'shipment-payments',
         'payments', 'payment-gateways',
         'bank-accounts', 'vouchers', 'tds-tcs-rates',
         'workflows',
@@ -98,6 +107,11 @@ class TenantRoleCatalog
             'GST' => ['gst-registrations', 'hsn-codes', 'e-invoices', 'e-way-bills'],
             'HR' => ['departments', 'employees', 'attendance', 'salaries', 'leave-types', 'leave-applications', 'overtime', 'employee-bonuses', 'salary-advances', 'employee-loans', 'biometric-devices', 'biometric-punches', 'salary-structures', 'payroll'],
             'TRANSPORT' => ['drivers', 'delivery-routes', 'dispatch-plans', 'dispatch-pods', 'transport-charges'],
+            // Import & Export Logistics: the trade reference data …
+            'EXIM' => ['countries', 'ports', 'shipping-lines', 'airlines', 'freight-forwarders', 'cha-agents', 'transporters'],
+            // … and the shipments built on it. Split so a desk can hold the
+            // shipments without being able to edit the masters behind them.
+            'EXIM_SHIPMENTS' => ['shipments', 'shipment-containers', 'shipment-documents', 'shipment-customs', 'shipment-expenses', 'shipment-payments'],
             'BROKER' => ['brokers'],
         ];
     }
@@ -140,6 +154,7 @@ class TenantRoleCatalog
             'Finance' => ['finance-manager', 'senior-accountant', 'accountant', 'cashier', 'auditor'],
             'HR' => ['hr-manager', 'hr-executive', 'payroll-executive'],
             'Transport' => ['transport-manager', 'dispatch-executive', 'driver', 'delivery-boy'],
+            'Import & Export' => ['logistics-manager', 'import-executive', 'export-executive', 'documentation-executive', 'cha-executive'],
             'Administration' => ['office-admin', 'receptionist'],
             'System' => ['super-admin', 'admin', 'staff'],
         ];
@@ -176,14 +191,14 @@ class TenantRoleCatalog
             'director' => ['label' => 'Director', 'spec' => [
                 'CATALOG:m', 'CRM_CORE:m', 'PRICE:m', 'COMMS:m', 'FIELD_SALES:m', 'SALES:a',
                 'PURCHASE:a', 'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'EXPENSES:a',
-                'TREASURY:m', 'ASSETS:m', 'GST:m', 'HR:a', 'TRANSPORT:m', 'BROKER:m',
+                'TREASURY:m', 'ASSETS:m', 'GST:m', 'HR:a', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m', 'BROKER:m',
                 'accounts:v', 'reports:v', 'workflows:m', 'audit-logs:v',
                 'users:v', 'roles:v', 'companies:v', 'branches:v', 'settings:v', 'notifications:v', 'ai:v',
             ]],
             'general-manager' => ['label' => 'General Manager', 'spec' => [
                 'CATALOG:m', 'CRM_CORE:m', 'PRICE:m', 'COMMS:m', 'FIELD_SALES:m', 'SALES:a',
                 'PURCHASE:a', 'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'EXPENSES:a',
-                'TREASURY:v', 'ASSETS:m', 'GST:v', 'HR:m', 'TRANSPORT:m', 'BROKER:m',
+                'TREASURY:v', 'ASSETS:m', 'GST:v', 'HR:m', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m', 'BROKER:m',
                 'accounts:v', 'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
             ]],
             'branch-manager' => ['label' => 'Branch Manager', 'spec' => [
@@ -192,7 +207,7 @@ class TenantRoleCatalog
                 'reports:v', 'notifications:v', 'ai:v',
             ]],
             'operations-manager' => ['label' => 'Operations Manager', 'spec' => [
-                'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'PURCHASE:c', 'TRANSPORT:m',
+                'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'PURCHASE:c', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m',
                 'CATALOG:v', 'EXPENSES:c', 'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
             ]],
 
@@ -320,17 +335,50 @@ class TenantRoleCatalog
 
             // ---- Transport ----
             'transport-manager' => ['label' => 'Transport Manager', 'spec' => [
-                'TRANSPORT:m', 'vehicles:m', 'vehicle-expenses:a', 'fuel-expenses:a', 'reports:v', 'notifications:v',
+                'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m', 'vehicles:m', 'vehicle-expenses:a', 'fuel-expenses:a',
+                'reports:v', 'notifications:v',
             ]],
             'dispatch-executive' => ['label' => 'Dispatch Executive', 'spec' => [
                 'dispatch-plans:m', 'dispatch-pods:m', 'delivery-routes:m', 'transport-charges:c',
-                'drivers:v', 'vehicles:v', 'gate-entries:c', 'notifications:v',
+                'drivers:v', 'vehicles:v', 'gate-entries:c', 'EXIM:v', 'shipments:v', 'shipment-containers:c',
+                'notifications:v',
             ]],
             'driver' => ['label' => 'Driver', 'spec' => [
                 'dispatch-plans:v', 'dispatch-pods:c', 'delivery-routes:v', 'vehicles:v', 'fuel-expenses:c', 'notifications:v',
             ]],
             'delivery-boy' => ['label' => 'Delivery Boy', 'spec' => [
                 'dispatch-plans:v', 'dispatch-pods:c', 'delivery-routes:v', 'notifications:v',
+            ]],
+
+            // ---- Import & Export ----
+            // The cross-border desk. The manager owns the whole module; the
+            // executives each own one lane or one document type, which is how a
+            // freight desk actually divides up: buying/selling side, paperwork,
+            // and the customs filing that only a licensed CHA handles.
+            'logistics-manager' => ['label' => 'Logistics Manager', 'spec' => [
+                'EXIM:m', 'EXIM_SHIPMENTS:m', 'TRANSPORT:m', 'suppliers:v', 'customers:v',
+                'purchases:v', 'sales:v', 'stock:v', 'warehouses:v',
+                'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
+            ]],
+            'import-executive' => ['label' => 'Import Executive', 'spec' => [
+                'EXIM:v', 'shipments:c', 'shipment-containers:c', 'shipment-documents:c',
+                'shipment-expenses:c', 'shipment-customs:v', 'shipment-payments:v',
+                'suppliers:v', 'purchases:v', 'purchase-invoices:v', 'stock:v', 'warehouses:v',
+                'reports:v', 'notifications:v',
+            ]],
+            'export-executive' => ['label' => 'Export Executive', 'spec' => [
+                'EXIM:v', 'shipments:c', 'shipment-containers:c', 'shipment-documents:c',
+                'shipment-expenses:c', 'shipment-customs:v', 'shipment-payments:v',
+                'customers:v', 'sales:v', 'stock:v', 'warehouses:v',
+                'reports:v', 'notifications:v',
+            ]],
+            'documentation-executive' => ['label' => 'Documentation Executive', 'spec' => [
+                'shipments:v', 'shipment-documents:m', 'shipment-containers:v', 'shipment-customs:v',
+                'EXIM:v', 'suppliers:v', 'customers:v', 'email:c', 'notifications:v',
+            ]],
+            'cha-executive' => ['label' => 'CHA Executive', 'spec' => [
+                'shipments:v', 'shipment-customs:m', 'shipment-documents:c', 'shipment-containers:c',
+                'shipment-expenses:c', 'EXIM:v', 'notifications:v',
             ]],
 
             // ---- Administration ----

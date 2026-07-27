@@ -81,5 +81,8 @@ class TenantDatabaseSeeder extends Seeder
 
         // 9. Baseline HSN/SAC master (GST integration).
         (new HsnCodeSeeder)->run();
+
+        // 10. Baseline Import & Export masters (countries, ports, carriers).
+        (new EximMasterSeeder)->run();
     }
 }

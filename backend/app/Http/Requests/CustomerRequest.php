@@ -42,6 +42,14 @@ class CustomerRequest extends FormRequest
             'opening_balance' => ['nullable', 'numeric'],
             'default_price_level' => ['nullable', Rule::in(['mrp', 'wholesale', 'retail', 'discount'])],
             'is_active' => ['boolean'],
+            // Import & Export Logistics — overseas customer attributes.
+            'is_overseas' => ['boolean'],
+            'country_id' => ['nullable', 'exists:countries,id'],
+            'currency_code' => ['nullable', 'string', 'size:3'],
+            'incoterm' => ['nullable', 'string', 'max:10'],
+            'port_id' => ['nullable', 'exists:ports,id'],
+            'lc_terms' => ['nullable', 'string', 'max:255'],
+            'iec_code' => ['nullable', 'string', 'max:20'],
         ];
     }
 }

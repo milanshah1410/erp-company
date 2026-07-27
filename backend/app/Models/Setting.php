@@ -67,6 +67,10 @@ class Setting extends Model
         'asset_maintenance_number_prefix' => 'AMN',
         'dispatch_number_prefix' => 'DSP',
         'transport_charge_number_prefix' => 'TRC',
+        // Import/export shipments number per leg, so each gets its own prefix
+        // ('EXP' is already taken by the Expenses module).
+        'import_shipment_number_prefix' => 'IMP',
+        'export_shipment_number_prefix' => 'EXPO',
         'payment_number_prefix' => 'PMT',
         'receipt_voucher_number_prefix' => 'RV',
         'payment_voucher_number_prefix' => 'PV',

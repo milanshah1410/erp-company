@@ -81,6 +81,20 @@ use App\Http\Controllers\Api\DeliveryRouteController;
 use App\Http\Controllers\Api\DispatchPlanController;
 use App\Http\Controllers\Api\ProofOfDeliveryController;
 use App\Http\Controllers\Api\TransportChargeController;
+use App\Http\Controllers\Api\CountryController;
+use App\Http\Controllers\Api\PortController;
+use App\Http\Controllers\Api\ShippingLineController;
+use App\Http\Controllers\Api\AirlineController;
+use App\Http\Controllers\Api\FreightForwarderController;
+use App\Http\Controllers\Api\ChaAgentController;
+use App\Http\Controllers\Api\TransporterController;
+use App\Http\Controllers\Api\ImportExportController;
+use App\Http\Controllers\Api\ShipmentController;
+use App\Http\Controllers\Api\ShipmentContainerController;
+use App\Http\Controllers\Api\ShipmentDocumentController;
+use App\Http\Controllers\Api\ShipmentExpenseController;
+use App\Http\Controllers\Api\ShipmentIntegrationController;
+use App\Http\Controllers\Api\ShipmentPaymentController;
 use App\Http\Controllers\Api\FinancialYearController;
 use App\Http\Controllers\Api\GateEntryController;
 use App\Http\Controllers\Api\GstRegistrationController;
@@ -907,6 +921,113 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         // Transport charges (freight / loading / toll / detention).
         $crud('transport-charges', TransportChargeController::class, 'transport-charges', 'transportCharge');
+
+        /*
+        |----------------------------------------------------------------------
+        | Import & Export Logistics — Masters. The reference data behind every
+        | cross-border shipment: countries and ports, the carriers (shipping
+        | lines / airlines) and the service providers (freight forwarders, CHA,
+        | inland transporters). Overseas suppliers & customers are NOT separate
+        | endpoints — they are the existing party masters filtered with
+        | ?is_overseas=1, so PO → import and SO → export links keep working.
+        |----------------------------------------------------------------------
+        */
+        $crud('countries', CountryController::class, 'countries', 'country');
+        $crud('ports', PortController::class, 'ports', 'port');
+        $crud('shipping-lines', ShippingLineController::class, 'shipping-lines', 'shippingLine');
+        $crud('airlines', AirlineController::class, 'airlines', 'airline');
+        $crud('freight-forwarders', FreightForwarderController::class, 'freight-forwarders', 'freightForwarder');
+        $crud('cha-agents', ChaAgentController::class, 'cha-agents', 'chaAgent');
+        $crud('transporters', TransporterController::class, 'transporters', 'transporter');
+
+        /*
+        |----------------------------------------------------------------------
+        | Import & Export Logistics — Shipments. The operational half of the
+        | module: the import/export shipment document with its status and customs
+        | tracks, its containers, trade documents, milestone timeline, logistics
+        | costs and goods-value settlements, plus the read-only boards the desk
+        | works from (dashboard, ETA/ETD, pending customs, pending payments,
+        | shipment profit).
+        |
+        | Everything sits behind `module:logistics`, the same gate the exim masters
+        | and the transport screens carry, so a workspace that never switched the
+        | module on cannot reach it by URL either.
+        |----------------------------------------------------------------------
+        */
+        Route::middleware('module:logistics')->group(function () use ($crud) {
+            // Catalogue of document types / cost heads / milestones for the pickers.
+            Route::get('import-export/catalogue', [ShipmentController::class, 'catalogue'])->middleware('permission:shipments.view');
+
+            // The boards. Pending Documents and Container Status are the default
+            // views of their own resources, so they live on those endpoints.
+            Route::get('import-export/dashboard', [ImportExportController::class, 'dashboard'])->middleware('permission:shipments.view');
+            Route::get('import-export/eta-etd', [ImportExportController::class, 'etaEtd'])->middleware('permission:shipments.view');
+            Route::get('import-export/pending-customs', [ImportExportController::class, 'pendingCustoms'])->middleware('permission:shipments.view');
+            Route::get('import-export/pending-payments', [ImportExportController::class, 'pendingPayments'])->middleware('permission:shipments.view');
+            Route::get('import-export/shipment-profit', [ImportExportController::class, 'shipmentProfit'])->middleware('permission:shipments.view');
+
+            // Shipments (draft → booked → in_transit → arrived → customs →
+            // cleared → delivered → closed), with customs on its own track.
+            $crud('shipments', ShipmentController::class, 'shipments', 'shipment');
+            Route::post('shipments/{shipment}/status', [ShipmentController::class, 'changeStatus'])->middleware('permission:shipments.edit');
+            Route::post('shipments/{shipment}/customs', [ShipmentController::class, 'customs'])->middleware('permission:shipment-customs.edit');
+
+            /*
+            |------------------------------------------------------------------
+            | ERP links. The Import (PO → shipment → supplier invoice →
+            | warehouse receipt → stock) and Export (SO → shipment → customer
+            | invoice → dispatch) chains. Each action needs the shipment
+            | permission AND the permission for the document it touches, so a
+            | logistics desk cannot post stock or raise a dispatch it would not
+            | otherwise be allowed to create.
+            |------------------------------------------------------------------
+            */
+            Route::post('shipments/from-purchase-order', [ShipmentIntegrationController::class, 'fromPurchaseOrder'])
+                ->middleware(['permission:shipments.create', 'permission:purchases.view']);
+            Route::post('shipments/from-sales-order', [ShipmentIntegrationController::class, 'fromSalesOrder'])
+                ->middleware(['permission:shipments.create', 'permission:sales.view']);
+            Route::post('shipments/{shipment}/supplier-invoice', [ShipmentIntegrationController::class, 'supplierInvoice'])
+                ->middleware(['permission:shipments.edit', 'permission:purchase-invoices.view']);
+            Route::post('shipments/{shipment}/customer-invoice', [ShipmentIntegrationController::class, 'customerInvoice'])
+                ->middleware(['permission:shipments.edit', 'permission:sales.view']);
+            Route::post('shipments/{shipment}/warehouse-receipt', [ShipmentIntegrationController::class, 'warehouseReceipt'])
+                ->middleware(['permission:shipments.edit', 'permission:purchases.create']);
+            Route::post('shipments/{shipment}/dispatch', [ShipmentIntegrationController::class, 'dispatch'])
+                ->middleware(['permission:shipments.edit', 'permission:dispatch-plans.create']);
+
+            // Container: price the overdue free days into a detention /
+            // demurrage cost on the shipment (re-runnable while it accrues).
+            Route::post('shipment-containers/{shipmentContainer}/detention-charge', [ShipmentIntegrationController::class, 'detentionCharge'])
+                ->middleware(['permission:shipment-containers.edit', 'permission:shipment-expenses.create']);
+
+            // Milestone timeline.
+            Route::get('shipments/{shipment}/timeline', [ShipmentController::class, 'timeline'])->middleware('permission:shipments.view');
+            Route::post('shipments/{shipment}/events', [ShipmentController::class, 'addEvent'])->middleware('permission:shipments.edit');
+            Route::delete('shipments/{shipment}/events/{event}', [ShipmentController::class, 'destroyEvent'])->middleware('permission:shipments.edit');
+
+            // Containers — summary before the {shipmentContainer} routes so
+            // "summary" is not swallowed as an id.
+            Route::get('shipment-containers/summary', [ShipmentContainerController::class, 'summary'])->middleware('permission:shipment-containers.view');
+            $crud('shipment-containers', ShipmentContainerController::class, 'shipment-containers', 'shipmentContainer');
+            Route::post('shipment-containers/{shipmentContainer}/move', [ShipmentContainerController::class, 'move'])->middleware('permission:shipment-containers.edit');
+
+            // Trade documents (+ scanned copies on the tenant's private disk).
+            Route::get('shipment-documents/summary', [ShipmentDocumentController::class, 'summary'])->middleware('permission:shipment-documents.view');
+            $crud('shipment-documents', ShipmentDocumentController::class, 'shipment-documents', 'shipmentDocument');
+            Route::post('shipment-documents/{shipmentDocument}/file', [ShipmentDocumentController::class, 'upload'])->middleware('permission:shipment-documents.edit');
+            Route::delete('shipment-documents/{shipmentDocument}/file', [ShipmentDocumentController::class, 'deleteFile'])->middleware('permission:shipment-documents.edit');
+
+            // Logistics expenses.
+            Route::get('shipment-expenses/summary', [ShipmentExpenseController::class, 'summary'])->middleware('permission:shipment-expenses.view');
+            $crud('shipment-expenses', ShipmentExpenseController::class, 'shipment-expenses', 'shipmentExpense');
+            Route::post('shipment-expenses/{shipmentExpense}/pay', [ShipmentExpenseController::class, 'pay'])->middleware('permission:shipment-expenses.edit');
+
+            // Goods-value settlements (no update — a payment is corrected by
+            // deleting and re-posting it, like the rest of the app's receipts).
+            Route::get('shipment-payments', [ShipmentPaymentController::class, 'index'])->middleware('permission:shipment-payments.view');
+            Route::post('shipment-payments', [ShipmentPaymentController::class, 'store'])->middleware('permission:shipment-payments.create');
+            Route::delete('shipment-payments/{shipmentPayment}', [ShipmentPaymentController::class, 'destroy'])->middleware('permission:shipment-payments.delete');
+        });
 
         /*
         |----------------------------------------------------------------------

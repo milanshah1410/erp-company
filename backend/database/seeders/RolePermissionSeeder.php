@@ -83,6 +83,13 @@ class RolePermissionSeeder extends Seeder
                 'dispatch-plans.view', 'dispatch-plans.create', 'dispatch-plans.edit', 'dispatch-plans.delete',
                 'dispatch-pods.view', 'dispatch-pods.create', 'dispatch-pods.edit', 'dispatch-pods.delete',
                 'transport-charges.view', 'transport-charges.create', 'transport-charges.edit', 'transport-charges.delete',
+                // Import & Export masters — read-only; the logistics desk owns them.
+                'countries.view', 'ports.view', 'shipping-lines.view', 'airlines.view',
+                'freight-forwarders.view', 'cha-agents.view', 'transporters.view',
+                // Inbound cargo lands in the warehouse, so the boxes and the
+                // shipment behind them are visible here; the paperwork is not.
+                'shipments.view', 'shipment-documents.view',
+                'shipment-containers.view', 'shipment-containers.create', 'shipment-containers.edit',
                 'reports.view', 'barcodes.view', 'ai.view',
             ],
             'purchase-manager' => [
@@ -97,6 +104,15 @@ class RolePermissionSeeder extends Seeder
                 'payments.view', 'payments.create',
                 'stock-returns.view', 'stock-returns.create', 'stock-returns.edit', 'stock-returns.approve',
                 'advanced-inventory.view', 'advanced-inventory.create',
+                // Import buying: overseas vendors are ordinary suppliers, so the
+                // trade masters behind an import PO are read-only here.
+                'countries.view', 'ports.view', 'shipping-lines.view', 'airlines.view',
+                'freight-forwarders.view', 'cha-agents.view', 'transporters.view',
+                // …but the import shipment itself is raised off the PO here.
+                'shipments.view', 'shipments.create', 'shipments.edit',
+                'shipment-documents.view', 'shipment-documents.create', 'shipment-documents.edit',
+                'shipment-containers.view', 'shipment-expenses.view', 'shipment-expenses.create',
+                'shipment-customs.view',
                 'stock.view', 'stock-ledger.view', 'reports.view', 'barcodes.view', 'notifications.view', 'ai.view',
             ],
             'sales-manager' => [
@@ -120,6 +136,14 @@ class RolePermissionSeeder extends Seeder
                 'stock.view', 'reports.view', 'barcodes.view', 'notifications.view', 'ai.view',
                 'stock-returns.view', 'stock-returns.create', 'stock-returns.edit', 'stock-returns.approve',
                 'sales-returns.view', 'sales-returns.create', 'sales-returns.edit', 'sales-returns.approve',
+                // Export selling: the trade masters are read-only, but the export
+                // shipment against a sales order is raised here.
+                'countries.view', 'ports.view', 'shipping-lines.view', 'airlines.view',
+                'freight-forwarders.view', 'cha-agents.view', 'transporters.view',
+                'shipments.view', 'shipments.create', 'shipments.edit',
+                'shipment-documents.view', 'shipment-documents.create', 'shipment-documents.edit',
+                'shipment-containers.view', 'shipment-expenses.view', 'shipment-expenses.create',
+                'shipment-customs.view', 'shipment-payments.view',
                 // Field-sales team management
                 'salesmen.view', 'salesmen.create', 'salesmen.edit', 'salesmen.delete',
                 'salesman-targets.view', 'salesman-targets.create', 'salesman-targets.edit', 'salesman-targets.delete',
@@ -156,6 +180,11 @@ class RolePermissionSeeder extends Seeder
                 'hsn-codes.view', 'hsn-codes.create', 'hsn-codes.edit', 'hsn-codes.delete',
                 'e-invoices.view', 'e-invoices.create', 'e-invoices.edit',
                 'e-way-bills.view', 'e-way-bills.create', 'e-way-bills.edit',
+                // Import & Export: the money side of a shipment — logistics bills,
+                // duty and the goods-value settlements — is the accounts desk's.
+                'shipments.view', 'shipment-customs.view',
+                'shipment-expenses.view', 'shipment-expenses.create', 'shipment-expenses.edit', 'shipment-expenses.delete',
+                'shipment-payments.view', 'shipment-payments.create', 'shipment-payments.edit', 'shipment-payments.delete',
                 'reports.view', 'stock.view', 'stock-ledger.view', 'notifications.view', 'ai.view',
             ],
             'staff' => [

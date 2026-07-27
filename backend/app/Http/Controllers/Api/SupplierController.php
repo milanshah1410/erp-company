@@ -15,7 +15,7 @@ class SupplierController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Supplier::query();
+        $query = Supplier::query()->with(['countryRef:id,name', 'port:id,name']);
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -27,6 +27,15 @@ class SupplierController extends Controller
 
         if ($request->filled('is_active')) {
             $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        // Import & Export Logistics: the "Overseas Suppliers" master is this
+        // list narrowed to foreign vendors (?is_overseas=1).
+        if ($request->filled('is_overseas')) {
+            $query->where('is_overseas', $request->boolean('is_overseas'));
+        }
+        if ($request->filled('country_id')) {
+            $query->where('country_id', $request->query('country_id'));
         }
 
         $sort = $request->query('sort', 'created_at');

@@ -31,6 +31,9 @@ class Customer extends Model implements AuthenticatableContract
         'address', 'city', 'state', 'country', 'pincode',
         'credit_limit', 'opening_balance', 'default_price_level', 'is_active',
         'portal_enabled',
+        // Import & Export Logistics — overseas customer attributes.
+        'is_overseas', 'country_id', 'currency_code', 'incoterm', 'port_id',
+        'lc_terms', 'iec_code',
     ];
 
     protected $hidden = [
@@ -45,7 +48,20 @@ class Customer extends Model implements AuthenticatableContract
         'is_active' => 'boolean',
         'portal_enabled' => 'boolean',
         'portal_last_login_at' => 'datetime',
+        'is_overseas' => 'boolean',
     ];
+
+    /** Country master row (overseas customers); `country` stays free text. */
+    public function countryRef(): BelongsTo
+    {
+        return $this->belongsTo(Country::class, 'country_id');
+    }
+
+    /** Default port of discharge for this customer's export shipments. */
+    public function port(): BelongsTo
+    {
+        return $this->belongsTo(Port::class);
+    }
 
     /** Portal login authenticates against the dedicated portal password column. */
     public function getAuthPassword(): string

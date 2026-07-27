@@ -94,7 +94,7 @@ final class Modules
         'logistics' => [
             'label' => 'Logistics',
             'icon' => 'pi pi-truck',
-            'description' => 'Vehicles, drivers, dispatch planning, proof of delivery',
+            'description' => 'Vehicles, drivers, dispatch planning, proof of delivery, import & export masters',
         ],
         'accounts' => [
             'label' => 'Accounts',
