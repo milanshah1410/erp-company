@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\DemoDataGenerator;
 use App\Services\PerformanceMetrics;
+use App\Support\DemoModuleMenu;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,13 +41,30 @@ class TenantToolController extends Controller
         ]);
     }
 
-    /** Module catalogue + allowed volumes for the demo-data picker. */
-    public function demoOptions(): JsonResponse
+    /**
+     * Module catalogue + allowed volumes for the demo-data picker. `sections`
+     * carries the modules grouped the way the ERP menu groups its screens
+     * (Masters → Products, Sales → CRM …); `modules` stays the flat list.
+     *
+     * With ?tenant_id the grouping is that tenant's own menu, gated by its plan
+     * and its enabled modules — so the picker only offers what that tenant runs.
+     * The read happens inside its TenantContext (the module selection is a
+     * tenant-scoped setting).
+     */
+    public function demoOptions(Request $request): JsonResponse
     {
+        $tenant = ($id = $request->integer('tenant_id')) ? Tenant::find($id) : null;
+
+        $sections = $tenant
+            ? app(TenantContext::class)->runWith($tenant->id, fn () => DemoModuleMenu::sections($tenant->id))
+            : DemoModuleMenu::sections();
+
         return response()->json([
             'modules' => collect(DemoDataGenerator::MODULES)
                 ->map(fn ($label, $key) => ['key' => $key, 'label' => $label])
                 ->values(),
+            'sections' => $sections,
+            'tenant' => $tenant ? ['id' => $tenant->id, 'name' => $tenant->company_name] : null,
             'counts' => DemoDataGenerator::COUNTS,
             'bulk_counts' => DemoDataGenerator::BULK_COUNTS,
         ]);

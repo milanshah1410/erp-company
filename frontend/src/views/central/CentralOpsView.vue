@@ -371,26 +371,32 @@ async function deleteFlag(row: any) {
 }
 
 // ---- Tenant Tools -------------------------------------------------------------
-// Performance diagnostics (§17) and the Demo Data generator (§7) used to live on
-// the tenant's own System Tools screen; they are operator tools, so they run here
-// against a chosen tenant. The tenant keeps Import Data only.
+// The Demo Data generator (§7) used to live on the tenant's own System Tools
+// screen; it is an operator tool, so it runs here against a chosen tenant. The
+// tenant keeps Import Data only.
 const canRunTools = computed(() => auth.can('ops-tools.manage'))
 
 const toolTenants = ref<any[]>([])
 const toolTenantId = ref<number | null>(null)
 const toolTenant = computed(() => toolTenants.value.find((t) => t.id === toolTenantId.value) ?? null)
 
-const perf = ref<any>(null)
-const perfLoading = ref(false)
+// The picker mirrors the ERP menu: sections (Masters, Sales …) hold the
+// functional sub-groups (Products, CRM …) that hold the module chips. The
+// grouping comes from the menu catalogue server-side, so it follows the nav.
+type DemoModule = { key: string; label: string; icon?: string | null }
+type DemoGroup = { label: string; icon?: string | null; modules: DemoModule[] }
+type DemoSection = { label: string; icon?: string | null; groups: DemoGroup[] }
 
-const demoModules = ref<{ key: string; label: string }[]>([])
+const demoSections = ref<DemoSection[]>([])
 const demoCounts = ref<number[]>([10, 20, 50])
 const demoBulkCounts = ref<number[]>([])
 const demoCount = ref(10)
 const demoBulk = ref<number | null>(null)
 const demoSelected = ref<string[]>([])
 const demoRunning = ref(false)
+const demoLoading = ref(false)
 const demoSearch = ref('')
+const demoOpen = ref<string[]>([])
 
 const demoIsBulk = computed(() => demoBulkCounts.value.includes(demoCount.value))
 const demoBulkOptions = computed(() =>
@@ -399,10 +405,48 @@ const demoBulkOptions = computed(() =>
     value: v,
   })),
 )
-const demoVisibleModules = computed(() => {
+const demoPicked = computed(() => new Set(demoSelected.value))
+
+/** Sections/groups narrowed to the search term; a section title match keeps it whole. */
+const demoVisibleSections = computed<DemoSection[]>(() => {
   const q = demoSearch.value.trim().toLowerCase()
-  return q ? demoModules.value.filter((m) => m.label.toLowerCase().includes(q)) : demoModules.value
+  if (!q) return demoSections.value
+  return demoSections.value
+    .map((s) => {
+      if (s.label.toLowerCase().includes(q)) return s
+      const groups = s.groups
+        .map((g) =>
+          g.label.toLowerCase().includes(q)
+            ? g
+            : { ...g, modules: g.modules.filter((m) => m.label.toLowerCase().includes(q)) },
+        )
+        .filter((g) => g.modules.length)
+      return { ...s, groups }
+    })
+    .filter((s) => s.groups.length)
 })
+
+const demoTotalCount = computed(() => demoSections.value.reduce((n, s) => n + moduleKeys(s).length, 0))
+
+function moduleKeys(scope: DemoSection | DemoGroup): string[] {
+  const groups = 'groups' in scope ? scope.groups : [scope]
+  return groups.flatMap((g) => g.modules.map((m) => m.key))
+}
+
+function pickedCount(scope: DemoSection | DemoGroup): number {
+  return moduleKeys(scope).filter((k) => demoPicked.value.has(k)).length
+}
+
+/** Searching auto-reveals what matched; otherwise sections stay where the user left them. */
+function isSectionOpen(label: string): boolean {
+  return !!demoSearch.value.trim() || demoOpen.value.includes(label)
+}
+
+function toggleSection(label: string) {
+  const i = demoOpen.value.indexOf(label)
+  if (i >= 0) demoOpen.value.splice(i, 1)
+  else demoOpen.value.push(label)
+}
 
 function pickDemoCount(c: number) {
   demoCount.value = c
@@ -419,41 +463,63 @@ function toggleDemoModule(key: string) {
   else demoSelected.value.push(key)
 }
 
+/** Select every module in a section/group, or clear them if all are already on. */
+function toggleScope(scope: DemoSection | DemoGroup) {
+  const keys = moduleKeys(scope)
+  const all = keys.every((k) => demoPicked.value.has(k))
+  demoSelected.value = all
+    ? demoSelected.value.filter((k) => !keys.includes(k))
+    : [...new Set([...demoSelected.value, ...keys])]
+}
+
+function selectAllModules() {
+  demoSelected.value = demoSections.value.flatMap((s) => moduleKeys(s))
+}
+
 async function loadTools() {
   try {
-    const [tenantRes, optRes] = await Promise.all([
-      centralHttp.get('/tenants', { params: { per_page: 200 } }),
-      centralHttp.get('/ops/demo-data/options'),
-    ])
-    toolTenants.value = tenantRes.data.data ?? tenantRes.data
+    const { data } = await centralHttp.get('/tenants', { params: { per_page: 200 } })
+    toolTenants.value = data.data ?? data
     toolTenantId.value = toolTenants.value[0]?.id ?? null
-    demoModules.value = optRes.data.modules ?? []
-    demoCounts.value = optRes.data.counts ?? [10, 20, 50]
-    demoBulkCounts.value = optRes.data.bulk_counts ?? []
-    demoCount.value = demoCounts.value[0] ?? 10
-    if (toolTenantId.value) await loadPerformance()
+    await loadDemoOptions()
   } catch (e: any) {
     apiError(e, 'Could not load tenant tools')
   }
 }
 
-async function loadPerformance() {
-  if (!toolTenantId.value) return
-  perfLoading.value = true
+/**
+ * The picker is read for the selected tenant: the sections come back as that
+ * tenant's own menu (plan + enabled modules applied), so switching tenant
+ * changes which modules are on offer.
+ */
+async function loadDemoOptions() {
+  demoLoading.value = true
   try {
-    const { data } = await centralHttp.get(`/ops/tenant-performance/${toolTenantId.value}`)
-    perf.value = data
+    const { data } = await centralHttp.get('/ops/demo-data/options', {
+      params: toolTenantId.value ? { tenant_id: toolTenantId.value } : {},
+    })
+    demoSections.value = data.sections ?? []
+    demoCounts.value = data.counts ?? [10, 20, 50]
+    demoBulkCounts.value = data.bulk_counts ?? []
+    if (!demoCounts.value.includes(demoCount.value) && !demoBulkCounts.value.includes(demoCount.value)) {
+      demoCount.value = demoCounts.value[0] ?? 10
+    }
+    // Drop picks the new tenant does not offer, and open the first section so
+    // the picker reads as a menu instead of a wall of collapsed rows.
+    const available = new Set(demoSections.value.flatMap((s) => moduleKeys(s)))
+    demoSelected.value = demoSelected.value.filter((k) => available.has(k))
+    demoOpen.value = demoSections.value[0] ? [demoSections.value[0].label] : []
   } catch (e: any) {
-    perf.value = null
-    apiError(e, 'Could not load performance metrics')
+    demoSections.value = []
+    apiError(e, 'Could not load the demo module list')
   } finally {
-    perfLoading.value = false
+    demoLoading.value = false
   }
 }
 
-// Switching tenant re-reads its diagnostics.
+// Switching tenant re-reads its module catalogue.
 watch(toolTenantId, () => {
-  if (activeTab.value === 'tools') loadPerformance()
+  if (activeTab.value === 'tools') loadDemoOptions()
 })
 
 async function runDemoData() {
@@ -805,43 +871,15 @@ onMounted(() => {
             class="tenant-select"
           />
         </div>
-        <Button label="Refresh" icon="pi pi-refresh" size="small" outlined :loading="perfLoading" @click="loadPerformance" />
+        <Button label="Refresh" icon="pi pi-refresh" size="small" outlined :loading="demoLoading" @click="loadDemoOptions" />
       </div>
-
-      <!-- Performance diagnostics (§17), read inside the selected tenant -->
-      <h3 class="tool-title"><i class="pi pi-gauge" /> Performance</h3>
-      <div v-if="perf" class="cards">
-        <div class="card">
-          <div class="card-top"><span class="card-title">Cache</span><Tag :value="perf.cache.store" /></div>
-          <div v-for="(v, g) in perf.cache.versions" :key="g" class="tool-kv">
-            <span>{{ g }} version</span><b>{{ v ?? '—' }}</b>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-top"><span class="card-title">Queue</span><Tag :value="perf.queue.driver" /></div>
-          <div class="tool-kv"><span>Pending jobs</span><b :class="{ warn: (perf.queue.pending ?? 0) > 50 }">{{ perf.queue.pending ?? '—' }}</b></div>
-          <div class="tool-kv"><span>Failed jobs</span><b :class="{ fail: (perf.queue.failed ?? 0) > 0 }">{{ perf.queue.failed ?? '—' }}</b></div>
-        </div>
-        <div class="card">
-          <div class="card-top"><span class="card-title">Indexes</span><Tag :value="perf.database.connection_driver ?? perf.database.driver" /></div>
-          <div class="tool-kv"><span>Tables</span><b>{{ perf.database.tables ?? '—' }}</b></div>
-          <div class="tool-kv"><span>Indexes</span><b>{{ perf.database.indexes ?? '—' }}</b></div>
-          <div class="tool-kv">
-            <span>Tenant tables w/o secondary index</span>
-            <b :class="{ warn: perf.database.unindexed_tables.length > 0 }">{{ perf.database.unindexed_tables.length }}</b>
-          </div>
-        </div>
-      </div>
-      <p v-else class="muted">Select a tenant to read its diagnostics.</p>
-      <p v-if="perf?.database.unindexed_tables.length" class="muted small-note">
-        Under-indexed: {{ perf.database.unindexed_tables.join(', ') }}
-      </p>
 
       <!-- Demo Data generator (§7), writing into the selected tenant -->
       <h3 class="tool-title"><i class="pi pi-database" /> Demo Data</h3>
       <p class="muted">
         Generates sample records into
-        <b>{{ toolTenant?.company_name ?? '—' }}</b>. Pick a volume and the modules, then run.
+        <b>{{ toolTenant?.company_name ?? '—' }}</b>. The modules below are that tenant's own menu
+        — its plan and enabled modules decide what is on offer. Pick a volume and the modules, then run.
       </p>
 
       <div class="demo-bar">
@@ -866,7 +904,10 @@ onMounted(() => {
             class="bulk-select"
           />
         </div>
-        <InputText v-model="demoSearch" placeholder="Filter modules…" class="demo-search" />
+        <span class="demo-search">
+          <i class="pi pi-search" />
+          <InputText v-model="demoSearch" placeholder="Search modules…" />
+        </span>
         <Button
           :label="demoSelected.length ? `Generate for ${demoSelected.length} module(s)` : 'Select modules'"
           icon="pi pi-play"
@@ -882,19 +923,78 @@ onMounted(() => {
       </p>
       <p v-if="!canRunTools" class="muted">You need the “ops-tools.manage” permission to generate data.</p>
 
-      <div class="demo-grid">
-        <button
-          v-for="m in demoVisibleModules"
-          :key="m.key"
-          type="button"
-          class="demo-chip"
-          :class="{ picked: demoSelected.includes(m.key) }"
-          :disabled="!canRunTools"
-          @click="toggleDemoModule(m.key)"
+      <!-- Module picker, grouped exactly like the ERP menu: section → sub-group → chips -->
+      <div v-if="demoSections.length" class="picker-head">
+        <span class="picked-pill" :class="{ on: demoSelected.length }">
+          <i class="pi pi-check-circle" />
+          {{ demoSelected.length }} of {{ demoTotalCount }} selected
+        </span>
+        <div class="picker-links">
+          <button type="button" class="link-btn" :disabled="!canRunTools" @click="selectAllModules">Select all</button>
+          <button type="button" class="link-btn" :disabled="!demoSelected.length" @click="demoSelected = []">Clear</button>
+          <button type="button" class="link-btn" @click="demoOpen = demoSections.map((s) => s.label)">Expand all</button>
+          <button type="button" class="link-btn" @click="demoOpen = []">Collapse all</button>
+        </div>
+      </div>
+
+      <div class="menu-picker">
+        <div
+          v-for="s in demoVisibleSections"
+          :key="s.label"
+          class="menu-section"
+          :class="{ open: isSectionOpen(s.label), active: pickedCount(s) > 0 }"
         >
-          <i :class="demoSelected.includes(m.key) ? 'pi pi-check-circle' : 'pi pi-circle'" />
-          {{ m.label }}
-        </button>
+          <div class="menu-section-head">
+            <button type="button" class="sec-main" @click="toggleSection(s.label)">
+              <span class="sec-icon"><i :class="s.icon || 'pi pi-folder'" /></span>
+              <span class="sec-text">
+                <b>{{ s.label }}</b>
+                <small>
+                  {{ moduleKeys(s).length }} module{{ moduleKeys(s).length === 1 ? '' : 's' }}
+                  <template v-if="pickedCount(s)"> · {{ pickedCount(s) }} selected</template>
+                </small>
+              </span>
+              <span v-if="pickedCount(s)" class="sec-count">{{ pickedCount(s) }}</span>
+              <i class="pi chevron" :class="isSectionOpen(s.label) ? 'pi-chevron-down' : 'pi-chevron-right'" />
+            </button>
+            <button type="button" class="link-btn" :disabled="!canRunTools" @click="toggleScope(s)">
+              {{ pickedCount(s) === moduleKeys(s).length ? 'Deselect all' : 'Select all' }}
+            </button>
+          </div>
+
+          <div v-show="isSectionOpen(s.label)" class="menu-section-body">
+            <div v-for="g in s.groups" :key="g.label" class="menu-group">
+              <div class="menu-group-head">
+                <span class="grp-label">
+                  <i :class="g.icon || 'pi pi-angle-right'" />
+                  {{ g.label || s.label }}
+                </span>
+                <button type="button" class="link-btn tiny" :disabled="!canRunTools" @click="toggleScope(g)">
+                  {{ pickedCount(g) === g.modules.length ? 'clear' : 'all' }}
+                </button>
+              </div>
+              <div class="demo-grid">
+                <button
+                  v-for="m in g.modules"
+                  :key="m.key"
+                  type="button"
+                  class="demo-chip"
+                  :class="{ picked: demoPicked.has(m.key) }"
+                  :disabled="!canRunTools"
+                  @click="toggleDemoModule(m.key)"
+                >
+                  <i :class="demoPicked.has(m.key) ? 'pi pi-check-circle' : m.icon || 'pi pi-circle'" />
+                  {{ m.label }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p v-if="demoLoading" class="muted"><i class="pi pi-spin pi-spinner" /> Reading the tenant's menu…</p>
+        <p v-else-if="!demoSections.length" class="muted">
+          This tenant has no menu modules the generator can fill.
+        </p>
+        <p v-else-if="!demoVisibleSections.length" class="muted">No module matches “{{ demoSearch }}”.</p>
       </div>
     </section>
   </div>
@@ -972,24 +1072,86 @@ onMounted(() => {
 .tenant-select { min-width: 260px; }
 .tool-title { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; font-weight: 700; margin: 1.4rem 0 0.6rem; }
 .tool-title i { color: #e8a33d; }
-.tool-kv { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.82rem; padding: 0.22rem 0; }
-.tool-kv span { color: #6b7280; }
-.tool-kv b { font-weight: 600; color: #1e2328; }
-.tool-kv b.warn { color: #c98730; }
-.tool-kv b.fail { color: #c1502e; }
-.small-note { margin-top: 0.5rem; }
 .demo-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 0.75rem 0; }
 .count-row { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 .count-btn { border: 1px solid #e3ded3; background: #fff; color: #1e2328; border-radius: 8px; padding: 0.45rem 0.9rem; font-weight: 600; font-size: 0.83rem; cursor: pointer; font-family: inherit; }
 .count-btn.active { background: #e8a33d; border-color: #e8a33d; color: #23292f; }
 .bulk-select { min-width: 11rem; }
-.demo-search { width: 200px; }
+.demo-search { position: relative; display: inline-flex; align-items: center; }
+.demo-search > i { position: absolute; left: 0.65rem; font-size: 0.8rem; color: #9ca3af; pointer-events: none; }
+.demo-search :deep(.p-inputtext) { width: 220px; padding-left: 2rem; border-radius: 999px; }
 .bulk-warn { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600; color: #c1502e; margin: 0 0 0.5rem; }
-.demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.4rem; margin-top: 0.6rem; }
-.demo-chip { display: flex; align-items: center; gap: 0.4rem; border: 1px solid #e3ded3; background: #fff; border-radius: 9px; padding: 0.45rem 0.6rem; font-size: 0.8rem; font-weight: 600; color: #374151; cursor: pointer; font-family: inherit; text-align: left; }
-.demo-chip i { color: #cfc8b8; font-size: 0.85rem; }
-.demo-chip:hover:not(:disabled) { border-color: #e8c489; }
-.demo-chip.picked { border-color: #e8a33d; background: rgba(232, 163, 61, 0.12); }
+
+/* ---- Menu-shaped module picker (section → sub-group → chips) ---- */
+.picker-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin: 0.9rem 0 0.5rem; }
+.picked-pill {
+  display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; font-weight: 700;
+  color: #6b7280; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 0.3rem 0.75rem;
+}
+.picked-pill.on { color: #8a5a12; background: rgba(232, 163, 61, 0.14); border-color: rgba(232, 163, 61, 0.5); }
+.picked-pill.on i { color: #4c8b6c; }
+.picker-links { display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; }
+.link-btn {
+  border: none; background: none; font-family: inherit; font-size: 0.76rem; font-weight: 700; letter-spacing: 0.01em;
+  color: #b45309; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 6px;
+}
+.link-btn:hover:not(:disabled) { background: rgba(232, 163, 61, 0.14); }
+.link-btn:disabled { color: #b6b0a4; cursor: not-allowed; }
+.link-btn.tiny { font-size: 0.7rem; text-transform: uppercase; color: #9ca3af; }
+.link-btn.tiny:hover:not(:disabled) { color: #b45309; }
+
+.menu-picker { display: flex; flex-direction: column; gap: 0.5rem; }
+.menu-section {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  border-left: 3px solid transparent; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.menu-section:hover { box-shadow: 0 1px 3px rgba(30, 35, 40, 0.07); }
+.menu-section.active { border-left-color: #e8a33d; }
+.menu-section.open { box-shadow: 0 2px 8px rgba(30, 35, 40, 0.06); }
+
+.menu-section-head { display: flex; align-items: center; gap: 0.5rem; padding-right: 0.75rem; }
+.sec-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.7rem; border: none; background: none;
+  font-family: inherit; text-align: left; cursor: pointer; padding: 0.7rem 0.4rem 0.7rem 0.85rem;
+}
+.sec-icon {
+  display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px;
+  background: rgba(232, 163, 61, 0.14); color: #b45309; font-size: 0.85rem;
+}
+.menu-section.active .sec-icon { background: #e8a33d; color: #23292f; }
+.sec-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.sec-text b { font-size: 0.9rem; font-weight: 700; color: var(--graphite); }
+.sec-text small { font-size: 0.72rem; color: #9ca3af; }
+.sec-count {
+  flex-shrink: 0; min-width: 1.4rem; text-align: center; font-size: 0.7rem; font-weight: 800;
+  background: #4c8b6c; color: #fff; border-radius: 999px; padding: 0.1rem 0.42rem;
+}
+.chevron { margin-left: auto; font-size: 0.72rem; color: #9ca3af; flex-shrink: 0; }
+
+.menu-section-body { border-top: 1px dashed var(--border); padding: 0.5rem 0.85rem 0.85rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.menu-group + .menu-group { border-top: 1px solid var(--border); padding-top: 0.6rem; }
+.menu-group-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.35rem; }
+.grp-label {
+  display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.73rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280;
+}
+.grp-label i { color: #e8a33d; font-size: 0.78rem; }
+
+.demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.4rem; margin-top: 0.4rem; }
+.demo-chip {
+  display: flex; align-items: center; gap: 0.45rem; border: 1px solid var(--border); background: var(--surface);
+  border-radius: 9px; padding: 0.45rem 0.6rem; font-size: 0.8rem; font-weight: 600; color: var(--graphite-light);
+  cursor: pointer; font-family: inherit; text-align: left; transition: border-color 0.12s, background 0.12s;
+}
+.demo-chip i { color: #cfc8b8; font-size: 0.85rem; flex-shrink: 0; }
+.demo-chip:hover:not(:disabled) { border-color: #e8c489; background: rgba(232, 163, 61, 0.06); }
+.demo-chip.picked { border-color: #e8a33d; background: rgba(232, 163, 61, 0.12); color: var(--graphite); }
 .demo-chip.picked i { color: #4c8b6c; }
 .demo-chip:disabled { opacity: 0.55; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .demo-search :deep(.p-inputtext) { width: 100%; }
+  .demo-search { width: 100%; }
+  .sec-text small { display: none; }
+}
 </style>

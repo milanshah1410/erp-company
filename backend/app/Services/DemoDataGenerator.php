@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Airline;
 use App\Models\Asset;
 use App\Models\AssetMaintenance;
 use App\Models\Attendance;
@@ -17,6 +18,7 @@ use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Broker;
 use App\Models\Category;
+use App\Models\ChaAgent;
 use App\Models\ChannelIntegration;
 use App\Models\ChannelListing;
 use App\Models\ChannelOrder;
@@ -24,6 +26,7 @@ use App\Models\ChannelSyncLog;
 use App\Models\ColourPrinting;
 use App\Models\Company;
 use App\Models\Contractor;
+use App\Models\Country;
 use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\CustomerCategory;
@@ -49,6 +52,7 @@ use App\Models\FabricInspection;
 use App\Models\FabricRoll;
 use App\Models\FactoryMaintenance;
 use App\Models\FollowUp;
+use App\Models\FreightForwarder;
 use App\Models\FuelExpense;
 use App\Models\GateEntry;
 use App\Models\GstRegistration;
@@ -66,6 +70,7 @@ use App\Models\Payment;
 use App\Models\PaymentGatewayAccount;
 use App\Models\PaymentTransaction;
 use App\Models\PieceRate;
+use App\Models\Port;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\PurchaseIndent;
@@ -82,6 +87,13 @@ use App\Models\SalesOrder;
 use App\Models\SalesQuotation;
 use App\Models\SalesReturn;
 use App\Models\SerialNumber;
+use App\Models\Shipment;
+use App\Models\ShipmentContainer;
+use App\Models\ShipmentDocument;
+use App\Models\ShipmentEvent;
+use App\Models\ShipmentExpense;
+use App\Models\ShipmentPayment;
+use App\Models\ShippingLine;
 use App\Models\ShrinkageRecord;
 use App\Models\SmsMessage;
 use App\Models\StockAdjustment;
@@ -95,6 +107,7 @@ use App\Models\TailorPayment;
 use App\Models\TailorWork;
 use App\Models\TdsTcsRate;
 use App\Models\TransportCharge;
+use App\Models\Transporter;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -104,6 +117,7 @@ use App\Models\Voucher;
 use App\Models\Warehouse;
 use App\Models\WhatsappMessage;
 use App\Support\TenantContext;
+use App\Support\TradeCatalogue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -143,6 +157,16 @@ class DemoDataGenerator
         'brokers' => 'Brokers',
         // Masters → Warehouses
         'warehouses' => 'Warehouses',
+        // Masters → Import & Export (exim masters, §24)
+        'countries' => 'Countries',
+        'ports' => 'Ports',
+        'shipping_lines' => 'Shipping Lines',
+        'airlines' => 'Airlines',
+        'freight_forwarders' => 'Freight Forwarders',
+        'cha_agents' => 'CHA Agents',
+        'transporters' => 'Transporters',
+        'overseas_suppliers' => 'Overseas Suppliers',
+        'overseas_customers' => 'Overseas Customers',
         // Sales
         'sales_quotations' => 'Quotations',
         'sales_orders' => 'Sales Orders',
@@ -233,6 +257,18 @@ class DemoDataGenerator
         'dispatch_plans' => 'Dispatch Planning',
         'dispatch_pods' => 'Proof of Delivery',
         'transport_charges' => 'Transport Charges',
+        // Logistics → Import & Export Logistics (§24). One shipment each brings
+        // its containers, documents, timeline, expenses and settlements with it,
+        // so every board in the module lights up.
+        'import_shipments' => 'Import Shipments',
+        'export_shipments' => 'Export Shipments',
+        // The remaining boards in that group are projections of one child table
+        // each, so these add rows to the shipments already on file.
+        'shipment_events' => 'Shipment Timeline',
+        'shipment_documents' => 'Pending Documents',
+        'shipment_containers' => 'Container Status',
+        'shipment_payments' => 'Pending Payments',
+        'shipment_expenses' => 'Logistics Expenses',
         // E-commerce
         'channel_integrations' => 'E-commerce Integrations',
         'channel_orders' => 'Channel Orders',
@@ -304,6 +340,66 @@ class DemoDataGenerator
 
     private array $customerCategoryNames = ['Retail Walk-in', 'Wholesale', 'Distributor', 'VIP', 'Corporate', 'Online', 'Export', 'Staff', 'Reseller', 'Institutional'];
 
+    // ---- Import & Export Logistics pools (§24) ----
+
+    /** [alpha-2, alpha-3, name, currency, dial code, region] — real trade lanes. */
+    private array $countryDefs = [
+        ['IN', 'IND', 'India', 'INR', '+91', 'Asia'],
+        ['CN', 'CHN', 'China', 'CNY', '+86', 'Asia'],
+        ['US', 'USA', 'United States', 'USD', '+1', 'Americas'],
+        ['AE', 'ARE', 'United Arab Emirates', 'AED', '+971', 'Middle East'],
+        ['DE', 'DEU', 'Germany', 'EUR', '+49', 'Europe'],
+        ['GB', 'GBR', 'United Kingdom', 'GBP', '+44', 'Europe'],
+        ['SG', 'SGP', 'Singapore', 'SGD', '+65', 'Asia'],
+        ['BD', 'BGD', 'Bangladesh', 'BDT', '+880', 'Asia'],
+        ['VN', 'VNM', 'Vietnam', 'VND', '+84', 'Asia'],
+        ['IT', 'ITA', 'Italy', 'EUR', '+39', 'Europe'],
+        ['NL', 'NLD', 'Netherlands', 'EUR', '+31', 'Europe'],
+        ['TR', 'TUR', 'Turkiye', 'TRY', '+90', 'Europe'],
+        ['JP', 'JPN', 'Japan', 'JPY', '+81', 'Asia'],
+        ['KR', 'KOR', 'South Korea', 'KRW', '+82', 'Asia'],
+        ['MY', 'MYS', 'Malaysia', 'MYR', '+60', 'Asia'],
+        ['AU', 'AUS', 'Australia', 'AUD', '+61', 'Oceania'],
+        ['BR', 'BRA', 'Brazil', 'BRL', '+55', 'Americas'],
+        ['SA', 'SAU', 'Saudi Arabia', 'SAR', '+966', 'Middle East'],
+        ['ZA', 'ZAF', 'South Africa', 'ZAR', '+27', 'Africa'],
+        ['EG', 'EGY', 'Egypt', 'EGP', '+20', 'Africa'],
+    ];
+
+    /** [city, code stem, state] for the port master. */
+    private array $portDefs = [
+        ['Nhava Sheva', 'NSA', 'Maharashtra'],
+        ['Mundra', 'MUN', 'Gujarat'],
+        ['Chennai', 'MAA', 'Tamil Nadu'],
+        ['Kolkata', 'CCU', 'West Bengal'],
+        ['Cochin', 'COK', 'Kerala'],
+        ['Kandla', 'IXY', 'Gujarat'],
+        ['Tuticorin', 'TUT', 'Tamil Nadu'],
+        ['Visakhapatnam', 'VTZ', 'Andhra Pradesh'],
+        ['Pipavav', 'PAV', 'Gujarat'],
+        ['Hazira', 'HZA', 'Gujarat'],
+    ];
+
+    private array $carrierNames = ['Maersk', 'MSC', 'CMA CGM', 'Hapag', 'ONE Ocean', 'Evergreen', 'COSCO', 'Wan Hai', 'HMM', 'Yang Ming'];
+
+    private array $airlineNames = ['Air India', 'Emirates', 'Lufthansa', 'Singapore', 'Qatar', 'Etihad', 'Turkish', 'Cathay', 'Korean', 'Thai'];
+
+    private array $foreignCities = ['Shanghai', 'Dubai', 'Hamburg', 'Rotterdam', 'Singapore', 'New York', 'Istanbul', 'Ho Chi Minh City', 'Busan', 'Milan'];
+
+    private array $currencies = ['USD', 'EUR', 'AED', 'GBP', 'SGD'];
+
+    /** Indicative INR rate per trade currency, so the base-currency roll-ups read plausibly. */
+    private array $fxRates = ['USD' => 83.2, 'EUR' => 90.4, 'AED' => 22.6, 'GBP' => 105.6, 'SGD' => 61.8];
+
+    private array $vessels = ['Ocean Trader', 'Bay Voyager', 'Coral Star', 'Gulf Pioneer', 'Monsoon Express', 'Delta Runner', 'Harbour Queen', 'Trade Wind'];
+
+    /** Milestones the standalone Shipment Timeline module rotates through. */
+    private array $milestoneKeys = [
+        'cargo_ready', 'packing_list_ready', 'stuffing_done', 'gated_in', 'departed',
+        'in_transit', 'transhipment', 'arrived', 'discharged', 'duty_paid',
+        'gated_out', 'delay_reported', 'document_received', 'delivered',
+    ];
+
     /**
      * Generate $count records for each requested module.
      *
@@ -329,6 +425,16 @@ class DemoDataGenerator
                 'products' => $this->makeProducts($count),
                 'brokers' => $this->make($count, fn (int $i) => $this->brokerRow($i), Broker::class),
                 'warehouses' => $this->make($count, fn (int $i) => $this->warehouseRow($i), Warehouse::class),
+                // Import & Export masters
+                'countries' => $this->makeCountries($count),
+                'ports' => $this->makePorts($count),
+                'shipping_lines' => $this->make($count, fn (int $i) => $this->shippingLineRow($i), ShippingLine::class),
+                'airlines' => $this->make($count, fn (int $i) => $this->airlineRow($i), Airline::class),
+                'freight_forwarders' => $this->makeFreightForwarders($count),
+                'cha_agents' => $this->makeChaAgents($count),
+                'transporters' => $this->make($count, fn (int $i) => $this->transporterRow($i), Transporter::class),
+                'overseas_suppliers' => $this->makeOverseasParties($count, 'supplier'),
+                'overseas_customers' => $this->makeOverseasParties($count, 'customer'),
                 'sales_quotations' => $this->makeSalesDocuments($count, SalesQuotation::class),
                 'sales_orders' => $this->makeSalesDocuments($count, SalesOrder::class),
                 'pos_sales' => $this->makeInvoices($count, 'pos'),
@@ -420,6 +526,13 @@ class DemoDataGenerator
                 'dispatch_plans' => $this->makeDispatchPlans($count),
                 'dispatch_pods' => $this->makeDispatchPods($count),
                 'transport_charges' => $this->make($count, fn (int $i) => $this->transportChargeRow($i), TransportCharge::class),
+                'import_shipments' => $this->makeShipments($count, 'import'),
+                'export_shipments' => $this->makeShipments($count, 'export'),
+                'shipment_events' => $this->makeShipmentChildren($count, 'event'),
+                'shipment_documents' => $this->makeShipmentChildren($count, 'document'),
+                'shipment_containers' => $this->makeShipmentChildren($count, 'container'),
+                'shipment_payments' => $this->makeShipmentChildren($count, 'payment'),
+                'shipment_expenses' => $this->makeShipmentChildren($count, 'expense'),
                 // E-commerce
                 'channel_integrations' => $this->make($count, fn (int $i) => $this->channelIntegrationRow($i), ChannelIntegration::class),
                 'channel_orders' => $this->makeChannelChildren($count, 'order'),
@@ -3207,6 +3320,852 @@ class DemoDataGenerator
                 default => null,
             },
         ];
+    }
+
+    // ---- Import & Export Logistics (§24) --------------------------------------
+
+    /**
+     * Countries. `code` is ISO alpha-2 and unique per tenant, so it has no room
+     * for the usual time suffix: rows are taken from the real list first and then
+     * from generated two-letter codes, and any code already on file is skipped
+     * (which also makes a re-run additive instead of a constraint violation).
+     */
+    private function makeCountries(int $count): int
+    {
+        $taken = Country::pluck('code')->map(fn ($c) => strtoupper((string) $c))->all();
+        $pool = count($this->countryDefs);
+        $made = 0;
+        $i = 0;
+
+        // Bounded by the 26×26 code space; stop early rather than spin forever.
+        while ($made < $count && $i < $pool + 676) {
+            $def = $i < $pool
+                ? $this->countryDefs[$i]
+                : $this->syntheticCountry($i - $pool);
+            $i++;
+
+            if (in_array($def[0], $taken, true)) {
+                continue;
+            }
+            $taken[] = $def[0];
+
+            Country::create([
+                'code' => $def[0],
+                'iso3' => $def[1],
+                'name' => $def[2],
+                'currency_code' => $def[3],
+                'dial_code' => $def[4],
+                'region' => $def[5],
+                'is_active' => true,
+            ]);
+            $made++;
+        }
+
+        return $made;
+    }
+
+    /**
+     * A filler country once the real list runs out: "AA", "AB" … kept inside the
+     * two-letter code space the column allows.
+     *
+     * @return array{0:string,1:string,2:string,3:string,4:string,5:string}
+     */
+    private function syntheticCountry(int $n): array
+    {
+        $code = chr(65 + intdiv($n, 26) % 26) . chr(65 + $n % 26);
+
+        return [$code, $code . 'X', 'Demo Country ' . $code, 'USD', '+' . (900 + $n % 99), 'Other'];
+    }
+
+    /** Ports hang off the country catalogue; the FK is left null when it is empty. */
+    private function makePorts(int $count): int
+    {
+        $countryIds = Country::pluck('id')->all();
+
+        return $this->make($count, function (int $i) use ($countryIds) {
+            $def = $this->portDefs[$i % count($this->portDefs)];
+            $type = ['sea', 'sea', 'air', 'icd', 'cfs'][$i % 5];
+
+            return [
+                'code' => 'D' . strtoupper(substr($def[1], 0, 3)) . $this->suffix($i) . $i,
+                'name' => $def[0] . ' ' . ucfirst($type === 'sea' ? 'port' : $type) . ' ' . ($i + 1),
+                'type' => $type,
+                'country_id' => $countryIds ? $countryIds[$i % count($countryIds)] : null,
+                'city' => $def[0],
+                'state' => $def[2],
+                'is_active' => true,
+            ];
+        }, Port::class);
+    }
+
+    private function shippingLineRow(int $i): array
+    {
+        $name = $this->carrierNames[$i % count($this->carrierNames)];
+
+        return [
+            'code' => 'DSL-' . $this->suffix($i) . '-' . $i,
+            'name' => $name . ' Lines ' . ($i + 1),
+            'scac_code' => strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $name), 0, 4)),
+            'contact_person' => $this->person($i),
+            'phone' => $this->phone($i),
+            'email' => 'line' . $i . '.' . strtolower($this->suffix($i)) . '@example.com',
+            'website' => 'https://example.com/' . Str::slug($name),
+            'address' => ($i + 1) . ', Harbour Road, ' . $this->cities[$i % count($this->cities)],
+            'is_active' => true,
+        ];
+    }
+
+    private function airlineRow(int $i): array
+    {
+        $name = $this->airlineNames[$i % count($this->airlineNames)];
+
+        return [
+            // The IATA column is 10 chars, so this one carries no trailing index.
+            'code' => 'DA' . $this->suffix($i),
+            'icao_code' => 'D' . strtoupper(substr($this->suffix($i), 0, 3)),
+            'name' => $name . ' Cargo ' . ($i + 1),
+            'awb_prefix' => (string) (100 + $i % 899),
+            'contact_person' => $this->person($i),
+            'phone' => $this->phone($i),
+            'email' => 'airline' . $i . '.' . strtolower($this->suffix($i)) . '@example.com',
+            'website' => 'https://example.com/' . Str::slug($name),
+            'address' => 'Cargo Terminal ' . (($i % 4) + 1) . ', ' . $this->cities[$i % count($this->cities)] . ' Airport',
+            'is_active' => true,
+        ];
+    }
+
+    private function makeFreightForwarders(int $count): int
+    {
+        $countryIds = Country::pluck('id')->all();
+
+        return $this->make($count, function (int $i) use ($countryIds) {
+            $city = $this->cities[$i % count($this->cities)];
+
+            return [
+                'code' => 'DFF-' . $this->suffix($i) . '-' . $i,
+                'name' => $this->company($i) . ' Logistics',
+                'contact_person' => $this->person($i),
+                'phone' => $this->phone($i),
+                'email' => 'forwarder' . $i . '.' . strtolower($this->suffix($i)) . '@example.com',
+                'gst_number' => $this->gstin($i),
+                'pan_number' => $this->pan($i),
+                'country_id' => $countryIds ? $countryIds[$i % count($countryIds)] : null,
+                'address' => ($i + 1) . ', Freight Plaza, ' . $city,
+                'city' => $city,
+                'is_active' => true,
+            ];
+        }, FreightForwarder::class);
+    }
+
+    /** CHA agents are licensed at a home port; the FK is null with no ports yet. */
+    private function makeChaAgents(int $count): int
+    {
+        $portIds = Port::pluck('id')->all();
+
+        return $this->make($count, function (int $i) use ($portIds) {
+            return [
+                'code' => 'DCHA-' . $this->suffix($i) . '-' . $i,
+                'name' => $this->company($i) . ' Clearing Agency',
+                'license_no' => 'CHA/' . (2020 + $i % 6) . '/' . str_pad((string) ($i % 9999), 4, '0', STR_PAD_LEFT),
+                'license_expiry' => now()->addDays(120 + $i % 900)->toDateString(),
+                'port_id' => $portIds ? $portIds[$i % count($portIds)] : null,
+                'contact_person' => $this->person($i),
+                'phone' => $this->phone($i),
+                'email' => 'cha' . $i . '.' . strtolower($this->suffix($i)) . '@example.com',
+                'gst_number' => $this->gstin($i),
+                'address' => ($i + 1) . ', Customs House Lane, ' . $this->cities[$i % count($this->cities)],
+                'is_active' => true,
+            ];
+        }, ChaAgent::class);
+    }
+
+    private function transporterRow(int $i): array
+    {
+        $city = $this->cities[$i % count($this->cities)];
+
+        return [
+            'code' => 'DTRP-' . $this->suffix($i) . '-' . $i,
+            'name' => $this->company($i) . ' Roadways',
+            'contact_person' => $this->person($i),
+            'phone' => $this->phone($i),
+            'email' => 'transporter' . $i . '.' . strtolower($this->suffix($i)) . '@example.com',
+            'gst_number' => $this->gstin($i),
+            'pan_number' => $this->pan($i),
+            'transport_mode' => ['road', 'road', 'rail', 'multimodal'][$i % 4],
+            'vehicle_types' => ['20ft trailer, 40ft trailer', 'Container truck, tempo', 'Flatbed, low-bed', 'Rake, trailer'][$i % 4],
+            'address' => ($i + 1) . ', Transport Nagar, ' . $city,
+            'city' => $city,
+            'is_active' => true,
+        ];
+    }
+
+    /**
+     * Overseas suppliers / customers. These are not their own tables — the
+     * ordinary party masters carry `is_overseas` plus the trade attributes, so a
+     * PO / SO on them can become an import / export shipment (see the module's
+     * migration). Countries and ports are used when they exist.
+     */
+    private function makeOverseasParties(int $count, string $kind): int
+    {
+        $countries = Country::select('id', 'currency_code')->get();
+        $portIds = Port::pluck('id')->all();
+        $isSupplier = $kind === 'supplier';
+
+        return $this->make($count, function (int $i) use ($countries, $portIds, $isSupplier) {
+            $country = $countries->isNotEmpty() ? $countries[$i % $countries->count()] : null;
+            $currency = $country?->currency_code ?: $this->currencies[$i % count($this->currencies)];
+            $base = $isSupplier ? $this->supplierRow($i) : $this->customerRow($i);
+
+            $overseas = [
+                'code' => ($isSupplier ? 'DOS-' : 'DOC-') . $this->suffix($i) . '-' . $i,
+                'company_name' => $this->company($i) . ' ' . ['International', 'Global', 'Trading FZE', 'Overseas Ltd'][$i % 4],
+                'city' => $this->foreignCities[$i % count($this->foreignCities)],
+                'state' => null,
+                'country' => $country ? null : 'Overseas',
+                'is_overseas' => true,
+                'country_id' => $country?->id,
+                'currency_code' => $currency,
+                'incoterm' => ['FOB', 'CIF', 'CFR', 'EXW', 'DAP'][$i % 5],
+                'port_id' => $portIds ? $portIds[$i % count($portIds)] : null,
+            ];
+
+            $overseas += $isSupplier
+                ? [
+                    'swift_code' => strtoupper(substr($this->suffix($i), 0, 4)) . 'US33',
+                    'bank_details' => 'Demo Overseas Bank, A/C ' . (70000000 + $i),
+                ]
+                : [
+                    'lc_terms' => ['LC at sight', 'LC 30 days', 'LC 60 days', 'Advance TT'][$i % 4],
+                    'iec_code' => 'IEC' . str_pad((string) ($i % 9999999), 7, '0', STR_PAD_LEFT),
+                ];
+
+            // The country column on the base row is a free-text name; keep it in
+            // step with the linked country so both screens read the same.
+            if ($country) {
+                $overseas['country'] = Country::find($country->id)?->name ?? 'Overseas';
+            }
+
+            return $overseas + $base;
+        }, $isSupplier ? Supplier::class : Customer::class);
+    }
+
+    /**
+     * Import / export consignments with the whole trail behind them: containers,
+     * the trade document set, timeline milestones, logistics cost heads and the
+     * settlements of the goods value. Every board in the module is a projection
+     * of this table plus those children, so one run populates all of them —
+     * Active Imports/Exports, ETA/ETD, Pending Documents / Customs / Payments,
+     * Container Status, Shipment Profit and Logistics Expenses.
+     *
+     * Every master reference is nullable, so this runs with nothing else on file;
+     * generating the exim masters (and orders) first simply gives it real lanes,
+     * carriers and agents to point at. Returns shipments created.
+     */
+    private function makeShipments(int $count, string $direction): int
+    {
+        $isImport = $direction === 'import';
+        $refs = $this->shipmentRefs($isImport);
+        $userId = $this->createdBy;
+        $offset = (int) Shipment::where('direction', $direction)->count();
+        // Statuses weighted towards the working states so the active boards fill
+        // up, with the terminal ones present for history.
+        $statuses = [
+            'booked', 'in_transit', 'in_transit', 'arrived', 'customs',
+            'cleared', 'delivered', 'closed', 'draft', 'cancelled',
+        ];
+
+        return $this->makeChunked($count, function (int $k) use ($isImport, $direction, $refs, $userId, $offset, $statuses) {
+            $i = $offset + $k;
+            $status = $statuses[$i % count($statuses)];
+            $mode = ['sea', 'sea', 'sea', 'air', 'road'][$i % 5];
+
+            $shipment = Shipment::create(
+                $this->shipmentHeader($i, $direction, $isImport, $status, $mode, $refs, $userId),
+            );
+
+            if ($mode !== 'air') {
+                $this->makeShipmentContainers($shipment, $i, $status);
+            }
+            $this->makeShipmentDocuments($shipment, $i, $direction, $status, $userId);
+            $this->makeShipmentEvents($shipment, $i, $status, $userId);
+            $this->makeShipmentExpenses($shipment, $i, $mode, $refs, $userId);
+            $this->makeShipmentPayments($shipment, $i, $isImport, $refs, $userId);
+
+            if (! $isImport) {
+                $this->makeShipmentPacking($shipment, $i, $refs);
+                $shipment->syncCargoTotals();
+            }
+        });
+    }
+
+    /** The masters that can bill a logistics cost or bank a settlement. */
+    private function shipmentVendorPools(): array
+    {
+        return [
+            'shipping_lines' => ShippingLine::pluck('id')->all(),
+            'airlines' => Airline::pluck('id')->all(),
+            'forwarders' => FreightForwarder::pluck('id')->all(),
+            'cha_agents' => ChaAgent::pluck('id')->all(),
+            'transporters' => Transporter::pluck('id')->all(),
+            'bank_accounts' => BankAccount::pluck('id')->all(),
+        ];
+    }
+
+    /** Master ids a shipment can point at — every one of them optional. */
+    private function shipmentRefs(bool $isImport): array
+    {
+        return $this->shipmentVendorPools() + [
+            'suppliers' => $isImport
+                ? Supplier::orderByDesc('is_overseas')->pluck('id')->all()
+                : [],
+            'customers' => $isImport
+                ? []
+                : Customer::orderByDesc('is_overseas')->pluck('id')->all(),
+            'purchase_orders' => $isImport ? PurchaseOrder::pluck('id')->all() : [],
+            'sales_orders' => $isImport ? [] : SalesOrder::pluck('id')->all(),
+            'warehouses' => Warehouse::pluck('id')->all(),
+            'countries' => Country::pluck('id')->all(),
+            'ports' => Port::pluck('id')->all(),
+            'products' => Product::select('id', 'name')->get(),
+        ];
+    }
+
+    /** Pick from an optional id pool, or null when it is empty. */
+    private function pick(array $pool, int $i): ?int
+    {
+        return $pool ? $pool[$i % count($pool)] : null;
+    }
+
+    /**
+     * The shipment header: trade block, schedule, cargo, money, customs track and
+     * payment track, all consistent with the status the row is in.
+     */
+    private function shipmentHeader(
+        int $i,
+        string $direction,
+        bool $isImport,
+        string $status,
+        string $mode,
+        array $refs,
+        ?int $userId,
+    ): array {
+        $date = now()->subDays($i % 150);
+        $etd = $date->copy()->addDays(3 + $i % 5);
+        $eta = $etd->copy()->addDays($mode === 'air' ? 3 : 18 + $i % 12);
+        // Departed once booked is behind us; arrived from 'arrived' onwards.
+        $departed = ! in_array($status, ['draft', 'booked', 'cancelled'], true);
+        $arrived = in_array($status, ['arrived', 'customs', 'cleared', 'delivered', 'closed'], true);
+
+        // Nothing has happened yet on a draft, and a cancelled consignment never
+        // filed or settled — so both keep their customs and money tracks clean.
+        $live = ! in_array($status, ['draft', 'cancelled'], true);
+        $currency = $this->currencies[$i % count($this->currencies)];
+        $rate = round($this->fxRates[$currency] + ($i % 20) * 0.05, 6);
+        $value = ($i % 40 + 5) * 1250;
+        $freight = ($i % 12 + 1) * 150;
+        $insurance = round($value * 0.005, 2);
+        $duty = $this->shipmentDuty($i, $isImport, $value * $rate, $live);
+        $settled = $live ? match ($i % 3) {
+            0 => round($value * $rate, 2),
+            1 => round($value * $rate * 0.4, 2),
+            default => 0.0,
+        } : 0.0;
+        $lc = $i % 4 === 0;
+
+        return [
+            'shipment_number' => ($isImport ? 'DIMP-' : 'DEXP-') . $this->suffix($i) . '-' . $i,
+            'direction' => $direction,
+            'status' => $status,
+            'shipment_date' => $date->toDateString(),
+            'supplier_id' => $this->pick($refs['suppliers'], $i),
+            'customer_id' => $this->pick($refs['customers'], $i),
+            // Half the rows cite the order they came from; the rest were raised
+            // before one existed, which the boards have to cope with too.
+            'purchase_order_id' => $i % 2 === 0 ? $this->pick($refs['purchase_orders'], $i) : null,
+            'sales_order_id' => $i % 2 === 0 ? $this->pick($refs['sales_orders'], $i) : null,
+            'warehouse_id' => $this->pick($refs['warehouses'], $i),
+            'mode' => $mode,
+            'incoterm' => ['FOB', 'CIF', 'CFR', 'EXW', 'DAP', 'DDP'][$i % 6],
+            'shipping_line_id' => $mode === 'sea' ? $this->pick($refs['shipping_lines'], $i) : null,
+            'airline_id' => $mode === 'air' ? $this->pick($refs['airlines'], $i) : null,
+            'freight_forwarder_id' => $this->pick($refs['forwarders'], $i),
+            'cha_agent_id' => $this->pick($refs['cha_agents'], $i),
+            'transporter_id' => $this->pick($refs['transporters'], $i),
+            'bl_awb_number' => ($mode === 'air' ? 'DAWB' : 'DBL') . $this->suffix($i) . $i,
+            'bl_awb_date' => $etd->copy()->subDays(2)->toDateString(),
+            'vessel_name' => $mode === 'sea' ? 'MV ' . $this->vessels[$i % count($this->vessels)] : null,
+            'voyage_number' => $mode === 'sea' ? 'V' . (100 + $i % 899) . 'E' : null,
+            // Export bookings carry the cut-offs the desk works backwards from.
+            'booking_number' => $isImport ? null : 'DBK' . $this->suffix($i) . $i,
+            'booking_date' => $isImport ? null : $date->copy()->addDay()->toDateString(),
+            'si_cutoff' => $isImport ? null : $etd->copy()->subDays(3)->toDateString(),
+            'cargo_cutoff' => $isImport ? null : $etd->copy()->subDays(2)->toDateString(),
+            'origin_country_id' => $this->pick($refs['countries'], $isImport ? $i : $i + 1),
+            'destination_country_id' => $this->pick($refs['countries'], $isImport ? $i + 1 : $i),
+            'port_of_loading_id' => $this->pick($refs['ports'], $i),
+            'port_of_discharge_id' => $this->pick($refs['ports'], $i + 1),
+            'final_place' => $this->cities[$i % count($this->cities)] . ' Factory',
+            'etd' => $etd->toDateString(),
+            'eta' => $eta->toDateString(),
+            'atd' => $departed ? $etd->copy()->addDays($i % 3)->toDateString() : null,
+            'ata' => $arrived ? $eta->copy()->addDays($i % 4)->toDateString() : null,
+            'goods_description' => $this->productNouns[$i % count($this->productNouns)] . ' — ' . (($i % 8) + 1) . ' assorted lots',
+            'packages' => ($i % 40) + 10,
+            'gross_weight_kg' => round((($i % 40) + 10) * 26.5, 3),
+            'net_weight_kg' => round((($i % 40) + 10) * 24.2, 3),
+            'cbm' => round((($i % 40) + 10) * 0.14, 3),
+            'currency' => $currency,
+            'exchange_rate' => $rate,
+            'invoice_number' => ($isImport ? 'DSINV-' : 'DEINV-') . $this->suffix($i) . $i,
+            'invoice_date' => $date->toDateString(),
+            'invoice_value' => $value,
+            'freight_amount' => $freight,
+            'insurance_amount' => $insurance,
+            'goods_cost' => round($value * $rate * ($isImport ? 1 : 0.72), 2),
+            'remarks' => 'Demo ' . $direction . ' shipment',
+            'created_by' => $userId,
+            // Settlement track — Pending Payments reads these.
+            'payment_status' => $settled <= 0 ? 'unpaid' : ($settled >= round($value * $rate, 2) ? 'paid' : 'partial'),
+            'amount_settled' => $settled,
+            'payment_due_date' => $date->copy()->addDays(45)->toDateString(),
+            'lc_number' => $lc ? 'LC' . $this->suffix($i) . $i : null,
+            'lc_expiry' => $lc ? $date->copy()->addDays(90)->toDateString() : null,
+        ] + $duty;
+    }
+
+    /**
+     * The customs track. An import files a Bill of Entry and pays duty; an export
+     * files a Shipping Bill and claims drawback / RoDTEP against its FOB value.
+     * Nothing is assessed until the entry is filed, and a shipment that never
+     * moved ($live false) has not filed at all.
+     *
+     * @return array<string, mixed>
+     */
+    private function shipmentDuty(int $i, bool $isImport, float $valueBase, bool $live): array
+    {
+        $customsStatus = $live
+            ? ['pending', 'filed', 'assessed', 'duty_paid', 'cleared', 'on_hold'][$i % 6]
+            : 'pending';
+        $filed = $customsStatus !== 'pending';
+        $paid = in_array($customsStatus, ['duty_paid', 'cleared'], true);
+        $assessable = $filed ? round($valueBase * 1.02, 2) : 0.0;
+
+        $bcd = $isImport ? round($assessable * 0.10, 2) : 0.0;
+        $igst = $isImport ? round(($assessable + $bcd) * 0.18, 2) : 0.0;
+        $cess = $isImport ? round($bcd * 0.10, 2) : 0.0;
+
+        return [
+            'customs_status' => $customsStatus,
+            'customs_entry_type' => $isImport ? 'bill_of_entry' : 'shipping_bill',
+            'customs_entry_number' => $filed ? ($isImport ? 'BE' : 'SB') . (7000000 + $i) : null,
+            'customs_entry_date' => $filed ? now()->subDays($i % 90)->toDateString() : null,
+            'icegate_reference' => $filed ? 'ICE' . $this->suffix($i) . $i : null,
+            'assessable_value' => $assessable,
+            'duty_bcd' => $bcd,
+            'duty_igst' => $igst,
+            'duty_cess' => $cess,
+            'duty_other' => 0,
+            'duty_total' => round($bcd + $igst + $cess, 2),
+            'duty_paid_at' => $paid ? now()->subDays($i % 60) : null,
+            'customs_cleared_at' => $customsStatus === 'cleared' ? now()->subDays($i % 45) : null,
+            // Export incentives sit against the shipping bill's FOB value.
+            'fob_value' => $isImport || ! $filed ? 0 : round($valueBase, 2),
+            'drawback_amount' => $isImport || ! $filed ? 0 : round($valueBase * 0.012, 2),
+            'rodtep_amount' => $isImport || ! $filed ? 0 : round($valueBase * 0.008, 2),
+            'leo_date' => ! $isImport && $paid ? now()->subDays($i % 40)->toDateString() : null,
+        ];
+    }
+
+    /**
+     * Top up existing shipments with one more child row each — the modules behind
+     * the module's remaining boards (Container Status, Pending Documents,
+     * Shipment Timeline, Pending Payments, Logistics Expenses). Each board is a
+     * projection of one of these child tables, so these deepen a board without
+     * raising more consignments; the shipment modules are what create those.
+     *
+     * Returns 0 with no shipments on file — generate Import / Export Shipments
+     * first, exactly as branches need companies.
+     */
+    private function makeShipmentChildren(int $count, string $kind): int
+    {
+        $shipments = Shipment::query()
+            ->select([
+                'id', 'direction', 'status', 'mode', 'currency', 'exchange_rate',
+                'freight_amount', 'insurance_amount', 'invoice_value', 'lc_number',
+            ])
+            ->get();
+        if ($shipments->isEmpty()) {
+            return 0;
+        }
+
+        $refs = $this->shipmentVendorPools();
+        $userId = $this->createdBy;
+        $model = match ($kind) {
+            'container' => ShipmentContainer::class,
+            'document' => ShipmentDocument::class,
+            'event' => ShipmentEvent::class,
+            'expense' => ShipmentExpense::class,
+            'payment' => ShipmentPayment::class,
+        };
+        $offset = (int) $model::count();
+        $total = $shipments->count();
+
+        return $this->makeChunked($count, function (int $k) use ($kind, $shipments, $total, $refs, $userId, $offset) {
+            $i = $offset + $k;
+            $shipment = $shipments[$i % $total];
+
+            match ($kind) {
+                'container' => $shipment->containers()->create(
+                    $this->shipmentContainerRow($i, $shipment->status),
+                ),
+                'document' => $shipment->documents()->create(
+                    $this->shipmentDocumentRow($i, $this->rotatingDocType($shipment->direction, $i), $shipment->status, $userId),
+                ),
+                'event' => $shipment->events()->create(
+                    $this->shipmentEventRow($i, $this->milestoneKeys[$i % count($this->milestoneKeys)], now()->subDays($i % 60), $userId),
+                ),
+                'expense' => $shipment->expenses()->create($this->shipmentExpenseRow(
+                    $i,
+                    $this->shipmentExpenseHeads($shipment, $i, $refs)[$i % 5],
+                    $shipment->containers()->value('id'),
+                    $userId,
+                )),
+                'payment' => $this->addShipmentPayment($shipment, $i, $refs, $userId),
+            };
+        });
+    }
+
+    /** A document type for the leg, rotated so a run covers the whole checklist. */
+    private function rotatingDocType(string $direction, int $i): string
+    {
+        $keys = TradeCatalogue::documentKeysFor($direction);
+
+        return $keys[$i % count($keys)];
+    }
+
+    /**
+     * One settlement on top of what the shipment already has, then re-derive the
+     * header's payment track from the ledger so the Pending Payments board never
+     * drifts (the same call the controller makes after a payment write).
+     */
+    private function addShipmentPayment(Shipment $shipment, int $i, array $refs, ?int $userId): void
+    {
+        $valueBase = round((float) $shipment->invoice_value * (float) $shipment->exchange_rate, 2);
+        $outstanding = max(0, $valueBase - (float) $shipment->payments()->sum('base_amount'));
+        // Nothing left to settle → book a small part-payment anyway rather than a
+        // zero row, so the board has a movement to show.
+        $base = $outstanding > 0 ? round($outstanding * [1.0, 0.5, 0.25][$i % 3], 2) : round($valueBase * 0.1, 2);
+
+        $shipment->payments()->create(
+            $this->shipmentPaymentRow($shipment, $i, $base, $shipment->direction === 'import', $refs, $userId),
+        );
+        $shipment->syncPaymentStatus();
+    }
+
+    /**
+     * 1–3 containers per sea shipment, their status tracking the consignment's,
+     * plus the odd damaged box and an expired free-days window so the Container
+     * Status board has detention cases to flag.
+     */
+    private function makeShipmentContainers(Shipment $shipment, int $i, string $status): void
+    {
+        $boxes = ($i % 3) + 1;
+
+        for ($b = 0; $b < $boxes; $b++) {
+            $shipment->containers()->create($this->shipmentContainerRow($i + $b, $status));
+        }
+    }
+
+    /** One container box, its state following the shipment's. */
+    private function shipmentContainerRow(int $n, string $shipmentStatus): array
+    {
+        $containerStatus = match ($shipmentStatus) {
+            'draft', 'cancelled' => 'planned',
+            'booked' => 'stuffed',
+            'in_transit' => 'loaded',
+            'arrived', 'customs' => 'discharged',
+            'cleared' => 'gated_out',
+            default => ['delivered', 'empty_returned'][$n % 2],
+        };
+        $freeDays = [7, 10, 14][$n % 3];
+
+        return [
+            'container_number' => 'DEMU' . str_pad((string) (1000000 + $n), 7, '0', STR_PAD_LEFT),
+            'container_type' => ['20ft', '40ft', '40hc', 'lcl'][$n % 4],
+            'seal_number' => 'SL' . str_pad((string) ($n % 999999), 6, '0', STR_PAD_LEFT),
+            'status' => $containerStatus,
+            'current_location' => $this->cities[$n % count($this->cities)] . ' Terminal',
+            'status_updated_at' => now()->subDays($n % 20),
+            'packages' => ($n % 30) + 5,
+            'gross_weight_kg' => round((($n % 30) + 5) * 25.5, 3),
+            'net_weight_kg' => round((($n % 30) + 5) * 23.1, 3),
+            'cbm' => round((($n % 30) + 5) * 0.13, 3),
+            'free_days' => $freeDays,
+            // Every fourth box is past its free days — a detention case.
+            'detention_free_until' => now()->addDays($n % 4 === 0 ? -($n % 6) - 1 : $freeDays)->toDateString(),
+            'empty_returned_on' => $containerStatus === 'empty_returned' ? now()->subDays($n % 10)->toDateString() : null,
+            'is_damaged' => $n % 9 === 0,
+            'damage_remarks' => $n % 9 === 0 ? 'Dent on the left panel, survey report filed.' : null,
+            'remarks' => 'Demo container',
+        ];
+    }
+
+    /**
+     * The trade document set for the leg: the mandatory checklist plus a couple of
+     * optional ones, with pending / overdue rows left behind so the Pending
+     * Documents board is not empty.
+     */
+    private function makeShipmentDocuments(Shipment $shipment, int $i, string $direction, string $status, ?int $userId): void
+    {
+        $mandatory = TradeCatalogue::mandatoryDocumentsFor($direction);
+        $optional = array_values(array_diff(TradeCatalogue::documentKeysFor($direction), $mandatory));
+        $extras = $optional ? array_slice($optional, $i % max(1, count($optional) - 1), 2) : [];
+
+        foreach (array_merge($mandatory, $extras) as $n => $docType) {
+            $shipment->documents()->create($this->shipmentDocumentRow(
+                $i + $n,
+                $docType,
+                $status,
+                $userId,
+                in_array($docType, $mandatory, true),
+            ));
+        }
+    }
+
+    /**
+     * One trade document. A settled shipment has its paperwork in; anything still
+     * moving keeps some of it pending, and one row in five is rejected.
+     */
+    private function shipmentDocumentRow(int $n, string $docType, string $shipmentStatus, ?int $userId, ?bool $mandatory = null): array
+    {
+        $settled = in_array($shipmentStatus, ['cleared', 'delivered', 'closed'], true);
+        $status = match (true) {
+            $settled => 'verified',
+            $n % 5 === 0 => 'rejected',
+            $n % 3 === 0 => 'pending',
+            default => ['received', 'submitted'][$n % 2],
+        };
+        $received = ! in_array($status, ['pending', 'rejected'], true);
+
+        return [
+            'doc_type' => $docType,
+            'doc_number' => $received ? 'DOC' . $this->suffix($n) . $n : null,
+            'doc_date' => $received ? now()->subDays($n % 40)->toDateString() : null,
+            'due_date' => now()->addDays(($n % 20) - 6)->toDateString(),
+            'status' => $status,
+            'is_mandatory' => $mandatory ?? (TradeCatalogue::DOCUMENTS[$docType]['mandatory'] ?? false),
+            'remarks' => $status === 'rejected' ? 'Returned by the bank — details mismatch.' : null,
+            'uploaded_by' => $received ? $userId : null,
+        ];
+    }
+
+    /** Milestone log behind the timeline, up to where the status has reached. */
+    private function makeShipmentEvents(Shipment $shipment, int $i, string $status, ?int $userId): void
+    {
+        $trail = [
+            'booking_confirmed', 'cargo_ready', 'stuffing_done', 'gated_in', 'departed',
+            'in_transit', 'arrived', 'discharged', 'customs_cleared', 'delivered',
+        ];
+        $reached = match ($status) {
+            'draft' => 0,
+            'cancelled' => 1,
+            'booked' => 2,
+            'in_transit' => 6,
+            'arrived' => 7,
+            'customs' => 8,
+            'cleared' => 9,
+            default => 10,
+        };
+        $at = now()->subDays(($i % 60) + 30);
+
+        foreach (array_slice($trail, 0, $reached) as $n => $eventType) {
+            $shipment->events()->create(
+                $this->shipmentEventRow($i + $n, $eventType, $at->copy()->addDays($n * 2), $userId),
+            );
+        }
+    }
+
+    private function shipmentEventRow(int $n, string $eventType, $at, ?int $userId): array
+    {
+        return [
+            'event_type' => $eventType,
+            'event_at' => $at,
+            'location' => $this->cities[$n % count($this->cities)],
+            'description' => TradeCatalogue::MILESTONES[$eventType] ?? 'Milestone',
+            'source' => $n % 3 === 0 ? 'manual' : 'system',
+            'created_by' => $userId,
+        ];
+    }
+
+    /**
+     * Logistics cost heads — freight and insurance mirror the header amounts (the
+     * profit board counts them once), plus the local charges, CHA fee and the odd
+     * detention bill, some still unpaid for the expense board's filters.
+     */
+    private function makeShipmentExpenses(Shipment $shipment, int $i, string $mode, array $refs, ?int $userId): void
+    {
+        $heads = $this->shipmentExpenseHeads($shipment, $i, $refs);
+        if ($i % 4 === 0) {
+            $heads[] = ['detention', ($i % 5 + 1) * 4000.0, 'INR', 1.0, $mode === 'air' ? 'airline' : 'shipping_line', $mode === 'air' ? $refs['airlines'] : $refs['shipping_lines']];
+        }
+
+        // Detention is billed per box, so it is attributed to one — every other
+        // head belongs to the consignment as a whole.
+        $containerId = $shipment->containers()->value('id');
+
+        foreach ($heads as $n => $head) {
+            $shipment->expenses()->create($this->shipmentExpenseRow($i + $n, $head, $containerId, $userId));
+        }
+    }
+
+    /**
+     * The cost heads a consignment carries: [type, amount, currency, rate,
+     * vendor type, vendor id pool].
+     *
+     * @return list<array{0:string,1:float,2:string,3:float,4:string,5:array}>
+     */
+    private function shipmentExpenseHeads(Shipment $shipment, int $i, array $refs): array
+    {
+        $rate = (float) $shipment->exchange_rate;
+        $air = $shipment->mode === 'air';
+        $carriers = $air ? $refs['airlines'] : $refs['shipping_lines'];
+
+        return [
+            [$air ? 'air_freight' : 'ocean_freight', (float) $shipment->freight_amount, $shipment->currency, $rate, 'freight_forwarder', $refs['forwarders']],
+            ['insurance', (float) $shipment->insurance_amount, $shipment->currency, $rate, 'other', []],
+            ['thc', ($i % 8 + 2) * 1500.0, 'INR', 1.0, $air ? 'airline' : 'shipping_line', $carriers],
+            ['cha_charges', ($i % 6 + 2) * 2500.0, 'INR', 1.0, 'cha_agent', $refs['cha_agents']],
+            ['inland_transport', ($i % 10 + 3) * 1800.0, 'INR', 1.0, 'transporter', $refs['transporters']],
+        ];
+    }
+
+    /**
+     * One logistics cost line.
+     *
+     * @param  array{0:string,1:float,2:string,3:float,4:string,5:array}  $head
+     */
+    private function shipmentExpenseRow(int $n, array $head, ?int $containerId, ?int $userId): array
+    {
+        [$type, $amount, $currency, $exRate, $vendorType, $pool] = $head;
+        $paymentStatus = ['paid', 'unpaid', 'partial', 'paid'][$n % 4];
+
+        return [
+            'shipment_container_id' => $type === 'detention' ? $containerId : null,
+            'expense_type' => $type,
+            'expense_date' => now()->subDays($n % 50)->toDateString(),
+            'vendor_type' => $vendorType,
+            'vendor_id' => $this->pick($pool, $n),
+            'vendor_name' => $this->company($n) . ' Logistics',
+            'invoice_number' => 'DEXP' . $this->suffix($n) . $n,
+            'currency' => $currency,
+            'exchange_rate' => $exRate,
+            'amount' => round($amount, 2),
+            'base_amount' => round($amount * $exRate, 2),
+            'payment_status' => $paymentStatus,
+            'paid_amount' => match ($paymentStatus) {
+                'paid' => round($amount * $exRate, 2),
+                'partial' => round($amount * $exRate * 0.5, 2),
+                default => 0,
+            },
+            'due_date' => now()->addDays(($n % 30) - 10)->toDateString(),
+            // Freight collect / DDP terms make a cost recoverable, so the profit
+            // board has to leave it out of the cost side.
+            'is_billable' => $type !== 'detention' && $n % 5 === 0,
+            'remarks' => 'Demo logistics cost',
+            'created_by' => $userId,
+        ];
+    }
+
+    /**
+     * Settlements of the goods value, matching the header's amount_settled: the
+     * export proceeds come in, the import remittance goes out.
+     */
+    private function makeShipmentPayments(Shipment $shipment, int $i, bool $isImport, array $refs, ?int $userId): void
+    {
+        $settled = (float) $shipment->amount_settled;
+        if ($settled <= 0) {
+            return;
+        }
+
+        // A paid shipment settles in two tranches (advance + balance); a partial
+        // one has just the first in.
+        $tranches = $shipment->payment_status === 'paid' ? [0.3, 0.7] : [1.0];
+        foreach ($tranches as $n => $share) {
+            $shipment->payments()->create($this->shipmentPaymentRow(
+                $shipment,
+                $i + $n,
+                round($settled * $share, 2),
+                $isImport,
+                $refs,
+                $userId,
+            ));
+        }
+    }
+
+    /** One settlement of the goods value, in the shipment's currency and in base. */
+    private function shipmentPaymentRow(Shipment $shipment, int $n, float $base, bool $isImport, array $refs, ?int $userId): array
+    {
+        $rate = (float) $shipment->exchange_rate;
+
+        return [
+            'direction' => $isImport ? 'outbound' : 'inbound',
+            'payment_date' => now()->subDays($n % 40)->toDateString(),
+            'currency' => $shipment->currency,
+            'exchange_rate' => $rate,
+            'amount' => $rate > 0 ? round($base / $rate, 2) : $base,
+            'base_amount' => $base,
+            'mode' => $shipment->lc_number ? 'lc' : ['bank_transfer', 'bank_transfer', 'cheque', 'other'][$n % 4],
+            'bank_account_id' => $this->pick($refs['bank_accounts'], $n),
+            'reference' => 'SWIFT' . $this->suffix($n) . $n,
+            'remarks' => 'Demo settlement',
+            'created_by' => $userId,
+        ];
+    }
+
+    /** Packing list for an export — the lines customs and the buyer read. */
+    private function makeShipmentPacking(Shipment $shipment, int $i, array $refs): void
+    {
+        $products = $refs['products'];
+        $lines = ($i % 3) + 1;
+        $containerIds = $shipment->containers()->pluck('id')->all();
+
+        for ($n = 0; $n < $lines; $n++) {
+            $product = $products->isNotEmpty() ? $products[($i + $n) % $products->count()] : null;
+            $packages = (($i + $n) % 20) + 5;
+            $length = 60 + ($n * 10);
+
+            $shipment->packingItems()->create([
+                'shipment_container_id' => $this->pick($containerIds, $i + $n),
+                'product_id' => $product?->id,
+                'description' => $product->name ?? $this->productNouns[($i + $n) % count($this->productNouns)],
+                'marks_numbers' => 'DEMO/' . ($i + 1) . '/' . ($n + 1),
+                'package_type' => ['carton', 'bale', 'pallet', 'roll'][($i + $n) % 4],
+                'package_count' => $packages,
+                'quantity' => $packages * 12,
+                'uom' => 'pcs',
+                'net_weight_kg' => round($packages * 18.4, 3),
+                'gross_weight_kg' => round($packages * 20.1, 3),
+                'length_cm' => $length,
+                'width_cm' => 40,
+                'height_cm' => 35,
+                'cbm' => round($length * 40 * 35 / 1000000 * $packages, 3),
+                'hs_code' => (string) (52081100 + (($i + $n) % 99)),
+                'remarks' => 'Demo packing line',
+                'sort_order' => $n,
+            ]);
+        }
+    }
+
+    /** Plausible GSTIN / PAN for the exim service providers. */
+    private function gstin(int $i): string
+    {
+        return str_pad((string) (($i % 37) + 1), 2, '0', STR_PAD_LEFT)
+            . 'DEMO' . str_pad((string) ($i % 9999), 4, '0', STR_PAD_LEFT) . 'D1Z' . ($i % 10);
+    }
+
+    private function pan(int $i): string
+    {
+        return 'DEMOP' . str_pad((string) ($i % 9999), 4, '0', STR_PAD_LEFT) . chr(65 + $i % 26);
     }
 
     /** Channel orders / listings / sync logs — keyed to a channel integration. */
