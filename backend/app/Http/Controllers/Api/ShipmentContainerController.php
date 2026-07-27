@@ -52,6 +52,11 @@ class ShipmentContainerController extends Controller
         if ($request->boolean('open_only')) {
             $query->where('status', '!=', 'empty_returned');
         }
+        // Boxes surveyed damaged — the claim list, and what the board's
+        // "damaged" chip drills into.
+        if ($request->boolean('damaged_only')) {
+            $query->where('is_damaged', true);
+        }
 
         $query->orderByDesc('id');
         $perPage = min((int) $request->query('per_page', 15), 100);
@@ -202,9 +207,20 @@ class ShipmentContainerController extends Controller
 
     private function validated(Request $request, ?ShipmentContainer $existing = null): array
     {
+        // A box number is the shipment's own key for the box — the same number
+        // twice on one consignment is a keying slip, and it would make every
+        // downstream reference (detention charge, damage claim, empty return)
+        // ambiguous. The same box may of course reappear on a later shipment.
+        $shipmentId = $existing?->shipment_id ?? $request->input('shipment_id');
+
         return $request->validate([
             'shipment_id' => [$existing ? 'nullable' : 'required', 'exists:shipments,id'],
-            'container_number' => ['required', 'string', 'max:255'],
+            'container_number' => [
+                'required', 'string', 'max:255',
+                Rule::unique('shipment_containers', 'container_number')
+                    ->where('shipment_id', $shipmentId)
+                    ->ignore($existing?->id),
+            ],
             'container_type' => ['required', Rule::in(['20ft', '40ft', '40hc', '45hc', 'lcl', 'uld', 'other'])],
             'seal_number' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', Rule::in(ShipmentContainer::STATUSES)],
@@ -219,6 +235,8 @@ class ShipmentContainerController extends Controller
             'is_damaged' => ['nullable', 'boolean'],
             'damage_remarks' => ['nullable', 'string'],
             'remarks' => ['nullable', 'string'],
+        ], [
+            'container_number.unique' => 'Container :input is already booked on this shipment.',
         ]);
     }
 }

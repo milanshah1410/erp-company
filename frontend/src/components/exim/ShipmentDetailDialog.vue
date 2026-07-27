@@ -27,6 +27,8 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import http from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
+import ImportChainPanel from './ImportChainPanel.vue'
+import ExportChainPanel from './ExportChainPanel.vue'
 import {
   useTradeCatalogue, humanize, statusOptions,
   shipmentStatusSeverity, customsStatusSeverity, paymentStatusSeverity, containerStatusSeverity,
@@ -120,7 +122,8 @@ function openCustoms() {
   const s = shipment.value
   customsForm.value = {
     customs_status: s.customs_status,
-    customs_entry_type: s.customs_entry_type || (isImport.value ? 'bill_of_entry' : 'shipping_bill'),
+    // Leg-bound, so it is never read back off a shipment that stored the other one.
+    customs_entry_type: isImport.value ? 'bill_of_entry' : 'shipping_bill',
     customs_entry_number: s.customs_entry_number || '',
     customs_entry_date: s.customs_entry_date || '',
     icegate_reference: s.icegate_reference || '',
@@ -215,6 +218,38 @@ async function moveContainer(row: any) {
     fail(e)
   }
 }
+/**
+ * Price a box's overdue days into a cost before the carrier's invoice arrives.
+ * Offered only while the box is actually accruing, so the days come from the
+ * shipment rather than being typed in. Demurrage is what the port bills for a
+ * box still inside it; once it is out on the road the same overrun is detention.
+ */
+const canChargeDetention = computed(() =>
+  auth.can('shipment-containers.edit') && auth.can('shipment-expenses.create'))
+
+async function chargeDetention(row: any) {
+  const inPort = ['gated_in', 'loaded', 'discharged'].includes(row.status)
+  const head = inPort ? 'demurrage' : 'detention'
+  const res = await Swal.fire({
+    title: `Charge ${head} on ${row.container_number}`,
+    text: `${row.detention_days} day(s) past the free days, which ran to ${row.detention_free_until}.`,
+    input: 'number',
+    inputLabel: 'Rate per day',
+    inputAttributes: { min: '0.01', step: '0.01' },
+    icon: 'warning', showCancelButton: true, confirmButtonText: 'Post charge',
+  })
+  if (!res.isConfirmed || !res.value) return
+  try {
+    const { data } = await http.post(`/shipment-containers/${row.id}/detention-charge`, {
+      expense_type: head,
+      rate_per_day: Number(res.value),
+    })
+    await afterWrite(`${data.message} (${data.days_charged} day(s))`)
+  } catch (e) {
+    fail(e)
+  }
+}
+
 async function removeContainer(row: any) {
   const res = await Swal.fire({ title: `Remove ${row.container_number}?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Remove' })
   if (!res.isConfirmed) return
@@ -390,6 +425,7 @@ async function removePayment(row: any) {
       <Tabs v-model:value="activeTab">
         <TabList>
           <Tab value="overview">Overview</Tab>
+          <Tab value="chain">{{ isImport ? 'Import Chain' : 'Export Chain' }}</Tab>
           <Tab value="timeline">Timeline ({{ events.length }})</Tab>
           <Tab value="containers">Containers ({{ shipment.containers?.length ?? 0 }})</Tab>
           <Tab value="documents">Documents ({{ shipment.documents?.length ?? 0 }})</Tab>
@@ -460,6 +496,17 @@ async function removePayment(row: any) {
             <p v-if="shipment.remarks" class="remarks"><strong>Remarks:</strong> {{ shipment.remarks }}</p>
           </TabPanel>
 
+          <!-- ------------------------------------------ import/export chain -->
+          <!-- Import: PO → supplier invoice → B/L → container → vessel →
+               freight → customs → warehouse receipt.
+               Export: SO → packing list → booking → shipping bill → ETD →
+               customer invoice → dispatch.
+               One tab either way, with the action for each step. -->
+          <TabPanel value="chain">
+            <ImportChainPanel v-if="isImport" :shipment="shipment" @done="afterWrite" @tab="t => activeTab = t" />
+            <ExportChainPanel v-else :shipment="shipment" @done="afterWrite" @tab="t => activeTab = t" />
+          </TabPanel>
+
           <!-- ------------------------------------------------ timeline -->
           <TabPanel value="timeline">
             <div class="panel-actions">
@@ -510,9 +557,11 @@ async function removePayment(row: any) {
                   <span v-else class="muted">—</span>
                 </template>
               </Column>
-              <Column header="" style="width: 10rem">
+              <Column header="" style="width: 13rem">
                 <template #body="{ data }">
                   <Button v-if="canContainers" label="Move" size="small" outlined @click="moveContainer(data)" />
+                  <Button v-if="canChargeDetention && data.accruing_detention" icon="pi pi-clock" text rounded
+                    size="small" severity="warn" title="Charge the overdue days" @click="chargeDetention(data)" />
                   <Button v-if="canContainers" icon="pi pi-pencil" text rounded size="small" @click="openContainer(data)" />
                   <Button v-if="auth.can('shipment-containers.delete')" icon="pi pi-trash" text rounded size="small"
                     severity="danger" @click="removeContainer(data)" />
@@ -681,9 +730,9 @@ async function removePayment(row: any) {
           optionLabel="label" optionValue="value" />
       </div>
       <div class="fld">
+        <!-- The leg decides the entry, so it is shown, not chosen. -->
         <label>Entry type</label>
-        <Select v-model="customsForm.customs_entry_type" :options="statusOptions(['bill_of_entry', 'shipping_bill'])"
-          optionLabel="label" optionValue="value" />
+        <InputText :model-value="isImport ? 'Bill of Entry' : 'Shipping Bill'" disabled />
       </div>
       <div class="fld"><label>Entry no.</label><InputText v-model="customsForm.customs_entry_number" /></div>
       <div class="fld"><label>Entry date</label><input type="date" v-model="customsForm.customs_entry_date" class="date-input" /></div>

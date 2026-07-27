@@ -66,6 +66,10 @@ class ShipmentResource extends JsonResource
             'bl_awb_date' => $this->bl_awb_date?->toDateString(),
             'vessel_name' => $this->vessel_name,
             'voyage_number' => $this->voyage_number,
+            'booking_number' => $this->booking_number,
+            'booking_date' => $this->booking_date?->toDateString(),
+            'si_cutoff' => $this->si_cutoff?->toDateString(),
+            'cargo_cutoff' => $this->cargo_cutoff?->toDateString(),
             'origin_country_id' => $this->origin_country_id,
             'origin_country' => $this->whenLoaded('originCountry', fn () => $this->originCountry?->name),
             'destination_country_id' => $this->destination_country_id,
@@ -105,6 +109,13 @@ class ShipmentResource extends JsonResource
             'customs_entry_date' => $this->customs_entry_date?->toDateString(),
             'icegate_reference' => $this->icegate_reference,
             'assessable_value' => $this->assessable_value,
+            // Export half of the entry: what the shipping bill was assessed on
+            // and the incentives claimed against it.
+            'fob_value' => $this->fob_value,
+            'fob_value_base' => $this->fobValueBase(),
+            'drawback_amount' => $this->drawback_amount,
+            'rodtep_amount' => $this->rodtep_amount,
+            'leo_date' => $this->leo_date?->toDateString(),
             'duty_bcd' => $this->duty_bcd,
             'duty_igst' => $this->duty_igst,
             'duty_cess' => $this->duty_cess,
@@ -128,8 +139,20 @@ class ShipmentResource extends JsonResource
             'documents_count' => $this->whenCounted('documents'),
             'pending_documents_count' => $this->whenCounted('pendingDocuments'),
             'expenses_count' => $this->whenCounted('expenses'),
+            'packing_items_count' => $this->whenCounted('packingItems'),
+
+            // Where the leg has got to, step by step — the Import / Export Chain
+            // panels read this rather than re-deriving "done" from a dozen
+            // columns. Detail loads only: it walks the linked documents, which
+            // the lists deliberately do not eager-load, so the presence of the
+            // leg's own child relation is what gates it.
+            'chain' => $this->when(
+                $this->relationLoaded($this->direction === 'export' ? 'packingItems' : 'containers'),
+                fn () => $this->direction === 'export' ? $this->exportChain() : $this->importChain(),
+            ),
 
             'containers' => ShipmentContainerResource::collection($this->whenLoaded('containers')),
+            'packing_items' => ShipmentPackingItemResource::collection($this->whenLoaded('packingItems')),
             'documents' => ShipmentDocumentResource::collection($this->whenLoaded('documents')),
             'events' => ShipmentEventResource::collection($this->whenLoaded('events')),
             'expenses' => ShipmentExpenseResource::collection($this->whenLoaded('expenses')),

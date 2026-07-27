@@ -16,12 +16,15 @@ export interface TradeCatalogue {
   expense_types: Option[]
   milestones: Option[]
   vendor_types: Option[]
+  /** How cargo is packed, for the packing list's lines. */
+  package_types: Option[]
   statuses: string[]
   transitions: Record<string, string[]>
 }
 
 const empty: TradeCatalogue = {
-  documents: [], expense_types: [], milestones: [], vendor_types: [], statuses: [], transitions: {},
+  documents: [], expense_types: [], milestones: [], vendor_types: [], package_types: [],
+  statuses: [], transitions: {},
 }
 
 const catalogue = ref<TradeCatalogue>(empty)

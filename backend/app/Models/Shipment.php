@@ -39,8 +39,17 @@ class Shipment extends Model
     /** Statuses where the shipment is still in play — the "active" boards. */
     public const OPEN_STATUSES = ['draft', 'booked', 'in_transit', 'arrived', 'customs', 'cleared'];
 
+    /**
+     * Cost heads that are the same money as the header's freight_amount /
+     * insurance_amount — see landedCostComponents(), which counts them once.
+     */
+    public const FREIGHT_HEADS = ['ocean_freight', 'air_freight', 'insurance'];
+
     /** Terminal statuses. */
     public const CLOSED_STATUSES = ['delivered', 'closed', 'cancelled'];
+
+    /** Statuses that carry no reportable figures — see scopeReportable(). */
+    public const NON_REPORTABLE = ['draft', 'cancelled'];
 
     /** Allowed forward moves; cancel is handled separately. */
     public const TRANSITIONS = [
@@ -73,6 +82,8 @@ class Shipment extends Model
         'mode', 'incoterm', 'shipping_line_id', 'airline_id', 'freight_forwarder_id',
         'cha_agent_id', 'transporter_id',
         'bl_awb_number', 'bl_awb_date', 'vessel_name', 'voyage_number',
+        // Carrier booking and the cut-offs the desk works backwards from.
+        'booking_number', 'booking_date', 'si_cutoff', 'cargo_cutoff',
         'origin_country_id', 'destination_country_id',
         'port_of_loading_id', 'port_of_discharge_id', 'final_place',
         'etd', 'eta', 'atd', 'ata',
@@ -83,6 +94,8 @@ class Shipment extends Model
         'icegate_reference', 'assessable_value',
         'duty_bcd', 'duty_igst', 'duty_cess', 'duty_other', 'duty_total',
         'duty_paid_at', 'customs_cleared_at',
+        // Shipping bill (export): what it was assessed on and what it claims.
+        'fob_value', 'drawback_amount', 'rodtep_amount', 'leo_date',
         'payment_status', 'amount_settled', 'payment_due_date', 'lc_number', 'lc_expiry',
         'remarks', 'created_by',
     ];
@@ -90,6 +103,10 @@ class Shipment extends Model
     protected $casts = [
         'shipment_date' => 'date',
         'bl_awb_date' => 'date',
+        'booking_date' => 'date',
+        'si_cutoff' => 'date',
+        'cargo_cutoff' => 'date',
+        'leo_date' => 'date',
         'etd' => 'date',
         'eta' => 'date',
         'atd' => 'date',
@@ -106,6 +123,9 @@ class Shipment extends Model
         'insurance_amount' => 'decimal:2',
         'goods_cost' => 'decimal:2',
         'assessable_value' => 'decimal:2',
+        'fob_value' => 'decimal:2',
+        'drawback_amount' => 'decimal:2',
+        'rodtep_amount' => 'decimal:2',
         'duty_bcd' => 'decimal:2',
         'duty_igst' => 'decimal:2',
         'duty_cess' => 'decimal:2',
@@ -240,6 +260,12 @@ class Shipment extends Model
         return $this->hasMany(ShipmentContainer::class);
     }
 
+    /** The packing list — the cargo, package by package. */
+    public function packingItems(): HasMany
+    {
+        return $this->hasMany(ShipmentPackingItem::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function documents(): HasMany
     {
         return $this->hasMany(ShipmentDocument::class);
@@ -279,6 +305,17 @@ class Shipment extends Model
         return $direction ? $query->where('direction', $direction) : $query;
     }
 
+    /**
+     * Shipments whose figures are worth reporting on: a draft was never
+     * committed and a cancellation never happened, so counting either would
+     * overstate every lane and every margin. The Shipment Profit board and the
+     * module's money reports all read through here.
+     */
+    public function scopeReportable(Builder $query): Builder
+    {
+        return $query->whereNotIn($query->qualifyColumn('status'), self::NON_REPORTABLE);
+    }
+
     // ----------------------------------------------------------------- helpers
 
     /** The counterparty's name, whichever side of the trade it sits on. */
@@ -301,6 +338,12 @@ class Shipment extends Model
     public function invoiceValueBase(): float
     {
         return round((float) $this->invoice_value * (float) $this->exchange_rate, 2);
+    }
+
+    /** FOB value off the shipping bill, converted to base currency. */
+    public function fobValueBase(): float
+    {
+        return round((float) $this->fob_value * (float) $this->exchange_rate, 2);
     }
 
     /** Freight + insurance in base currency — the CIF add-ons. */
@@ -344,6 +387,30 @@ class Shipment extends Model
     }
 
     /**
+     * Roll the packing list up onto the header's cargo columns, so the B/L, the
+     * booking and every board read the same packages / weight / volume the
+     * packing list declares.
+     *
+     * Called after every packing-line write. With no lines the header is left
+     * alone: a shipment can be hand-keyed with totals and no packing list, and
+     * removing the last line should not wipe what the desk typed.
+     */
+    public function syncCargoTotals(): void
+    {
+        $lines = $this->packingItems()->get();
+        if ($lines->isEmpty()) {
+            return;
+        }
+
+        $this->update([
+            'packages' => (int) $lines->sum('package_count'),
+            'gross_weight_kg' => round((float) $lines->sum('gross_weight_kg'), 3),
+            'net_weight_kg' => round((float) $lines->sum('net_weight_kg'), 3),
+            'cbm' => round((float) $lines->sum('cbm'), 3),
+        ]);
+    }
+
+    /**
      * Recompute payment_status from the settlements booked so far. Called after
      * every payment write so the Pending Payments board never drifts from the
      * ledger underneath it.
@@ -364,40 +431,204 @@ class Shipment extends Model
     }
 
     /**
+     * The export chain, step by step:
+     *   Sales Order → Packing List → Container Booking → Shipping Bill → ETD →
+     *   Customer Invoice → Dispatch
+     *
+     * Each step reports whether it is done and the reference that proves it, so
+     * the Export Chain panel is a read of the shipment rather than seven
+     * client-side rules that drift from the ones the actions enforce.
+     *
+     * @return list<array{key: string, label: string, done: bool, detail: ?string}>
+     */
+    public function exportChain(): array
+    {
+        $packed = $this->packingItemCount();
+        $boxes = $this->relationLoaded('containers')
+            ? $this->containers->count()
+            : (int) ($this->containers_count ?? $this->containers()->count());
+
+        $filed = $this->customs_entry_type === 'shipping_bill' && $this->customs_entry_number;
+
+        $steps = [
+            ['key' => 'sales_order', 'label' => 'Sales Order', 'done' => (bool) $this->sales_order_id,
+                'detail' => $this->salesOrder?->so_number],
+            ['key' => 'packing_list', 'label' => 'Packing List', 'done' => $packed > 0,
+                'detail' => $packed > 0 ? "{$packed} line(s), {$this->packages} package(s)" : null],
+            ['key' => 'booking', 'label' => 'Container Booking', 'done' => (bool) $this->booking_number,
+                'detail' => $this->booking_number
+                    ? trim($this->booking_number.($boxes ? " · {$boxes} box(es)" : ''))
+                    : null],
+            ['key' => 'shipping_bill', 'label' => 'Shipping Bill', 'done' => (bool) $filed,
+                'detail' => $filed
+                    ? $this->customs_entry_number.($this->leo_date ? ' · LEO '.$this->leo_date->toDateString() : '')
+                    : null],
+            ['key' => 'etd', 'label' => 'ETD', 'done' => (bool) $this->atd,
+                'detail' => $this->atd
+                    ? 'Departed '.$this->atd->toDateString()
+                    : ($this->etd ? 'ETD '.$this->etd->toDateString() : null)],
+            ['key' => 'customer_invoice', 'label' => 'Customer Invoice', 'done' => (bool) $this->invoice_id,
+                'detail' => $this->invoice?->invoice_number ?? $this->invoice_number],
+            ['key' => 'dispatch', 'label' => 'Dispatch', 'done' => (bool) $this->dispatch_plan_id,
+                'detail' => $this->dispatchPlan?->dispatch_number],
+        ];
+
+        return $steps;
+    }
+
+    /**
+     * The import chain, step by step:
+     *   Purchase Order → Supplier Invoice → Bill of Lading → Container → Vessel →
+     *   Freight → Customs → Warehouse Receipt
+     *
+     * The counterpart of exportChain(): each step reports whether it is done and
+     * the reference that proves it, so the Import Chain panel is a read of the
+     * shipment rather than eight client-side rules that drift from the ones
+     * ShipmentIntegrationController enforces.
+     *
+     * @return list<array{key: string, label: string, done: bool, detail: ?string}>
+     */
+    public function importChain(): array
+    {
+        $isAir = $this->mode === 'air';
+
+        $containers = $this->relationLoaded('containers') ? $this->containers : $this->containers()->get();
+        $boxes = $containers->count();
+        $overdue = $containers->filter(fn (ShipmentContainer $box) => $box->isAccruingDetention())->count();
+
+        // Freight is the head the leg turns on; the rest of the logistics cost is
+        // what the profit board will absorb, so both belong on the one step.
+        $expenses = $this->relationLoaded('expenses') ? $this->expenses : $this->expenses()->get();
+        $freight = round((float) $expenses
+            ->whereIn('expense_type', ['ocean_freight', 'air_freight'])
+            ->sum('base_amount'), 2);
+        $absorbed = round((float) $expenses->where('is_billable', false)->sum('base_amount'), 2);
+
+        $filed = $this->customs_entry_type === 'bill_of_entry' && $this->customs_entry_number;
+        $sailing = match (true) {
+            (bool) $this->atd => 'sailed '.$this->atd->toDateString(),
+            (bool) $this->etd => 'ETD '.$this->etd->toDateString(),
+            default => null,
+        };
+
+        return [
+            ['key' => 'purchase_order', 'label' => 'Purchase Order', 'done' => (bool) $this->purchase_order_id,
+                'detail' => $this->purchaseOrder?->po_number],
+            ['key' => 'supplier_invoice', 'label' => 'Supplier Invoice', 'done' => (bool) $this->purchase_invoice_id,
+                // Falls back to the number off the supplier's commercial invoice,
+                // which the desk keys on the header before the bill is booked.
+                'detail' => $this->purchaseInvoice?->invoice_number ?? $this->invoice_number],
+            ['key' => 'bill_of_lading', 'label' => $isAir ? 'Air Waybill' : 'Bill of Lading',
+                'done' => (bool) $this->bl_awb_number,
+                'detail' => $this->bl_awb_number
+                    ? $this->bl_awb_number.($this->bl_awb_date ? ' · '.$this->bl_awb_date->toDateString() : '')
+                    : null],
+            ['key' => 'containers', 'label' => $isAir ? 'ULDs' : 'Container', 'done' => $boxes > 0,
+                'detail' => $boxes > 0
+                    ? "{$boxes} box(es)".($overdue > 0 ? " · {$overdue} past free days" : '')
+                    : null],
+            ['key' => 'vessel', 'label' => $isAir ? 'Flight' : 'Vessel',
+                'done' => (bool) ($this->vessel_name ?: $this->voyage_number),
+                'detail' => collect([
+                    $this->vessel_name,
+                    $this->voyage_number,
+                    $sailing,
+                ])->filter()->implode(' · ') ?: null],
+            ['key' => 'freight', 'label' => 'Freight', 'done' => $freight > 0,
+                'detail' => $freight > 0
+                    ? number_format($freight, 2).' booked'.($absorbed > $freight ? ' · '.number_format($absorbed, 2).' logistics cost' : '')
+                    : ($absorbed > 0 ? number_format($absorbed, 2).' logistics cost booked' : null)],
+            ['key' => 'customs', 'label' => 'Customs — Bill of Entry', 'done' => (bool) $filed,
+                'detail' => $filed
+                    ? $this->customs_entry_number.' · '.str_replace('_', ' ', $this->customs_status)
+                        .((float) $this->duty_total > 0 ? ' · duty '.number_format((float) $this->duty_total, 2) : '')
+                    : null],
+            ['key' => 'warehouse_receipt', 'label' => 'Warehouse Receipt', 'done' => (bool) $this->goods_receipt_id,
+                'detail' => $this->goodsReceipt?->grn_number],
+        ];
+    }
+
+    /** Packing lines on this shipment, without re-querying what is already loaded. */
+    public function packingItemCount(): int
+    {
+        if ($this->relationLoaded('packingItems')) {
+            return $this->packingItems->count();
+        }
+
+        return (int) ($this->packing_items_count ?? $this->packingItems()->count());
+    }
+
+    /**
+     * What it costs to land this cargo, split the way a goods receipt's landed
+     * cost expects it: freight (incl. marine insurance), customs duty, and every
+     * other logistics charge the desk booked.
+     *
+     * This is the single source for cost across the module — the Shipment Profit
+     * board and the warehouse receipt both read it, so the stock's landed cost
+     * and the shipment's P&L can never tell two different stories.
+     *
+     * Each component is counted once. Freight and duty each reach a shipment two
+     * ways: declared on the header (the CIF add-ons, the assessed duty) and
+     * booked as a logistics cost when the carrier's or CHA's bill arrives.
+     * Summing both would overstate every consignment, so the header wins where
+     * it is filled in and the booked cost stands in where it is not. Billable
+     * costs are recovered from the counterparty, so they never load the cargo.
+     *
+     * @return array{freight: float, duty: float, other: float, billable: float}
+     */
+    public function landedCostComponents(): array
+    {
+        $expenses = $this->relationLoaded('expenses') ? $this->expenses : $this->expenses()->get();
+        $own = $expenses->where('is_billable', false);
+        $sum = fn (array $heads) => round((float) $own->whereIn('expense_type', $heads)->sum('base_amount'), 2);
+
+        $headerFreight = $this->freightInsuranceBase();
+        $headerDuty = (float) $this->duty_total;
+
+        return [
+            'freight' => $headerFreight > 0 ? $headerFreight : $sum(self::FREIGHT_HEADS),
+            'duty' => $headerDuty > 0 ? $headerDuty : $sum(['customs_duty']),
+            // Terminal handling, CFS, CHA, inland transport, warehousing,
+            // detention, demurrage, documentation, bank charges …
+            'other' => round((float) $own
+                ->whereNotIn('expense_type', [...self::FREIGHT_HEADS, 'customs_duty'])
+                ->sum('base_amount'), 2),
+            'billable' => round((float) $expenses->where('is_billable', true)->sum('base_amount'), 2),
+        ];
+    }
+
+    /**
      * Per-shipment P&L in base currency (Shipment Profit board).
      *
      * Revenue is the invoice value for exports; for imports there is no sale
      * here, so revenue is zero and the figures read as a landed-cost breakdown
-     * (goods + duty + logistics) instead of a margin. Billable expenses are
-     * recovered from the counterparty and so are excluded from cost.
+     * (goods + duty + logistics) instead of a margin.
      *
      * @return array<string, float|null>
      */
     public function profitBreakdown(): array
     {
-        $expenses = $this->relationLoaded('expenses') ? $this->expenses : $this->expenses()->get();
-        $absorbed = round((float) $expenses->where('is_billable', false)->sum('base_amount'), 2);
-        $billable = round((float) $expenses->where('is_billable', true)->sum('base_amount'), 2);
+        $cost = $this->landedCostComponents();
+        $logistics = round($cost['freight'] + $cost['other'], 2);
 
         $isExport = $this->direction === 'export';
         $revenue = $isExport ? $this->invoiceValueBase() : 0.0;
         $goodsCost = (float) $this->goods_cost;
-        $duty = (float) $this->duty_total;
-        $totalCost = round($goodsCost + $duty + $absorbed, 2);
+        $totalCost = round($goodsCost + $cost['duty'] + $logistics, 2);
         $profit = round($revenue - $totalCost, 2);
 
         return [
             'revenue' => $revenue,
             'goods_cost' => $goodsCost,
-            'duty' => $duty,
-            'logistics_cost' => $absorbed,
-            'billable_cost' => $billable,
+            'duty' => $cost['duty'],
+            'logistics_cost' => $logistics,
+            'billable_cost' => $cost['billable'],
             'total_cost' => $totalCost,
             'profit' => $isExport ? $profit : null,
             'margin_percent' => $isExport && $revenue > 0 ? round($profit / $revenue * 100, 2) : null,
             // For imports the useful number is what the goods actually cost by
             // the time they reach the warehouse.
-            'landed_cost' => $isExport ? null : round($goodsCost + $duty + $absorbed, 2),
+            'landed_cost' => $isExport ? null : $totalCost,
         ];
     }
 }

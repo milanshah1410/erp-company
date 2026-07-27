@@ -71,6 +71,28 @@ final class TradeCatalogue
     ];
 
     /**
+     * How cargo is packed, for the packing list's lines. Strings rather than an
+     * enum for the same reason as the documents: a tenant shipping textiles
+     * counts rolls and bales where one shipping machinery counts crates.
+     *
+     * @var array<string, string>
+     */
+    public const PACKAGE_TYPES = [
+        'carton' => 'Carton',
+        'box' => 'Box',
+        'case' => 'Case',
+        'crate' => 'Crate',
+        'pallet' => 'Pallet',
+        'bag' => 'Bag',
+        'bale' => 'Bale',
+        'drum' => 'Drum',
+        'roll' => 'Roll',
+        'bundle' => 'Bundle',
+        'loose' => 'Loose / Unpacked',
+        'other' => 'Other',
+    ];
+
+    /**
      * Who can bill a logistics cost. Each key is a master the expense's
      * vendor_id points into — see ShipmentExpense::VENDOR_MODELS, which maps them
      * to their models; 'other' means a free-text vendor name.
@@ -95,6 +117,7 @@ final class TradeCatalogue
     public const MILESTONES = [
         'booking_confirmed' => 'Booking Confirmed',
         'cargo_ready' => 'Cargo Ready',
+        'packing_list_ready' => 'Packing List Ready',
         'stuffing_done' => 'Stuffing / Loading Done',
         'gated_in' => 'Gated In at Port',
         'customs_filed' => 'Customs Filed',
@@ -163,6 +186,12 @@ final class TradeCatalogue
         return self::MILESTONES[$key] ?? str($key)->headline()->value();
     }
 
+    /** Human label for a packing-list package type. */
+    public static function packageLabel(?string $key): string
+    {
+        return self::PACKAGE_TYPES[(string) $key] ?? str((string) $key)->headline()->value();
+    }
+
     /**
      * The catalogue as option lists, ready for the frontend's pickers.
      *
@@ -180,6 +209,7 @@ final class TradeCatalogue
             'expense_types' => self::asOptions(self::EXPENSE_TYPES),
             'milestones' => self::asOptions(self::MILESTONES),
             'vendor_types' => self::asOptions(self::VENDOR_TYPES),
+            'package_types' => self::asOptions(self::PACKAGE_TYPES),
         ];
     }
 

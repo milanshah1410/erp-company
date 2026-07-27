@@ -153,7 +153,7 @@ class TenantRoleCatalog
             'Broker' => ['broker', 'broker-manager'],
             'Finance' => ['finance-manager', 'senior-accountant', 'accountant', 'cashier', 'auditor'],
             'HR' => ['hr-manager', 'hr-executive', 'payroll-executive'],
-            'Transport' => ['transport-manager', 'dispatch-executive', 'driver', 'delivery-boy'],
+            'Transport' => ['transport-manager', 'dispatch-executive', 'transport-coordinator', 'driver', 'delivery-boy'],
             'Import & Export' => ['logistics-manager', 'import-executive', 'export-executive', 'documentation-executive', 'cha-executive'],
             'Administration' => ['office-admin', 'receptionist'],
             'System' => ['super-admin', 'admin', 'staff'],
@@ -343,6 +343,15 @@ class TenantRoleCatalog
                 'drivers:v', 'vehicles:v', 'gate-entries:c', 'EXIM:v', 'shipments:v', 'shipment-containers:c',
                 'notifications:v',
             ]],
+            // Books the inland leg — trucks between port/CFS/ICD and the
+            // warehouse. Sits in Transport on the org chart but serves the
+            // Import & Export desk, hence the shipment/container access.
+            'transport-coordinator' => ['label' => 'Transport Coordinator', 'spec' => [
+                'dispatch-plans:c', 'dispatch-pods:c', 'delivery-routes:c', 'transport-charges:c',
+                'drivers:v', 'vehicles:v', 'gate-entries:c', 'warehouses:v',
+                'EXIM:v', 'shipments:v', 'shipment-containers:c', 'shipment-expenses:c',
+                'reports:v', 'notifications:v',
+            ]],
             'driver' => ['label' => 'Driver', 'spec' => [
                 'dispatch-plans:v', 'dispatch-pods:c', 'delivery-routes:v', 'vehicles:v', 'fuel-expenses:c', 'notifications:v',
             ]],
@@ -355,6 +364,11 @@ class TenantRoleCatalog
             // executives each own one lane or one document type, which is how a
             // freight desk actually divides up: buying/selling side, paperwork,
             // and the customs filing that only a licensed CHA handles.
+            //
+            // Two more roles work this module from their own departments rather
+            // than from here: warehouse-manager (Inventory — receives inbound
+            // cargo, seeded with its hand-tuned set in RolePermissionSeeder) and
+            // transport-coordinator (Transport — the inland leg).
             'logistics-manager' => ['label' => 'Logistics Manager', 'spec' => [
                 'EXIM:m', 'EXIM_SHIPMENTS:m', 'TRANSPORT:m', 'suppliers:v', 'customers:v',
                 'purchases:v', 'sales:v', 'stock:v', 'warehouses:v',

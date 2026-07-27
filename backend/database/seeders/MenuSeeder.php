@@ -363,6 +363,19 @@ class MenuSeeder extends Seeder
                     ['label' => 'TDS Register', 'icon' => 'pi pi-minus-circle', 'to' => '/reports/tds-register', 'permission' => 'reports.view'],
                     ['label' => 'TCS Register', 'icon' => 'pi pi-plus-circle', 'to' => '/reports/tcs-register', 'permission' => 'reports.view'],
                 ]],
+                // The Import & Export Logistics registers. The module's own
+                // operational boards live under Import & Export Logistics; these
+                // are the exportable date-range reports over the same shipments.
+                ['label' => 'Logistics Reports', 'icon' => 'pi pi-globe', 'module' => 'logistics', 'children' => [
+                    ['label' => 'Import Report', 'icon' => 'pi pi-arrow-down-left', 'to' => '/reports/import-shipments', 'permission' => 'reports.view'],
+                    ['label' => 'Export Report', 'icon' => 'pi pi-arrow-up-right', 'to' => '/reports/export-shipments', 'permission' => 'reports.view'],
+                    ['label' => 'Shipment Profit', 'icon' => 'pi pi-chart-line', 'to' => '/reports/shipment-profit', 'permission' => 'reports.view'],
+                    ['label' => 'Shipment Expense', 'icon' => 'pi pi-indian-rupee', 'to' => '/reports/shipment-expenses', 'permission' => 'reports.view'],
+                    ['label' => 'Customs Report', 'icon' => 'pi pi-verified', 'to' => '/reports/shipment-customs', 'permission' => 'reports.view'],
+                    ['label' => 'Container Report', 'icon' => 'pi pi-box', 'to' => '/reports/shipment-containers', 'permission' => 'reports.view'],
+                    ['label' => 'Country-wise Sales', 'icon' => 'pi pi-globe', 'to' => '/reports/country-wise-sales', 'permission' => 'reports.view'],
+                    ['label' => 'Port-wise Shipment', 'icon' => 'pi pi-building', 'to' => '/reports/port-wise-shipments', 'permission' => 'reports.view'],
+                ]],
                 ['label' => 'Custom Reports', 'icon' => 'pi pi-sliders-h', 'children' => [
                     // Placeholder for user-defined reports; hidden until leaves exist.
                 ]],

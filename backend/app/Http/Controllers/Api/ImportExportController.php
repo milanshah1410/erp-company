@@ -325,12 +325,18 @@ class ImportExportController extends Controller
         $duty = Shipment::query()
             ->whereNotIn('status', ['draft', 'cancelled'])
             ->where('customs_status', '!=', 'cleared')
-            ->selectRaw('sum(duty_total) as duty, count(*) as total')
+            // Held entries are the ones that stop moving on their own — a query,
+            // a valuation dispute, a licence — so the board counts them apart.
+            ->selectRaw("sum(duty_total) as duty, count(*) as total,
+                sum(case when customs_status = 'on_hold' then 1 else 0 end) as on_hold,
+                sum(case when customs_status = 'pending' then 1 else 0 end) as unfiled")
             ->first();
 
         return ShipmentResource::collection($page)->additional([
             'summary' => [
                 'pending' => (int) ($duty->total ?? 0),
+                'unfiled' => (int) ($duty->unfiled ?? 0),
+                'on_hold' => (int) ($duty->on_hold ?? 0),
                 'duty_outstanding' => round((float) ($duty->duty ?? 0), 2),
             ],
         ]);

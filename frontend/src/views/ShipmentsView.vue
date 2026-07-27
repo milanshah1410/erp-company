@@ -224,6 +224,60 @@ async function save() {
   }
 }
 
+// --- raise from the order (the SRS's "Purchase Order Link" / "Sales Order Link") ---
+// A shipment normally starts life as an order that has to cross a border, so this
+// is the usual way in: ShipmentIntegrationController prefills the counterparty's
+// trade defaults, the lane, the cargo description and the order value, and seeds
+// the document checklist. The blank form above stays for shipments with no order.
+const orderPicker = ref<any[] | null>(null)
+const orderLoading = ref(false)
+const raising = ref<number | null>(null)
+
+async function openOrderPicker() {
+  orderPicker.value = []
+  orderLoading.value = true
+  try {
+    const { data } = await http.get(isImport.value ? '/purchase-orders' : '/sales-orders', { params: { per_page: 100 } })
+    // Draft / cancelled / rejected orders cannot carry a shipment — the endpoint
+    // rejects them, so they are not offered.
+    orderPicker.value = (data.data ?? data).filter(
+      (o: any) => !['draft', 'cancelled', 'rejected'].includes(o.status),
+    )
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not load orders', detail: e.response?.data?.message, life: 4000 })
+    orderPicker.value = null
+  } finally {
+    orderLoading.value = false
+  }
+}
+
+async function raiseFromOrder(order: any) {
+  raising.value = order.id
+  try {
+    const { data } = await http.post(
+      isImport.value ? '/shipments/from-purchase-order' : '/shipments/from-sales-order',
+      isImport.value ? { purchase_order_id: order.id } : { sales_order_id: order.id },
+    )
+    const shipment = data.data ?? data
+    orderPicker.value = null
+    toast.add({ severity: 'success', summary: `${shipment.shipment_number} raised as a draft`, life: 3000 })
+    // Whatever the endpoint could not carry over — a party not flagged overseas,
+    // an order value in another currency — is worth reading before the desk works on.
+    if (data.notes?.length) {
+      toast.add({ severity: 'warn', summary: 'Check this', detail: data.notes.join('\n'), life: 8000 })
+    }
+    reload()
+    detailId.value = shipment.id
+    detailVisible.value = true
+  } catch (e: any) {
+    const errors = e.response?.data?.errors
+    const first = errors ? (Object.values(errors)[0] as string[])?.[0] : null
+    toast.add({ severity: 'error', summary: 'Error', detail: first || e.response?.data?.message || 'Failed', life: 5000 })
+  } finally {
+    raising.value = null
+  }
+}
+
 async function remove(row: any) {
   const res = await Swal.fire({
     title: `Delete ${row.shipment_number}?`, icon: 'warning',
@@ -290,6 +344,8 @@ watch(direction, () => {
           <Select v-model="paymentFilter" :options="paymentChoices" optionLabel="label" optionValue="value" showClear
             placeholder="Any payment" class="filter-sm" @change="reload" />
           <TableExportButtons :title="title" endpoint="/shipments" :params="params" :columns="exportColumns" />
+          <Button v-if="canCreate" :label="isImport ? 'From Purchase Order' : 'From Sales Order'" icon="pi pi-link"
+            outlined @click="openOrderPicker" />
           <Button v-if="canCreate" :label="isImport ? 'New Import' : 'New Export'" icon="pi pi-plus" @click="openCreate" />
         </div>
       </template>
@@ -353,6 +409,38 @@ watch(direction, () => {
     </DataTable>
 
     <ShipmentDetailDialog v-model:visible="detailVisible" :shipment-id="detailId" @changed="reload" />
+
+    <!-- Raise the leg from the order it came from -->
+    <Dialog :visible="orderPicker !== null" modal :style="{ width: '780px' }" :breakpoints="{ '840px': '95vw' }"
+      :header="isImport ? 'Raise an import from a purchase order' : 'Raise an export from a sales order'"
+      @update:visible="v => { if (!v) orderPicker = null }">
+      <p class="picker-hint">
+        The shipment is prefilled from the order and the
+        {{ isImport ? "overseas supplier's" : "overseas customer's" }} trade defaults — Incoterm, lane, cargo and
+        value — and starts as a draft with its document checklist seeded.
+      </p>
+      <DataTable :value="orderPicker ?? []" :loading="orderLoading" class="p-datatable-sm" dataKey="id">
+        <Column :header="isImport ? 'PO #' : 'SO #'">
+          <template #body="{ data }">{{ data.po_number ?? data.so_number }}</template>
+        </Column>
+        <Column :header="isImport ? 'Supplier' : 'Customer'">
+          <template #body="{ data }">{{ (data.supplier ?? data.customer)?.name || '—' }}</template>
+        </Column>
+        <Column field="order_date" header="Date" />
+        <Column field="expected_date" header="Expected" />
+        <Column header="Status">
+          <template #body="{ data }"><Tag :value="humanize(data.status)" severity="info" /></template>
+        </Column>
+        <Column header="Total"><template #body="{ data }">{{ money(data.total) }}</template></Column>
+        <Column header="" style="width: 8rem">
+          <template #body="{ data }">
+            <Button label="Raise" size="small" :loading="raising === data.id" @click="raiseFromOrder(data)" />
+          </template>
+        </Column>
+        <template #empty>No live {{ isImport ? 'purchase' : 'sales' }} orders to raise a shipment from.</template>
+      </DataTable>
+      <template #footer><Button label="Close" text @click="orderPicker = null" /></template>
+    </Dialog>
 
     <!-- Create / edit header -->
     <Dialog v-model:visible="dialogVisible" modal :style="{ width: '960px' }" :breakpoints="{ '1100px': '95vw' }"
@@ -525,6 +613,7 @@ watch(direction, () => {
 .search-box i { position: absolute; left: 0.75rem; color: #9ca3af; }
 .search-box :deep(input) { padding-left: 2.25rem; }
 
+.picker-hint { margin: 0 0 0.8rem; color: #6b7280; font-size: 0.84rem; }
 .lane { white-space: nowrap; font-size: 0.85rem; }
 .lane i { font-size: 0.7rem; color: #9ca3af; margin: 0 0.2rem; }
 .muted { color: #9ca3af; font-size: 0.8rem; }

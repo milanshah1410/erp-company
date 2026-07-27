@@ -39,6 +39,16 @@ const directionFilter = ref<string | null>(null)
 const customsFilter = ref<string | null>(null)
 const directionChoices = statusOptions(['import', 'export'])
 const customsChoices = statusOptions(['pending', 'filed', 'assessed', 'duty_paid', 'on_hold', 'cleared'])
+// The leg decides the entry: an import clears on a Bill of Entry, an export on a
+// Shipping Bill. Shown for confirmation, never as a choice.
+const entryLabels: Record<string, string> = { bill_of_entry: 'Bill of Entry', shipping_bill: 'Shipping Bill' }
+function entryTypeFor(direction: string): string {
+  return direction === 'import' ? 'bill_of_entry' : 'shipping_bill'
+}
+/** Every state after 'pending' refers back to the entry, so it must exist first. */
+function needsEntryNumber(status: string): boolean {
+  return ['filed', 'assessed', 'duty_paid', 'cleared'].includes(status)
+}
 
 function params(): Record<string, any> {
   return {
@@ -70,15 +80,22 @@ function money(value: any): string {
   return Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
+/** Jump from a summary chip into the entries behind it. */
+function drill(status: string) {
+  customsFilter.value = customsFilter.value === status ? null : status
+  meta.value.current_page = 1
+  reload()
+}
+
 // --- customs dialog ---
 const row = ref<any>(null)
 const form = ref<any>(null)
 const saving = ref(false)
-function openCustoms(target: any) {
+function openCustoms(target: any, status?: string) {
   row.value = target
   form.value = {
-    customs_status: target.customs_status,
-    customs_entry_type: target.customs_entry_type || (target.direction === 'import' ? 'bill_of_entry' : 'shipping_bill'),
+    customs_status: status ?? target.customs_status,
+    customs_entry_type: entryTypeFor(target.direction),
     customs_entry_number: target.customs_entry_number || '',
     customs_entry_date: target.customs_entry_date || '',
     icegate_reference: target.icegate_reference || '',
@@ -117,6 +134,12 @@ const nextCustoms: Record<string, string> = {
 async function advance(target: any) {
   const next = nextCustoms[target.customs_status]
   if (!next) return
+  // Nothing can be filed without its entry number, so send the desk to the form
+  // rather than to a validation error it would have to read twice.
+  if (needsEntryNumber(next) && !target.customs_entry_number) {
+    openCustoms(target, next)
+    return
+  }
   try {
     await http.post(`/shipments/${target.id}/customs`, { customs_status: next })
     toast.add({ severity: 'success', summary: `Customs ${humanize(next).toLowerCase()}`, life: 2200 })
@@ -171,6 +194,13 @@ onMounted(reload)
 
     <div v-if="summary" class="strip">
       <div class="chip" :class="{ warn: summary.pending > 0 }"><strong>{{ summary.pending }}</strong> awaiting clearance</div>
+      <button type="button" class="chip" :class="{ active: customsFilter === 'pending' }" @click="drill('pending')">
+        <strong>{{ summary.unfiled }}</strong> not filed
+      </button>
+      <button type="button" class="chip" :class="{ warn: summary.on_hold > 0, active: customsFilter === 'on_hold' }"
+        @click="drill('on_hold')">
+        <strong>{{ summary.on_hold }}</strong> on hold
+      </button>
       <div class="chip"><strong>{{ money(summary.duty_outstanding) }}</strong> duty assessed</div>
     </div>
 
@@ -227,10 +257,12 @@ onMounted(reload)
         </div>
         <div class="fld">
           <label>Entry type</label>
-          <Select v-model="form.customs_entry_type" :options="statusOptions(['bill_of_entry', 'shipping_bill'])"
-            optionLabel="label" optionValue="value" />
+          <InputText :model-value="entryLabels[form.customs_entry_type]" disabled />
         </div>
-        <div class="fld"><label>Entry no.</label><InputText v-model="form.customs_entry_number" /></div>
+        <div class="fld">
+          <label>Entry no. <span v-if="needsEntryNumber(form.customs_status)">*</span></label>
+          <InputText v-model="form.customs_entry_number" :placeholder="entryLabels[form.customs_entry_type] + ' number'" />
+        </div>
         <div class="fld"><label>Entry date</label><input type="date" v-model="form.customs_entry_date" class="date-input" /></div>
         <div class="fld"><label>ICEGATE reference</label><InputText v-model="form.icegate_reference" /></div>
         <div class="fld"><label>Assessable value</label><InputNumber v-model="form.assessable_value" :minFractionDigits="2" /></div>
@@ -239,7 +271,13 @@ onMounted(reload)
         <div class="fld"><label>Cess / SWS</label><InputNumber v-model="form.duty_cess" :minFractionDigits="2" /></div>
         <div class="fld"><label>Other duty</label><InputNumber v-model="form.duty_other" :minFractionDigits="2" /></div>
         <div class="fld full"><label>Remarks (goes on the timeline)</label><Textarea v-model="form.remarks" rows="2" /></div>
-        <p class="total-hint">Total duty <strong>{{ money(dutyPreview) }}</strong></p>
+        <p class="total-hint">
+          Total duty <strong>{{ money(dutyPreview) }}</strong>
+          <span class="muted"> — counted once in landed cost, so do not book it again as a logistics cost.</span>
+        </p>
+        <p v-if="needsEntryNumber(form.customs_status)" class="total-hint muted">
+          Saving marks the {{ entryLabels[form.customs_entry_type] }} off the document checklist.
+        </p>
       </div>
       <template #footer>
         <Button label="Cancel" text @click="row = null" />
@@ -259,9 +297,14 @@ onMounted(reload)
 .search-box :deep(input) { padding-left: 2.25rem; }
 
 .strip { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.9rem; }
-.chip { border: 1px solid var(--border, #e8e4da); border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.78rem; }
+.chip { border: 1px solid var(--border, #e8e4da); border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.78rem;
+  background: none; color: inherit; font-family: inherit; }
+button.chip { cursor: pointer; }
+button.chip:hover { border-color: #6366f1; }
 .chip strong { font-size: 0.9rem; }
 .chip.warn { border-color: #fca5a5; color: #b91c1c; }
+.chip.active { background: rgba(99, 102, 241, 0.12); border-color: #6366f1; }
+.chip.warn.active { background: rgba(220, 38, 38, 0.1); border-color: #dc2626; }
 
 .link { color: #6366f1; cursor: pointer; }
 .link:hover { text-decoration: underline; }

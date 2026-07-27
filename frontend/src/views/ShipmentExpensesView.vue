@@ -42,8 +42,15 @@ const typeFilter = ref<string | null>(null)
 const directionFilter = ref<string | null>(null)
 const statusFilter = ref<string | null>(null)
 const unsettledOnly = ref(false)
+// null = every cost; 'own' = what the tenant carries (what the profit board
+// counts); 'billable' = what is recharged to the counterparty.
+const bearing = ref<string | null>(null)
 const dateFrom = ref('')
 const dateTo = ref('')
+const bearingChoices = [
+  { label: 'Own cost', value: 'own' },
+  { label: 'Recoverable', value: 'billable' },
+]
 
 const directionChoices = statusOptions(['import', 'export'])
 const statusChoices = statusOptions(['unpaid', 'partial', 'paid'])
@@ -55,6 +62,7 @@ function params(): Record<string, any> {
     ...(directionFilter.value ? { direction: directionFilter.value } : {}),
     ...(statusFilter.value ? { payment_status: statusFilter.value } : {}),
     ...(unsettledOnly.value ? { unsettled_only: 1 } : {}),
+    ...(bearing.value ? { is_billable: bearing.value === 'billable' ? 1 : 0 } : {}),
     ...(dateFrom.value ? { date_from: dateFrom.value } : {}),
     ...(dateTo.value ? { date_to: dateTo.value } : {}),
   }
@@ -195,6 +203,7 @@ const exportColumns = [
   { key: 'shipment_number', label: 'Shipment #' },
   { key: 'direction', label: 'Leg' },
   { key: 'expense_label', label: 'Head' },
+  { key: 'container_number', label: 'Container' },
   { key: 'expense_date', label: 'Date' },
   { key: 'vendor_name', label: 'Vendor' },
   { key: 'invoice_number', label: 'Invoice' },
@@ -240,6 +249,10 @@ onMounted(async () => {
         <div class="sum"><span class="sum-value">{{ money(summary.total) }}</span><span class="sum-label">Booked</span></div>
         <div class="sum"><span class="sum-value">{{ money(summary.paid) }}</span><span class="sum-label">Paid</span></div>
         <div class="sum" :class="{ bad: summary.outstanding > 0 }"><span class="sum-value">{{ money(summary.outstanding) }}</span><span class="sum-label">Owed to vendors</span></div>
+        <!-- What the shipment actually carries, after what is recharged. -->
+        <div class="sum"><span class="sum-value">{{ money(summary.absorbed) }}</span><span class="sum-label">Own cost</span>
+          <span v-if="summary.billable > 0" class="sum-note">{{ money(summary.billable) }} recoverable</span>
+        </div>
       </div>
       <ul v-if="summary.by_type.length" class="bars">
         <li v-for="row in summary.by_type" :key="row.expense_type">
@@ -252,6 +265,8 @@ onMounted(async () => {
 
     <div class="toolbar">
       <label class="switch"><ToggleSwitch v-model="unsettledOnly" @change="reload" /><span>Unpaid only</span></label>
+      <Select v-model="bearing" :options="bearingChoices" optionLabel="label" optionValue="value" showClear
+        placeholder="Own & recoverable" class="filter-md" @change="reload" />
       <span class="dates">
         <label>From</label><input type="date" v-model="dateFrom" class="date-input" @change="reload" />
         <label>To</label><input type="date" v-model="dateTo" class="date-input" @change="reload" />
@@ -260,7 +275,15 @@ onMounted(async () => {
 
     <DataTable :value="crud.items.value" :loading="crud.loading.value" lazy paginator :rows="crud.perPage.value"
       :totalRecords="crud.total.value" :rowsPerPageOptions="[15, 30, 50]" dataKey="id" @page="onPage" class="p-datatable-sm">
-      <Column field="expense_label" header="Head" />
+      <Column header="Head">
+        <template #body="{ data }">
+          {{ data.expense_label }}
+          <!-- Detention and demurrage are priced per box, so the box is part of
+               what the line means. -->
+          <br v-if="data.container_number" />
+          <small v-if="data.container_number" class="muted">{{ data.container_number }}</small>
+        </template>
+      </Column>
       <Column field="expense_date" header="Date" />
       <Column header="Shipment">
         <template #body="{ data }">
@@ -368,6 +391,7 @@ onMounted(async () => {
 .sum { display: flex; flex-direction: column; border: 1px solid var(--border, #e8e4da); border-radius: 10px; padding: 0.5rem 0.85rem; }
 .sum-value { font-size: 1.2rem; font-weight: 700; line-height: 1.2; }
 .sum-label { font-size: 0.72rem; color: #6b7280; }
+.sum-note { font-size: 0.68rem; color: #9ca3af; }
 .sum.bad .sum-value { color: #dc2626; }
 
 .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }

@@ -30,6 +30,14 @@ import SupplierLedgerReport from '../components/reports/SupplierLedgerReport.vue
 import StockAgeingReport from '../components/reports/StockAgeingReport.vue'
 import SlowMovingReport from '../components/reports/SlowMovingReport.vue'
 import FastMovingReport from '../components/reports/FastMovingReport.vue'
+import ImportShipmentReport from '../components/reports/ImportShipmentReport.vue'
+import ExportShipmentReport from '../components/reports/ExportShipmentReport.vue'
+import ShipmentProfitReport from '../components/reports/ShipmentProfitReport.vue'
+import ShipmentExpenseReport from '../components/reports/ShipmentExpenseReport.vue'
+import ShipmentCustomsReport from '../components/reports/ShipmentCustomsReport.vue'
+import ShipmentContainerReport from '../components/reports/ShipmentContainerReport.vue'
+import CountryWiseSalesReport from '../components/reports/CountryWiseSalesReport.vue'
+import PortWiseShipmentReport from '../components/reports/PortWiseShipmentReport.vue'
 import PageHeader from '../components/PageHeader.vue'
 
 interface ReportItem {
@@ -78,6 +86,16 @@ const reports: ReportItem[] = [
   { key: 'expenses', label: 'Expenses', component: ExpenseReport, modules: ['accounts'] },
   { key: 'customer-ledger', label: 'Customer Ledger', component: CustomerLedgerReport, modules: ['accounts'] },
   { key: 'supplier-ledger', label: 'Supplier Ledger', component: SupplierLedgerReport, modules: ['accounts'] },
+  // Import & Export Logistics registers — the exportable date-range reports over
+  // the same shipments the module's own boards work from.
+  { key: 'import-shipments', label: 'Import Report', component: ImportShipmentReport, modules: ['logistics'] },
+  { key: 'export-shipments', label: 'Export Report', component: ExportShipmentReport, modules: ['logistics'] },
+  { key: 'shipment-profit', label: 'Shipment Profit', component: ShipmentProfitReport, modules: ['logistics'] },
+  { key: 'shipment-expenses', label: 'Shipment Expense', component: ShipmentExpenseReport, modules: ['logistics'] },
+  { key: 'shipment-customs', label: 'Customs Report', component: ShipmentCustomsReport, modules: ['logistics'] },
+  { key: 'shipment-containers', label: 'Container Report', component: ShipmentContainerReport, modules: ['logistics'] },
+  { key: 'country-wise-sales', label: 'Country-wise Sales', component: CountryWiseSalesReport, modules: ['logistics'] },
+  { key: 'port-wise-shipments', label: 'Port-wise Shipment', component: PortWiseShipmentReport, modules: ['logistics'] },
 ]
 
 const route = useRoute()
@@ -113,6 +131,7 @@ const moduleLabels: Record<string, string> = {
   manufacturing: 'Manufacturing',
   tailoring: 'Tailoring',
   embroidery: 'Embroidery',
+  logistics: 'Logistics',
 }
 
 const gatedModules = computed(() =>

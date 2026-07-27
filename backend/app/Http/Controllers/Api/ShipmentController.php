@@ -11,6 +11,7 @@ use App\Support\TradeCatalogue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Import & Export shipments (SRS §24) — the module's core document, serving both
@@ -218,22 +219,43 @@ class ShipmentController extends Controller
      * File / assess / pay / clear customs for this shipment. One endpoint drives
      * the whole customs track because the duty breakdown is edited alongside the
      * state it belongs to, and the duty total must always be the sum of its parts.
+     *
+     * The entry is leg-bound: an import is cleared on a Bill of Entry, an export
+     * on a Shipping Bill. Filing it also marks that document received on the
+     * shipment's document set, so Pending Documents stops chasing a document the
+     * desk is holding in its hand.
      */
     public function customs(Request $request, Shipment $shipment)
     {
+        $entryType = $shipment->direction === 'import' ? 'bill_of_entry' : 'shipping_bill';
+        $entryLabel = TradeCatalogue::documentLabel($entryType);
+
         $data = $request->validate([
             'customs_status' => ['required', Rule::in(['pending', 'filed', 'assessed', 'duty_paid', 'cleared', 'on_hold'])],
-            'customs_entry_type' => ['nullable', Rule::in(['bill_of_entry', 'shipping_bill'])],
+            'customs_entry_type' => ['nullable', Rule::in([$entryType])],
             'customs_entry_number' => ['nullable', 'string', 'max:255'],
             'customs_entry_date' => ['nullable', 'date'],
-            'cha_name' => ['nullable', 'string', 'max:255'],
+            'icegate_reference' => ['nullable', 'string', 'max:255'],
+            'cha_agent_id' => ['nullable', 'exists:cha_agents,id'],
             'assessable_value' => ['nullable', 'numeric', 'min:0'],
             'duty_bcd' => ['nullable', 'numeric', 'min:0'],
             'duty_igst' => ['nullable', 'numeric', 'min:0'],
             'duty_cess' => ['nullable', 'numeric', 'min:0'],
             'duty_other' => ['nullable', 'numeric', 'min:0'],
             'remarks' => ['nullable', 'string'],
+        ], [
+            'customs_entry_type.in' => "An {$shipment->direction} shipment is cleared on a {$entryLabel}.",
         ]);
+
+        // Nothing is filed without an entry number — every later state (assessed,
+        // duty paid, cleared) refers back to it, and so does the ICEGATE trail.
+        $entryNumber = $data['customs_entry_number'] ?? $shipment->customs_entry_number;
+        if (! $entryNumber && in_array($data['customs_status'], ['filed', 'assessed', 'duty_paid', 'cleared'], true)) {
+            throw ValidationException::withMessages([
+                'customs_entry_number' => ["Enter the {$entryLabel} number before marking customs "
+                    .str_replace('_', ' ', $data['customs_status']).'.'],
+            ]);
+        }
 
         $duty = [
             'duty_bcd' => (float) ($data['duty_bcd'] ?? $shipment->duty_bcd),
@@ -243,10 +265,13 @@ class ShipmentController extends Controller
         ];
 
         $attributes = array_filter([
-            'customs_entry_type' => $data['customs_entry_type'] ?? null,
+            // The leg decides the entry, so it needs no keying — and a shipment
+            // created before this rule cannot keep the wrong one.
+            'customs_entry_type' => $entryNumber ? $entryType : ($data['customs_entry_type'] ?? null),
             'customs_entry_number' => $data['customs_entry_number'] ?? null,
             'customs_entry_date' => $data['customs_entry_date'] ?? null,
-            'cha_name' => $data['cha_name'] ?? null,
+            'icegate_reference' => $data['icegate_reference'] ?? null,
+            'cha_agent_id' => $data['cha_agent_id'] ?? null,
             'assessable_value' => $data['assessable_value'] ?? null,
         ], fn ($v) => $v !== null) + $duty + [
             'customs_status' => $data['customs_status'],
@@ -261,8 +286,23 @@ class ShipmentController extends Controller
             $attributes['duty_paid_at'] = $shipment->duty_paid_at ?? now();
         }
 
-        DB::transaction(function () use ($shipment, $attributes, $data, $request) {
+        DB::transaction(function () use ($shipment, $attributes, $data, $request, $entryType, $entryNumber) {
             $shipment->update($attributes);
+
+            // The entry and the document are the same piece of paper. Filing it
+            // fills in the checklist row seeded with the shipment (or adds it,
+            // for one seeded without documents) so the two never disagree.
+            if ($entryNumber && $data['customs_status'] !== 'pending') {
+                $document = $shipment->documents()->firstOrNew(['doc_type' => $entryType]);
+                $document->fill([
+                    'doc_number' => $entryNumber,
+                    'doc_date' => $shipment->customs_entry_date ?? $document->doc_date,
+                    // 'submitted' until customs signs it off; 'verified' once cleared.
+                    'status' => $data['customs_status'] === 'cleared' ? 'verified' : 'submitted',
+                    'is_mandatory' => $document->exists ? $document->is_mandatory : true,
+                ])->save();
+            }
+
             $shipment->logEvent(match ($data['customs_status']) {
                 'filed' => 'customs_filed',
                 'duty_paid' => 'duty_paid',
@@ -346,12 +386,19 @@ class ShipmentController extends Controller
         return [
             'supplier:id,name', 'customer:id,name', 'purchaseOrder:id,po_number',
             'salesOrder:id,so_number', 'warehouse:id,name', 'creator:id,name',
+            // The ERP documents the leg produced — the chain panels name them,
+            // and eager-loading here keeps Shipment::importChain() off lazy loads.
+            'purchaseInvoice:id,invoice_number', 'goodsReceipt:id,grn_number',
+            'invoice:id,invoice_number', 'dispatchPlan:id,dispatch_number',
             'shippingLine:id,name', 'airline:id,name', 'freightForwarder:id,name',
             'chaAgent:id,name', 'transporter:id,name',
             'originCountry:id,name', 'destinationCountry:id,name',
             'portOfLoading:id,name,code', 'portOfDischarge:id,name,code',
             'containers', 'documents.uploader:id,name', 'expenses',
             'payments.bankAccount:id,name',
+            // The packing list travels with the shipment on the detail screen,
+            // and its presence is what makes the export chain's step readable.
+            'packingItems.container:id,container_number', 'packingItems.product:id,name,sku',
         ];
     }
 }

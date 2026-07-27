@@ -26,7 +26,7 @@ class ShipmentExpenseController extends Controller
     public function index(Request $request)
     {
         $query = ShipmentExpense::query()
-            ->with(['shipment:id,shipment_number,direction', 'creator:id,name']);
+            ->with(['shipment:id,shipment_number,direction', 'container:id,container_number', 'creator:id,name']);
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -35,10 +35,17 @@ class ShipmentExpenseController extends Controller
                     ->orWhereHas('shipment', fn ($s) => $s->where('shipment_number', 'like', "%{$search}%"));
             });
         }
-        foreach (['shipment_id', 'expense_type', 'payment_status', 'vendor_type', 'vendor_id'] as $filter) {
+        foreach ([
+            'shipment_id', 'shipment_container_id', 'expense_type', 'payment_status', 'vendor_type', 'vendor_id',
+        ] as $filter) {
             if ($request->filled($filter)) {
                 $query->where($filter, $request->query($filter));
             }
+        }
+        // Recoverable vs own cost — the split the Shipment Profit board makes,
+        // so the desk can see which of these bills it is actually carrying.
+        if ($request->filled('is_billable')) {
+            $query->where('is_billable', $request->boolean('is_billable'));
         }
         if ($request->filled('direction')) {
             $query->whereHas('shipment', fn ($s) => $s->where('direction', $request->query('direction')));
@@ -68,14 +75,14 @@ class ShipmentExpenseController extends Controller
             'created_by' => $request->user()?->id,
         ]);
 
-        return (new ShipmentExpenseResource($expense->load(['shipment:id,shipment_number,direction'])))
+        return (new ShipmentExpenseResource($expense->load(['shipment:id,shipment_number,direction', 'container:id,container_number'])))
             ->response()->setStatusCode(201);
     }
 
     public function show(ShipmentExpense $shipmentExpense)
     {
         return new ShipmentExpenseResource(
-            $shipmentExpense->load(['shipment:id,shipment_number,direction', 'creator:id,name'])
+            $shipmentExpense->load(['shipment:id,shipment_number,direction', 'container:id,container_number', 'creator:id,name'])
         );
     }
 
@@ -87,7 +94,7 @@ class ShipmentExpenseController extends Controller
         $shipmentExpense->update($this->defaults($data, $shipmentExpense));
 
         return new ShipmentExpenseResource(
-            $shipmentExpense->load(['shipment:id,shipment_number,direction', 'creator:id,name'])
+            $shipmentExpense->load(['shipment:id,shipment_number,direction', 'container:id,container_number', 'creator:id,name'])
         );
     }
 
@@ -136,7 +143,8 @@ class ShipmentExpenseController extends Controller
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate('expense_date', '<=', $request->query('date_to')));
 
         $rows = (clone $query)
-            ->selectRaw('expense_type, count(*) as entries, sum(base_amount) as total, sum(paid_amount) as paid')
+            ->selectRaw('expense_type, count(*) as entries, sum(base_amount) as total, sum(paid_amount) as paid,
+                sum(case when is_billable = 1 then base_amount else 0 end) as billable')
             ->groupBy('expense_type')
             ->orderByDesc('total')
             ->get()
@@ -147,13 +155,21 @@ class ShipmentExpenseController extends Controller
                 'total' => round((float) $row->total, 2),
                 'paid' => round((float) $row->paid, 2),
                 'outstanding' => round((float) $row->total - (float) $row->paid, 2),
+                'billable' => round((float) $row->billable, 2),
             ]);
+
+        $billable = round((float) $rows->sum('billable'), 2);
+        $total = round((float) $rows->sum('total'), 2);
 
         return response()->json([
             'by_type' => $rows,
-            'total' => round((float) $rows->sum('total'), 2),
+            'total' => $total,
             'paid' => round((float) $rows->sum('paid'), 2),
             'outstanding' => round((float) $rows->sum('outstanding'), 2),
+            // What is recovered from the counterparty, and what the tenant is
+            // therefore carrying itself — the figure the profit board counts.
+            'billable' => $billable,
+            'absorbed' => round($total - $billable, 2),
         ]);
     }
 

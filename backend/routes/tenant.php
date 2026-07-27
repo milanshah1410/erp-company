@@ -94,7 +94,9 @@ use App\Http\Controllers\Api\ShipmentContainerController;
 use App\Http\Controllers\Api\ShipmentDocumentController;
 use App\Http\Controllers\Api\ShipmentExpenseController;
 use App\Http\Controllers\Api\ShipmentIntegrationController;
+use App\Http\Controllers\Api\ShipmentPackingItemController;
 use App\Http\Controllers\Api\ShipmentPaymentController;
+use App\Http\Controllers\Api\ShipmentReportController;
 use App\Http\Controllers\Api\FinancialYearController;
 use App\Http\Controllers\Api\GateEntryController;
 use App\Http\Controllers\Api\GstRegistrationController;
@@ -990,10 +992,45 @@ Route::middleware('api')->prefix('api')->group(function () {
                 ->middleware(['permission:shipments.edit', 'permission:purchase-invoices.view']);
             Route::post('shipments/{shipment}/customer-invoice', [ShipmentIntegrationController::class, 'customerInvoice'])
                 ->middleware(['permission:shipments.edit', 'permission:sales.view']);
+            // The carrier's B/L or AWB: vessel, sailing, freight and the
+            // container list in one act. Containers are only opened when the
+            // caller may create them — the controller checks that itself, so a
+            // documentation desk can still file the paper without them.
+            Route::post('shipments/{shipment}/bill-of-lading', [ShipmentIntegrationController::class, 'billOfLading'])
+                ->middleware('permission:shipments.edit');
             Route::post('shipments/{shipment}/warehouse-receipt', [ShipmentIntegrationController::class, 'warehouseReceipt'])
                 ->middleware(['permission:shipments.edit', 'permission:purchases.create']);
             Route::post('shipments/{shipment}/dispatch', [ShipmentIntegrationController::class, 'dispatch'])
                 ->middleware(['permission:shipments.edit', 'permission:dispatch-plans.create']);
+
+            /*
+            |------------------------------------------------------------------
+            | Export chain. The rest of SO → Packing List → Container Booking →
+            | Shipping Bill → ETD → Customer Invoice → Dispatch: the packing list
+            | the cargo is declared on, the carrier booking that fixes the
+            | sailing, and the shipping bill that clears it out of the country.
+            |
+            | The booking may plan containers, which the controller gates on the
+            | container permission itself (as the B/L action does), so a
+            | documentation desk can still record the booking without them.
+            |------------------------------------------------------------------
+            */
+            Route::get('shipments/{shipment}/packing-list', [ShipmentPackingItemController::class, 'index'])
+                ->middleware('permission:shipments.view');
+            Route::post('shipments/{shipment}/packing-list/generate', [ShipmentIntegrationController::class, 'packingList'])
+                ->middleware('permission:shipments.edit');
+            Route::post('shipments/{shipment}/packing-items', [ShipmentPackingItemController::class, 'store'])
+                ->middleware('permission:shipments.edit');
+            Route::post('shipments/{shipment}/packing-items/assign', [ShipmentPackingItemController::class, 'assignContainer'])
+                ->middleware(['permission:shipments.edit', 'permission:shipment-containers.edit']);
+            Route::put('shipment-packing-items/{shipmentPackingItem}', [ShipmentPackingItemController::class, 'update'])
+                ->middleware('permission:shipments.edit');
+            Route::delete('shipment-packing-items/{shipmentPackingItem}', [ShipmentPackingItemController::class, 'destroy'])
+                ->middleware('permission:shipments.edit');
+            Route::post('shipments/{shipment}/booking', [ShipmentIntegrationController::class, 'booking'])
+                ->middleware('permission:shipments.edit');
+            Route::post('shipments/{shipment}/shipping-bill', [ShipmentIntegrationController::class, 'shippingBill'])
+                ->middleware('permission:shipment-customs.edit');
 
             // Container: price the overdue free days into a detention /
             // demurrage cost on the shipment (re-runnable while it accrues).
@@ -1127,6 +1164,19 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('reports/expenses', [ExpenseController::class, 'report'])->middleware(['permission:reports.view', 'module:accounts']);
         Route::get('reports/customer-ledger', [LedgerReportController::class, 'customer'])->middleware(['permission:reports.view', 'module:accounts']);
         Route::get('reports/supplier-ledger', [LedgerReportController::class, 'supplier'])->middleware(['permission:reports.view', 'module:accounts']);
+
+        // Import & Export Logistics reports (SRS §24). These are registers over a
+        // date range that leave as CSV / Excel / PDF, as opposed to the module's
+        // own boards (/import-export/*), which are the work queues the desk acts
+        // on. Both read the same shipments and the same money rules.
+        Route::get('reports/import-shipments', [ShipmentReportController::class, 'importReport'])->middleware(['permission:reports.view', 'module:logistics']);
+        Route::get('reports/export-shipments', [ShipmentReportController::class, 'exportReport'])->middleware(['permission:reports.view', 'module:logistics']);
+        Route::get('reports/shipment-profit', [ShipmentReportController::class, 'shipmentProfit'])->middleware(['permission:reports.view', 'module:logistics']);
+        Route::get('reports/shipment-expenses', [ShipmentReportController::class, 'shipmentExpense'])->middleware(['permission:reports.view', 'module:logistics']);
+        Route::get('reports/shipment-customs', [ShipmentReportController::class, 'customsReport'])->middleware(['permission:reports.view', 'module:logistics']);
+        Route::get('reports/shipment-containers', [ShipmentReportController::class, 'containerReport'])->middleware(['permission:reports.view', 'module:logistics']);
+        Route::get('reports/country-wise-sales', [ShipmentReportController::class, 'countryWiseSales'])->middleware(['permission:reports.view', 'module:logistics']);
+        Route::get('reports/port-wise-shipments', [ShipmentReportController::class, 'portWiseShipments'])->middleware(['permission:reports.view', 'module:logistics']);
 
         Route::get('dashboard/kpis', [DashboardController::class, 'kpis']);
         // Customizable widget layout (project-stack.md §5), per user.

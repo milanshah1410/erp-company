@@ -95,6 +95,27 @@ class TenantRoleCatalogTest extends TestCase
         $this->assertNotContains('accounts.create', $fin);
     }
 
+    public function test_import_export_module_roles_all_reach_shipments(): void
+    {
+        // The seven roles the Import & Export Logistics module names. Five sit
+        // in the Import & Export department; warehouse-manager and
+        // transport-coordinator serve it from Inventory / Transport.
+        foreach ([
+            'logistics-manager', 'import-executive', 'export-executive',
+            'documentation-executive', 'cha-executive',
+            'warehouse-manager', 'transport-coordinator',
+        ] as $slug) {
+            $this->assertContains('shipments.view', $this->permsOf($slug), "$slug should see shipments");
+        }
+    }
+
+    public function test_only_the_cha_desk_files_customs(): void
+    {
+        $this->assertContains('shipment-customs.edit', $this->permsOf('cha-executive'));
+        $this->assertNotContains('shipment-customs.edit', $this->permsOf('documentation-executive'));
+        $this->assertNotContains('shipment-customs.view', $this->permsOf('transport-coordinator'));
+    }
+
     public function test_department_lookup(): void
     {
         $this->assertSame('Manufacturing', TenantRoleCatalog::departmentOf('tailor'));
