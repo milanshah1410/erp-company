@@ -25,6 +25,31 @@ const crud = useCrud('/users')
 const search = ref('')
 const roleFilter = ref<string | null>(null)
 const roleOptions = ref<any[]>([])
+
+// /roles marks every role either "system" (shared catalogue, same in every
+// workspace) or "custom" (created here). Both are assignable, so the dropdowns
+// label them rather than filter them — a name alone doesn't say which it is.
+function isSystemRole(role: any): boolean {
+  return role.is_system ?? role.scope === 'system'
+}
+
+function roleScopeLabel(role: any): string {
+  return isSystemRole(role) ? 'system' : 'custom'
+}
+
+// Custom roles first — the ones this workspace actually maintains — then the
+// shared system catalogue, each under its own header. Ordered here rather than
+// relying on the API's order, so the dropdowns always read the same way as the
+// Roles & Permissions screen.
+const roleGroups = computed(() => {
+  const groups: { label: string; items: any[] }[] = []
+  const custom = roleOptions.value.filter((r) => !isSystemRole(r))
+  const system = roleOptions.value.filter((r) => isSystemRole(r))
+  if (custom.length) groups.push({ label: 'Custom Roles', items: custom })
+  if (system.length) groups.push({ label: 'System Roles', items: system })
+
+  return groups
+})
 const companyOptions = ref<any[]>([])
 const branchOptions = ref<any[]>([])
 
@@ -169,7 +194,20 @@ onMounted(async () => {
         <i class="pi pi-search" />
         <InputText v-model="search" placeholder="Search users..." @keyup.enter="reload" />
       </span>
-      <Select v-model="roleFilter" :options="roleOptions" optionLabel="name" optionValue="name" placeholder="All roles" showClear class="filter" @change="reload" />
+      <!-- Custom roles first, then the system catalogue; each option also carries
+           its own tag, so the split is readable once the header scrolls away. -->
+      <Select v-model="roleFilter" :options="roleGroups" optionGroupLabel="label" optionGroupChildren="items"
+        optionLabel="name" optionValue="name" placeholder="All roles" showClear class="filter" @change="reload">
+        <template #optiongroup="{ option }">
+          <span class="role-group">{{ option.label }}</span>
+        </template>
+        <template #option="{ option }">
+          <span class="role-option">
+            <span class="role-option-name">{{ option.name }}</span>
+            <Tag :value="roleScopeLabel(option)" :severity="isSystemRole(option) ? 'secondary' : 'info'" class="role-scope-tag" />
+          </span>
+        </template>
+      </Select>
       <Button label="Search" outlined @click="reload" />
       <TableExportButtons title="Users" endpoint="/users"
         :params="() => ({ search: search || undefined, role: roleFilter || undefined })"
@@ -232,8 +270,19 @@ onMounted(async () => {
         </div>
         <div class="form-field full">
           <label>Roles</label>
-          <MultiSelect v-model="form.roles" :options="roleOptions" optionLabel="name" optionValue="name"
-            placeholder="Select roles" display="chip" :class="{ invalid: fieldError('roles') }" />
+          <MultiSelect v-model="form.roles" :options="roleGroups" optionGroupLabel="label" optionGroupChildren="items"
+            optionLabel="name" optionValue="name"
+            placeholder="Select roles" display="chip" :class="{ invalid: fieldError('roles') }">
+            <template #optiongroup="{ option }">
+              <span class="role-group">{{ option.label }}</span>
+            </template>
+            <template #option="{ option }">
+              <span class="role-option">
+                <span class="role-option-name">{{ option.name }}</span>
+                <Tag :value="roleScopeLabel(option)" :severity="isSystemRole(option) ? 'secondary' : 'info'" class="role-scope-tag" />
+              </span>
+            </template>
+          </MultiSelect>
           <small v-if="fieldError('roles')" class="error-text">{{ fieldError('roles') }}</small>
         </div>
         <div class="form-field">
@@ -307,6 +356,32 @@ onMounted(async () => {
 .role-tag :deep(.p-tag-label),
 .role-tag {
   font-size: 0.72rem;
+}
+/* Dropdown: "Custom Roles" / "System Roles" headers, then one row per role with
+   the role name on the left and its system/custom label on the right. */
+.role-group {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #6f7680);
+}
+.role-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
+.role-option-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.role-scope-tag :deep(.p-tag-label),
+.role-scope-tag {
+  font-size: 0.66rem;
+  flex: none;
 }
 .form-grid {
   display: grid;

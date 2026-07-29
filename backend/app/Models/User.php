@@ -4,7 +4,10 @@ namespace App\Models;
 
 use App\Models\Concerns\LogsAuditActivity;
 use App\Models\Scopes\TenantScope;
+use App\Support\EnabledModules;
 use App\Support\TenantContext;
+use App\Support\TenantMenuAccess;
+use App\Support\TenantStorage;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -13,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -102,13 +106,13 @@ class User extends Authenticatable
             'email' => $this->email,
             'phone' => $this->phone,
             // Signed URL so the top bar can show the profile photo directly.
-            'avatar_url' => \App\Support\TenantStorage::temporaryUrl($this->avatar),
+            'avatar_url' => TenantStorage::temporaryUrl($this->avatar),
             'roles' => $this->getRoleNames(),
-            'permissions' => $this->getAllPermissions()->pluck('name'),
+            'permissions' => $this->effectivePermissionNames(),
             // The tenant's effective module set (onboarding choice ∩ plan), so the
             // SPA can hide module-specific screens the way MenuController hides
             // their menu rows. null = no selection on record → nothing is gated.
-            'modules' => \App\Support\EnabledModules::forTenant($this->tenant_id),
+            'modules' => EnabledModules::forTenant($this->tenant_id),
             'current_company' => $this->currentCompany ? [
                 'id' => $this->currentCompany->id,
                 'name' => $this->currentCompany->name,
@@ -123,5 +127,36 @@ class User extends Authenticatable
             'companies' => $companies,
             'branches' => $branches,
         ];
+    }
+
+    /**
+     * The permissions the SPA should act on: what this user's roles grant, minus
+     * anything the workspace is not entitled to — modules it does not have, and
+     * screens the platform operator revoked.
+     *
+     * The grants themselves stay in the database (restoring a module or a screen
+     * restores them), and this is the same subtraction CheckPermission enforces —
+     * so a button the UI offers is never one the API then refuses, and the router
+     * redirects instead of opening a screen whose every call 403s.
+     *
+     * @return Collection<int, string>
+     */
+    private function effectivePermissionNames(): Collection
+    {
+        $names = $this->getAllPermissions()->pluck('name');
+
+        $enabled = EnabledModules::forTenant($this->tenant_id);
+        $revoked = TenantMenuAccess::revokedGroups($this->tenant_id);
+
+        if ($enabled === null && $revoked === []) {
+            return $names;
+        }
+
+        $map = EnabledModules::permissionGroupMap();
+
+        return $names->reject(
+            fn (string $name) => ! EnabledModules::groupAvailable(EnabledModules::groupOf($name), $enabled, $map)
+                || TenantMenuAccess::isRevoked($name, $revoked)
+        )->values();
     }
 }

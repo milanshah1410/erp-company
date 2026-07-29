@@ -20,6 +20,7 @@ use App\Http\Controllers\Central\Support\TicketController as SupportTicketContro
 use App\Http\Controllers\Central\PlanController;
 use App\Http\Controllers\Central\PublicPaymentController;
 use App\Http\Controllers\Central\RoleController as CentralRoleController;
+use App\Http\Controllers\Central\TenantAccessController;
 use App\Http\Controllers\Central\TenantController as CentralTenantController;
 use App\Http\Controllers\Central\TenantFileController;
 use App\Http\Controllers\Central\RazorpayWebhookController;
@@ -112,6 +113,13 @@ Route::prefix('central')->group(function () {
         Route::post('/tenants/{tenant}/suspend', [CentralTenantController::class, 'suspend'])->middleware('permission:tenants.suspend,central');
         Route::post('/tenants/{tenant}/activate', [CentralTenantController::class, 'activate'])->middleware('permission:tenants.suspend,central');
         Route::post('/tenants/{tenant}/impersonate', [CentralTenantController::class, 'impersonate'])->middleware('permission:tenants.impersonate,central');
+
+        // Per-tenant entitlement: module switches + which menu screens (and so
+        // which permissions) the workspace may use at all. Gated by the operator's
+        // own can_manage_tenant_access flag instead of a role permission — see
+        // App\Http\Middleware\EnsureTenantAccessManager.
+        Route::get('/tenants/{tenant}/access', [TenantAccessController::class, 'show'])->middleware('central.tenant-access');
+        Route::match(['put', 'patch'], '/tenants/{tenant}/access', [TenantAccessController::class, 'update'])->middleware('central.tenant-access');
 
         // Billing & Subscriptions: plan catalogue admin, tenant subscriptions,
         // invoices/refunds and revenue analytics (SaaS-owner billing panel).

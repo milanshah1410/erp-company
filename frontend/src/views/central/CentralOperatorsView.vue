@@ -58,7 +58,7 @@ async function loadRoles() {
 
 function openCreate() {
   editing.value = null
-  form.value = { name: '', email: '', password: '', is_active: true, roles: [] }
+  form.value = { name: '', email: '', password: '', is_active: true, can_manage_tenant_access: false, roles: [] }
   errors.value = {}
   dialogVisible.value = true
 }
@@ -70,6 +70,7 @@ function openEdit(row: any) {
     email: row.email,
     password: '',
     is_active: !!row.is_active,
+    can_manage_tenant_access: !!row.can_manage_tenant_access,
     roles: [...(row.roles || [])],
   }
   errors.value = {}
@@ -86,6 +87,9 @@ async function save() {
       is_active: form.value.is_active,
       roles: form.value.roles,
     }
+    // Only a super-admin may change this flag, and the API rejects an attempt —
+    // so only send it when it is actually editable here.
+    if (auth.isSuperAdmin) payload.can_manage_tenant_access = form.value.can_manage_tenant_access
     if (editing.value) {
       if (form.value.password) payload.password = form.value.password
       await centralHttp.put(`/operators/${editing.value.id}`, payload)
@@ -155,6 +159,17 @@ onMounted(async () => {
           <Tag :severity="data.is_active ? 'success' : 'danger'" :value="data.is_active ? 'Yes' : 'No'" />
         </template>
       </Column>
+      <Column header="Tenant access" style="width: 8rem">
+        <template #body="{ data }">
+          <Tag
+            v-if="data.can_manage_tenant_access || data.roles?.includes('super-admin')"
+            severity="warn"
+            value="can save"
+            title="May save tenant module & menu access"
+          />
+          <span v-else class="muted">read-only</span>
+        </template>
+      </Column>
       <Column header="Actions" style="width: 8rem">
         <template #body="{ data }">
           <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openEdit(data)" />
@@ -194,6 +209,23 @@ onMounted(async () => {
             <Checkbox v-model="form.is_active" binary inputId="op-active" />
             <label for="op-active">Enabled</label>
           </div>
+        </div>
+        <div class="form-field">
+          <label>Tenant access</label>
+          <div class="checkbox-row">
+            <Checkbox
+              v-model="form.can_manage_tenant_access"
+              binary
+              inputId="op-tenant-access"
+              :disabled="!auth.isSuperAdmin || form.roles.includes('super-admin')"
+            />
+            <label for="op-tenant-access">May save tenant module &amp; menu access</label>
+          </div>
+          <small class="hint">
+            <template v-if="form.roles.includes('super-admin')">Super-admins always may.</template>
+            <template v-else-if="!auth.isSuperAdmin">Only a super-admin may change this.</template>
+            <template v-else>Off = can open a workspace's Access panel but not save it.</template>
+          </small>
         </div>
       </div>
 

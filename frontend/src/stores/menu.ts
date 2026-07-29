@@ -32,6 +32,7 @@ interface MenuPayload {
   menu: MenuNode[]
   favorites: MenuLeaf[]
   recents: MenuLeaf[]
+  deniedRoutes: string[]
 }
 
 /**
@@ -43,6 +44,9 @@ export const useMenuStore = defineStore('menu', {
     menu: [] as MenuNode[],
     favorites: [] as MenuLeaf[],
     recents: [] as MenuLeaf[],
+    // Catalogue screens this workspace may not open — the rows /menu filtered out
+    // because the operator switched their module off or revoked them.
+    deniedRoutes: [] as string[],
     loaded: false,
     loading: false,
     // Cache key for the context currently held in memory; used to detect a
@@ -85,6 +89,25 @@ export const useMenuStore = defineStore('menu', {
     isFavorite(state) {
       return (id?: number) => !!id && state.favorites.some((f) => f.id === id)
     },
+    /**
+     * Is this path a screen the workspace is not granted?
+     *
+     * The menu is the authority: hiding a row from the nav has to mean the screen
+     * cannot be opened at all, otherwise a typed URL, a bookmark or the back
+     * button walks around it. Paths beneath a denied screen
+     * (/sales-quotations/12) are denied with it.
+     */
+    isRouteDenied(state) {
+      return (path: string) => {
+        const clean = (path.split('?')[0].replace(/\/+$/, '') || '/').toLowerCase()
+
+        return state.deniedRoutes.some((route) => {
+          const r = route.toLowerCase()
+
+          return clean === r || clean.startsWith(`${r}/`)
+        })
+      }
+    },
   },
 
   actions: {
@@ -100,9 +123,16 @@ export const useMenuStore = defineStore('menu', {
         const raw = localStorage.getItem(key)
         if (!raw) return false
         const data = JSON.parse(raw) as MenuPayload
+        // A copy written before per-screen denials existed carries no denied list,
+        // and the router guard reads that list to refuse hidden screens. Treating
+        // it as a miss costs one slower load after an upgrade; trusting it would
+        // let a denied screen through until the background refresh landed.
+        if (!Array.isArray(data.deniedRoutes)) return false
+
         this.menu = data.menu ?? []
         this.favorites = data.favorites ?? []
         this.recents = data.recents ?? []
+        this.deniedRoutes = data.deniedRoutes
         return this.menu.length > 0
       } catch {
         return false
@@ -112,7 +142,12 @@ export const useMenuStore = defineStore('menu', {
     /** Persist the current menu so the next page load can paint instantly. */
     _writeCache(): void {
       try {
-        const payload: MenuPayload = { menu: this.menu, favorites: this.favorites, recents: this.recents }
+        const payload: MenuPayload = {
+          menu: this.menu,
+          favorites: this.favorites,
+          recents: this.recents,
+          deniedRoutes: this.deniedRoutes,
+        }
         localStorage.setItem(this.cacheKey || this._cacheKey(), JSON.stringify(payload))
       } catch {
         /* quota exceeded / storage disabled — the cache is best-effort */
@@ -137,6 +172,7 @@ export const useMenuStore = defineStore('menu', {
         this.menu = []
         this.favorites = []
         this.recents = []
+        this.deniedRoutes = []
       }
 
       // Already have this context's menu in memory this session — done.
@@ -151,6 +187,7 @@ export const useMenuStore = defineStore('menu', {
         this.menu = data.menu
         this.favorites = data.favorites
         this.recents = data.recents
+        this.deniedRoutes = data.denied_routes ?? []
         this.loaded = true
         this._writeCache()
       } catch (e) {
@@ -191,6 +228,7 @@ export const useMenuStore = defineStore('menu', {
       this.menu = []
       this.favorites = []
       this.recents = []
+      this.deniedRoutes = []
       this.loaded = false
       this.cacheKey = ''
     },

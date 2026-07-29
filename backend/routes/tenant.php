@@ -1296,6 +1296,9 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('permissions', [RoleController::class, 'permissions'])->middleware('permission:roles.view');
         Route::get('roles', [RoleController::class, 'index'])->middleware('permission:roles.view');
         Route::post('roles', [RoleController::class, 'store'])->middleware('permission:roles.create');
+        // Copying a system role into the workspace creates a role, so it rides on
+        // roles.create rather than roles.edit (system roles are never editable).
+        Route::post('roles/{role}/duplicate', [RoleController::class, 'duplicate'])->middleware('permission:roles.create');
         Route::get('roles/{role}', [RoleController::class, 'show'])->middleware('permission:roles.view');
         Route::match(['put', 'patch'], 'roles/{role}', [RoleController::class, 'update'])->middleware('permission:roles.edit');
         Route::delete('roles/{role}', [RoleController::class, 'destroy'])->middleware('permission:roles.delete');

@@ -82,7 +82,60 @@ class MenuController extends Controller
             'menu' => $tree,
             'favorites' => $this->favorites($user->id),
             'recents' => $this->recents($user->id),
+            // Screens this workspace has in its catalogue but the caller may not
+            // open — exactly the rows the tree above filtered out (module switched
+            // off, screen revoked by the operator, permission not held). The SPA
+            // router refuses these, so hiding a menu row is no longer something a
+            // typed URL, a bookmark or the back button can walk around.
+            'denied_routes' => $this->deniedRoutes($tenantId, $tree->all()),
         ]);
+    }
+
+    /**
+     * Catalogue routes minus the ones the caller was served.
+     *
+     * The dashboard is never included: it is the fallback the SPA redirects to,
+     * and denying it would leave the app with nowhere to land.
+     *
+     * @param  array<int, array<string, mixed>>  $tree
+     * @return list<string>
+     */
+    private function deniedRoutes(?int $tenantId, array $tree): array
+    {
+        $granted = [];
+        $collect = function (iterable $nodes) use (&$collect, &$granted): void {
+            foreach ($nodes as $node) {
+                if (! empty($node['to'])) {
+                    $granted[] = $node['to'];
+                }
+                $collect($node['children'] ?? []);
+            }
+        };
+        $collect($tree);
+
+        return array_values(array_diff($this->catalogueRoutes($tenantId), $granted, ['/']));
+    }
+
+    /**
+     * Every route this tenant's menu catalogue defines, including rows switched
+     * off — the visible-rows query above filters `is_active`, and a revoked screen
+     * is precisely one we need to name here. Same global fallback as the tree, for
+     * tenants that own no rows.
+     *
+     * @return list<string>
+     */
+    private function catalogueRoutes(?int $tenantId): array
+    {
+        return TenantCache::rememberVersioned('menu_items', 'catalogue_routes', 600, function () use ($tenantId) {
+            $base = fn (?int $tid) => MenuItem::query()
+                ->whereNotNull('route')
+                ->when($tid === null, fn ($q) => $q->whereNull('tenant_id'), fn ($q) => $q->where('tenant_id', $tid))
+                ->pluck('route');
+
+            $owned = $base($tenantId);
+
+            return ($owned->isNotEmpty() ? $owned : $base(null))->unique()->values()->all();
+        });
     }
 
     /**

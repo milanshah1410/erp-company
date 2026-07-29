@@ -6,6 +6,8 @@ export interface Operator {
   name: string
   email: string
   is_active: boolean
+  /** May save a tenant's module/menu entitlement (super-admins hold it implicitly). */
+  can_manage_tenant_access: boolean
   roles: string[]
   permissions: string[]
 }
@@ -20,6 +22,10 @@ export const useCentralAuthStore = defineStore('centralAuth', {
   getters: {
     isAuthenticated: (state) => !!state.token,
     isSuperAdmin: (state) => !!state.operator?.roles.includes('super-admin'),
+    // Not a permission but a per-operator flag: `tenants.edit` opens a
+    // workspace's Access panel, this decides whether Save is offered.
+    canManageTenantAccess: (state) =>
+      !!state.operator?.can_manage_tenant_access || !!state.operator?.roles.includes('super-admin'),
     can: (state) => (permission: string) => {
       if (!state.operator) return false
       // super-admin implicitly holds everything.

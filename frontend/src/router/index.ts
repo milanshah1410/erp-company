@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useMenuStore } from '../stores/menu'
 import { usePortalAuthStore } from '../stores/portalAuth'
 import { useCentralAuthStore } from '../stores/centralAuth'
 import { useRouteProgress } from '../composables/useRouteProgress'
@@ -34,6 +35,7 @@ const CentralVerifyView = () => import('../views/central/CentralVerifyView.vue')
 const CentralProvisioningView = () => import('../views/central/CentralProvisioningView.vue')
 const BillingView = () => import('../views/BillingView.vue')
 const SuspendedView = () => import('../views/SuspendedView.vue')
+const AccessDeniedView = () => import('../views/AccessDeniedView.vue')
 const DashboardView = () => import('../views/DashboardView.vue')
 const CrudView = () => import('../views/CrudView.vue')
 const CategoriesView = () => import('../views/CategoriesView.vue')
@@ -175,6 +177,8 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'dashboard', component: DashboardView },
+      // Where the guard below lands a screen this workspace is not granted.
+      { path: 'access-denied', name: 'access-denied', component: AccessDeniedView },
       { path: 'billing', name: 'billing', component: BillingView },
       // Global omni-search results (§22). No permission gate: the API itself
       // only returns groups the caller is allowed to view.
@@ -489,6 +493,28 @@ router.beforeEach(async (to) => {
     const needed = Array.isArray(to.meta.module) ? (to.meta.module as string[]) : [to.meta.module as string]
     if (!auth.hasModule(...needed)) {
       return { path: '/' }
+    }
+  }
+
+  // Menu-level access. The two checks above work off permissions and module tags,
+  // which cannot decide every screen on their own: POS has no permissions of its
+  // own and rides on `sales.*`, so with Sales switched off the Sales screens still
+  // pass a `sales.view` check. /menu is the authority — it already applies module,
+  // plan-feature and permission gating per row — and it now also reports the
+  // catalogue screens it withheld. Anything on that list is refused here, so a
+  // hidden nav row cannot be reached by typed URL, bookmark or back button.
+  if (to.name !== 'access-denied') {
+    const menu = useMenuStore()
+    if (!menu.loaded) {
+      try {
+        await menu.fetchMenu()
+      } catch {
+        // Menu unavailable (offline, API error): fail open rather than lock the
+        // user out of the whole app on a transient failure.
+      }
+    }
+    if (menu.loaded && menu.isRouteDenied(to.path)) {
+      return { name: 'access-denied', query: { from: to.path } }
     }
   }
 

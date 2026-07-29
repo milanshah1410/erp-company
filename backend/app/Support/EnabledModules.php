@@ -58,29 +58,59 @@ final class EnabledModules
             : null;
 
         if ($plan) {
-            $modules = array_values(array_intersect($modules, $plan->allowedModules()));
+            // The plan is the ceiling, plus whatever the platform operator has
+            // comped this workspace on /platform/tenants → Access. Without that
+            // union an operator could switch a module on and watch it come
+            // straight back off, since this narrowing runs on every read.
+            $allowed = array_merge($plan->allowedModules(), self::operatorGrants());
+            $modules = array_values(array_intersect($modules, $allowed));
         }
 
         return $modules !== [] ? $modules : null;
     }
 
     /**
+     * Modules the platform operator granted beyond what the plan sells.
+     *
+     * Kept in its own setting rather than folded into `enabled_modules` so a
+     * later downgrade still narrows everything else: only what an operator
+     * deliberately comped survives it.
+     *
+     * @return list<string>
+     */
+    public static function operatorGrants(): array
+    {
+        $raw = Setting::where('key', 'module_grants')->value('value');
+        if (empty($raw)) {
+            return [];
+        }
+
+        $grants = is_array($raw) ? $raw : json_decode((string) $raw, true);
+
+        return is_array($grants) ? array_values($grants) : [];
+    }
+
+    /**
      * Permission group (the part before the last dot — "products", "tailors", …)
-     * → module key, derived from the global menu catalogue: every menu row
-     * carries a permission, and the module comes from the row or its nearest
-     * tagged ancestor. Groups with no menu row (or under an untagged branch) are
-     * absent from the map and count as core — always available.
+     * → the modules that expose it, derived from the global menu catalogue: every
+     * menu row carries a permission, and the module comes from the row or its
+     * nearest tagged ancestor. Groups with no menu row (or under an untagged
+     * branch) are absent from the map and count as core — always available.
      *
-     * A group exposed from more than one module is core too. `reports.view` is the
-     * case that matters: it guards every report screen, so tying it to whichever
-     * module happened to be walked first would stop a tenant from granting Reports
-     * at all unless it owned that one module.
+     * A group can be owned by several modules, and is then available while *any*
+     * owner is enabled. POS is why this is a list rather than one key: a counter
+     * sale is a sale, so the POS row carries `sales.create` while living under the
+     * Sales branch. Collapsing that to "core, never gate" (the previous rule) left
+     * every `sales.*` endpoint open even for a workspace with both Sales and POS
+     * switched off.
      *
-     * @return array<string, string>
+     * @return array<string, list<string>>
      */
     public static function permissionGroupMap(): array
     {
-        return Cache::remember('permission_group_modules', self::MAP_TTL, function (): array {
+        // Cache key is versioned: the stored shape changed from string to list,
+        // and a warm cache from the old shape would be read as garbage.
+        return Cache::remember('permission_group_modules_v2', self::MAP_TTL, function (): array {
             $rows = MenuItem::whereNull('tenant_id')->get(['id', 'parent_id', 'permission', 'module']);
             $byId = $rows->keyBy('id');
 
@@ -111,15 +141,21 @@ final class EnabledModules
                 // null is sticky — once core, a later tagged row can't re-gate it.
                 if ($module === null) {
                     $map[$group] = null;
-                } elseif (! array_key_exists($group, $map)) {
-                    $map[$group] = $module;
-                } elseif ($map[$group] !== null && $map[$group] !== $module) {
-                    // Two modules expose the same group → no single one owns it.
-                    $map[$group] = null;
+
+                    continue;
+                }
+
+                if (! array_key_exists($group, $map)) {
+                    $map[$group] = [$module];
+                } elseif (is_array($map[$group]) && ! in_array($module, $map[$group], true)) {
+                    $map[$group][] = $module;
                 }
             }
 
-            return array_filter($map, static fn (?string $m) => $m !== null);
+            return array_map(
+                static fn (array $owners) => array_values($owners),
+                array_filter($map, static fn (?array $owners) => $owners !== null),
+            );
         });
     }
 
@@ -133,10 +169,11 @@ final class EnabledModules
 
     /**
      * Is this permission group available to the tenant? Core groups (not tied to
-     * any module) and every group when gating is off are always available.
+     * any module) and every group when gating is off are always available; an
+     * owned group needs at least one of its owning modules switched on.
      *
      * @param  list<string>|null  $enabled
-     * @param  array<string, string>  $map
+     * @param  array<string, list<string>>  $map
      */
     public static function groupAvailable(string $group, ?array $enabled, array $map): bool
     {
@@ -144,8 +181,19 @@ final class EnabledModules
             return true;
         }
 
-        $module = $map[$group] ?? null;
+        $owners = $map[$group] ?? [];
 
-        return $module === null || in_array($module, $enabled, true);
+        return $owners === [] || array_intersect($owners, $enabled) !== [];
+    }
+
+    /**
+     * The module to name when refusing this permission group — the first owner, or
+     * null for a core group. Used for the 403 message, nothing else.
+     *
+     * @param  array<string, list<string>>  $map
+     */
+    public static function owningModule(string $group, array $map): ?string
+    {
+        return ($map[$group] ?? [])[0] ?? null;
     }
 }

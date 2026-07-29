@@ -27,12 +27,17 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            // Spatie's permission check plus the operator's per-tenant menu
+            // entitlement — see App\Http\Middleware\CheckPermission.
+            'permission' => \App\Http\Middleware\CheckPermission::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             // SaaS multi-tenancy
             'resolve.tenant' => \App\Http\Middleware\ResolveTenant::class,
             // SaaS-owner (platform operator) context — pins Spatie team to NULL.
             'central.context' => \App\Http\Middleware\ResolveCentralContext::class,
+            // Per-operator flag for the tenant module/menu access panel; stands in
+            // place of a role permission on those routes, not alongside one.
+            'central.tenant-access' => \App\Http\Middleware\EnsureTenantAccessManager::class,
             'plan.limit' => \App\Http\Middleware\EnforcePlanLimit::class,
             // Tenant module gating (onboarding wizard §3) — the API-side twin of
             // the menu's module tags.

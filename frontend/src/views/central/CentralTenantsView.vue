@@ -13,6 +13,7 @@ import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
 import centralHttp from '../../api/centralHttp'
 import { useCentralAuthStore } from '../../stores/centralAuth'
+import TenantAccessDialog from './tenants/TenantAccessDialog.vue'
 
 const toast = useToast()
 const auth = useCentralAuthStore()
@@ -20,6 +21,12 @@ const auth = useCentralAuthStore()
 const canCreate = computed(() => auth.can('tenants.create'))
 const canSuspend = computed(() => auth.can('tenants.suspend'))
 const canImpersonate = computed(() => auth.can('tenants.impersonate'))
+// Module + menu entitlement is granted per operator (can_manage_tenant_access),
+// not by a platform role — the API gates both its endpoints on the same flag.
+const canEditAccess = computed(() => auth.canManageTenantAccess)
+
+// The tenant whose access panel is open (null = closed).
+const accessTenant = ref<any | null>(null)
 
 const tenants = ref<any[]>([])
 const loading = ref(false)
@@ -231,8 +238,9 @@ onBeforeUnmount(() => {
       </Column>
       <Column field="users_count" header="Users" sortable style="width: 6rem" />
       <Column field="created_at" header="Created" sortable style="width: 11rem" />
-      <Column header="Actions" style="width: 10rem">
+      <Column header="Actions" style="width: 12rem">
         <template #body="{ data }">
+          <Button v-if="canEditAccess" icon="pi pi-sliders-h" text rounded size="small" title="Module & menu access" @click="accessTenant = data" />
           <Button v-if="canImpersonate" icon="pi pi-sign-in" text rounded size="small" title="Impersonate workspace admin" @click="confirmImpersonate(data)" />
           <Button v-if="canSuspend && data.status !== 'suspended'" icon="pi pi-ban" text rounded severity="danger" size="small" title="Suspend workspace" @click="confirmSuspend(data)" />
           <Button v-if="canSuspend && data.status === 'suspended'" icon="pi pi-check-circle" text rounded severity="success" size="small" title="Reactivate workspace" @click="confirmActivate(data)" />
@@ -240,6 +248,15 @@ onBeforeUnmount(() => {
       </Column>
       <template #empty>No tenants found.</template>
     </DataTable>
+
+    <!-- Per-tenant module + menu entitlement. Keyed so switching tenants
+         remounts with fresh state instead of reusing the previous panel's. -->
+    <TenantAccessDialog
+      v-if="accessTenant"
+      :key="accessTenant.id"
+      :tenant="accessTenant"
+      @close="accessTenant = null"
+    />
 
     <Dialog v-model:visible="dialogVisible" modal header="New Tenant Workspace" :style="{ width: '520px' }" :closable="!saving">
       <div v-if="provisioning" class="provisioning">

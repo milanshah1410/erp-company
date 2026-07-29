@@ -19,6 +19,7 @@ use App\Models\Warehouse;
 use App\Notifications\TenantReadyEmail;
 use App\Services\DemoDataGenerator;
 use App\Support\TenantContext;
+use App\Support\TenantMenuAccess;
 use Database\Seeders\MenuSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\TenantDatabaseSeeder;
@@ -302,37 +303,14 @@ class ProvisionTenant implements ShouldQueue
     }
 
     /**
-     * Clone the global menu catalogue (tenant_id NULL) into rows owned by this
-     * tenant. Runs inside the tenant context. Parent links are remapped to the
-     * freshly-created tenant rows, and the whole thing is idempotent: if the
-     * tenant already has menu rows we leave them untouched.
+     * Clone the global menu catalogue into rows owned by this tenant, so the
+     * operator can later tailor its navigation. Idempotent — the shared helper
+     * leaves a tenant that already owns rows alone. Lives in TenantMenuAccess
+     * because the platform access screen clones legacy tenants the same way.
      */
     private function cloneMenuForTenant(int $tenantId): void
     {
-        if (MenuItem::where('tenant_id', $tenantId)->exists()) {
-            return; // already cloned
-        }
-
-        // Group the global rows by parent so we can walk the tree top-down and
-        // always know a child's new parent id before inserting the child.
-        $byParent = MenuItem::whereNull('tenant_id')
-            ->orderBy('sort_order')
-            ->get()
-            ->groupBy('parent_id');
-
-        $clone = function (?int $globalParentId, ?int $newParentId) use (&$clone, $byParent, $tenantId): void {
-            foreach ($byParent->get($globalParentId, collect()) as $row) {
-                /** @var MenuItem $copy */
-                $copy = $row->replicate();
-                $copy->tenant_id = $tenantId;
-                $copy->parent_id = $newParentId;
-                $copy->save();
-
-                $clone($row->id, $copy->id);
-            }
-        };
-
-        $clone(null, null);
+        TenantMenuAccess::cloneForTenant($tenantId);
     }
 
     public function failed(Throwable $e): void

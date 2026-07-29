@@ -235,6 +235,7 @@ WhatsApp દ્વારા ઓર્ડર લેવાની સુવિધ�
 બાકી રકમની WhatsApp Reminder
 ગુજરાતી Invoice અને Reports
 ગુજરાતી પ્રિન્ટિંગ સપોર્ટ
+
 Hardware Integrations
 Barcode Scanner
 QR Scanner

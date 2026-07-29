@@ -18,8 +18,6 @@ const canCreate = computed(() => auth.can('roles.create'))
 const canEdit = computed(() => auth.can('roles.edit'))
 const canDelete = computed(() => auth.can('roles.delete'))
 
-const SYSTEM_ROLES = ['super-admin', 'admin']
-
 const roles = ref<any[]>([])
 const rolesLoading = ref(false)
 const modules = ref<any[]>([])
@@ -32,12 +30,15 @@ const saving = ref(false)
 const errors = ref<Record<string, string[]>>({})
 
 const selectedRole = computed(() => roles.value.find((r: any) => r.id === selectedId.value) ?? null)
-const isSystemRole = computed(() => !!selectedRole.value && SYSTEM_ROLES.includes(selectedRole.value.name))
 
-// Group roles by department (org chart), preserving the server's ordering.
-const groupedRoles = computed(() => {
+// System roles are the shared catalogue every workspace gets; they are read-only
+// here because the rows are the same rows for every tenant. Custom roles belong
+// to this workspace alone and are fully editable.
+const isSystemRole = computed(() => !!selectedRole.value?.is_system)
+
+function groupByDepartment(list: any[]): { department: string; roles: any[] }[] {
   const groups: { department: string; roles: any[] }[] = []
-  for (const role of roles.value) {
+  for (const role of list) {
     const dept = role.department || 'Other'
     let group = groups.find((g) => g.department === dept)
     if (!group) {
@@ -47,7 +48,12 @@ const groupedRoles = computed(() => {
     group.roles.push(role)
   }
   return groups
-})
+}
+
+// Two sections; the server already orders system roles by org chart and puts the
+// workspace's own roles last, so encounter order is the display order.
+const systemGroups = computed(() => groupByDepartment(roles.value.filter((r: any) => r.is_system)))
+const customRoles = computed(() => roles.value.filter((r: any) => !r.is_system))
 
 function actionLabel(permission: string): string {
   return permission.slice(permission.lastIndexOf('.') + 1)
@@ -138,7 +144,7 @@ function toggleModule(mod: any, checked: boolean) {
 }
 
 async function saveRole() {
-  if (!selectedId.value) return
+  if (!selectedId.value || isSystemRole.value) return
   saving.value = true
   errors.value = {}
   try {
@@ -217,6 +223,45 @@ async function createRole() {
   }
 }
 
+// --- Duplicate dialog ---
+// How a workspace tailors a system role: copy it here, edit the copy. The
+// catalogue row stays as it is for every other workspace.
+const dupVisible = ref(false)
+const dupSaving = ref(false)
+const dupSource = ref<any>(null)
+const dupName = ref('')
+const dupErrors = ref<Record<string, string[]>>({})
+
+function openDuplicate(role: any) {
+  dupSource.value = role
+  dupName.value = `${role.name}-custom`
+  dupErrors.value = {}
+  dupVisible.value = true
+}
+
+async function duplicateRole() {
+  if (!dupSource.value) return
+  dupSaving.value = true
+  dupErrors.value = {}
+  try {
+    const { data } = await http.post(`/roles/${dupSource.value.id}/duplicate`, { name: dupName.value })
+    toast.add({ severity: 'success', summary: 'Custom role created', life: 2500 })
+    dupVisible.value = false
+    await loadRoles()
+    const created = data.data ?? data
+    const match = roles.value.find((r: any) => r.id === created?.id)
+    if (match) await selectRole(match)
+  } catch (e: any) {
+    if (e.response?.status === 422 && e.response.data.errors) {
+      dupErrors.value = e.response.data.errors
+    } else {
+      toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Duplicate failed', life: 4000 })
+    }
+  } finally {
+    dupSaving.value = false
+  }
+}
+
 onMounted(async () => {
   await Promise.all([loadRoles(), loadPermissionModules()])
 })
@@ -226,14 +271,56 @@ onMounted(async () => {
   <div>
     <PageHeader title="Roles &amp; Permissions">
       <template #actions>
-        <Button v-if="canCreate" label="New Role" icon="pi pi-plus" @click="openCreate" />
+        <Button v-if="canCreate" label="New Custom Role" icon="pi pi-plus" @click="openCreate" />
       </template>
     </PageHeader>
 
     <div class="panels">
-      <!-- Left: role list, grouped by department -->
+      <!-- Left: this workspace's own custom roles first, then the shared system
+           catalogue grouped by department -->
       <div class="panel role-list">
-        <template v-for="group in groupedRoles" :key="group.department">
+        <div class="scope-label">
+          <i class="pi pi-pencil" /> Custom Roles
+          <span class="scope-hint">this workspace only</span>
+        </div>
+        <div
+          v-for="role in customRoles"
+          :key="role.id"
+          class="role-item"
+          :class="{ active: role.id === selectedId }"
+          @click="selectRole(role)"
+        >
+          <div class="role-info">
+            <div class="role-name">
+              {{ role.name }}
+              <Tag value="custom" severity="info" class="scope-tag" />
+            </div>
+            <!-- Both counts are scoped to this workspace: permissions within the
+                 tenant's enabled modules, users assigned inside this tenant. -->
+            <div class="role-sub">
+              {{ role.permissions_count }} perms &middot;
+              {{ role.users_count }} {{ role.users_count === 1 ? 'user' : 'users' }}
+            </div>
+          </div>
+          <Button
+            v-if="canDelete"
+            icon="pi pi-trash"
+            text
+            rounded
+            severity="danger"
+            size="small"
+            @click.stop="confirmDelete(role)"
+          />
+        </div>
+        <div v-if="!rolesLoading && !customRoles.length" class="scope-empty">
+          None yet — create one, or duplicate a system role below.
+        </div>
+
+        <div class="scope-label">
+          <i class="pi pi-lock" /> System Roles
+          <span class="scope-hint">shared catalogue</span>
+        </div>
+        <template v-for="group in systemGroups" :key="group.department">
           <div class="dept-label">{{ group.department }}</div>
           <div
             v-for="role in group.roles"
@@ -243,28 +330,24 @@ onMounted(async () => {
             @click="selectRole(role)"
           >
             <div class="role-info">
-              <div class="role-name">
-                {{ role.name }}
-                <Tag v-if="SYSTEM_ROLES.includes(role.name)" value="system role" severity="secondary" class="system-tag" />
-              </div>
-              <!-- Both counts are scoped to this workspace: permissions within the
-                   tenant's enabled modules, users assigned inside this tenant. -->
+              <div class="role-name">{{ role.name }}</div>
               <div class="role-sub">
                 {{ role.permissions_count }} perms &middot;
                 {{ role.users_count }} {{ role.users_count === 1 ? 'user' : 'users' }}
               </div>
             </div>
             <Button
-              v-if="canDelete"
-              icon="pi pi-trash"
+              v-if="canCreate"
+              icon="pi pi-copy"
               text
               rounded
-              severity="danger"
               size="small"
-              @click.stop="confirmDelete(role)"
+              title="Duplicate as custom role"
+              @click.stop="openDuplicate(role)"
             />
           </div>
         </template>
+
         <div v-if="!rolesLoading && !roles.length" class="empty">No roles found.</div>
       </div>
 
@@ -279,8 +362,24 @@ onMounted(async () => {
               <InputText v-model="roleName" :disabled="isSystemRole" :class="{ invalid: errors.name }" />
               <small v-if="errors.name" class="error-text">{{ errors.name[0] }}</small>
             </div>
-            <Button v-if="canEdit" label="Save" icon="pi pi-check" :loading="saving" @click="saveRole" />
+            <Tag :value="isSystemRole ? 'system role' : 'custom role'" :severity="isSystemRole ? 'secondary' : 'info'" />
+            <Button
+              v-if="isSystemRole && canCreate"
+              label="Duplicate as custom role"
+              icon="pi pi-copy"
+              outlined
+              @click="openDuplicate(selectedRole)"
+            />
+            <Button v-if="!isSystemRole && canEdit" label="Save" icon="pi pi-check" :loading="saving" @click="saveRole" />
           </div>
+
+          <p v-if="isSystemRole" class="system-note">
+            <i class="pi pi-lock" />
+            This role is part of the shared system catalogue, so its permissions
+            are the same in every workspace and cannot be changed here. Duplicate
+            it to get an editable copy that belongs to this workspace only.
+          </p>
+
           <small v-if="errors.permissions" class="error-text">{{ errors.permissions[0] }}</small>
 
           <!-- Permissions are grouped module → resource, and only this tenant's
@@ -296,6 +395,7 @@ onMounted(async () => {
                 <Checkbox
                   :modelValue="isSectionAllSelected(section)"
                   binary
+                  :disabled="isSystemRole"
                   :inputId="`sec-${section.label}`"
                   @update:modelValue="toggleSection(section, $event as boolean)"
                 />
@@ -311,6 +411,7 @@ onMounted(async () => {
                     <Checkbox
                       :modelValue="isModuleAllSelected(mod)"
                       binary
+                      :disabled="isSystemRole"
                       :inputId="`all-${mod.module}`"
                       @update:modelValue="toggleModule(mod, $event as boolean)"
                     />
@@ -319,7 +420,7 @@ onMounted(async () => {
                 </div>
                 <div class="perm-grid">
                   <div v-for="perm in mod.permissions" :key="perm" class="checkbox-row">
-                    <Checkbox v-model="selectedPermissions" :value="perm" :inputId="perm" />
+                    <Checkbox v-model="selectedPermissions" :value="perm" :disabled="isSystemRole" :inputId="perm" />
                     <label :for="perm">{{ actionLabel(perm) }}</label>
                   </div>
                 </div>
@@ -337,8 +438,25 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- Duplicate dialog: system role -> editable copy owned by this workspace -->
+    <Dialog v-model:visible="dupVisible" modal header="Duplicate Role" :style="{ width: '440px' }">
+      <p class="dialog-note">
+        Copies <b>{{ dupSource?.name }}</b> and all of its permissions into a new
+        custom role for this workspace. The system role is left unchanged.
+      </p>
+      <div class="name-field">
+        <label>New role name <span class="req">*</span></label>
+        <InputText v-model="dupName" :class="{ invalid: dupErrors.name }" @keyup.enter="duplicateRole" />
+        <small v-if="dupErrors.name" class="error-text">{{ dupErrors.name[0] }}</small>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="dupVisible = false" />
+        <Button label="Duplicate" :loading="dupSaving" @click="duplicateRole" />
+      </template>
+    </Dialog>
+
     <!-- New Role dialog -->
-    <Dialog v-model:visible="createVisible" modal header="New Role" :style="{ width: '420px' }">
+    <Dialog v-model:visible="createVisible" modal header="New Custom Role" :style="{ width: '420px' }">
       <div class="name-field">
         <label>Name <span class="req">*</span></label>
         <InputText v-model="newRoleName" :class="{ invalid: createErrors.name }" @keyup.enter="createRole" />
@@ -382,6 +500,65 @@ onMounted(async () => {
   max-height: calc(100vh - 220px);
   overflow-y: auto;
 }
+/* Top-level split: shared system catalogue vs this workspace's own roles. */
+.scope-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  background: var(--surface-2, #f2f0ea);
+  border: 1px solid var(--border, #e3ded3);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--graphite, #1e2328);
+}
+.scope-label:first-child {
+  margin-top: 0;
+}
+.scope-label i {
+  color: var(--safety-amber, #e8a33d);
+  font-size: 0.8rem;
+}
+.scope-hint {
+  margin-left: auto;
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted, #6f7680);
+}
+.scope-tag :deep(.p-tag-label),
+.scope-tag {
+  font-size: 0.68rem;
+}
+.scope-empty {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--muted, #6b7280);
+}
+.system-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #8a5a12;
+  background: color-mix(in srgb, var(--safety-amber, #e8a33d) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--safety-amber, #e8a33d) 30%, transparent);
+}
+.dialog-note {
+  margin: 0 0 0.9rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--muted, #6b7280);
+}
 .dept-label {
   font-size: 0.68rem;
   font-weight: 700;
@@ -413,10 +590,6 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-}
-.system-tag :deep(.p-tag-label),
-.system-tag {
-  font-size: 0.68rem;
 }
 .role-sub {
   font-size: 0.78rem;

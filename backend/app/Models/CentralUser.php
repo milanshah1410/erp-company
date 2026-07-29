@@ -44,7 +44,7 @@ class CentralUser extends Authenticatable
 
     protected $table = 'central_users';
 
-    protected $fillable = ['name', 'email', 'password', 'is_active'];
+    protected $fillable = ['name', 'email', 'password', 'is_active', 'can_manage_tenant_access'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -54,7 +54,20 @@ class CentralUser extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'can_manage_tenant_access' => 'boolean',
         ];
+    }
+
+    /**
+     * May this operator save a tenant's module/menu entitlement?
+     *
+     * `tenants.edit` opens the Access panel; this flag is what allows writing it,
+     * because saving switches features off for a paying customer. Super-admins
+     * hold it implicitly — they are the ones who grant it.
+     */
+    public function canManageTenantAccess(): bool
+    {
+        return $this->can_manage_tenant_access || $this->hasRole('super-admin');
     }
 
     /**
@@ -68,6 +81,9 @@ class CentralUser extends Authenticatable
             'name' => $this->name,
             'email' => $this->email,
             'is_active' => (bool) $this->is_active,
+            // Drives the Save button on /platform/tenants → Access; the API
+            // enforces the same flag in TenantAccessController::update.
+            'can_manage_tenant_access' => $this->canManageTenantAccess(),
             'roles' => $this->getRoleNames(),
             'permissions' => $this->getAllPermissions()->pluck('name'),
         ];
