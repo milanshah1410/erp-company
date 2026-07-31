@@ -20,8 +20,24 @@ class Product extends Model
         'cost_price', 'selling_price', 'tax_percent',
         'min_stock_level', 'max_stock_level', 'reorder_level', 'reorder_quantity', 'preferred_supplier_id',
         'image', 'attributes', 'track_expiry', 'track_batch', 'track_serial',
-        'has_variants', 'is_active',
+        'has_variants', 'is_service', 'is_active',
+        // Pharmacy (Medical Store): drug schedule + the fields a chemist
+        // actually substitutes and reorders on.
+        'drug_schedule', 'composition', 'manufacturer',
+        // Jewellery: an ornament has no fixed price — it is worth its metal at
+        // today's rate plus making, so these replace selling_price entirely.
+        'metal', 'purity', 'gross_weight', 'net_weight', 'stone_weight',
+        'stone_value', 'making_charge_type', 'making_charge_value',
+        'wastage_percent', 'huid',
+        // Optical: lens specification and the power range it can be made in.
+        'lens_type', 'lens_material', 'lens_index', 'lens_coating',
+        'min_sph', 'max_sph', 'max_cyl', 'is_frame',
+        // Restaurant: which station cooks it, and how long it takes.
+        'kitchen_station', 'prep_minutes',
     ];
+
+    /** Schedules that may not be sold without a prescription. */
+    public const PRESCRIPTION_SCHEDULES = ['h', 'h1', 'x'];
 
     protected $casts = [
         'attributes' => 'array',
@@ -36,6 +52,18 @@ class Product extends Model
         'track_batch' => 'boolean',
         'track_serial' => 'boolean',
         'has_variants' => 'boolean',
+        'is_service' => 'boolean',
+        'gross_weight' => 'decimal:3',
+        'net_weight' => 'decimal:3',
+        'stone_weight' => 'decimal:3',
+        'stone_value' => 'decimal:2',
+        'making_charge_value' => 'decimal:2',
+        'wastage_percent' => 'decimal:3',
+        'lens_index' => 'decimal:2',
+        'min_sph' => 'decimal:2',
+        'max_sph' => 'decimal:2',
+        'max_cyl' => 'decimal:2',
+        'is_frame' => 'boolean',
         'is_active' => 'boolean',
     ];
 
@@ -80,6 +108,41 @@ class Product extends Model
     public function serialNumbers(): HasMany
     {
         return $this->hasMany(SerialNumber::class);
+    }
+
+    /**
+     * Is this a scheduled medicine that may not leave the counter without a
+     * prescription? Schedule G carries a caution label but needs no slip, so it
+     * is deliberately not in the list.
+     */
+    public function requiresPrescription(): bool
+    {
+        return in_array($this->drug_schedule, self::PRESCRIPTION_SCHEDULES, true);
+    }
+
+    /**
+     * Is this an ornament whose price comes from the day's metal rate rather
+     * than a stored selling price?
+     *
+     * Both a metal and a net weight are required: a metal with no weight cannot
+     * be valued, and quietly pricing it at zero would put a gold chain on a bill
+     * for the making charge alone.
+     */
+    public function isRatePriced(): bool
+    {
+        return $this->metal !== null && (float) $this->net_weight > 0;
+    }
+
+    /** Is this a spectacle lens, made to a prescription rather than sold off a shelf? */
+    public function isLens(): bool
+    {
+        return $this->lens_type !== null;
+    }
+
+    /** Does a sale of this drug have to be entered in a retained register? */
+    public function needsRegisterEntry(): bool
+    {
+        return in_array($this->drug_schedule, PrescriptionDispense::REGISTERED_SCHEDULES, true);
     }
 
     public function category(): BelongsTo

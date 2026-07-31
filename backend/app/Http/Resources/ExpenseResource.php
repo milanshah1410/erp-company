@@ -16,6 +16,12 @@ class ExpenseResource extends JsonResource
             'expense_category_id' => $this->expense_category_id,
             'category' => $this->whenLoaded('category', fn () => $this->category?->name),
             'branch_id' => $this->branch_id,
+            'project_id' => $this->project_id,
+            'project' => $this->whenLoaded('project', fn () => $this->project ? [
+                'id' => $this->project->id,
+                'project_number' => $this->project->project_number,
+                'name' => $this->project->name,
+            ] : null),
             'branch' => $this->whenLoaded('branch', fn () => $this->branch?->name),
             'expense_date' => $this->expense_date?->toDateString(),
             'amount' => $this->amount,

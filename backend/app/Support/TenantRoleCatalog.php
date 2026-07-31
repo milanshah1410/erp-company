@@ -67,6 +67,25 @@ class TenantRoleCatalog
         // Device Manager: configuring hardware is an admin/IT act, so it gets a
         // full permission set of its own rather than riding on 'settings'.
         'devices',
+        // Service Management. Contracts are split from jobs because selling an
+        // AMC is a sales act, while working a repair is a workshop one.
+        'service-jobs', 'service-contracts',
+        // Project Management. Timesheets are split out because logging your own
+        // hours is something everyone on a project does, while editing the
+        // project's budget is not.
+        'projects', 'project-tasks', 'project-timesheets',
+        // Pharmacy. The register itself is view-only (below): its entries are
+        // written by dispensing, never by hand.
+        'prescriptions',
+        // Jewellery. Quoting the day's rate is separated from taking scrap in:
+        // the rate governs every bill in the shop, buying old gold is one deal.
+        'metal-rates', 'old-gold',
+        // Optical. Testing eyes and dispensing spectacles are different jobs,
+        // often different people, so they carry separate permissions.
+        'eye-prescriptions', 'optical-orders',
+        // Restaurant. The floor, the tickets and the kitchen display are three
+        // different screens held by three different people.
+        'restaurant-tables', 'restaurant-orders', 'kitchen-orders',
     ];
 
     /** Modules that are view-only (no create/edit/delete). */
@@ -75,6 +94,10 @@ class TenantRoleCatalog
         // The device event log is telemetry: readable by anyone who can watch a
         // counter, cleared under 'devices.delete'.
         'device-events',
+        // The Schedule H1/X register is a statutory record produced during a
+        // drug-inspector visit. Nobody edits it — entries are written by the
+        // act of dispensing, so the permission is read and nothing else.
+        'drug-register',
     ];
 
     /** Modules that also support an "approve" permission. */
@@ -85,6 +108,9 @@ class TenantRoleCatalog
         'employee-claims', 'vehicle-expenses', 'fuel-expenses',
         'electricity-bills', 'factory-maintenances', 'asset-maintenances',
         'leave-applications', 'overtime', 'employee-bonuses', 'salary-advances', 'employee-loans',
+        // Only approved hours can be invoiced, so approval is a distinct act
+        // from logging them.
+        'project-timesheets',
     ];
 
     /**
@@ -122,6 +148,12 @@ class TenantRoleCatalog
             // Device Manager. Bundled with the event log because reading the log
             // is how you diagnose the device you are allowed to configure.
             'DEVICES' => ['devices', 'device-events'],
+            'SERVICE' => ['service-jobs', 'service-contracts'],
+            'PROJECTS' => ['projects', 'project-tasks', 'project-timesheets'],
+            'PHARMACY' => ['prescriptions', 'drug-register'],
+            'JEWELLERY' => ['metal-rates', 'old-gold'],
+            'OPTICAL' => ['eye-prescriptions', 'optical-orders'],
+            'RESTAURANT' => ['restaurant-tables', 'restaurant-orders', 'kitchen-orders'],
         ];
     }
 
@@ -217,7 +249,8 @@ class TenantRoleCatalog
             ]],
             'operations-manager' => ['label' => 'Operations Manager', 'spec' => [
                 'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'PURCHASE:c', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m',
-                'CATALOG:v', 'EXPENSES:c', 'DEVICES:m', 'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
+                'CATALOG:v', 'EXPENSES:c', 'DEVICES:m', 'SERVICE:m', 'PROJECTS:m',
+                'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
             ]],
 
             // ---- CRM ----
@@ -304,6 +337,83 @@ class TenantRoleCatalog
             ]],
             'qc-inspector' => ['label' => 'QC Inspector', 'spec' => [
                 'textile:c', 'manufacturing-orders:v', 'job-works:v', 'stock:v', 'products:v', 'reports:v', 'notifications:v',
+            ]],
+
+            // ---- Service ----
+            'service-manager' => ['label' => 'Service Manager', 'spec' => [
+                'SERVICE:m', 'customers:c', 'employees:v', 'stock:v', 'CATALOG:v',
+                'sales:v', 'payments:v', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // A technician works the jobs on the bench: they record diagnosis,
+            // parts and resolution, but do not open, close or price the book.
+            'service-technician' => ['label' => 'Service Technician', 'spec' => [
+                'service-jobs:c', 'service-contracts:v', 'stock:v', 'products:v',
+                'customers:v', 'notifications:v',
+            ]],
+
+            // ---- Restaurant ----
+            'restaurant-manager' => ['label' => 'Restaurant Manager', 'spec' => [
+                'RESTAURANT:m', 'sales:a', 'CATALOG:m', 'stock:v', 'EXPENSES:c',
+                'customers:c', 'employees:v', 'payments:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // A waiter opens tables and fires food but cannot settle a bill or
+            // change the menu.
+            'waiter' => ['label' => 'Waiter / Steward', 'spec' => [
+                'restaurant-tables:v', 'restaurant-orders:c', 'kitchen-orders:v',
+                'products:v', 'customers:c', 'notifications:v',
+            ]],
+            // The kitchen only needs its own board.
+            'kitchen-staff' => ['label' => 'Kitchen Staff', 'spec' => [
+                'kitchen-orders:c', 'restaurant-orders:v', 'products:v', 'notifications:v',
+            ]],
+
+            // ---- Optical ----
+            // The optometrist tests eyes and records powers; the dispensing
+            // optician turns a test into a pair of spectacles.
+            'optometrist' => ['label' => 'Optometrist', 'spec' => [
+                'eye-prescriptions:m', 'optical-orders:v', 'customers:c',
+                'products:v', 'notifications:v',
+            ]],
+            'optician' => ['label' => 'Dispensing Optician', 'spec' => [
+                'OPTICAL:m', 'sales:c', 'CATALOG:c', 'stock:v',
+                'customers:c', 'payments:v', 'reports:v', 'notifications:v',
+            ]],
+
+            // ---- Jewellery ----
+            // Quoting the morning rate governs every bill in the shop, so it
+            // sits with the owner/manager rather than with the counter.
+            'jewellery-manager' => ['label' => 'Jewellery Manager', 'spec' => [
+                'JEWELLERY:m', 'sales:a', 'CATALOG:m', 'stock:v', 'advanced-inventory:v',
+                'customers:c', 'payments:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            'jewellery-salesman' => ['label' => 'Jewellery Salesman', 'spec' => [
+                'metal-rates:v', 'old-gold:c', 'sales:c', 'products:v', 'stock:v',
+                'customers:c', 'notifications:v',
+            ]],
+
+            // ---- Pharmacy ----
+            // A registered pharmacist dispenses and answers for the register;
+            // a counter assistant can write a slip and sell against it but not
+            // produce the statutory record.
+            'pharmacist' => ['label' => 'Pharmacist', 'spec' => [
+                'PHARMACY:m', 'sales:c', 'stock:v', 'advanced-inventory:v', 'CATALOG:c',
+                'customers:c', 'reports:v', 'notifications:v',
+            ]],
+            'pharmacy-assistant' => ['label' => 'Pharmacy Assistant', 'spec' => [
+                'prescriptions:c', 'sales:c', 'stock:v', 'products:v',
+                'customers:c', 'notifications:v',
+            ]],
+
+            // ---- Projects ----
+            'project-manager' => ['label' => 'Project Manager', 'spec' => [
+                'PROJECTS:m', 'project-timesheets:a', 'customers:v', 'employees:v',
+                'expenses:c', 'sales:v', 'payments:v', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // A member works the board and logs their own hours; they cannot
+            // approve those hours or touch the budget they are spending.
+            'project-member' => ['label' => 'Project Member', 'spec' => [
+                'projects:v', 'project-tasks:c', 'project-timesheets:c',
+                'customers:v', 'notifications:v',
             ]],
 
             // ---- Broker ----

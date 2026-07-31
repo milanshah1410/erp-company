@@ -65,6 +65,15 @@ class Setting extends Model
         'electricity_bill_number_prefix' => 'ELC',
         'factory_maintenance_number_prefix' => 'FMN',
         'asset_maintenance_number_prefix' => 'AMN',
+        'service_job_number_prefix' => 'SVC',
+        'service_contract_number_prefix' => 'AMC',
+        'project_number_prefix' => 'PRJ',
+        'prescription_number_prefix' => 'RX',
+        'old_gold_receipt_number_prefix' => 'OG',
+        'eye_prescription_number_prefix' => 'EYE',
+        'optical_order_number_prefix' => 'OPT',
+        'restaurant_order_number_prefix' => 'RO',
+        'kot_number_prefix' => 'KOT',
         'dispatch_number_prefix' => 'DSP',
         'transport_charge_number_prefix' => 'TRC',
         // Import/export shipments number per leg, so each gets its own prefix
@@ -123,6 +132,25 @@ class Setting extends Model
         'ai_api_key' => '',
         'ai_model' => '',                  // blank = provider default (config/ai.php)
         'ai_lead_time_days' => '7',        // supplier lead time for purchase suggestions
+
+        // Loyalty programme (SRS §21). Points are earned per unit of spend and
+        // redeemed as a flat discount, which is how Indian retail counters run it
+        // — "₹1 off per point" reads at the till in a way percentages do not.
+        // Off by default: a workspace opts in before any counter starts awarding.
+        'loyalty_enabled' => '0',
+        'loyalty_points_per_amount' => '1',   // points earned per `loyalty_earn_amount_unit`
+        'loyalty_earn_amount_unit' => '100',  // …of net sale value
+        'loyalty_redeem_value' => '1',        // rupees knocked off per point redeemed
+        'loyalty_min_redeem_points' => '100', // smallest redemption allowed
+        'loyalty_min_bill_amount' => '0',     // bills below this earn nothing
+        'loyalty_max_redeem_percent' => '50', // cap: points may pay at most this % of a bill
+    ];
+
+    /** Loyalty keys, so the programme's config can be read as one block. */
+    public const LOYALTY_KEYS = [
+        'loyalty_enabled', 'loyalty_points_per_amount', 'loyalty_earn_amount_unit',
+        'loyalty_redeem_value', 'loyalty_min_redeem_points', 'loyalty_min_bill_amount',
+        'loyalty_max_redeem_percent',
     ];
 
     /** SMS keys that hold a template body (validated as free text, not codes). */

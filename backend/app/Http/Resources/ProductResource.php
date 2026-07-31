@@ -46,6 +46,12 @@ class ProductResource extends JsonResource
             'track_batch' => $this->track_batch,
             'track_serial' => $this->track_serial,
             'has_variants' => $this->has_variants,
+            'is_service' => (bool) $this->is_service,
+            'drug_schedule' => $this->drug_schedule,
+            'composition' => $this->composition,
+            'manufacturer' => $this->manufacturer,
+            // Derived so the POS never has to know which schedules mean what.
+            'requires_prescription' => $this->resource->requiresPrescription(),
             'is_active' => $this->is_active,
             'total_stock' => $this->when(
                 $this->relationLoaded('stocks'),

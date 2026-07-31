@@ -49,6 +49,9 @@ Route::get('/plans', [PlanController::class, 'index']);
 // The module catalogue the onboarding wizard renders in step 3.
 Route::get('/modules', [PlanController::class, 'modules']);
 
+// Shop-type presets ("Grocery", "Garment", …) that pre-tick that step for a trade.
+Route::get('/shop-profiles', [PlanController::class, 'shopProfiles']);
+
 // Self-serve tenant registration + email verification + provisioning status.
 Route::get('/check-email', [RegistrationController::class, 'checkEmail']);
 Route::post('/register', [RegistrationController::class, 'register']);

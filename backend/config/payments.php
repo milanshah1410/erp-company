@@ -80,6 +80,27 @@ return [
             ],
         ],
 
+        // Paytm "All-in-One" PG. Two steps: an Initiate Transaction call returns
+        // a txnToken, which is then form-posted to the hosted payment page — so
+        // the flow is form_post even though the first leg is a REST call.
+        'paytm' => [
+            'label' => 'Paytm Business',
+            'currencies' => ['INR'],
+            'export' => false,
+            'flow' => 'form_post',
+            'fields' => [
+                'merchant_id' => ['label' => 'Merchant ID (MID)', 'secret' => false, 'required' => true],
+                'merchant_key' => ['label' => 'Merchant Key', 'secret' => true, 'required' => true],
+                // Paytm issues 'WEBSTAGING' for test and 'DEFAULT' for live.
+                'website' => ['label' => 'Website Name', 'secret' => false, 'required' => true],
+                'industry_type' => ['label' => 'Industry Type ID', 'secret' => false, 'required' => false],
+            ],
+            'endpoints' => [
+                'test' => 'https://securegw-stage.paytm.in',
+                'live' => 'https://securegw.paytm.in',
+            ],
+        ],
+
         'payu' => [
             'label' => 'PayU',
             'currencies' => ['INR'],

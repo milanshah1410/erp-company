@@ -8,6 +8,7 @@ use App\Models\PaymentGatewayAccount;
 use App\Services\PaymentGateways\Contracts\PaymentGatewayDriver;
 use App\Services\PaymentGateways\Drivers\CashfreeGatewayDriver;
 use App\Services\PaymentGateways\Drivers\CcavenueGatewayDriver;
+use App\Services\PaymentGateways\Drivers\PaytmGatewayDriver;
 use App\Services\PaymentGateways\Drivers\PayuGatewayDriver;
 use App\Services\PaymentGateways\Drivers\PhonePeGatewayDriver;
 use App\Services\PaymentGateways\Drivers\RazorpayGatewayDriver;
@@ -25,6 +26,7 @@ class PaymentGatewayManager
         'razorpay' => RazorpayGatewayDriver::class,
         'cashfree' => CashfreeGatewayDriver::class,
         'phonepe' => PhonePeGatewayDriver::class,
+        'paytm' => PaytmGatewayDriver::class,
         'payu' => PayuGatewayDriver::class,
         'ccavenue' => CcavenueGatewayDriver::class,
         'stripe' => StripeGatewayDriver::class,

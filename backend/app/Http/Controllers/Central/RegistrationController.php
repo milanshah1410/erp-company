@@ -12,6 +12,7 @@ use App\Models\Scopes\TenantScope;
 use App\Models\User;
 use App\Notifications\VerifyTenantEmail;
 use App\Support\Modules;
+use App\Support\ShopProfiles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -58,6 +59,7 @@ class RegistrationController extends Controller
             // Onboarding-wizard payload (steps 1-6). Consumed by ProvisionTenant.
             'config' => ['nullable', 'array'],
             'config.industry' => ['nullable', 'string', 'max:50'],
+            'config.shop_profile' => ['nullable', 'string', Rule::in(ShopProfiles::keys())],
             'config.company' => ['nullable', 'array'],
             'config.modules' => ['nullable', 'array'],
             'config.modules.*' => ['string', Rule::in(Modules::keys())],
@@ -76,10 +78,23 @@ class RegistrationController extends Controller
             'config.demo_count' => ['nullable', 'integer'],
         ]);
 
+        $plan = isset($data['plan_slug']) ? Plan::where('slug', $data['plan_slug'])->first() : null;
+
+        // A signup that named its trade but sent no module list gets the trade's
+        // preset, narrowed to what the package sells. Covers older wizard builds
+        // and API clients that only answer "what kind of shop is this?". Narrowed
+        // rather than rejected: the caller never picked these, so a preset that
+        // reaches past a Starter plan should quietly shrink, not 422.
+        if (empty($data['config']['modules']) && ! empty($data['config']['shop_profile'])) {
+            $preset = ShopProfiles::modulesFor($data['config']['shop_profile']);
+            $data['config']['modules'] = $plan
+                ? array_values(array_intersect($preset, $plan->allowedModules()))
+                : $preset;
+        }
+
         // Module set must fit the chosen package: only Enterprise ('*') unlocks
         // the whole catalogue, so a tampered payload can't smuggle in modules the
         // plan does not sell.
-        $plan = isset($data['plan_slug']) ? Plan::where('slug', $data['plan_slug'])->first() : null;
         $chosenModules = $data['config']['modules'] ?? [];
         if ($plan && $chosenModules) {
             $extra = array_values(array_diff($chosenModules, $plan->allowedModules()));

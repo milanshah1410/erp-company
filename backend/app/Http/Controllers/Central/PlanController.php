@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\MenuItem;
 use App\Models\Plan;
 use App\Support\Modules;
+use App\Support\ShopProfiles;
 use Illuminate\Http\JsonResponse;
 
 class PlanController extends Controller
@@ -36,6 +37,16 @@ class PlanController extends Controller
             ]);
 
         return response()->json(['data' => $plans]);
+    }
+
+    /**
+     * Shop-type presets for the wizard's module step. Each entry names the
+     * modules that trade normally runs on; the wizard ticks them and lets the
+     * signup edit from there.
+     */
+    public function shopProfiles(): JsonResponse
+    {
+        return response()->json(['data' => ShopProfiles::options()]);
     }
 
     /**

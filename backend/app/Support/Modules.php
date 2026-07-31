@@ -111,6 +111,61 @@ final class Modules
             'icon' => 'pi pi-id-card',
             'description' => 'Employees, attendance, leave, payroll, loans',
         ],
+        'service' => [
+            'label' => 'Service Management',
+            'icon' => 'pi pi-wrench',
+            'description' => 'Repair jobs, technicians, spare parts and AMC contracts',
+        ],
+        'restaurant' => [
+            'label' => 'Restaurant',
+            'icon' => 'pi pi-shop',
+            'description' => 'Table management, kitchen order tickets and running bills',
+        ],
+        'optical' => [
+            'label' => 'Optical',
+            'icon' => 'pi pi-eye',
+            'description' => 'Eye powers, lens specifications and spectacle orders',
+        ],
+        'jewellery' => [
+            'label' => 'Jewellery',
+            'icon' => 'pi pi-star',
+            'description' => 'Daily metal rates, purity & making charges, old-gold exchange',
+        ],
+        'pharmacy' => [
+            'label' => 'Pharmacy',
+            'icon' => 'pi pi-heart-fill',
+            'description' => 'Drug schedules, prescriptions and the Schedule H1/X register',
+        ],
+        'projects' => [
+            'label' => 'Project Management',
+            'icon' => 'pi pi-briefcase',
+            'description' => 'Projects, tasks, timesheets and budget-vs-actual costing',
+        ],
+        'loyalty' => [
+            'label' => 'Loyalty & Offers',
+            'icon' => 'pi pi-ticket',
+            'description' => 'Points programme, coupons and customer rewards',
+        ],
+        'assets' => [
+            'label' => 'Asset Management',
+            'icon' => 'pi pi-box',
+            'description' => 'Fixed-asset register and maintenance schedules',
+        ],
+        'workflow' => [
+            'label' => 'Workflow Automation',
+            'icon' => 'pi pi-share-alt',
+            'description' => 'IF/THEN rules for approvals, notifications, field updates',
+        ],
+        'devices' => [
+            'label' => 'Hardware / Devices',
+            'icon' => 'pi pi-desktop',
+            'description' => 'Scanners, thermal & label printers, weighing scales, RFID',
+        ],
+        'ai' => [
+            'label' => 'AI Assistant',
+            'icon' => 'pi pi-sparkles',
+            'description' => 'Forecasts, demand insights and the bilingual ERP assistant',
+        ],
     ];
 
     /**
