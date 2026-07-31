@@ -22,6 +22,7 @@ import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
 import PageHeader from '../components/PageHeader.vue'
 import StatusPill from '../components/StatusPill.vue'
+import CameraScanButton from '../components/CameraScanButton.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -80,6 +81,12 @@ function reload() {
 function doSearch() {
   crud.currentPage.value = 1
   reload()
+}
+
+/** Camera scan filters the list by the decoded barcode. */
+function onSearchScan(code: string) {
+  search.value = code
+  doSearch()
 }
 
 function onPage(e: any) {
@@ -450,6 +457,7 @@ onMounted(async () => {
       <Select v-model="categoryFilter" :options="categories" optionLabel="label" optionValue="value" :placeholder="pt('All categories')" showClear class="filter" @change="doSearch" />
       <Select v-model="activeFilter" :options="activeOptions" optionLabel="label" optionValue="value" :placeholder="pt('All status')" showClear class="filter" @change="doSearch" />
       <Button :label="pt('Search')" icon="pi pi-filter" @click="doSearch" />
+      <CameraScanButton v-if="canScanBarcodes" @scan="onSearchScan" />
       <span class="toolbar-spacer" />
       <TableExportButtons :title="pt('Products')" endpoint="/products"
         :params="() => ({
@@ -542,7 +550,10 @@ onMounted(async () => {
         </div>
         <div class="form-field">
           <label>{{ pt('Barcode') }}</label>
-          <InputText v-model="form.barcode" :class="{ invalid: fieldError('barcode') }" />
+          <div class="scan-field">
+            <InputText v-model="form.barcode" :class="{ invalid: fieldError('barcode') }" />
+            <CameraScanButton label="" text @scan="(c: string) => (form.barcode = c)" />
+          </div>
           <small v-if="fieldError('barcode')" class="error-text">{{ fieldError('barcode') }}</small>
         </div>
         <div class="form-field">
@@ -723,7 +734,10 @@ onMounted(async () => {
         </div>
         <div class="form-field">
           <label>{{ pt('Barcode') }}</label>
-          <InputText v-model="variantForm.barcode" :class="{ invalid: variantError('barcode') }" />
+          <div class="scan-field">
+            <InputText v-model="variantForm.barcode" :class="{ invalid: variantError('barcode') }" />
+            <CameraScanButton label="" text @scan="(c: string) => (variantForm.barcode = c)" />
+          </div>
           <small v-if="variantError('barcode')" class="error-text">{{ variantError('barcode') }}</small>
         </div>
         <div class="form-field">
@@ -836,6 +850,16 @@ onMounted(async () => {
 }
 .form-field.full {
   grid-column: 1 / -1;
+}
+/* Text input + icon-only camera button on one row. */
+.scan-field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.scan-field :deep(input) {
+  flex: 1;
+  min-width: 0;
 }
 .form-field label {
   font-size: 0.85rem;

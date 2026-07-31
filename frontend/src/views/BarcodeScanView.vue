@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
-import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
@@ -12,6 +11,7 @@ import { formatCurrency } from '../utils/currency'
 import { useAuthStore } from '../stores/auth'
 import { usePt } from '../i18n/pt'
 import PageHeader from '../components/PageHeader.vue'
+import CameraScanButton from '../components/CameraScanButton.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -51,61 +51,6 @@ function onEnter() {
   lookup(scanValue.value)
 }
 
-// --- Camera scanning (webcam / phone browser) ---
-const cameraVisible = ref(false)
-let scanner: any = null
-
-async function openCamera() {
-  cameraVisible.value = true
-  await nextTick()
-  const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
-  scanner = new Html5Qrcode('camera-reader')
-  try {
-    await scanner.start(
-      { facingMode: 'environment' },
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 150 },
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.CODE_39,
-        ],
-      },
-      (decodedText: string) => {
-        closeCamera()
-        lookup(decodedText)
-      },
-      () => {
-        // ignore per-frame decode misses
-      },
-    )
-  } catch (e: any) {
-    toast.add({ severity: 'error', summary: pt('Camera error'), detail: e?.message || pt('Could not start camera'), life: 4000 })
-    cameraVisible.value = false
-  }
-}
-
-async function closeCamera() {
-  if (scanner) {
-    try {
-      await scanner.stop()
-      scanner.clear()
-    } catch {
-      // scanner may already be stopped
-    }
-    scanner = null
-  }
-  cameraVisible.value = false
-}
-
-onBeforeUnmount(() => {
-  if (scanner) closeCamera()
-})
-
 // --- Quick print for the matched item ---
 const printQty = ref(1)
 const printLabelType = ref('code128')
@@ -139,6 +84,11 @@ const rfidSaving = ref(false)
 const matchedRfid = computed(() =>
   result.value?.type === 'variant' ? result.value.variant.rfid_tag : result.value?.product?.rfid_tag,
 )
+
+/** RFID tags are often printed as a barcode too — let the camera fill the field. */
+function onRfidScan(code: string) {
+  rfidValue.value = code
+}
 
 async function assignRfid() {
   const tag = rfidValue.value.trim()
@@ -178,7 +128,7 @@ function money(v: any) {
           autofocus @keyup.enter="onEnter" />
       </span>
       <Button :label="pt('Lookup')" icon="pi pi-search" :loading="loading" @click="onEnter" />
-      <Button :label="pt('Use Camera')" icon="pi pi-camera" outlined @click="openCamera" />
+      <CameraScanButton :label="pt('Use Camera')" @scan="lookup" />
     </div>
 
     <div v-if="notFound" class="not-found">
@@ -214,18 +164,12 @@ function money(v: any) {
         <label class="rfid-label">{{ matchedRfid ? pt('Reassign RFID Tag') : pt('Assign RFID Tag') }}</label>
         <div class="rfid-controls">
           <InputText v-model="rfidValue" :placeholder="pt('Scan or type RFID tag, then press Enter')" @keyup.enter="assignRfid" />
+          <CameraScanButton @scan="onRfidScan" />
           <Button :label="pt('Assign')" icon="pi pi-wifi" :loading="rfidSaving" :disabled="!rfidValue.trim()" @click="assignRfid" />
         </div>
       </div>
     </div>
 
-    <!-- Camera scan modal -->
-    <Dialog v-model:visible="cameraVisible" modal :header="pt('Scan with Camera')" :style="{ width: '420px' }" @hide="closeCamera">
-      <div id="camera-reader"></div>
-      <template #footer>
-        <Button :label="pt('Cancel')" text @click="closeCamera" />
-      </template>
-    </Dialog>
   </div>
 </template>
 
@@ -316,8 +260,5 @@ h1 { font-size: 1.5rem; font-weight: 600; }
 }
 .rfid-controls :deep(input) {
   flex: 1;
-}
-#camera-reader {
-  width: 100%;
 }
 </style>

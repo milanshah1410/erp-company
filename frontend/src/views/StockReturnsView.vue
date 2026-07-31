@@ -229,7 +229,7 @@ onMounted(async () => {
         <Button label="Search" outlined @click="reload" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
         placeholder="All statuses" @change="reload" class="status-filter" />
-        <Select v-model="warehouseFilter" :options="warehouses" optionLabel="name" optionValue="id" showClear
+        <Select v-model="warehouseFilter" :options="warehouses" optionLabel="label" optionValue="value" showClear
         placeholder="All warehouses" @change="reload" class="status-filter" />
         <TableExportButtons title="Stock Returns" endpoint="/stock-returns"
         :params="() => ({ status: statusFilter || undefined, search: search || undefined, warehouse_id: warehouseFilter || undefined })"

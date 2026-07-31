@@ -143,6 +143,26 @@ const phrases: PhraseFile = {
   'Imported': { hi: 'आयात हो गया', gu: 'આયાત થયું' },
   'Import failed': { hi: 'आयात विफल रहा', gu: 'આયાત નિષ્ફળ ગઈ' },
 
+  // Punch Kiosk
+  'Punch Kiosk': { hi: 'पंच कियोस्क', gu: 'પંચ કિઓસ્ક' },
+  'Scan the barcode on an ID card or type the employee code. Punches sync to attendance exactly like a biometric device.': { hi: 'आईडी कार्ड का बारकोड स्कैन करें या कर्मचारी कोड टाइप करें। पंच बायोमेट्रिक डिवाइस की तरह ही उपस्थिति में सिंक होते हैं।', gu: 'આઈડી કાર્ડનો બારકોડ સ્કેન કરો અથવા કર્મચારી કોડ ટાઇપ કરો. પંચ બાયોમેટ્રિક ડિવાઇસની જેમ જ હાજરીમાં સિંક થાય છે.' },
+  'Employee code or device user id': { hi: 'कर्मचारी कोड या डिवाइस यूज़र आईडी', gu: 'કર્મચારી કોડ કે ડિવાઇસ યુઝર આઈડી' },
+  'Punch': { hi: 'पंच करें', gu: 'પંચ કરો' },
+  'Punched': { hi: 'पंच हो गया', gu: 'પંચ થયું' },
+  'Punch failed': { hi: 'पंच विफल रहा', gu: 'પંચ નિષ્ફળ ગયું' },
+  'Scan Card': { hi: 'कार्ड स्कैन करें', gu: 'કાર્ડ સ્કેન કરો' },
+  'Auto': { hi: 'स्वतः', gu: 'ઑટો' },
+  'In': { hi: 'इन', gu: 'ઇન' },
+  'Out': { hi: 'आउट', gu: 'આઉટ' },
+  'IN': { hi: 'इन', gu: 'ઇન' },
+  'OUT': { hi: 'आउट', gu: 'આઉટ' },
+  'Record against device (optional)': { hi: 'डिवाइस के विरुद्ध दर्ज करें (वैकल्पिक)', gu: 'ડિવાઇસ સામે નોંધો (વૈકલ્પિક)' },
+  'Already punched': { hi: 'पहले ही पंच हो चुका', gu: 'પહેલેથી પંચ થઈ ગયું' },
+  'Counted as the same tap.': { hi: 'उसी टैप के रूप में गिना गया।', gu: 'એ જ ટૅપ તરીકે ગણાયું.' },
+  'Waiting for a card…': { hi: 'कार्ड की प्रतीक्षा…', gu: 'કાર્ડની રાહ જોવાય છે…' },
+  'Recorded this session': { hi: 'इस सत्र में दर्ज', gu: 'આ સત્રમાં નોંધાયેલ' },
+  'Go to Biometric Punches and press "Sync to Attendance" to turn these into attendance days.': { hi: 'इन्हें उपस्थिति दिनों में बदलने के लिए बायोमेट्रिक पंच पर जाकर "उपस्थिति में सिंक करें" दबाएँ।', gu: 'આને હાજરીના દિવસોમાં ફેરવવા બાયોમેટ્રિક પંચ પર જઈ "હાજરીમાં સિંક કરો" દબાવો.' },
+
   // Shared workflow bits
   'Approve': { hi: 'स्वीकृत करें', gu: 'મંજૂર કરો' },
   'Approved': { hi: 'स्वीकृत', gu: 'મંજૂર' },

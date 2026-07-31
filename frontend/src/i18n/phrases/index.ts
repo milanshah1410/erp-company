@@ -14,6 +14,7 @@ import financeBooks from './finance-books'
 import financeExpense from './finance-expense'
 import hrField from './hr-field'
 import adminMisc from './admin-misc'
+import devices from './devices'
 import shared from './shared'
 
 const ALL: PhraseFile = {
@@ -28,6 +29,7 @@ const ALL: PhraseFile = {
   ...financeExpense,
   ...hrField,
   ...adminMisc,
+  ...devices,
   ...shared,
 }
 

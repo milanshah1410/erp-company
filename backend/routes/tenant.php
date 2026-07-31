@@ -115,6 +115,7 @@ use App\Http\Controllers\Api\PaymentTransactionController;
 use App\Http\Controllers\Api\PaymentVoucherController;
 use App\Http\Controllers\Api\PosController;
 use App\Http\Controllers\Api\PriceListController;
+use App\Http\Controllers\Api\PrinterTestController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProductVariantController;
@@ -177,6 +178,8 @@ use App\Http\Controllers\Api\BiometricDeviceController;
 use App\Http\Controllers\Api\BiometricPunchController;
 use App\Http\Controllers\Api\SalaryStructureController;
 use App\Http\Controllers\Api\PayrollController;
+use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\DeviceEventController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -1220,6 +1223,15 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         /*
         |----------------------------------------------------------------------
+        | Printer testing — sample prints of the shipping templates. Nothing is
+        | persisted; the thermal receipt is driven by the terminal itself.
+        |----------------------------------------------------------------------
+        */
+        Route::post('printer-test/a4-invoice', [PrinterTestController::class, 'a4Invoice'])->middleware('permission:settings.view');
+        Route::post('printer-test/labels', [PrinterTestController::class, 'labels'])->middleware('permission:settings.view');
+
+        /*
+        |----------------------------------------------------------------------
         | Human Resources: departments, employees, attendance, salary
         |----------------------------------------------------------------------
         */
@@ -1253,8 +1265,26 @@ Route::middleware('api')->prefix('api')->group(function () {
         $crud('biometric-devices', BiometricDeviceController::class, 'biometric-devices', 'biometricDevice');
         Route::get('biometric-punches', [BiometricPunchController::class, 'index'])->middleware('permission:biometric-punches.view');
         Route::post('biometric-punches/import', [BiometricPunchController::class, 'import'])->middleware('permission:biometric-punches.create');
+        Route::post('biometric-punches/punch', [BiometricPunchController::class, 'punch'])->middleware('permission:biometric-punches.create');
         Route::post('biometric-punches/sync', [BiometricPunchController::class, 'sync'])->middleware('permission:attendance.create');
         Route::delete('biometric-punches/{biometricPunch}', [BiometricPunchController::class, 'destroy'])->middleware('permission:biometric-punches.delete');
+
+        // -------------------------------------------------------------
+        // Device Manager (plugin-based hardware integration)
+        //
+        // The catalogue drives the configuration screen; `test` verifies a
+        // connection; `simulate` fires a mock scan / print preview / fake weight
+        // / virtual tag or fingerprint event; `run/{action}` performs the real
+        // operation. Simulated and live runs both need write access, since both
+        // can create records (punches) and consume consumables (paper).
+        // -------------------------------------------------------------
+        Route::get('devices/catalogue', [DeviceController::class, 'catalogue'])->middleware('permission:devices.view');
+        Route::get('device-events', [DeviceEventController::class, 'index'])->middleware('permission:device-events.view');
+        Route::delete('device-events', [DeviceEventController::class, 'destroy'])->middleware('permission:devices.delete');
+        Route::post('devices/{device}/test', [DeviceController::class, 'test'])->middleware('permission:devices.edit');
+        Route::post('devices/{device}/simulate', [DeviceController::class, 'simulate'])->middleware('permission:devices.edit');
+        Route::post('devices/{device}/run/{action}', [DeviceController::class, 'run'])->middleware('permission:devices.edit');
+        $crud('devices', DeviceController::class, 'devices', 'device');
 
         // Payroll: per-employee CTC structures + monthly payslip generation/payout.
         $crud('salary-structures', SalaryStructureController::class, 'salary-structures', 'salaryStructure');

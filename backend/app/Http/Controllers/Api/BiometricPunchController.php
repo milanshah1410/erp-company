@@ -94,6 +94,64 @@ class BiometricPunchController extends Controller
     }
 
     /**
+     * Record a single live punch from the web punch kiosk — the stand-in for a
+     * wall-mounted reader. The employee is identified by the code on their ID
+     * card (device user id or employee code, scanned or typed), and the
+     * direction defaults to the opposite of their last punch today so a person
+     * simply taps once on the way in and once on the way out.
+     */
+    public function punch(Request $request)
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:50'],
+            'direction' => ['nullable', 'in:in,out'],
+            'biometric_device_id' => ['nullable', 'integer', 'exists:biometric_devices,id'],
+        ]);
+
+        $code = trim($data['code']);
+        $employee = Employee::where('is_active', true)
+            ->where(fn ($q) => $q->where('biometric_user_id', $code)->orWhere('employee_code', $code))
+            ->first();
+
+        if (! $employee) {
+            return response()->json(['message' => "No active employee matches \"{$code}\"."], 404);
+        }
+
+        $lastToday = BiometricPunch::where('employee_id', $employee->id)
+            ->whereDate('punched_at', now()->toDateString())
+            ->orderByDesc('punched_at')
+            ->first();
+
+        // A scanner re-reads the same card several times a second; treat a
+        // repeat within the minute as the same tap rather than a new punch.
+        if ($lastToday && $lastToday->punched_at->diffInSeconds(now()) < 60) {
+            return response()->json([
+                'message' => 'Already punched a moment ago.',
+                'duplicate' => true,
+                'punch' => new BiometricPunchResource($lastToday->load(['device', 'employee'])),
+            ]);
+        }
+
+        $direction = $data['direction'] ?? ($lastToday?->direction === 'in' ? 'out' : 'in');
+
+        $punch = BiometricPunch::create([
+            'biometric_device_id' => $data['biometric_device_id'] ?? null,
+            'employee_id' => $employee->id,
+            'device_user_id' => $employee->biometric_user_id,
+            'punched_at' => now(),
+            'direction' => $direction,
+            'source' => 'manual',
+            'processed' => false,
+        ]);
+
+        return response()->json([
+            'message' => $employee->fullName() . ' punched ' . $direction . '.',
+            'duplicate' => false,
+            'punch' => new BiometricPunchResource($punch->load(['device', 'employee'])),
+        ], 201);
+    }
+
+    /**
      * Roll unprocessed punches into daily attendance: earliest punch of a day
      * becomes check-in, latest becomes check-out, and the day is marked present.
      */

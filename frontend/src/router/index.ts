@@ -152,6 +152,9 @@ const EmployeeBonusesView = () => import('../views/EmployeeBonusesView.vue')
 const SalaryAdvancesView = () => import('../views/SalaryAdvancesView.vue')
 const EmployeeLoansView = () => import('../views/EmployeeLoansView.vue')
 const BiometricPunchesView = () => import('../views/BiometricPunchesView.vue')
+const DeviceManagerView = () => import('../views/DeviceManagerView.vue')
+const DeviceEventsView = () => import('../views/DeviceEventsView.vue')
+const PunchKioskView = () => import('../views/PunchKioskView.vue')
 const PayrollView = () => import('../views/PayrollView.vue')
 const CustomerDisplayView = () => import('../views/CustomerDisplayView.vue')
 const PaymentGatewaysView = () => import('../views/PaymentGatewaysView.vue')
@@ -331,6 +334,11 @@ const routes: RouteRecordRaw[] = [
       { path: 'salary-structures', component: CrudView, meta: { resource: 'salary-structures', permission: 'salary-structures.view' } },
       { path: 'biometric-devices', component: CrudView, meta: { resource: 'biometric-devices', permission: 'biometric-devices.view' } },
       { path: 'biometric-punches', component: BiometricPunchesView, meta: { permission: 'biometric-punches.view' } },
+      // Device Manager (plugin-based hardware layer). Untagged by module on
+      // purpose — hardware spans POS, inventory and HR.
+      { path: 'devices', component: DeviceManagerView, meta: { permission: 'devices.view' } },
+      { path: 'device-events', component: DeviceEventsView, meta: { permission: 'device-events.view' } },
+      { path: 'punch-kiosk', component: PunchKioskView, meta: { permission: 'biometric-punches.create' } },
       { path: 'payroll', component: PayrollView, meta: { permission: 'payroll.view' } },
       { path: 'users', component: UsersView, meta: { permission: 'users.view' } },
       { path: 'roles', component: RolesView, meta: { permission: 'roles.view' } },
@@ -338,6 +346,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'profile', name: 'profile', component: () => import('../views/ProfileView.vue') },
       { path: 'settings', component: SettingsView, meta: { permission: 'settings.view' } },
       { path: 'system-tools', component: () => import('../views/SystemToolsView.vue'), meta: { permission: 'settings.view' } },
+      { path: 'printer-test', component: () => import('../views/PrinterTestView.vue'), meta: { permission: 'settings.view' } },
       { path: 'workflows', component: () => import('../views/WorkflowsView.vue'), meta: { permission: 'workflows.view' } },
       { path: 'audit-logs', component: AuditLogsView, meta: { permission: 'audit-logs.view' } },
       { path: 'companies', component: CrudView, meta: { resource: 'companies', permission: 'companies.view' } },

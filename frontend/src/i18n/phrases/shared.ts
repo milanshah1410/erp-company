@@ -125,6 +125,12 @@ const phrases: PhraseFile = {
   'Your Price': { hi: 'आपका मूल्य', gu: 'તમારો ભાવ' },
   'Availability': { hi: 'उपलब्धता', gu: 'ઉપલબ્ધતા' },
   'Could not load price list': { hi: 'मूल्य सूची लोड नहीं हो सकी', gu: 'ભાવ યાદી લોડ થઈ શકી નથી' },
+
+  // CameraScanButton
+  'Camera': { hi: 'कैमरा', gu: 'કૅમેરા' },
+  'Scan with device camera': { hi: 'डिवाइस कैमरे से स्कैन करें', gu: 'ડિવાઇસ કૅમેરાથી સ્કેન કરો' },
+  'Hold a barcode or QR label in front of the camera.': { hi: 'बारकोड या QR लेबल कैमरे के सामने रखें।', gu: 'બારકોડ કે QR લેબલ કૅમેરા સામે ધરો.' },
+  'Hold a barcode or QR label in front of the camera. Codes keep adding until you close this.': { hi: 'बारकोड या QR लेबल कैमरे के सामने रखें। इसे बंद करने तक कोड जुड़ते रहेंगे।', gu: 'બારકોડ કે QR લેબલ કૅમેરા સામે ધરો. આ બંધ કરો ત્યાં સુધી કોડ ઉમેરાતા રહેશે.' },
 }
 
 export default phrases

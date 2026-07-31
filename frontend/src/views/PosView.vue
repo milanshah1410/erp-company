@@ -4,6 +4,8 @@
  * and Exchange — plus the surrounding hardware integration:
  *   - Barcode scanner: the search box stays focused so a USB (keyboard-wedge)
  *     scanner types into it; Enter resolves an exact code via /pos/lookup.
+ *     Without a handheld reader, the Camera button decodes with the device
+ *     webcam/phone camera and feeds the same lookup (continuous scanning).
  *   - Thermal printer + cash drawer: see utils/posReceipt.ts (browser HTML
  *     print or raw ESC/POS to a local print agent that also kicks the drawer).
  *   - Customer display: a second window mirrors the cart over a BroadcastChannel.
@@ -32,6 +34,7 @@ import {
 } from '../utils/posDevice'
 import { printReceipt, openCashDrawer, type ReceiptData } from '../utils/posReceipt'
 import { usePt } from '../i18n/pt'
+import CameraScanButton from '../components/CameraScanButton.vue'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -232,6 +235,12 @@ async function onScanEnter() {
     }
   }
   focusScan()
+}
+
+/** A camera scan feeds the same path as a handheld reader typing + Enter. */
+function onCameraScan(code: string) {
+  search.value = code
+  onScanEnter()
 }
 
 // ---- Invoice lookup (return / exchange) -------------------------------------
@@ -680,6 +689,7 @@ onBeforeUnmount(() => {
             <i class="pi pi-qrcode" />
             <InputText id="pos-scan" v-model="search" :placeholder="pt('Scan barcode or search — Enter to add')" class="search-input" @keyup.enter="onScanEnter" autocomplete="off" />
           </span>
+          <CameraScanButton continuous @scan="onCameraScan" />
         </div>
         <div class="product-grid">
           <div v-for="p in filteredProducts" :key="p.id" class="product-card" @click="addToCart(p)">

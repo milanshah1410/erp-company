@@ -64,11 +64,17 @@ class TenantRoleCatalog
         'payments', 'payment-gateways',
         'bank-accounts', 'vouchers', 'tds-tcs-rates',
         'workflows',
+        // Device Manager: configuring hardware is an admin/IT act, so it gets a
+        // full permission set of its own rather than riding on 'settings'.
+        'devices',
     ];
 
     /** Modules that are view-only (no create/edit/delete). */
     public const VIEW_ONLY_MODULES = [
         'audit-logs', 'notifications', 'accounts', 'channel-sync-logs', 'ai',
+        // The device event log is telemetry: readable by anyone who can watch a
+        // counter, cleared under 'devices.delete'.
+        'device-events',
     ];
 
     /** Modules that also support an "approve" permission. */
@@ -113,6 +119,9 @@ class TenantRoleCatalog
             // shipments without being able to edit the masters behind them.
             'EXIM_SHIPMENTS' => ['shipments', 'shipment-containers', 'shipment-documents', 'shipment-customs', 'shipment-expenses', 'shipment-payments'],
             'BROKER' => ['brokers'],
+            // Device Manager. Bundled with the event log because reading the log
+            // is how you diagnose the device you are allowed to configure.
+            'DEVICES' => ['devices', 'device-events'],
         ];
     }
 
@@ -203,12 +212,12 @@ class TenantRoleCatalog
             ]],
             'branch-manager' => ['label' => 'Branch Manager', 'spec' => [
                 'CATALOG:v', 'CRM_CORE:m', 'PRICE:v', 'COMMS:c', 'FIELD_SALES:m', 'SALES:a',
-                'PURCHASE:c', 'INVENTORY:a', 'MFG:v', 'TRANSPORT:m', 'EXPENSES:c', 'BROKER:v',
+                'PURCHASE:c', 'INVENTORY:a', 'MFG:v', 'TRANSPORT:m', 'EXPENSES:c', 'BROKER:v', 'DEVICES:m',
                 'reports:v', 'notifications:v', 'ai:v',
             ]],
             'operations-manager' => ['label' => 'Operations Manager', 'spec' => [
                 'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'PURCHASE:c', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m',
-                'CATALOG:v', 'EXPENSES:c', 'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
+                'CATALOG:v', 'EXPENSES:c', 'DEVICES:m', 'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
             ]],
 
             // ---- CRM ----
@@ -251,11 +260,11 @@ class TenantRoleCatalog
             // ---- Inventory ----
             'inventory-manager' => ['label' => 'Inventory Manager', 'spec' => [
                 'INVENTORY:a', 'CATALOG:m', 'boms:v', 'manufacturing-orders:v', 'suppliers:v',
-                'reports:v', 'notifications:v', 'ai:v',
+                'DEVICES:m', 'reports:v', 'notifications:v', 'ai:v',
             ]],
             'store-keeper' => ['label' => 'Store Keeper', 'spec' => [
                 'stock:c', 'stock-ledger:v', 'stock-adjustments:c', 'stock-transfers:c', 'gate-entries:m',
-                'warehouses:v', 'products:v', 'barcodes:v', 'advanced-inventory:v', 'notifications:v',
+                'warehouses:v', 'products:v', 'barcodes:v', 'advanced-inventory:v', 'devices:v', 'device-events:v', 'notifications:v',
             ]],
             'stock-auditor' => ['label' => 'Stock Auditor', 'spec' => [
                 'stock:v', 'stock-ledger:v', 'cycle-counts:c', 'stock-adjustments:v', 'advanced-inventory:v',
@@ -317,12 +326,12 @@ class TenantRoleCatalog
             ]],
             'cashier' => ['label' => 'Cashier', 'spec' => [
                 'payments:c', 'vouchers:c', 'bank-accounts:v', 'expenses:c', 'accounts:v',
-                'sales:v', 'customers:v', 'notifications:v',
+                'sales:v', 'customers:v', 'devices:v', 'device-events:v', 'notifications:v',
             ]],
 
             // ---- HR ----
             'hr-manager' => ['label' => 'HR Manager', 'spec' => [
-                'HR:a', 'reports:v', 'notifications:v', 'ai:v',
+                'HR:a', 'DEVICES:m', 'reports:v', 'notifications:v', 'ai:v',
             ]],
             'hr-executive' => ['label' => 'HR Executive', 'spec' => [
                 'employees:c', 'attendance:c', 'leave-applications:c', 'overtime:c', 'leave-types:v',
@@ -398,7 +407,7 @@ class TenantRoleCatalog
             // ---- Administration ----
             'office-admin' => ['label' => 'Office Admin', 'spec' => [
                 'users:v', 'employees:c', 'attendance:c', 'departments:v', 'ASSETS:c', 'expenses:c',
-                'companies:v', 'branches:v', 'settings:v', 'notifications:v',
+                'companies:v', 'branches:v', 'settings:v', 'DEVICES:m', 'notifications:v',
             ]],
             'receptionist' => ['label' => 'Receptionist', 'spec' => [
                 'customers:v', 'leads:c', 'follow-ups:c', 'employees:v', 'attendance:v',

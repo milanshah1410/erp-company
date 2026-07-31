@@ -3068,19 +3068,37 @@ class DemoDataGenerator
         }, LeaveApplication::class);
     }
 
+    /**
+     * Raw device punches, emitted as morning-in / evening-out pairs so that
+     * "Sync to Attendance" rolls them into a sensible check-in/check-out day
+     * rather than two unrelated timestamps.
+     */
     private function makeBiometricPunches(int $count): int
     {
         $deviceIds = BiometricDevice::pluck('id')->all();
-        $employeeIds = Employee::pluck('id')->all();
+        $employees = Employee::select('id', 'biometric_user_id')->get();
+        $n = $employees->count();
 
-        return $this->make($count, fn (int $i) => [
-            'biometric_device_id' => $deviceIds ? $deviceIds[$i % count($deviceIds)] : null,
-            'employee_id' => $employeeIds ? $employeeIds[$i % count($employeeIds)] : null,
-            'punched_at' => now()->subDays($i % 30)->setTime(9 + $i % 8, ($i * 7) % 60),
-            'direction' => ['in', 'out'][$i % 2],
-            'source' => 'device',
-            'processed' => false,
-        ], BiometricPunch::class);
+        return $this->make($count, function (int $i) use ($deviceIds, $employees, $n) {
+            $pair = intdiv($i, 2);          // two punches make one employee-day
+            $isOut = $i % 2 === 1;
+            $employee = $n ? $employees[$pair % $n] : null;
+            $day = $n ? intdiv($pair, $n) % 30 : $pair % 30;
+
+            $at = $isOut
+                ? now()->subDays($day)->setTime(18, ($pair * 11) % 30)
+                : now()->subDays($day)->setTime(9, ($pair * 7) % 25);
+
+            return [
+                'biometric_device_id' => $deviceIds ? $deviceIds[$pair % count($deviceIds)] : null,
+                'employee_id' => $employee?->id,
+                'device_user_id' => $employee?->biometric_user_id,
+                'punched_at' => $at,
+                'direction' => $isOut ? 'out' : 'in',
+                'source' => 'device',
+                'processed' => false,
+            ];
+        }, BiometricPunch::class);
     }
 
     /** Vehicle expense / fuel records — keyed to an existing vehicle. */
@@ -4340,6 +4358,9 @@ class DemoDataGenerator
             return [
                 'department_id' => $deptIds[$i % count($deptIds)],
                 'employee_code' => 'DE-' . $this->suffix($i),
+                // Device-side id, so punches imported by device_user_id (rather
+                // than employee_id) resolve without hand-mapping every employee.
+                'biometric_user_id' => $this->suffix($i),
                 'first_name' => $this->first[$i % count($this->first)],
                 'last_name' => $this->last[($i * 7) % count($this->last)],
                 'phone' => $this->phone($i),

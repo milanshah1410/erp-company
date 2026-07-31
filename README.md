@@ -186,6 +186,7 @@ php artisan queue:work                # REQUIRED — runs the provisioning job
 cd frontend
 npm run dev                           # http://localhost:5173  (central signup)
 ```
+ngrok http 5173
 
 - Sign up at `http://localhost:5173`, grab the dev verification code (shown
   in the response / mail log), and after provisioning open

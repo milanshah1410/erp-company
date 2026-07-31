@@ -273,6 +273,7 @@ class MenuSeeder extends Seeder
                     ['label' => 'Attendance', 'icon' => 'pi pi-calendar', 'to' => '/attendance', 'permission' => 'attendance.view'],
                     ['label' => 'Biometric Devices', 'icon' => 'pi pi-desktop', 'to' => '/biometric-devices', 'permission' => 'biometric-devices.view'],
                     ['label' => 'Biometric Punches', 'icon' => 'pi pi-stopwatch', 'to' => '/biometric-punches', 'permission' => 'biometric-punches.view'],
+                    ['label' => 'Punch Kiosk', 'icon' => 'pi pi-id-card', 'to' => '/punch-kiosk', 'permission' => 'biometric-punches.create'],
                     ['label' => 'Leave Types', 'icon' => 'pi pi-tags', 'to' => '/leave-types', 'permission' => 'leave-types.view'],
                     ['label' => 'Leave Applications', 'icon' => 'pi pi-calendar-times', 'to' => '/leave-applications', 'permission' => 'leave-applications.view'],
                     ['label' => 'Overtime', 'icon' => 'pi pi-clock', 'to' => '/overtime', 'permission' => 'overtime.view'],
@@ -394,6 +395,14 @@ class MenuSeeder extends Seeder
                     ['label' => 'Workflows', 'icon' => 'pi pi-share-alt', 'to' => '/workflows', 'permission' => 'workflows.view'],
                     ['label' => 'Settings', 'icon' => 'pi pi-cog', 'to' => '/settings', 'permission' => 'settings.view'],
                     ['label' => 'System Tools', 'icon' => 'pi pi-wrench', 'to' => '/system-tools', 'permission' => 'settings.view'],
+                    ['label' => 'Printer Testing', 'icon' => 'pi pi-print', 'to' => '/printer-test', 'permission' => 'settings.view'],
+                ]],
+                // Device Manager. Deliberately untagged by module: hardware cuts
+                // across POS, inventory and HR, so it must stay reachable
+                // whichever module set a tenant switched on.
+                ['label' => 'Device Manager', 'icon' => 'pi pi-desktop', 'children' => [
+                    ['label' => 'Devices', 'icon' => 'pi pi-desktop', 'to' => '/devices', 'permission' => 'devices.view'],
+                    ['label' => 'Device Event Log', 'icon' => 'pi pi-list', 'to' => '/device-events', 'permission' => 'device-events.view'],
                 ]],
                 ['label' => 'AI', 'icon' => 'pi pi-sparkles', 'children' => [
                     ['label' => 'AI Assistant', 'icon' => 'pi pi-comments', 'to' => '/ai-assistant', 'permission' => 'ai.view'],

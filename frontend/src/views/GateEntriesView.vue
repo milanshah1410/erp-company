@@ -176,7 +176,7 @@ onMounted(async () => {
         placeholder="All directions" @change="reload" class="status-filter" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value" showClear
         placeholder="All statuses" @change="reload" class="status-filter" />
-        <Select v-model="warehouseFilter" :options="warehouses" optionLabel="name" optionValue="id" showClear
+        <Select v-model="warehouseFilter" :options="warehouses" optionLabel="label" optionValue="value" showClear
         placeholder="All warehouses" @change="reload" class="status-filter" />
         <TableExportButtons title="Gate Entries" endpoint="/gate-entries"
         :params="() => ({ ...(search ? { search } : {}), ...(statusFilter ? { status: statusFilter } : {}), ...(directionFilter ? { direction: directionFilter } : {}), ...(warehouseFilter ? { warehouse_id: warehouseFilter } : {}) })"

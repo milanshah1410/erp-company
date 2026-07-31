@@ -10,6 +10,7 @@ import http from '../api/http'
 import { usePt } from '../i18n/pt'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import PageHeader from '../components/PageHeader.vue'
+import CameraScanButton from '../components/CameraScanButton.vue'
 
 const pt = usePt()
 
@@ -61,6 +62,12 @@ function doSearch() {
   load()
 }
 
+/** Serial labels are barcoded — a camera scan searches for that serial. */
+function onScan(code: string) {
+  search.value = code
+  doSearch()
+}
+
 onMounted(load)
 </script>
 
@@ -72,6 +79,7 @@ onMounted(load)
       <span class="search"><i class="pi pi-search" /><InputText v-model="search" :placeholder="pt('Search serial...')" @keyup.enter="doSearch" /></span>
       <Select v-model="status" :options="statusOptions" optionLabel="label" optionValue="value" :placeholder="pt('Any status')" showClear @change="doSearch" />
       <Button :label="pt('Search')" outlined @click="doSearch" />
+      <CameraScanButton @scan="onScan" />
       <TableExportButtons :title="pt('Serial Numbers')" endpoint="/serial-numbers"
         :params="() => ({ search: search || undefined, status: status || undefined })"
         :columns="[
