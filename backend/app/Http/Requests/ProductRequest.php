@@ -38,6 +38,8 @@ class ProductRequest extends FormRequest
             'track_batch' => ['boolean'],
             'track_serial' => ['boolean'],
             'has_variants' => ['boolean'],
+            // Labour / visit charges: billable and taxable, but never stocked.
+            'is_service' => ['boolean'],
             'is_active' => ['boolean'],
         ];
     }

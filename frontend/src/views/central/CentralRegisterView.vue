@@ -26,6 +26,15 @@ interface ModuleOption {
   menus?: string[]
 }
 
+interface ShopProfile {
+  key: string
+  label: string
+  icon: string
+  description: string
+  // The modules this trade normally runs on — a starting tick, not a lock.
+  modules: string[]
+}
+
 const router = useRouter()
 
 // Three steps on purpose: pick a package, say who you are, create the account.
@@ -34,7 +43,15 @@ const router = useRouter()
 const STEPS = ['Package', 'Company', 'Account']
 const step = ref(1)
 
-const INDUSTRIES = ['Garment', 'FMCG', 'Manufacturing', 'Retail', 'Wholesale', 'Pharma', 'Custom']
+// Shop-type presets. Answering "what kind of business is this?" ticks the modules
+// that trade normally runs on, so a kirana shop is never asked to reason about
+// Embroidery. The real list comes from GET /shop-profiles (App\Support\ShopProfiles);
+// this fallback only keeps the step usable if that call fails.
+const FALLBACK_PROFILES: ShopProfile[] = [
+  { key: 'grocery', label: 'Grocery / Kirana', icon: 'pi pi-shopping-basket', description: '', modules: ['sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'devices'] },
+  { key: 'garment', label: 'Garment / Apparel', icon: 'pi pi-shopping-bag', description: '', modules: ['sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'tailoring', 'devices'] },
+  { key: 'custom', label: 'Something else', icon: 'pi pi-sliders-h', description: '', modules: ['sales', 'purchase', 'inventory', 'accounts'] },
+]
 // Fallback catalogue, used only if GET /modules fails — the real list comes from
 // the backend (App\Support\Modules), which is also what tags the menu rows.
 const FALLBACK_MODULES: ModuleOption[] = [
@@ -55,6 +72,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 const plans = ref<Plan[]>([])
 const moduleCatalogue = ref<ModuleOption[]>(FALLBACK_MODULES)
+const shopProfiles = ref<ShopProfile[]>(FALLBACK_PROFILES)
 const logoUploading = ref(false)
 const logoUrl = ref<string | null>(null)
 
@@ -70,8 +88,10 @@ const form = ref({
   state: '',
   country: 'India',
   pincode: '',
-  // Step 2 — industry
-  industry: 'Garment',
+  // Step 2 — trade. `shop_profile` is the preset key; `industry` is its label,
+  // kept in step because the tenant setting has always stored a readable string.
+  shop_profile: 'garment',
+  industry: 'Garment / Apparel',
   // Step 3 — modules
   modules: ['crm', 'sales', 'purchase', 'inventory', 'accounts'] as string[],
   // Step 4 — users
@@ -106,9 +126,14 @@ const serverError = ref('')
 
 onMounted(async () => {
   try {
-    const [planRes, moduleRes] = await Promise.all([http.get('/plans'), http.get('/modules')])
+    const [planRes, moduleRes, profileRes] = await Promise.all([
+      http.get('/plans'),
+      http.get('/modules'),
+      http.get('/shop-profiles'),
+    ])
     plans.value = planRes.data.data
     if (moduleRes.data.data?.length) moduleCatalogue.value = moduleRes.data.data
+    if (profileRes.data.data?.length) shopProfiles.value = profileRes.data.data
     pruneModules()
   } catch {
     /* pricing + catalogue are best-effort; the fallback list keeps step 3 usable */
@@ -185,12 +210,38 @@ function clearModules() {
   form.value.modules = []
 }
 
-/** Keep the selection inside the package; default to everything it includes. */
+const selectedProfile = computed(
+  () => shopProfiles.value.find((p) => p.key === form.value.shop_profile) ?? null,
+)
+
+/**
+ * The chosen trade's preset, scoped to the package. Falls back to everything the
+ * package includes when the preset lands entirely outside it — a blank module
+ * step is worse than an over-generous one.
+ */
+function profileModules(): string[] {
+  const scoped = (selectedProfile.value?.modules ?? []).filter((k) => moduleAllowed(k))
+  return scoped.length ? scoped : [...allowedModules.value]
+}
+
+/** Pick a trade: re-ticks the module grid and names the industry in one move. */
+function applyProfile(key: string) {
+  form.value.shop_profile = key
+  const profile = shopProfiles.value.find((p) => p.key === key)
+  if (profile) form.value.industry = profile.label
+  // On the smaller packages the module set *is* the package, so the preset only
+  // records the trade — there is nothing to re-tick.
+  if (planAllowsAll.value) form.value.modules = profileModules()
+}
+
+/** Keep the selection inside the package; fall back to the trade's preset. */
 function pruneModules() {
   form.value.modules = form.value.modules.filter((k) => moduleAllowed(k))
-  if (!planAllowsAll.value || !form.value.modules.length) {
+  if (!planAllowsAll.value) {
     form.value.modules = [...allowedModules.value]
+    return
   }
+  if (!form.value.modules.length) form.value.modules = profileModules()
 }
 
 // Switching package re-scopes the selection (a downgrade drops locked modules).
@@ -277,6 +328,7 @@ async function submit() {
       password: form.value.password,
       config: {
         industry: form.value.industry,
+        shop_profile: form.value.shop_profile,
         company: {
           gstin: form.value.gstin,
           pan: form.value.pan,
@@ -353,6 +405,26 @@ async function submit() {
 
         <PlanPicker v-model="form.plan_slug" :plans="plans" :modules="moduleCatalogue" />
 
+        <label>What kind of business is this?</label>
+        <p class="hint muted">
+          We'll switch on the modules this trade usually runs on.
+          {{ planAllowsAll ? 'Change any of them below.' : '' }}
+        </p>
+        <div class="shop-types">
+          <button
+            v-for="p in shopProfiles"
+            :key="p.key"
+            type="button"
+            class="shop-type"
+            :class="{ active: form.shop_profile === p.key }"
+            @click="applyProfile(p.key)"
+          >
+            <i :class="p.icon" />
+            <span class="st-label">{{ p.label }}</span>
+            <span class="st-desc">{{ p.description }}</span>
+          </button>
+        </div>
+
         <div class="pkg-bar">
           <span class="pkg-title">
             <i class="pi pi-box" />
@@ -411,16 +483,17 @@ async function submit() {
         <p v-if="errors.company_name" class="err">{{ errors.company_name[0] }}</p>
 
         <label>What does your company do?</label>
+        <p class="hint muted">Changing this re-ticks the module selection on step 1.</p>
         <div class="grid-choice">
           <button
-            v-for="ind in INDUSTRIES"
-            :key="ind"
+            v-for="p in shopProfiles"
+            :key="p.key"
             type="button"
             class="choice"
-            :class="{ active: form.industry === ind }"
-            @click="form.industry = ind"
+            :class="{ active: form.shop_profile === p.key }"
+            @click="applyProfile(p.key)"
           >
-            {{ ind }}
+            {{ p.label }}
           </button>
         </div>
 
@@ -632,6 +705,14 @@ select { appearance: none; -webkit-appearance: none; background-image: url("data
 .choice.module { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; position: relative; }
 .choice.module i { font-size: 1.1rem; }
 .choice .check { position: absolute; top: 0.35rem; right: 0.35rem; color: #4c8b6c; font-size: 0.7rem; }
+/* Step 1 — shop-type presets. Auto-fit so the row reflows on a phone instead of
+   squeezing seven cards into a fixed grid. */
+.shop-types { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-top: 0.4rem; }
+.shop-type { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; text-align: left; border: 1px solid #e8e4da; background: #fbfaf7; border-radius: 10px; padding: 0.7rem 0.75rem; cursor: pointer; color: #374151; }
+.shop-type i { font-size: 1.05rem; color: #2c4a5e; }
+.shop-type.active { border-color: #e8a33d; background: rgba(232, 163, 61, 0.12); box-shadow: 0 0 0 1px #e8a33d inset; }
+.st-label { font-size: 0.85rem; font-weight: 700; color: #1e2328; }
+.st-desc { font-size: 0.72rem; line-height: 1.3; color: #6b7280; }
 /* Step 3 — package summary + the menus each module unlocks. */
 .rev.rev-wrap { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
 .rev-list { font-weight: 600; color: #374151; font-size: 0.8rem; line-height: 1.35; }

@@ -46,6 +46,7 @@ class ProductResource extends JsonResource
             'track_batch' => $this->track_batch,
             'track_serial' => $this->track_serial,
             'has_variants' => $this->has_variants,
+            'is_service' => (bool) $this->is_service,
             'is_active' => $this->is_active,
             'total_stock' => $this->when(
                 $this->relationLoaded('stocks'),

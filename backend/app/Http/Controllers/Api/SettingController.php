@@ -54,6 +54,15 @@ class SettingController extends Controller
             'ai_api_key' => ['sometimes', 'nullable', 'string', 'max:200'],
             'ai_model' => ['sometimes', 'nullable', 'string', 'max:80'],
             'ai_lead_time_days' => ['sometimes', 'required', 'integer', 'min:0', 'max:180'],
+
+            // Loyalty programme (SRS §21)
+            'loyalty_enabled' => ['sometimes', 'required', 'boolean'],
+            'loyalty_points_per_amount' => ['sometimes', 'required', 'numeric', 'min:0', 'max:1000'],
+            'loyalty_earn_amount_unit' => ['sometimes', 'required', 'numeric', 'min:1'],
+            'loyalty_redeem_value' => ['sometimes', 'required', 'numeric', 'min:0'],
+            'loyalty_min_redeem_points' => ['sometimes', 'required', 'integer', 'min:0'],
+            'loyalty_min_bill_amount' => ['sometimes', 'required', 'numeric', 'min:0'],
+            'loyalty_max_redeem_percent' => ['sometimes', 'required', 'numeric', 'min:0', 'max:100'],
         ];
         foreach (Setting::SMS_TEMPLATE_KEYS as $key) {
             $rules[$key] = ['sometimes', 'required', 'string', 'max:500'];
@@ -65,7 +74,10 @@ class SettingController extends Controller
         $validated = $request->validate($rules);
 
         foreach ($validated as $key => $value) {
-            Setting::set($key, $value);
+            // Settings are stored as text. A validated boolean would coerce to
+            // "1"/"" — store the explicit "0" instead, so a disabled flag reads
+            // the same whether it was defaulted or saved.
+            Setting::set($key, is_bool($value) ? ($value ? '1' : '0') : $value);
         }
 
         return response()->json([

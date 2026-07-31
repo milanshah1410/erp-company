@@ -208,6 +208,12 @@ class ProvisionTenant implements ShouldQueue
         if (! empty($config['industry'])) {
             $settings['industry'] = (string) $config['industry'];
         }
+        // The shop-type preset the signup started from. Kept alongside the
+        // resolved module list so a later "reset to the Grocery defaults" knows
+        // which preset this workspace was built on.
+        if (! empty($config['shop_profile'])) {
+            $settings['shop_profile'] = (string) $config['shop_profile'];
+        }
         if (! empty($config['modules']) && is_array($config['modules'])) {
             $settings['enabled_modules'] = json_encode(array_values($config['modules']));
         }

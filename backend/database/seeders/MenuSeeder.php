@@ -128,11 +128,17 @@ class MenuSeeder extends Seeder
                     ['label' => 'Follow-ups', 'icon' => 'pi pi-bell', 'to' => '/follow-ups', 'permission' => 'follow-ups.view'],
                     ['label' => 'Referrals', 'icon' => 'pi pi-share-alt', 'to' => '/referrals', 'permission' => 'referrals.view'],
                     ['label' => 'Occasions', 'icon' => 'pi pi-calendar-plus', 'to' => '/crm/occasions', 'permission' => 'customers.view'],
-                    ['label' => 'Coupons', 'icon' => 'pi pi-ticket', 'to' => '/coupons', 'permission' => 'coupons.view'],
                     ['label' => 'WhatsApp', 'icon' => 'pi pi-whatsapp', 'to' => '/whatsapp', 'permission' => 'whatsapp.view'],
                     ['label' => 'SMS', 'icon' => 'pi pi-comment', 'to' => '/sms', 'permission' => 'sms.view'],
                     ['label' => 'Marketing Campaigns', 'icon' => 'pi pi-megaphone', 'to' => '/marketing-campaigns', 'permission' => 'marketing-campaigns.view'],
                     ['label' => 'Email Log', 'icon' => 'pi pi-envelope', 'to' => '/email-logs', 'permission' => 'email.view'],
+                ]],
+                // Sibling of CRM, not a child of it: a garment counter often runs
+                // points + coupons with no CRM pipeline at all, and nesting this
+                // under CRM would hide it whenever CRM is switched off.
+                ['label' => 'Loyalty & Offers', 'icon' => 'pi pi-ticket', 'module' => 'loyalty', 'children' => [
+                    ['label' => 'Loyalty Points', 'icon' => 'pi pi-star-fill', 'to' => '/loyalty', 'permission' => 'loyalty.view'],
+                    ['label' => 'Coupons', 'icon' => 'pi pi-ticket', 'to' => '/coupons', 'permission' => 'coupons.view'],
                 ]],
                 ['label' => 'Field Sales', 'icon' => 'pi pi-map', 'module' => 'field_sales', 'children' => [
                     ['label' => 'Salesmen', 'icon' => 'pi pi-user', 'to' => '/salesmen', 'permission' => 'salesmen.view'],
@@ -150,6 +156,22 @@ class MenuSeeder extends Seeder
                     ['label' => 'Channel Listings', 'icon' => 'pi pi-tags', 'to' => '/channel-listings', 'permission' => 'channel-listings.view'],
                     ['label' => 'Sync History', 'icon' => 'pi pi-history', 'to' => '/channel-sync-logs', 'permission' => 'channel-sync-logs.view'],
                 ]],
+            ]],
+
+            // Service Management. Its own top-level section rather than a leaf
+            // under Sales: for a repair centre this *is* the day's work, and it
+            // must not disappear with a module the workshop does not run.
+            ['label' => 'Service', 'icon' => 'pi pi-wrench', 'module' => 'service', 'children' => [
+                ['label' => 'Service Jobs', 'icon' => 'pi pi-wrench', 'to' => '/service-jobs', 'permission' => 'service-jobs.view'],
+                ['label' => 'AMC Contracts', 'icon' => 'pi pi-file-check', 'to' => '/service-contracts', 'permission' => 'service-contracts.view'],
+            ]],
+
+            // Project Management. Like Service, a section of its own: for a
+            // consultancy the project board is the day's work, not a sub-page of
+            // something else.
+            ['label' => 'Projects', 'icon' => 'pi pi-briefcase', 'module' => 'projects', 'children' => [
+                ['label' => 'Projects', 'icon' => 'pi pi-briefcase', 'to' => '/projects', 'permission' => 'projects.view'],
+                ['label' => 'Timesheets', 'icon' => 'pi pi-clock', 'to' => '/project-timesheets', 'permission' => 'project-timesheets.view'],
             ]],
 
             ['label' => 'Purchase', 'icon' => 'pi pi-shopping-bag', 'module' => 'purchase', 'children' => [
@@ -244,8 +266,13 @@ class MenuSeeder extends Seeder
                     ['label' => 'Fuel Expenses', 'icon' => 'pi pi-bolt', 'to' => '/fuel-expenses', 'permission' => 'fuel-expenses.view'],
                     ['label' => 'Electricity Bills', 'icon' => 'pi pi-bolt', 'to' => '/electricity-bills', 'permission' => 'electricity-bills.view'],
                     ['label' => 'Factory Maintenance', 'icon' => 'pi pi-wrench', 'to' => '/factory-maintenances', 'permission' => 'factory-maintenances.view'],
-                    ['label' => 'Asset Maintenance', 'icon' => 'pi pi-cog', 'to' => '/asset-maintenances', 'permission' => 'asset-maintenances.view'],
+                ]],
+                // The fixed-asset register is its own module: a kirana shop keeps
+                // books without ever depreciating a machine, so it toggles apart
+                // from Accounts rather than riding along inside Expenses.
+                ['label' => 'Assets', 'icon' => 'pi pi-box', 'module' => 'assets', 'children' => [
                     ['label' => 'Assets', 'icon' => 'pi pi-box', 'to' => '/assets', 'permission' => 'assets.view'],
+                    ['label' => 'Asset Maintenance', 'icon' => 'pi pi-cog', 'to' => '/asset-maintenances', 'permission' => 'asset-maintenances.view'],
                 ]],
                 ['label' => 'Financial Reports', 'icon' => 'pi pi-chart-line', 'module' => 'accounts', 'children' => [
                     ['label' => 'Trial Balance', 'icon' => 'pi pi-list', 'to' => '/accounts/trial-balance', 'permission' => 'accounts.view'],
@@ -392,19 +419,20 @@ class MenuSeeder extends Seeder
                     ['label' => 'Companies', 'icon' => 'pi pi-sitemap', 'to' => '/companies', 'permission' => 'companies.view'],
                     ['label' => 'Branches', 'icon' => 'pi pi-map-marker', 'to' => '/branches', 'permission' => 'branches.view'],
                     ['label' => 'Billing & Plan', 'icon' => 'pi pi-credit-card', 'to' => '/billing'],
-                    ['label' => 'Workflows', 'icon' => 'pi pi-share-alt', 'to' => '/workflows', 'permission' => 'workflows.view'],
+                    ['label' => 'Workflows', 'icon' => 'pi pi-share-alt', 'to' => '/workflows', 'permission' => 'workflows.view', 'module' => 'workflow'],
                     ['label' => 'Settings', 'icon' => 'pi pi-cog', 'to' => '/settings', 'permission' => 'settings.view'],
                     ['label' => 'System Tools', 'icon' => 'pi pi-wrench', 'to' => '/system-tools', 'permission' => 'settings.view'],
-                    ['label' => 'Printer Testing', 'icon' => 'pi pi-print', 'to' => '/printer-test', 'permission' => 'settings.view'],
                 ]],
-                // Device Manager. Deliberately untagged by module: hardware cuts
-                // across POS, inventory and HR, so it must stay reachable
-                // whichever module set a tenant switched on.
-                ['label' => 'Device Manager', 'icon' => 'pi pi-desktop', 'children' => [
+                // Device Manager. Hardware cuts across POS, inventory and HR, so
+                // it is one module of its own rather than a rider on any of them:
+                // a shop with no scanner or thermal printer switches it off and
+                // loses none of the software it does use.
+                ['label' => 'Device Manager', 'icon' => 'pi pi-desktop', 'module' => 'devices', 'children' => [
                     ['label' => 'Devices', 'icon' => 'pi pi-desktop', 'to' => '/devices', 'permission' => 'devices.view'],
                     ['label' => 'Device Event Log', 'icon' => 'pi pi-list', 'to' => '/device-events', 'permission' => 'device-events.view'],
+                    ['label' => 'Printer Testing', 'icon' => 'pi pi-print', 'to' => '/printer-test', 'permission' => 'settings.view'],
                 ]],
-                ['label' => 'AI', 'icon' => 'pi pi-sparkles', 'children' => [
+                ['label' => 'AI', 'icon' => 'pi pi-sparkles', 'module' => 'ai', 'children' => [
                     ['label' => 'AI Assistant', 'icon' => 'pi pi-comments', 'to' => '/ai-assistant', 'permission' => 'ai.view'],
                     ['label' => 'AI Insights', 'icon' => 'pi pi-chart-line', 'to' => '/ai-insights', 'permission' => 'ai.view'],
                 ]],

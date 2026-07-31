@@ -19,6 +19,8 @@ export interface ReceiptLine {
 export interface ReceiptData {
   title: string
   docNumber: string
+  /** The invoice behind this receipt, so the counter can still collect on it. */
+  invoiceId?: number
   soNumber?: string
   date: string
   cashier?: string

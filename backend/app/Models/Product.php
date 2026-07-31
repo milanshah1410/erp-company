@@ -20,7 +20,7 @@ class Product extends Model
         'cost_price', 'selling_price', 'tax_percent',
         'min_stock_level', 'max_stock_level', 'reorder_level', 'reorder_quantity', 'preferred_supplier_id',
         'image', 'attributes', 'track_expiry', 'track_batch', 'track_serial',
-        'has_variants', 'is_active',
+        'has_variants', 'is_service', 'is_active',
     ];
 
     protected $casts = [
@@ -36,6 +36,7 @@ class Product extends Model
         'track_batch' => 'boolean',
         'track_serial' => 'boolean',
         'has_variants' => 'boolean',
+        'is_service' => 'boolean',
         'is_active' => 'boolean',
     ];
 

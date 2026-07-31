@@ -17,6 +17,8 @@ class ExpenseRequest extends FormRequest
         return [
             'expense_category_id' => ['required', 'exists:expense_categories,id'],
             'branch_id' => ['nullable', 'exists:branches,id'],
+            // Costs this spend to a project (Project Management module).
+            'project_id' => ['nullable', 'exists:projects,id'],
             'expense_date' => ['required', 'date'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'tds_section' => ['nullable', 'string', 'max:50'],

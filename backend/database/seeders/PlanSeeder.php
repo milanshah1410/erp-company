@@ -30,7 +30,15 @@ class PlanSeeder extends Seeder
                     'support' => 'email',
                     // Onboarding §3: the module set a Starter tenant may enable.
                     // Keys come from App\Support\Modules::CATALOGUE.
-                    'modules' => ['sales', 'pos', 'purchase', 'inventory', 'accounts'],
+                    //
+                    // loyalty / assets / workflow / devices / ai used to be
+                    // untagged menu rows — visible to every package. They are
+                    // switchable modules now, and they stay in every plan's list
+                    // so becoming switchable never reads as losing a feature.
+                    'modules' => [
+                        'sales', 'pos', 'purchase', 'inventory', 'accounts',
+                        'loyalty', 'assets', 'workflow', 'devices', 'ai',
+                    ],
                 ],
             ],
             [
@@ -52,6 +60,7 @@ class PlanSeeder extends Seeder
                     'modules' => [
                         'sales', 'pos', 'crm', 'field_sales', 'broker',
                         'purchase', 'inventory', 'logistics', 'accounts', 'gst', 'hrms',
+                        'loyalty', 'assets', 'workflow', 'devices', 'ai', 'service', 'projects',
                     ],
                 ],
             ],

@@ -21,7 +21,7 @@ class Expense extends Model
     protected static string $numberSettingKey = 'expense_number_prefix';
 
     protected $fillable = [
-        'expense_number', 'expense_category_id', 'branch_id', 'expense_date',
+        'expense_number', 'expense_category_id', 'branch_id', 'project_id', 'expense_date',
         'amount', 'tds_section', 'tds_rate', 'tds_amount',
         'payment_method', 'payee', 'reference_no', 'description',
         'status', 'attachment_path', 'paid_at', 'rejection_reason',
@@ -45,6 +45,12 @@ class Expense extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** Optional project this spend is costed to (Project Management module). */
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
     }
 
     public function creator(): BelongsTo

@@ -111,6 +111,41 @@ final class Modules
             'icon' => 'pi pi-id-card',
             'description' => 'Employees, attendance, leave, payroll, loans',
         ],
+        'service' => [
+            'label' => 'Service Management',
+            'icon' => 'pi pi-wrench',
+            'description' => 'Repair jobs, technicians, spare parts and AMC contracts',
+        ],
+        'projects' => [
+            'label' => 'Project Management',
+            'icon' => 'pi pi-briefcase',
+            'description' => 'Projects, tasks, timesheets and budget-vs-actual costing',
+        ],
+        'loyalty' => [
+            'label' => 'Loyalty & Offers',
+            'icon' => 'pi pi-ticket',
+            'description' => 'Points programme, coupons and customer rewards',
+        ],
+        'assets' => [
+            'label' => 'Asset Management',
+            'icon' => 'pi pi-box',
+            'description' => 'Fixed-asset register and maintenance schedules',
+        ],
+        'workflow' => [
+            'label' => 'Workflow Automation',
+            'icon' => 'pi pi-share-alt',
+            'description' => 'IF/THEN rules for approvals, notifications, field updates',
+        ],
+        'devices' => [
+            'label' => 'Hardware / Devices',
+            'icon' => 'pi pi-desktop',
+            'description' => 'Scanners, thermal & label printers, weighing scales, RFID',
+        ],
+        'ai' => [
+            'label' => 'AI Assistant',
+            'icon' => 'pi pi-sparkles',
+            'description' => 'Forecasts, demand insights and the bilingual ERP assistant',
+        ],
     ];
 
     /**

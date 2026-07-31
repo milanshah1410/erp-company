@@ -12,8 +12,13 @@ use App\Models\SalesOrder;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\WarehouseStock;
+use App\Models\PaymentGatewayAccount;
+use App\Models\PaymentTransaction;
+use App\Services\BarcodeService;
 use App\Services\BrokerCommissionService;
 use App\Services\DocumentPricingService;
+use App\Services\LoyaltyService;
+use App\Services\PaymentGatewayService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +45,9 @@ class PosController extends Controller
         private readonly StockService $stock,
         private readonly BrokerCommissionService $brokerCommissions,
         private readonly DocumentPricingService $pricing,
+        private readonly LoyaltyService $loyalty,
+        private readonly PaymentGatewayService $gateways,
+        private readonly BarcodeService $barcodes,
     ) {}
 
     /** Product list for the POS grid, with on-hand availability for the chosen warehouse. */
@@ -156,13 +164,30 @@ class PosController extends Controller
             'payments' => ['required', 'array', 'min:1'],
             'payments.*.mode' => ['required', Rule::in(['cash', 'card', 'upi', 'credit'])],
             'payments.*.amount' => ['required', 'numeric', 'min:0.01'],
+            // Points the customer wants to spend on this bill. Settled as a
+            // tender, not a discount, so the invoice bills at the price rung up.
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $customer = $this->resolveCustomer($data['customer_id'] ?? null);
 
+        // Points belong to a named customer. A walk-in sale falls back to the
+        // shared WALKIN record, which must never accrue or spend a balance.
+        $member = empty($data['customer_id']) ? null : $customer;
+
         $priced = $this->pricing->price($data['items'], $data['discount_type'] ?? null, (float) ($data['discount_value'] ?? 0));
         $total = $priced['header']['total'];
-        $paidTotal = round(array_sum(array_column($data['payments'], 'amount')), 2);
+        $tendered = round(array_sum(array_column($data['payments'], 'amount')), 2);
+
+        // Points are quoted against the billed total before any cash lands, so
+        // the cap ("points may pay at most 50% of a bill") means what it says.
+        try {
+            $redemption = $this->loyalty->quoteRedemption($member, (float) $total, (int) ($data['redeem_points'] ?? 0));
+        } catch (RuntimeException $e) {
+            throw ValidationException::withMessages(['redeem_points' => [$e->getMessage()]]);
+        }
+
+        $paidTotal = round($tendered + $redemption['amount'], 2);
 
         if ($paidTotal > $total + 0.005) {
             throw ValidationException::withMessages(['payments' => ['Payments exceed the sale total.']]);
@@ -171,7 +196,7 @@ class PosController extends Controller
         $this->assertWithinCreditLimit($customer, round($total - $paidTotal, 2));
 
         try {
-            $result = DB::transaction(function () use ($request, $data, $customer, $priced, $total, $paidTotal) {
+            $result = DB::transaction(function () use ($request, $data, $customer, $member, $priced, $total, $paidTotal, $redemption) {
                 [$salesOrder, $invoice] = $this->createSale($request, $data, $customer, $priced, $total);
 
                 foreach ($data['payments'] as $payment) {
@@ -183,18 +208,166 @@ class PosController extends Controller
                     ]);
                 }
 
+                if ($redemption['points'] > 0) {
+                    $invoice->payments()->create([
+                        'amount' => $redemption['amount'],
+                        'mode' => 'loyalty',
+                        'payment_date' => now()->toDateString(),
+                        'notes' => "{$redemption['points']} loyalty points redeemed",
+                        'created_by' => $request->user()?->id,
+                    ]);
+                    $this->loyalty->redeemForInvoice($invoice, $redemption['points'], $request->user()?->id);
+                }
+
                 $invoice->paid_amount = $paidTotal;
                 $invoice->refreshStatus();
 
-                return [$salesOrder, $invoice];
+                // Awarded on the billed total, so a customer who paid half in
+                // points still earns on the full sale.
+                $earned = $member
+                    ? $this->loyalty->awardForInvoice($invoice, $request->user()?->id)
+                    : null;
+
+                return [$salesOrder, $invoice, $earned];
             });
         } catch (RuntimeException $e) {
             throw ValidationException::withMessages(['items' => [$e->getMessage()]]);
         }
 
-        [$salesOrder, $invoice] = $result;
+        [$salesOrder, $invoice, $earned] = $result;
 
-        return $this->saleResponse($salesOrder, $invoice);
+        return $this->saleResponse($salesOrder, $invoice, $member ? [
+            'points_earned' => $earned?->points ?? 0,
+            'points_redeemed' => $redemption['points'],
+            'points_redeemed_value' => $redemption['amount'],
+            'points_balance' => $member->fresh()->loyaltyPoints(),
+        ] : null);
+    }
+
+    /**
+     * Collect the balance of a counter bill online: raise a payment link for it
+     * and hand the till a QR the customer scans with any UPI or wallet app.
+     *
+     * Deliberately after the sale rather than as a tender inside it. The invoice
+     * has to exist before it can be paid, and a counter cannot hold a cart open
+     * while someone finds their phone — so the sale completes with whatever was
+     * tendered and the remaining balance is collected against the invoice, the
+     * same way a payment link works anywhere else in the system.
+     */
+    public function collectOnline(Request $request)
+    {
+        $data = $request->validate([
+            'invoice_id' => ['required', 'exists:invoices,id'],
+            // Defaults to the whole balance due — the usual case at a counter.
+            'amount' => ['nullable', 'numeric', 'min:0.01'],
+        ]);
+
+        if (! PaymentGatewayAccount::where('is_active', true)->exists()) {
+            return response()->json([
+                'message' => 'No payment gateway is enabled. Configure one under Finance → Payment Gateways.',
+            ], 422);
+        }
+
+        $invoice = Invoice::findOrFail($data['invoice_id']);
+
+        // An unpaid balance may already have a live link against it. Reuse it
+        // rather than leaving the customer a second QR for the same money — but
+        // only when it is for the same money: a counter that asks for a
+        // different amount must not be silently handed the old one.
+        $existing = PaymentTransaction::where('invoice_id', $invoice->id)
+            ->whereIn('status', ['created', 'pending'])
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->latest('id')
+            ->first();
+
+        $wanted = isset($data['amount']) ? round((float) $data['amount'], 2) : null;
+        $reusable = $existing
+            && ($wanted === null || abs((float) $existing->amount - $wanted) < 0.005);
+
+        if ($existing && ! $reusable) {
+            // Retire the stale one so there is only ever a single live QR for a
+            // bill — two payable links against one invoice is how a customer
+            // ends up paying the wrong amount.
+            $existing->update(['status' => 'cancelled']);
+        }
+
+        $txn = $reusable ? $existing : $this->gateways->createLinkForInvoice($invoice, [
+            'amount' => $wanted,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        return response()->json(['data' => $this->collectionPayload($txn->refresh())]);
+    }
+
+    /**
+     * Poll a counter collection. The till calls this every few seconds while the
+     * QR is on screen; the transaction itself is moved to paid by the gateway's
+     * callback or webhook, so this only ever reads.
+     */
+    public function collectStatus(string $token)
+    {
+        $txn = PaymentTransaction::where('public_token', $token)->firstOrFail();
+
+        // A link nobody paid before it lapsed should stop looking payable.
+        if ($txn->isExpired() && $txn->status !== 'expired') {
+            $txn->update(['status' => 'expired']);
+        }
+
+        return response()->json(['data' => $this->collectionPayload($txn)]);
+    }
+
+    /** The shape the till renders: the QR, the money, and where it stands. */
+    private function collectionPayload(PaymentTransaction $txn): array
+    {
+        $invoice = $txn->invoice;
+
+        return [
+            'token' => $txn->public_token,
+            'pay_url' => $txn->payUrl(),
+            // Rendered server-side so the counter needs no QR library and the
+            // encoded URL cannot drift from the one the link actually resolves.
+            'qr' => $this->barcodes->qrDataUri($txn->payUrl(), 320),
+            'amount' => (float) $txn->amount,
+            'currency' => $txn->currency,
+            'status' => $txn->status,
+            'is_paid' => $txn->isPaid(),
+            'paid_at' => $txn->paid_at?->toIso8601String(),
+            'expires_at' => $txn->expires_at?->toIso8601String(),
+            'gateway' => $txn->gateway,
+            'invoice' => $invoice ? [
+                'id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'total' => (float) $invoice->total,
+                'paid_amount' => (float) $invoice->paid_amount,
+                'balance_due' => $invoice->balanceDue(),
+                'status' => $invoice->status,
+            ] : null,
+        ];
+    }
+
+    /**
+     * What the counter may offer this customer on a bill of this value: their
+     * balance, the cap, and what redeeming it all is worth. Drives the POS
+     * redeem box without making the till re-implement the programme's rules.
+     */
+    public function loyaltyQuote(Request $request)
+    {
+        $data = $request->validate([
+            'customer_id' => ['required', 'exists:customers,id'],
+            'amount' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $customer = Customer::findOrFail($data['customer_id']);
+        $max = $this->loyalty->maxRedeemablePoints($customer, (float) $data['amount']);
+
+        return response()->json(['data' => [
+            'customer_id' => $customer->id,
+            'balance' => $customer->loyaltyPoints(),
+            'max_redeemable_points' => $max,
+            'max_redeemable_value' => $this->loyalty->valueOf($max),
+            'will_earn' => $this->loyalty->earnedFor((float) $data['amount']),
+            'config' => $this->loyalty->config(),
+        ]]);
     }
 
     /** Recent invoices for the return/exchange lookup, newest first. */
@@ -218,6 +391,10 @@ class PosController extends Controller
             'customer' => $i->customer?->name,
             'customer_id' => $i->customer_id,
             'total' => $i->total,
+            // Carried so the lookup can offer to collect on a bill that is
+            // still short — the same list is used to find a sale to return
+            // against and to chase one that went out on credit.
+            'balance_due' => $i->balanceDue(),
             'status' => $i->status,
             'channel' => $i->salesOrder?->channel,
         ]);
@@ -330,6 +507,16 @@ class PosController extends Controller
                     $invoice->paid_amount = round((float) $invoice->paid_amount - $refund, 2);
                     $invoice->refreshStatus();
                 }
+
+                // Goods going back take their points with them, whether the
+                // money was refunded or kept as store credit — the sale is
+                // reversed either way.
+                $this->loyalty->reverseForInvoice(
+                    $invoice,
+                    (float) $return->total,
+                    $return->credit_note_number,
+                    $request->user()?->id,
+                );
 
                 return [$return, $refund];
             });
@@ -471,6 +658,20 @@ class PosController extends Controller
 
                 $invoice->paid_amount = round($paidTotal + $appliedCredit, 2);
                 $invoice->refreshStatus();
+
+                // Both legs move points, and both have to: reversing the return
+                // without awarding the replacement would quietly cost a customer
+                // points for swapping a shirt for the same shirt in another size.
+                $this->loyalty->reverseForInvoice(
+                    $originalInvoice,
+                    (float) $return->total,
+                    $return->credit_note_number,
+                    $request->user()?->id,
+                );
+
+                if (! empty($data['customer_id'])) {
+                    $this->loyalty->awardForInvoice($invoice, $request->user()?->id);
+                }
 
                 return [$return, $salesOrder, $invoice];
             });
@@ -704,10 +905,14 @@ class PosController extends Controller
         }
     }
 
-    private function saleResponse(SalesOrder $salesOrder, Invoice $invoice)
+    /** @param  array<string, mixed>|null  $loyalty  Points movement to print on the receipt. */
+    private function saleResponse(SalesOrder $salesOrder, Invoice $invoice, ?array $loyalty = null)
     {
         return (new SalesOrderResource($salesOrder->load(['customer', 'warehouse', 'items.product'])))
-            ->additional(['invoice' => $this->invoiceSummary($invoice)])
+            ->additional(array_filter([
+                'invoice' => $this->invoiceSummary($invoice),
+                'loyalty' => $loyalty,
+            ]))
             ->response()
             ->setStatusCode(201);
     }

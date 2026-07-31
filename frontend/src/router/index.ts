@@ -70,6 +70,11 @@ const CustomerCategoriesView = () => import('../views/CustomerCategoriesView.vue
 const LeadsView = () => import('../views/LeadsView.vue')
 const FollowUpsView = () => import('../views/FollowUpsView.vue')
 const ReferralsView = () => import('../views/ReferralsView.vue')
+const LoyaltyView = () => import('../views/LoyaltyView.vue')
+const ServiceJobsView = () => import('../views/ServiceJobsView.vue')
+const ServiceContractsView = () => import('../views/ServiceContractsView.vue')
+const ProjectsView = () => import('../views/ProjectsView.vue')
+const ProjectTimesheetsView = () => import('../views/ProjectTimesheetsView.vue')
 const OccasionsView = () => import('../views/OccasionsView.vue')
 const WhatsAppView = () => import('../views/WhatsAppView.vue')
 const SmsView = () => import('../views/SmsView.vue')
@@ -201,6 +206,11 @@ const routes: RouteRecordRaw[] = [
       { path: 'leads', component: LeadsView, meta: { permission: 'leads.view' } },
       { path: 'follow-ups', component: FollowUpsView, meta: { permission: 'follow-ups.view' } },
       { path: 'coupons', component: CrudView, meta: { resource: 'coupons', permission: 'coupons.view' } },
+      { path: 'loyalty', component: LoyaltyView, meta: { permission: 'loyalty.view' } },
+      { path: 'service-jobs', component: ServiceJobsView, meta: { permission: 'service-jobs.view' } },
+      { path: 'service-contracts', component: ServiceContractsView, meta: { permission: 'service-contracts.view' } },
+      { path: 'projects', component: ProjectsView, meta: { permission: 'projects.view' } },
+      { path: 'project-timesheets', component: ProjectTimesheetsView, meta: { permission: 'project-timesheets.view' } },
       { path: 'referrals', component: ReferralsView, meta: { permission: 'referrals.view' } },
       { path: 'crm/occasions', component: OccasionsView, meta: { permission: 'customers.view' } },
       { path: 'whatsapp', component: WhatsAppView, meta: { permission: 'whatsapp.view' } },

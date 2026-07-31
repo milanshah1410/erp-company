@@ -67,6 +67,13 @@ class TenantRoleCatalog
         // Device Manager: configuring hardware is an admin/IT act, so it gets a
         // full permission set of its own rather than riding on 'settings'.
         'devices',
+        // Service Management. Contracts are split from jobs because selling an
+        // AMC is a sales act, while working a repair is a workshop one.
+        'service-jobs', 'service-contracts',
+        // Project Management. Timesheets are split out because logging your own
+        // hours is something everyone on a project does, while editing the
+        // project's budget is not.
+        'projects', 'project-tasks', 'project-timesheets',
     ];
 
     /** Modules that are view-only (no create/edit/delete). */
@@ -85,6 +92,9 @@ class TenantRoleCatalog
         'employee-claims', 'vehicle-expenses', 'fuel-expenses',
         'electricity-bills', 'factory-maintenances', 'asset-maintenances',
         'leave-applications', 'overtime', 'employee-bonuses', 'salary-advances', 'employee-loans',
+        // Only approved hours can be invoiced, so approval is a distinct act
+        // from logging them.
+        'project-timesheets',
     ];
 
     /**
@@ -122,6 +132,8 @@ class TenantRoleCatalog
             // Device Manager. Bundled with the event log because reading the log
             // is how you diagnose the device you are allowed to configure.
             'DEVICES' => ['devices', 'device-events'],
+            'SERVICE' => ['service-jobs', 'service-contracts'],
+            'PROJECTS' => ['projects', 'project-tasks', 'project-timesheets'],
         ];
     }
 
@@ -217,7 +229,8 @@ class TenantRoleCatalog
             ]],
             'operations-manager' => ['label' => 'Operations Manager', 'spec' => [
                 'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'PURCHASE:c', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m',
-                'CATALOG:v', 'EXPENSES:c', 'DEVICES:m', 'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
+                'CATALOG:v', 'EXPENSES:c', 'DEVICES:m', 'SERVICE:m', 'PROJECTS:m',
+                'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
             ]],
 
             // ---- CRM ----
@@ -304,6 +317,30 @@ class TenantRoleCatalog
             ]],
             'qc-inspector' => ['label' => 'QC Inspector', 'spec' => [
                 'textile:c', 'manufacturing-orders:v', 'job-works:v', 'stock:v', 'products:v', 'reports:v', 'notifications:v',
+            ]],
+
+            // ---- Service ----
+            'service-manager' => ['label' => 'Service Manager', 'spec' => [
+                'SERVICE:m', 'customers:c', 'employees:v', 'stock:v', 'CATALOG:v',
+                'sales:v', 'payments:v', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // A technician works the jobs on the bench: they record diagnosis,
+            // parts and resolution, but do not open, close or price the book.
+            'service-technician' => ['label' => 'Service Technician', 'spec' => [
+                'service-jobs:c', 'service-contracts:v', 'stock:v', 'products:v',
+                'customers:v', 'notifications:v',
+            ]],
+
+            // ---- Projects ----
+            'project-manager' => ['label' => 'Project Manager', 'spec' => [
+                'PROJECTS:m', 'project-timesheets:a', 'customers:v', 'employees:v',
+                'expenses:c', 'sales:v', 'payments:v', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // A member works the board and logs their own hours; they cannot
+            // approve those hours or touch the budget they are spending.
+            'project-member' => ['label' => 'Project Member', 'spec' => [
+                'projects:v', 'project-tasks:c', 'project-timesheets:c',
+                'customers:v', 'notifications:v',
             ]],
 
             // ---- Broker ----

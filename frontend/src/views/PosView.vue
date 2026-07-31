@@ -75,6 +75,11 @@ const payments = ref<any[]>([{ mode: 'cash', amount: 0 }])
 const checkingOut = ref(false)
 const errors = ref<Record<string, string[]>>({})
 
+// Loyalty: what the till may offer the selected customer on this bill. Null
+// until a named customer is chosen — a walk-in sale neither earns nor redeems.
+const loyalty = ref<any>(null)
+const redeemPoints = ref(0)
+
 // Return / Exchange invoice context
 const invoiceSearch = ref('')
 const invoiceResults = ref<any[]>([])
@@ -102,7 +107,15 @@ const filteredProducts = computed(() => {
 
 const pricing = computed(() => priceDocument(cart.value, overallDiscountType.value, overallDiscountValue.value))
 const total = computed(() => pricing.value.header.total)
-const paidTotal = computed(() => payments.value.reduce((s, p) => s + (Number(p.amount) || 0), 0))
+// Points settle part of the bill like any other tender, so they count towards
+// what has been paid — not towards the discount, which would change the taxable
+// value of a sale that was rung up at full price.
+const redeemValue = computed(() =>
+  round2(redeemPoints.value * (loyalty.value?.config?.redeem_value ?? 0)),
+)
+const paidTotal = computed(
+  () => payments.value.reduce((s, p) => s + (Number(p.amount) || 0), 0) + redeemValue.value,
+)
 const balance = computed(() => round2(total.value - paidTotal.value))
 const change = computed(() => Math.max(0, round2(paidTotal.value - total.value)))
 
@@ -298,7 +311,22 @@ async function completeSale() {
       discount_value: overallDiscountValue.value,
       items: cartPayload(),
       payments: payments.value.filter((p) => Number(p.amount) > 0),
+      redeem_points: redeemPoints.value || undefined,
     })
+    if (data.loyalty) {
+      const l = data.loyalty
+      const parts = []
+      if (l.points_earned) parts.push(pt('{n} points earned', { n: l.points_earned }))
+      if (l.points_redeemed) parts.push(pt('{n} points redeemed', { n: l.points_redeemed }))
+      if (parts.length) {
+        toast.add({
+          severity: 'success',
+          summary: parts.join(' · '),
+          detail: pt('Balance: {n} points', { n: l.points_balance }),
+          life: 4000,
+        })
+      }
+    }
     await onSaleComplete(buildSaleReceipt('TAX INVOICE', data, snapshot), snapshot.hasCash)
     resetSale()
   } catch (e: any) {
@@ -421,6 +449,7 @@ function buildSaleReceipt(title: string, data: any, snap: ReturnType<typeof snap
   return {
     title,
     docNumber: inv.invoice_number ?? data.data?.so_number ?? '',
+    invoiceId: inv.id,
     soNumber: data.data?.so_number,
     date: new Date().toLocaleString('en-IN'),
     cashier: auth.user?.name,
@@ -585,6 +614,8 @@ function resetSale() {
   overallDiscountType.value = null
   overallDiscountValue.value = 0
   payments.value = [{ mode: 'cash', amount: 0 }]
+  redeemPoints.value = 0
+  loyalty.value = null
   if (mode.value === 'sell') {
     customerId.value = null
     brokerId.value = null
@@ -608,6 +639,105 @@ watch(mode, () => {
 
 // Keep the customer display in sync with the cart / payments.
 watch([cart, pricing, payments], broadcastCart, { deep: true })
+
+// ---- Collect the balance online (QR at the counter) --------------------------
+
+const collectVisible = ref(false)
+const collection = ref<any>(null)
+const collecting = ref(false)
+let collectTimer: ReturnType<typeof setInterval> | undefined
+
+/**
+ * Raise a payment link against the bill and show its QR. The customer scans it,
+ * pays on their own phone, and the gateway's callback moves the transaction —
+ * so the till only polls, it never confirms a payment itself.
+ */
+async function openCollect(invoiceId: number) {
+  collecting.value = true
+  collection.value = null
+  collectVisible.value = true
+  try {
+    const { data } = await http.post('/pos/collect-online', { invoice_id: invoiceId })
+    collection.value = data.data
+    startCollectPolling()
+  } catch (e: any) {
+    collectVisible.value = false
+    toast.add({
+      severity: 'warn',
+      summary: e.response?.data?.message ?? pt('Could not start the collection'),
+      life: 5000,
+    })
+  } finally {
+    collecting.value = false
+  }
+}
+
+function startCollectPolling() {
+  stopCollectPolling()
+  collectTimer = setInterval(async () => {
+    if (!collection.value?.token) return
+    try {
+      const { data } = await http.get(`/pos/collect-online/${collection.value.token}`)
+      collection.value = data.data
+      if (data.data.is_paid) {
+        stopCollectPolling()
+        toast.add({
+          severity: 'success',
+          summary: pt('Payment received'),
+          detail: money(data.data.amount),
+          life: 5000,
+        })
+      }
+    } catch {
+      // A dropped poll is not worth interrupting the counter over; the next
+      // tick retries, and the dialog can always be closed by hand.
+    }
+  }, 3000)
+}
+
+function stopCollectPolling() {
+  if (collectTimer) clearInterval(collectTimer)
+  collectTimer = undefined
+}
+
+function closeCollect() {
+  stopCollectPolling()
+  collectVisible.value = false
+}
+
+onBeforeUnmount(stopCollectPolling)
+
+/**
+ * Ask the server what this customer may redeem against the current bill. The
+ * cap is a percentage of the bill, so the answer moves as the cart does — but
+ * the rules stay on the server, and the till only renders what it is told.
+ */
+async function refreshLoyaltyQuote() {
+  if (!customerId.value || total.value <= 0) {
+    loyalty.value = null
+    redeemPoints.value = 0
+    return
+  }
+  try {
+    const { data } = await http.get('/pos/loyalty-quote', {
+      params: { customer_id: customerId.value, amount: total.value },
+    })
+    loyalty.value = data.data.config?.enabled ? data.data : null
+    // A cart edit can push the cap below what was already keyed in.
+    if (redeemPoints.value > (loyalty.value?.max_redeemable_points ?? 0)) {
+      redeemPoints.value = loyalty.value?.max_redeemable_points ?? 0
+    }
+  } catch {
+    // Loyalty is an add-on to the sale, never a reason it cannot be rung up.
+    loyalty.value = null
+  }
+}
+
+let loyaltyTimer: ReturnType<typeof setTimeout>
+watch([customerId, total], () => {
+  clearTimeout(loyaltyTimer)
+  loyaltyTimer = setTimeout(refreshLoyaltyQuote, 300)
+})
 
 // ---- Keyboard shortcuts (fast billing) --------------------------------------
 
@@ -714,6 +844,17 @@ onBeforeUnmount(() => {
             <li v-for="inv in invoiceResults" :key="inv.id" @click="loadInvoice(inv.id)">
               <strong>{{ inv.invoice_number }}</strong> · {{ inv.customer || pt('Walk-in') }} · {{ money(inv.total) }}
               <Tag :value="inv.status" class="ml" />
+              <!-- A bill that went out short can still be collected on, without
+                   leaving the till for the payment-links screen. -->
+              <Button
+                v-if="(inv.balance_due ?? 0) > 0.005"
+                icon="pi pi-qrcode"
+                :label="pt('Collect')"
+                text
+                size="small"
+                class="inv-collect"
+                @click.stop="openCollect(inv.id)"
+              />
             </li>
           </ul>
           <template v-if="loadedInvoice">
@@ -785,6 +926,39 @@ onBeforeUnmount(() => {
             <span>{{ netRefund > 0 ? pt('Net Refund') : pt('Net Payable') }}</span>
             <strong>{{ money(netRefund > 0 ? netRefund : netPayable) }}</strong>
           </div>
+        </div>
+
+        <!-- Loyalty. Only rendered once a named customer is on the bill and the
+             programme is switched on, so a walk-in counter never sees it. -->
+        <div v-if="loyalty" class="loyalty-box">
+          <div class="ly-head">
+            <i class="pi pi-star-fill" />
+            <span>{{ pt('Loyalty') }}</span>
+            <strong>{{ loyalty.balance }} {{ pt('points') }}</strong>
+          </div>
+          <div v-if="loyalty.max_redeemable_points > 0" class="ly-redeem">
+            <InputNumber
+              v-model="redeemPoints"
+              :min="0"
+              :max="loyalty.max_redeemable_points"
+              :placeholder="pt('Redeem points')"
+              class="ly-input"
+            />
+            <Button
+              :label="pt('Max')"
+              size="small"
+              outlined
+              @click="redeemPoints = loyalty.max_redeemable_points"
+            />
+            <span class="ly-value">−{{ money(redeemValue) }}</span>
+          </div>
+          <small v-else class="ly-note">
+            {{ pt('Not enough points to redeem on this bill.') }}
+          </small>
+          <small v-if="loyalty.will_earn" class="ly-note">
+            {{ pt('This bill earns {n} points.', { n: loyalty.will_earn }) }}
+          </small>
+          <small v-if="errors.redeem_points" class="err block">{{ errors.redeem_points[0] }}</small>
         </div>
 
         <h3 class="lines-title">{{ mode === 'exchange' && netRefund > 0 ? pt('Refund') : pt('Payment') }}</h3>
@@ -889,7 +1063,56 @@ onBeforeUnmount(() => {
       </template>
       <template #footer>
         <Button :label="pt('Reprint')" icon="pi pi-print" text @click="reprint" />
+        <Button
+          v-if="lastReceipt?.invoiceId && (lastReceipt?.balance ?? 0) > 0.005"
+          :label="pt('Collect by QR')"
+          icon="pi pi-qrcode"
+          outlined
+          @click="openCollect(lastReceipt.invoiceId!)"
+        />
         <Button :label="pt('Done')" icon="pi pi-check" @click="receiptVisible = false" />
+      </template>
+    </Dialog>
+
+    <!-- Collect the balance online: the customer scans, pays on their phone, and
+         the till watches the link until the gateway confirms it. -->
+    <Dialog
+      :visible="collectVisible"
+      modal
+      :header="pt('Collect Payment')"
+      :style="{ width: '400px' }"
+      @update:visible="closeCollect"
+    >
+      <div v-if="collecting" class="collect-wait">
+        <i class="pi pi-spin pi-spinner" /> {{ pt('Creating payment link…') }}
+      </div>
+
+      <template v-else-if="collection">
+        <div v-if="collection.is_paid" class="collect-done">
+          <i class="pi pi-check-circle" />
+          <strong>{{ pt('Payment received') }}</strong>
+          <span>{{ money(collection.amount) }}</span>
+        </div>
+
+        <template v-else>
+          <p class="collect-amount">{{ money(collection.amount) }}</p>
+          <img :src="collection.qr" class="collect-qr" :alt="pt('Payment QR')" />
+          <p class="collect-hint">
+            {{ pt('Ask the customer to scan this with any UPI or wallet app.') }}
+          </p>
+          <p class="collect-status">
+            <i class="pi pi-spin pi-sync" /> {{ pt('Waiting for payment…') }}
+          </p>
+        </template>
+
+        <div v-if="collection.invoice" class="collect-inv">
+          <span>{{ collection.invoice.invoice_number }}</span>
+          <span>{{ pt('Balance') }}: {{ money(collection.invoice.balance_due) }}</span>
+        </div>
+      </template>
+
+      <template #footer>
+        <Button :label="pt('Close')" icon="pi pi-times" text @click="closeCollect" />
       </template>
     </Dialog>
 
@@ -973,6 +1196,26 @@ onBeforeUnmount(() => {
 .disc-val :deep(input) { width: 56px; }
 .overall-disc { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.75rem; }
 .overall-disc label { font-size: 0.85rem; font-weight: 500; color: #374151; margin-right: auto; }
+.inv-collect { margin-left: auto; }
+/* Counter QR collection. */
+.collect-wait { display: flex; align-items: center; gap: 0.5rem; padding: 1.5rem 0; justify-content: center; color: #6b7280; }
+.collect-amount { text-align: center; font-size: 1.6rem; font-weight: 700; margin: 0 0 0.6rem; }
+.collect-qr { display: block; width: 220px; height: 220px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+.collect-hint { text-align: center; font-size: 0.82rem; color: #6b7280; margin: 0.6rem 0 0.2rem; }
+.collect-status { display: flex; align-items: center; justify-content: center; gap: 0.4rem; font-size: 0.8rem; color: #7a5b1c; margin: 0.3rem 0 0; }
+.collect-done { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 1.5rem 0; color: #15803d; }
+.collect-done i { font-size: 2.4rem; }
+.collect-done span { font-size: 1.3rem; font-weight: 700; }
+.collect-inv { display: flex; justify-content: space-between; gap: 0.5rem; margin-top: 0.9rem; padding-top: 0.6rem; border-top: 1px solid #e5e7eb; font-size: 0.8rem; color: #6b7280; }
+/* Loyalty redeem box — sits between the totals and the tender lines, because
+   points are read as "how much of this is already paid", not as a discount. */
+.loyalty-box { margin-top: 0.75rem; border: 1px solid #f0d9a8; background: #fdf6e7; border-radius: 8px; padding: 0.5rem 0.6rem; }
+.ly-head { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: #7a5b1c; }
+.ly-head strong { margin-left: auto; }
+.ly-redeem { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.45rem; }
+.ly-input { width: 7rem; }
+.ly-value { margin-left: auto; font-weight: 600; color: #7a5b1c; }
+.ly-note { display: block; margin-top: 0.35rem; font-size: 0.75rem; color: #8a6d3b; }
 .totals { margin-top: 0.75rem; font-size: 0.9rem; }
 .totals div { display: flex; justify-content: space-between; padding: 0.15rem 0; }
 .totals .grand { font-size: 1.05rem; font-weight: 600; border-top: 1px solid #e5e7eb; margin-top: 0.25rem; padding-top: 0.4rem; }
@@ -1009,7 +1252,7 @@ onBeforeUnmount(() => {
 
 .inv-lookup { display: flex; gap: 0.5rem; }
 .inv-results { list-style: none; margin: 0.5rem 0; padding: 0; border: 1px solid #e5e7eb; border-radius: 8px; max-height: 240px; overflow-y: auto; }
-.inv-results li { padding: 0.55rem 0.75rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.88rem; }
+.inv-results li { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; padding: 0.55rem 0.75rem; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.88rem; }
 .inv-results li:hover { background: #f8fafc; }
 .inv-head { display: flex; justify-content: space-between; align-items: center; margin: 0.75rem 0 0.5rem; padding-bottom: 0.4rem; border-bottom: 1px solid #e5e7eb; }
 
