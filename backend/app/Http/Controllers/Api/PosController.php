@@ -13,12 +13,16 @@ use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\WarehouseStock;
 use App\Models\PaymentGatewayAccount;
+use App\Models\OldGoldReceipt;
 use App\Models\PaymentTransaction;
+use App\Models\Prescription;
 use App\Services\BarcodeService;
 use App\Services\BrokerCommissionService;
 use App\Services\DocumentPricingService;
 use App\Services\LoyaltyService;
 use App\Services\PaymentGatewayService;
+use App\Services\JewelleryPricingService;
+use App\Services\PharmacyService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +52,8 @@ class PosController extends Controller
         private readonly LoyaltyService $loyalty,
         private readonly PaymentGatewayService $gateways,
         private readonly BarcodeService $barcodes,
+        private readonly PharmacyService $pharmacy,
+        private readonly JewelleryPricingService $jewellery,
     ) {}
 
     /** Product list for the POS grid, with on-hand availability for the chosen warehouse. */
@@ -105,10 +111,9 @@ class PosController extends Controller
                 'name' => $product->name,
                 'sku' => $product->sku,
                 'barcode' => $product->barcode,
-                'unit_price' => (float) $product->selling_price,
                 'tax_percent' => (float) $product->tax_percent,
                 'available_qty' => $product->available_qty ?? null,
-            ]]);
+            ] + $this->priceOf($product)]);
         }
 
         $variant = ProductVariant::query()
@@ -167,7 +172,40 @@ class PosController extends Controller
             // Points the customer wants to spend on this bill. Settled as a
             // tender, not a discount, so the invoice bills at the price rung up.
             'redeem_points' => ['nullable', 'integer', 'min:0'],
+            // The prescription authorising any scheduled medicine on the bill.
+            'prescription_id' => ['nullable', 'exists:prescriptions,id'],
+            // Old-gold receipts the customer is settling this bill with.
+            'old_gold_receipt_ids' => ['nullable', 'array'],
+            'old_gold_receipt_ids.*' => ['integer'],
         ]);
+
+        // Scrap already taken in settles part of the bill like any other tender.
+        // Only unsettled receipts count — one already set off against another
+        // invoice would be spending the same gold twice.
+        $oldGold = ! empty($data['old_gold_receipt_ids'])
+            ? OldGoldReceipt::whereIn('id', $data['old_gold_receipt_ids'])->whereNull('invoice_id')->get()
+            : collect();
+
+        if (! empty($data['old_gold_receipt_ids']) && $oldGold->count() !== count($data['old_gold_receipt_ids'])) {
+            throw ValidationException::withMessages([
+                'old_gold_receipt_ids' => ['One or more old-gold receipts have already been settled against another bill.'],
+            ]);
+        }
+
+        $oldGoldTotal = round((float) $oldGold->sum('amount'), 2);
+
+        // A Schedule H/H1/X line may not leave the counter without a usable
+        // prescription behind it. Checked before anything is written, so a
+        // refused sale leaves no stock movement or half-built order behind.
+        $prescription = isset($data['prescription_id'])
+            ? Prescription::find($data['prescription_id'])
+            : null;
+
+        try {
+            $this->pharmacy->assertSellable($data['items'], $prescription);
+        } catch (RuntimeException $e) {
+            throw ValidationException::withMessages(['prescription_id' => [$e->getMessage()]]);
+        }
 
         $customer = $this->resolveCustomer($data['customer_id'] ?? null);
 
@@ -187,17 +225,43 @@ class PosController extends Controller
             throw ValidationException::withMessages(['redeem_points' => [$e->getMessage()]]);
         }
 
-        $paidTotal = round($tendered + $redemption['amount'], 2);
+        $paidTotal = round($tendered + $redemption['amount'] + $oldGoldTotal, 2);
 
         if ($paidTotal > $total + 0.005) {
+            // Old gold overshooting the bill is a normal jewellery situation,
+            // not a mis-keyed tender: the customer brought in more than they
+            // spent. Say so, because "payments exceed the total" sends the
+            // counter looking for a typo that is not there. The excess stays an
+            // open receipt — a credit against their next visit.
+            if ($oldGoldTotal > 0 && round($tendered + $redemption['amount'], 2) <= $total + 0.005) {
+                throw ValidationException::withMessages(['old_gold_receipt_ids' => [
+                    'The selected old gold is worth more than this bill. Leave the larger receipt open as credit, or settle the difference separately.',
+                ]]);
+            }
+
             throw ValidationException::withMessages(['payments' => ['Payments exceed the sale total.']]);
         }
 
         $this->assertWithinCreditLimit($customer, round($total - $paidTotal, 2));
 
         try {
-            $result = DB::transaction(function () use ($request, $data, $customer, $member, $priced, $total, $paidTotal, $redemption) {
+            $result = DB::transaction(function () use ($request, $data, $customer, $member, $priced, $total, $paidTotal, $redemption, $prescription, $oldGold, $oldGoldTotal) {
                 [$salesOrder, $invoice] = $this->createSale($request, $data, $customer, $priced, $total);
+
+                // Tie the sale to the authority it was dispensed under, and
+                // write the Schedule H1 / X register entries as it happens —
+                // a register reconstructed later from invoices is exactly what
+                // an inspection is meant to catch.
+                if ($prescription) {
+                    $salesOrder->forceFill(['prescription_id' => $prescription->id])->save();
+                    $this->pharmacy->recordDispense(
+                        $prescription,
+                        $data['items'],
+                        $salesOrder,
+                        $invoice,
+                        $request->user()?->id,
+                    );
+                }
 
                 foreach ($data['payments'] as $payment) {
                     $invoice->payments()->create([
@@ -205,6 +269,23 @@ class PosController extends Controller
                         'mode' => $payment['mode'],
                         'payment_date' => now()->toDateString(),
                         'created_by' => $request->user()?->id,
+                    ]);
+                }
+
+                if ($oldGoldTotal > 0) {
+                    $numbers = $oldGold->pluck('receipt_number')->implode(', ');
+                    $invoice->payments()->create([
+                        'amount' => $oldGoldTotal,
+                        'mode' => 'old_gold',
+                        'payment_date' => now()->toDateString(),
+                        'notes' => "Old gold receipt(s) {$numbers}",
+                        'created_by' => $request->user()?->id,
+                    ]);
+                    // Stamping the receipts is what stops the same scrap being
+                    // spent against a second bill.
+                    OldGoldReceipt::whereIn('id', $oldGold->pluck('id'))->update([
+                        'invoice_id' => $invoice->id,
+                        'sales_order_id' => $salesOrder->id,
                     ]);
                 }
 
@@ -242,6 +323,53 @@ class PosController extends Controller
             'points_redeemed_value' => $redemption['amount'],
             'points_balance' => $member->fresh()->loyaltyPoints(),
         ] : null);
+    }
+
+    /**
+     * The price to put on the till for a product.
+     *
+     * An ornament has no stored selling price — it is worth its metal at
+     * today's rate plus making — so a jewellery item is priced here rather than
+     * read off the product. Anything else keeps its selling price, and a
+     * jewellery item whose purity has no rate quoted yet falls back to it too,
+     * with the reason attached so the counter knows why the number looks wrong.
+     *
+     * @return array<string, mixed>
+     */
+    private function priceOf(Product $product): array
+    {
+        if (! $product->isRatePriced()) {
+            return ['unit_price' => (float) $product->selling_price];
+        }
+
+        try {
+            $priced = $this->jewellery->priceProduct($product);
+        } catch (RuntimeException $e) {
+            return [
+                'unit_price' => (float) $product->selling_price,
+                'pricing_error' => $e->getMessage(),
+            ];
+        }
+
+        return [
+            'unit_price' => $priced['unit_price'],
+            'jewellery' => $priced,
+        ];
+    }
+
+    /**
+     * Which lines in the current cart are scheduled medicine, so the till can
+     * ask for the prescription *before* the customer has queued to pay rather
+     * than refusing the sale at the last step.
+     */
+    public function prescriptionCheck(Request $request)
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer'],
+        ]);
+
+        return response()->json(['data' => $this->pharmacy->inspect($data['items'])]);
     }
 
     /**

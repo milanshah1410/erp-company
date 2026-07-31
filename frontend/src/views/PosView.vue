@@ -80,6 +80,23 @@ const errors = ref<Record<string, string[]>>({})
 const loyalty = ref<any>(null)
 const redeemPoints = ref(0)
 
+// Pharmacy: which cart lines are scheduled medicine, and the slip authorising
+// them. Checked as the cart changes so the counter is asked for a prescription
+// while the customer is still standing there, not at the payment step.
+const rxCheck = ref<any>(null)
+const prescriptionId = ref<number | null>(null)
+const prescriptions = ref<any[]>([])
+
+// Jewellery: unsettled old-gold receipts the customer is holding, which settle
+// part of this bill like any other tender.
+const oldGoldReceipts = ref<any[]>([])
+const selectedOldGold = ref<number[]>([])
+const oldGoldTotal = computed(() =>
+  oldGoldReceipts.value
+    .filter((r) => selectedOldGold.value.includes(r.id))
+    .reduce((s, r) => s + (Number(r.amount) || 0), 0),
+)
+
 // Return / Exchange invoice context
 const invoiceSearch = ref('')
 const invoiceResults = ref<any[]>([])
@@ -114,7 +131,10 @@ const redeemValue = computed(() =>
   round2(redeemPoints.value * (loyalty.value?.config?.redeem_value ?? 0)),
 )
 const paidTotal = computed(
-  () => payments.value.reduce((s, p) => s + (Number(p.amount) || 0), 0) + redeemValue.value,
+  () =>
+    payments.value.reduce((s, p) => s + (Number(p.amount) || 0), 0) +
+    redeemValue.value +
+    oldGoldTotal.value,
 )
 const balance = computed(() => round2(total.value - paidTotal.value))
 const change = computed(() => Math.max(0, round2(paidTotal.value - total.value)))
@@ -312,6 +332,8 @@ async function completeSale() {
       items: cartPayload(),
       payments: payments.value.filter((p) => Number(p.amount) > 0),
       redeem_points: redeemPoints.value || undefined,
+      prescription_id: prescriptionId.value || undefined,
+      old_gold_receipt_ids: selectedOldGold.value.length ? selectedOldGold.value : undefined,
     })
     if (data.loyalty) {
       const l = data.loyalty
@@ -616,6 +638,10 @@ function resetSale() {
   payments.value = [{ mode: 'cash', amount: 0 }]
   redeemPoints.value = 0
   loyalty.value = null
+  rxCheck.value = null
+  prescriptionId.value = null
+  oldGoldReceipts.value = []
+  selectedOldGold.value = []
   if (mode.value === 'sell') {
     customerId.value = null
     brokerId.value = null
@@ -712,6 +738,26 @@ onBeforeUnmount(stopCollectPolling)
  * cap is a percentage of the bill, so the answer moves as the cart does — but
  * the rules stay on the server, and the till only renders what it is told.
  */
+/** Old-gold credit this customer is holding, if any. */
+async function refreshOldGold() {
+  if (!customerId.value) {
+    oldGoldReceipts.value = []
+    selectedOldGold.value = []
+    return
+  }
+  try {
+    const { data } = await http.get('/old-gold', {
+      params: { customer_id: customerId.value, unsettled_only: 1, per_page: 50 },
+    })
+    oldGoldReceipts.value = data.data ?? []
+  } catch {
+    // A shop without the jewellery module gets a 403 here; that is not an error
+    // the counter needs to see.
+    oldGoldReceipts.value = []
+  }
+  selectedOldGold.value = []
+}
+
 async function refreshLoyaltyQuote() {
   if (!customerId.value || total.value <= 0) {
     loyalty.value = null
@@ -738,6 +784,55 @@ watch([customerId, total], () => {
   clearTimeout(loyaltyTimer)
   loyaltyTimer = setTimeout(refreshLoyaltyQuote, 300)
 })
+
+watch(customerId, refreshOldGold)
+
+/**
+ * Ask the server whether the cart contains scheduled medicine. The schedules
+ * and what each one requires stay on the server; the till only renders what it
+ * is told, so a rule change never needs a POS release.
+ */
+async function refreshPrescriptionCheck() {
+  if (!cart.value.length) {
+    rxCheck.value = null
+    prescriptionId.value = null
+    return
+  }
+  try {
+    const { data } = await http.post('/pos/prescription-check', { items: cartPayload() })
+    rxCheck.value = data.data.requires_prescription ? data.data : null
+    if (!rxCheck.value) prescriptionId.value = null
+    else if (!prescriptions.value.length) await loadPrescriptions()
+  } catch {
+    // Never block a sale on this lookup; checkout enforces the rule anyway.
+    rxCheck.value = null
+  }
+}
+
+/** Slips the counter can actually dispense against today. */
+async function loadPrescriptions() {
+  try {
+    const { data } = await http.get('/prescriptions', {
+      params: { dispensable_only: 1, per_page: 100 },
+    })
+    prescriptions.value = (data.data ?? []).map((p: any) => ({
+      label: `${p.prescription_number} — ${p.patient_name} (${p.doctor_name})`,
+      value: p.id,
+    }))
+  } catch {
+    prescriptions.value = []
+  }
+}
+
+let rxTimer: ReturnType<typeof setTimeout>
+watch(
+  cart,
+  () => {
+    clearTimeout(rxTimer)
+    rxTimer = setTimeout(refreshPrescriptionCheck, 350)
+  },
+  { deep: true },
+)
 
 // ---- Keyboard shortcuts (fast billing) --------------------------------------
 
@@ -926,6 +1021,56 @@ onBeforeUnmount(() => {
             <span>{{ netRefund > 0 ? pt('Net Refund') : pt('Net Payable') }}</span>
             <strong>{{ money(netRefund > 0 ? netRefund : netPayable) }}</strong>
           </div>
+        </div>
+
+        <!-- Pharmacy. Appears only when the cart actually holds scheduled
+             medicine, so a non-medical counter never sees it at all. -->
+        <div v-if="rxCheck" class="rx-box" :class="{ ready: prescriptionId }">
+          <div class="rx-head">
+            <i class="pi pi-exclamation-triangle" />
+            <span>{{ pt('Prescription required') }}</span>
+          </div>
+          <ul class="rx-lines">
+            <li v-for="l in rxCheck.lines" :key="l.product_id">
+              {{ l.name }}
+              <strong>{{ pt('Schedule') }} {{ l.drug_schedule.toUpperCase() }}</strong>
+              <em v-if="l.enters_register">{{ pt('· enters register') }}</em>
+            </li>
+          </ul>
+          <Select
+            v-model="prescriptionId"
+            :options="prescriptions"
+            optionLabel="label"
+            optionValue="value"
+            filter
+            showClear
+            :placeholder="pt('Select a prescription')"
+            class="w-full"
+          />
+          <small v-if="errors.prescription_id" class="err block">{{ errors.prescription_id[0] }}</small>
+          <small v-else-if="!prescriptions.length" class="rx-note">
+            {{ pt('No usable prescription on file — record one under Pharmacy → Prescriptions.') }}
+          </small>
+        </div>
+
+        <!-- Old gold. Only rendered when this customer is actually holding
+             unsettled scrap, so a non-jewellery counter never sees it. -->
+        <div v-if="oldGoldReceipts.length" class="og-box">
+          <div class="og-head">
+            <i class="pi pi-sync" />
+            <span>{{ pt('Old gold credit') }}</span>
+            <strong>−{{ money(oldGoldTotal) }}</strong>
+          </div>
+          <label v-for="r in oldGoldReceipts" :key="r.id" class="og-line">
+            <Checkbox v-model="selectedOldGold" :value="r.id" />
+            <span class="og-desc">
+              {{ r.receipt_number }} · {{ r.purity }} · {{ r.chargeable_weight }}g
+            </span>
+            <span class="og-amt">{{ money(r.amount) }}</span>
+          </label>
+          <small v-if="errors.old_gold_receipt_ids" class="err block">
+            {{ errors.old_gold_receipt_ids[0] }}
+          </small>
         </div>
 
         <!-- Loyalty. Only rendered once a named customer is on the bill and the
@@ -1196,6 +1341,25 @@ onBeforeUnmount(() => {
 .disc-val :deep(input) { width: 56px; }
 .overall-disc { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.75rem; }
 .overall-disc label { font-size: 0.85rem; font-weight: 500; color: #374151; margin-right: auto; }
+/* Old-gold credit — reads as money coming off the bill, so it sits with the
+   tenders rather than with the line items. */
+.og-box { margin-top: 0.75rem; border: 1px solid #e8a33d; background: rgba(232, 163, 61, 0.09); border-radius: 8px; padding: 0.5rem 0.6rem; }
+.og-head { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: #7a5b1c; margin-bottom: 0.3rem; }
+.og-head strong { margin-left: auto; }
+.og-line { display: flex; align-items: center; gap: 0.45rem; padding: 0.2rem 0; font-size: 0.78rem; cursor: pointer; }
+.og-desc { color: #4b5563; }
+.og-amt { margin-left: auto; font-weight: 600; }
+/* Pharmacy prescription box — red until a slip is chosen, because the sale
+   cannot complete without one and the counter should see that early. */
+.rx-box { margin-top: 0.75rem; border: 1px solid #f0b4b4; background: #fdf1f1; border-radius: 8px; padding: 0.55rem 0.65rem; }
+.rx-box.ready { border-color: #a7d3b8; background: #f1f9f4; }
+.rx-head { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: #8a2b2b; margin-bottom: 0.35rem; }
+.rx-box.ready .rx-head { color: #256a44; }
+.rx-lines { list-style: none; margin: 0 0 0.45rem; padding: 0; font-size: 0.78rem; color: #4b5563; }
+.rx-lines li { padding: 0.1rem 0; }
+.rx-lines strong { color: #8a2b2b; margin-left: 0.25rem; }
+.rx-lines em { color: #7a5b1c; font-style: normal; margin-left: 0.2rem; }
+.rx-note { display: block; margin-top: 0.3rem; font-size: 0.73rem; color: #8a6d3b; }
 .inv-collect { margin-left: auto; }
 /* Counter QR collection. */
 .collect-wait { display: flex; align-items: center; gap: 0.5rem; padding: 1.5rem 0; justify-content: center; color: #6b7280; }

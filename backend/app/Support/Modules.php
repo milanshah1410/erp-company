@@ -116,6 +116,26 @@ final class Modules
             'icon' => 'pi pi-wrench',
             'description' => 'Repair jobs, technicians, spare parts and AMC contracts',
         ],
+        'restaurant' => [
+            'label' => 'Restaurant',
+            'icon' => 'pi pi-shop',
+            'description' => 'Table management, kitchen order tickets and running bills',
+        ],
+        'optical' => [
+            'label' => 'Optical',
+            'icon' => 'pi pi-eye',
+            'description' => 'Eye powers, lens specifications and spectacle orders',
+        ],
+        'jewellery' => [
+            'label' => 'Jewellery',
+            'icon' => 'pi pi-star',
+            'description' => 'Daily metal rates, purity & making charges, old-gold exchange',
+        ],
+        'pharmacy' => [
+            'label' => 'Pharmacy',
+            'icon' => 'pi pi-heart-fill',
+            'description' => 'Drug schedules, prescriptions and the Schedule H1/X register',
+        ],
         'projects' => [
             'label' => 'Project Management',
             'icon' => 'pi pi-briefcase',

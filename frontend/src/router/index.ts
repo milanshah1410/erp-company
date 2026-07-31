@@ -73,6 +73,16 @@ const ReferralsView = () => import('../views/ReferralsView.vue')
 const LoyaltyView = () => import('../views/LoyaltyView.vue')
 const ServiceJobsView = () => import('../views/ServiceJobsView.vue')
 const ServiceContractsView = () => import('../views/ServiceContractsView.vue')
+const RestaurantFloorView = () => import('../views/RestaurantFloorView.vue')
+const RestaurantOrdersView = () => import('../views/RestaurantOrdersView.vue')
+const KitchenDisplayView = () => import('../views/KitchenDisplayView.vue')
+const RestaurantTablesView = () => import('../views/RestaurantTablesView.vue')
+const EyePrescriptionsView = () => import('../views/EyePrescriptionsView.vue')
+const OpticalOrdersView = () => import('../views/OpticalOrdersView.vue')
+const MetalRatesView = () => import('../views/MetalRatesView.vue')
+const OldGoldView = () => import('../views/OldGoldView.vue')
+const PrescriptionsView = () => import('../views/PrescriptionsView.vue')
+const DrugRegisterView = () => import('../views/DrugRegisterView.vue')
 const ProjectsView = () => import('../views/ProjectsView.vue')
 const ProjectTimesheetsView = () => import('../views/ProjectTimesheetsView.vue')
 const OccasionsView = () => import('../views/OccasionsView.vue')
@@ -209,6 +219,16 @@ const routes: RouteRecordRaw[] = [
       { path: 'loyalty', component: LoyaltyView, meta: { permission: 'loyalty.view' } },
       { path: 'service-jobs', component: ServiceJobsView, meta: { permission: 'service-jobs.view' } },
       { path: 'service-contracts', component: ServiceContractsView, meta: { permission: 'service-contracts.view' } },
+      { path: 'restaurant/floor', component: RestaurantFloorView, meta: { permission: 'restaurant-tables.view' } },
+      { path: 'restaurant/orders', component: RestaurantOrdersView, meta: { permission: 'restaurant-orders.view' } },
+      { path: 'restaurant/kitchen', component: KitchenDisplayView, meta: { permission: 'kitchen-orders.view' } },
+      { path: 'restaurant/tables', component: RestaurantTablesView, meta: { permission: 'restaurant-tables.edit' } },
+      { path: 'eye-prescriptions', component: EyePrescriptionsView, meta: { permission: 'eye-prescriptions.view' } },
+      { path: 'optical-orders', component: OpticalOrdersView, meta: { permission: 'optical-orders.view' } },
+      { path: 'metal-rates', component: MetalRatesView, meta: { permission: 'metal-rates.view' } },
+      { path: 'old-gold', component: OldGoldView, meta: { permission: 'old-gold.view' } },
+      { path: 'prescriptions', component: PrescriptionsView, meta: { permission: 'prescriptions.view' } },
+      { path: 'drug-register', component: DrugRegisterView, meta: { permission: 'drug-register.view' } },
       { path: 'projects', component: ProjectsView, meta: { permission: 'projects.view' } },
       { path: 'project-timesheets', component: ProjectTimesheetsView, meta: { permission: 'project-timesheets.view' } },
       { path: 'referrals', component: ReferralsView, meta: { permission: 'referrals.view' } },

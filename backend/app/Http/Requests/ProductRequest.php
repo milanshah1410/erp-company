@@ -40,6 +40,11 @@ class ProductRequest extends FormRequest
             'has_variants' => ['boolean'],
             // Labour / visit charges: billable and taxable, but never stocked.
             'is_service' => ['boolean'],
+            // Pharmacy: h/h1/x may not be sold without a prescription; h1/x
+            // also land in the statutory register.
+            'drug_schedule' => ['nullable', Rule::in(['none', 'g', 'h', 'h1', 'x'])],
+            'composition' => ['nullable', 'string', 'max:255'],
+            'manufacturer' => ['nullable', 'string', 'max:255'],
             'is_active' => ['boolean'],
         ];
     }

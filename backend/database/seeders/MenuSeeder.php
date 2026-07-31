@@ -166,6 +166,37 @@ class MenuSeeder extends Seeder
                 ['label' => 'AMC Contracts', 'icon' => 'pi pi-file-check', 'to' => '/service-contracts', 'permission' => 'service-contracts.view'],
             ]],
 
+            // Restaurant. The floor leads — it is the screen the shift actually
+            // runs on; the kitchen board is its own display on its own device.
+            ['label' => 'Restaurant', 'icon' => 'pi pi-shop', 'module' => 'restaurant', 'children' => [
+                ['label' => 'Floor', 'icon' => 'pi pi-table', 'to' => '/restaurant/floor', 'permission' => 'restaurant-tables.view'],
+                ['label' => 'Orders', 'icon' => 'pi pi-receipt', 'to' => '/restaurant/orders', 'permission' => 'restaurant-orders.view'],
+                ['label' => 'Kitchen Display', 'icon' => 'pi pi-desktop', 'to' => '/restaurant/kitchen', 'permission' => 'kitchen-orders.view'],
+                ['label' => 'Tables & Sections', 'icon' => 'pi pi-th-large', 'to' => '/restaurant/tables', 'permission' => 'restaurant-tables.edit'],
+            ]],
+
+            // Optical. Eye tests lead: a spectacle order cannot be raised until
+            // someone has recorded the powers to grind.
+            ['label' => 'Optical', 'icon' => 'pi pi-eye', 'module' => 'optical', 'children' => [
+                ['label' => 'Eye Prescriptions', 'icon' => 'pi pi-eye', 'to' => '/eye-prescriptions', 'permission' => 'eye-prescriptions.view'],
+                ['label' => 'Spectacle Orders', 'icon' => 'pi pi-shopping-bag', 'to' => '/optical-orders', 'permission' => 'optical-orders.view'],
+            ]],
+
+            // Jewellery. The rate card is the first screen of the day — nothing
+            // in the shop can be priced until it is quoted — so it leads.
+            ['label' => 'Jewellery', 'icon' => 'pi pi-star', 'module' => 'jewellery', 'children' => [
+                ['label' => 'Metal Rates', 'icon' => 'pi pi-indian-rupee', 'to' => '/metal-rates', 'permission' => 'metal-rates.view'],
+                ['label' => 'Old Gold', 'icon' => 'pi pi-sync', 'to' => '/old-gold', 'permission' => 'old-gold.view'],
+            ]],
+
+            // Pharmacy. Sits beside Service and Projects as a trade section of
+            // its own: for a medical store the prescription desk and the
+            // statutory register are the day's work.
+            ['label' => 'Pharmacy', 'icon' => 'pi pi-heart-fill', 'module' => 'pharmacy', 'children' => [
+                ['label' => 'Prescriptions', 'icon' => 'pi pi-file-edit', 'to' => '/prescriptions', 'permission' => 'prescriptions.view'],
+                ['label' => 'Drug Register', 'icon' => 'pi pi-book', 'to' => '/drug-register', 'permission' => 'drug-register.view'],
+            ]],
+
             // Project Management. Like Service, a section of its own: for a
             // consultancy the project board is the day's work, not a sub-page of
             // something else.

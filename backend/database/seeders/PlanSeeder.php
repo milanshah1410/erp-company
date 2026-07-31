@@ -60,7 +60,7 @@ class PlanSeeder extends Seeder
                     'modules' => [
                         'sales', 'pos', 'crm', 'field_sales', 'broker',
                         'purchase', 'inventory', 'logistics', 'accounts', 'gst', 'hrms',
-                        'loyalty', 'assets', 'workflow', 'devices', 'ai', 'service', 'projects',
+                        'loyalty', 'assets', 'workflow', 'devices', 'ai', 'service', 'projects', 'pharmacy', 'jewellery', 'optical', 'restaurant',
                     ],
                 ],
             ],

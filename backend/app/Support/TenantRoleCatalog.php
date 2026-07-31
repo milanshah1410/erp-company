@@ -74,6 +74,18 @@ class TenantRoleCatalog
         // hours is something everyone on a project does, while editing the
         // project's budget is not.
         'projects', 'project-tasks', 'project-timesheets',
+        // Pharmacy. The register itself is view-only (below): its entries are
+        // written by dispensing, never by hand.
+        'prescriptions',
+        // Jewellery. Quoting the day's rate is separated from taking scrap in:
+        // the rate governs every bill in the shop, buying old gold is one deal.
+        'metal-rates', 'old-gold',
+        // Optical. Testing eyes and dispensing spectacles are different jobs,
+        // often different people, so they carry separate permissions.
+        'eye-prescriptions', 'optical-orders',
+        // Restaurant. The floor, the tickets and the kitchen display are three
+        // different screens held by three different people.
+        'restaurant-tables', 'restaurant-orders', 'kitchen-orders',
     ];
 
     /** Modules that are view-only (no create/edit/delete). */
@@ -82,6 +94,10 @@ class TenantRoleCatalog
         // The device event log is telemetry: readable by anyone who can watch a
         // counter, cleared under 'devices.delete'.
         'device-events',
+        // The Schedule H1/X register is a statutory record produced during a
+        // drug-inspector visit. Nobody edits it — entries are written by the
+        // act of dispensing, so the permission is read and nothing else.
+        'drug-register',
     ];
 
     /** Modules that also support an "approve" permission. */
@@ -134,6 +150,10 @@ class TenantRoleCatalog
             'DEVICES' => ['devices', 'device-events'],
             'SERVICE' => ['service-jobs', 'service-contracts'],
             'PROJECTS' => ['projects', 'project-tasks', 'project-timesheets'],
+            'PHARMACY' => ['prescriptions', 'drug-register'],
+            'JEWELLERY' => ['metal-rates', 'old-gold'],
+            'OPTICAL' => ['eye-prescriptions', 'optical-orders'],
+            'RESTAURANT' => ['restaurant-tables', 'restaurant-orders', 'kitchen-orders'],
         ];
     }
 
@@ -329,6 +349,59 @@ class TenantRoleCatalog
             'service-technician' => ['label' => 'Service Technician', 'spec' => [
                 'service-jobs:c', 'service-contracts:v', 'stock:v', 'products:v',
                 'customers:v', 'notifications:v',
+            ]],
+
+            // ---- Restaurant ----
+            'restaurant-manager' => ['label' => 'Restaurant Manager', 'spec' => [
+                'RESTAURANT:m', 'sales:a', 'CATALOG:m', 'stock:v', 'EXPENSES:c',
+                'customers:c', 'employees:v', 'payments:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // A waiter opens tables and fires food but cannot settle a bill or
+            // change the menu.
+            'waiter' => ['label' => 'Waiter / Steward', 'spec' => [
+                'restaurant-tables:v', 'restaurant-orders:c', 'kitchen-orders:v',
+                'products:v', 'customers:c', 'notifications:v',
+            ]],
+            // The kitchen only needs its own board.
+            'kitchen-staff' => ['label' => 'Kitchen Staff', 'spec' => [
+                'kitchen-orders:c', 'restaurant-orders:v', 'products:v', 'notifications:v',
+            ]],
+
+            // ---- Optical ----
+            // The optometrist tests eyes and records powers; the dispensing
+            // optician turns a test into a pair of spectacles.
+            'optometrist' => ['label' => 'Optometrist', 'spec' => [
+                'eye-prescriptions:m', 'optical-orders:v', 'customers:c',
+                'products:v', 'notifications:v',
+            ]],
+            'optician' => ['label' => 'Dispensing Optician', 'spec' => [
+                'OPTICAL:m', 'sales:c', 'CATALOG:c', 'stock:v',
+                'customers:c', 'payments:v', 'reports:v', 'notifications:v',
+            ]],
+
+            // ---- Jewellery ----
+            // Quoting the morning rate governs every bill in the shop, so it
+            // sits with the owner/manager rather than with the counter.
+            'jewellery-manager' => ['label' => 'Jewellery Manager', 'spec' => [
+                'JEWELLERY:m', 'sales:a', 'CATALOG:m', 'stock:v', 'advanced-inventory:v',
+                'customers:c', 'payments:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            'jewellery-salesman' => ['label' => 'Jewellery Salesman', 'spec' => [
+                'metal-rates:v', 'old-gold:c', 'sales:c', 'products:v', 'stock:v',
+                'customers:c', 'notifications:v',
+            ]],
+
+            // ---- Pharmacy ----
+            // A registered pharmacist dispenses and answers for the register;
+            // a counter assistant can write a slip and sell against it but not
+            // produce the statutory record.
+            'pharmacist' => ['label' => 'Pharmacist', 'spec' => [
+                'PHARMACY:m', 'sales:c', 'stock:v', 'advanced-inventory:v', 'CATALOG:c',
+                'customers:c', 'reports:v', 'notifications:v',
+            ]],
+            'pharmacy-assistant' => ['label' => 'Pharmacy Assistant', 'spec' => [
+                'prescriptions:c', 'sales:c', 'stock:v', 'products:v',
+                'customers:c', 'notifications:v',
             ]],
 
             // ---- Projects ----

@@ -73,6 +73,38 @@ final class ShopProfiles
                 'broker', 'field_sales', 'logistics',
             ],
         ],
+        'restaurant' => [
+            'label' => 'Restaurant / Cafe',
+            'icon' => 'pi pi-shop',
+            'description' => 'Tables, kitchen order tickets, running bills and takeaway',
+            'modules' => [
+                'restaurant', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'hrms',
+            ],
+        ],
+        'optical' => [
+            'label' => 'Optical Shop',
+            'icon' => 'pi pi-eye',
+            'description' => 'Eye tests, lens details, frame stock and spectacle orders',
+            'modules' => [
+                'optical', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'crm',
+            ],
+        ],
+        'jewellery' => [
+            'label' => 'Jewellery',
+            'icon' => 'pi pi-star',
+            'description' => 'Rate card, purity & making charges, old-gold exchange, hallmarking',
+            'modules' => [
+                'jewellery', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'crm',
+            ],
+        ],
+        'medical' => [
+            'label' => 'Medical Store / Pharmacy',
+            'icon' => 'pi pi-heart-fill',
+            'description' => 'Batch & expiry, drug schedules, prescriptions and the H1 register',
+            'modules' => [
+                'pharmacy', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'devices', 'loyalty',
+            ],
+        ],
         'service' => [
             'label' => 'Service / Repair Centre',
             'icon' => 'pi pi-wrench',

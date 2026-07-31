@@ -119,6 +119,14 @@ use App\Http\Controllers\Api\PrinterTestController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProductVariantController;
+use App\Http\Controllers\Api\EyePrescriptionController;
+use App\Http\Controllers\Api\KitchenOrderTicketController;
+use App\Http\Controllers\Api\RestaurantOrderController;
+use App\Http\Controllers\Api\RestaurantTableController;
+use App\Http\Controllers\Api\MetalRateController;
+use App\Http\Controllers\Api\OpticalOrderController;
+use App\Http\Controllers\Api\OldGoldReceiptController;
+use App\Http\Controllers\Api\PrescriptionController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectTaskController;
 use App\Http\Controllers\Api\ProjectTimesheetController;
@@ -703,6 +711,9 @@ Route::middleware('api')->prefix('api')->group(function () {
         // What the till may offer this customer in points. On sales.view, not
         // loyalty.view: a cashier reads it as part of ringing up a bill.
         Route::get('pos/loyalty-quote', [PosController::class, 'loyaltyQuote'])->middleware('permission:sales.view');
+        // Ask the cart whether it needs a prescription before the customer has
+        // queued to pay, rather than refusing the sale at the last step.
+        Route::post('pos/prescription-check', [PosController::class, 'prescriptionCheck'])->middleware('permission:sales.view');
         // Counter collection by QR: raise a link against the bill, then poll it.
         // Creating one is a payment act, reading its state is part of billing.
         Route::post('pos/collect-online', [PosController::class, 'collectOnline'])->middleware('permission:payments.create');
@@ -836,6 +847,79 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('service-jobs/{serviceJob}/complete', [ServiceJobController::class, 'complete'])->middleware('permission:service-jobs.delete');
         Route::post('service-jobs/{serviceJob}/deliver', [ServiceJobController::class, 'deliver'])->middleware('permission:service-jobs.delete');
         Route::post('service-jobs/{serviceJob}/cancel', [ServiceJobController::class, 'cancel'])->middleware('permission:service-jobs.delete');
+
+        /*
+        |----------------------------------------------------------------------
+        | Restaurant: the floor, its open tickets and the kitchen display. Items
+        | are added, fired and settled through separate endpoints because those
+        | are separate acts on the floor — a waiter keys a round, fires it, and
+        | comes back twice more before the table asks for the bill.
+        |----------------------------------------------------------------------
+        */
+        Route::get('restaurant/floor', [RestaurantTableController::class, 'floor'])->middleware('permission:restaurant-tables.view');
+        Route::get('restaurant/sections', [RestaurantTableController::class, 'sections'])->middleware('permission:restaurant-tables.view');
+        Route::post('restaurant/sections', [RestaurantTableController::class, 'storeSection'])->middleware('permission:restaurant-tables.create');
+        Route::post('restaurant-tables/{restaurantTable}/status', [RestaurantTableController::class, 'setStatus'])->middleware('permission:restaurant-tables.edit');
+        Route::get('restaurant-tables', [RestaurantTableController::class, 'index'])->middleware('permission:restaurant-tables.view');
+        Route::post('restaurant-tables', [RestaurantTableController::class, 'store'])->middleware('permission:restaurant-tables.create');
+        Route::match(['put', 'patch'], 'restaurant-tables/{restaurantTable}', [RestaurantTableController::class, 'update'])->middleware('permission:restaurant-tables.edit');
+        Route::delete('restaurant-tables/{restaurantTable}', [RestaurantTableController::class, 'destroy'])->middleware('permission:restaurant-tables.delete');
+
+        Route::post('restaurant-orders/{restaurantOrder}/items', [RestaurantOrderController::class, 'addItems'])->middleware('permission:restaurant-orders.edit');
+        Route::delete('restaurant-orders/{restaurantOrder}/items/{item}', [RestaurantOrderController::class, 'removeItem'])->middleware('permission:restaurant-orders.edit');
+        Route::post('restaurant-orders/{restaurantOrder}/items/{item}/void', [RestaurantOrderController::class, 'voidItem'])->middleware('permission:restaurant-orders.delete');
+        Route::post('restaurant-orders/{restaurantOrder}/fire', [RestaurantOrderController::class, 'fire'])->middleware('permission:restaurant-orders.edit');
+        // Settling raises the invoice and frees the table, so it sits on
+        // delete-level authority rather than a waiter's edit rights.
+        Route::post('restaurant-orders/{restaurantOrder}/settle', [RestaurantOrderController::class, 'settle'])->middleware('permission:restaurant-orders.delete');
+        Route::post('restaurant-orders/{restaurantOrder}/cancel', [RestaurantOrderController::class, 'cancel'])->middleware('permission:restaurant-orders.delete');
+        Route::get('restaurant-orders', [RestaurantOrderController::class, 'index'])->middleware('permission:restaurant-orders.view');
+        Route::post('restaurant-orders', [RestaurantOrderController::class, 'store'])->middleware('permission:restaurant-orders.create');
+        Route::get('restaurant-orders/{restaurantOrder}', [RestaurantOrderController::class, 'show'])->middleware('permission:restaurant-orders.view');
+        Route::match(['put', 'patch'], 'restaurant-orders/{restaurantOrder}', [RestaurantOrderController::class, 'update'])->middleware('permission:restaurant-orders.edit');
+
+        Route::get('kitchen-orders', [KitchenOrderTicketController::class, 'index'])->middleware('permission:kitchen-orders.view');
+        Route::post('kitchen-orders/{kitchenOrderTicket}/status', [KitchenOrderTicketController::class, 'setStatus'])->middleware('permission:kitchen-orders.edit');
+
+        /*
+        |----------------------------------------------------------------------
+        | Optical: eye tests and the spectacle orders ground from them. The
+        | workshop flow runs forward only through transition(), because each
+        | step stamps a time and delivering bills the order.
+        |----------------------------------------------------------------------
+        */
+        Route::post('optical-orders/{opticalOrder}/transition', [OpticalOrderController::class, 'transition'])->middleware('permission:optical-orders.edit');
+        $crud('optical-orders', OpticalOrderController::class, 'optical-orders', 'opticalOrder');
+        $crud('eye-prescriptions', EyePrescriptionController::class, 'eye-prescriptions', 'eyePrescription');
+
+        /*
+        |----------------------------------------------------------------------
+        | Jewellery: the daily rate card and old-gold exchange. Rates have no
+        | update route on purpose — re-quoting the same metal, purity and day
+        | replaces the row through store(), so a shop always has exactly one
+        | rate per day rather than two the pricing could race on.
+        |----------------------------------------------------------------------
+        */
+        Route::get('metal-rates/today', [MetalRateController::class, 'today'])->middleware('permission:metal-rates.view');
+        Route::get('metal-rates', [MetalRateController::class, 'index'])->middleware('permission:metal-rates.view');
+        Route::post('metal-rates', [MetalRateController::class, 'store'])->middleware('permission:metal-rates.create');
+        Route::delete('metal-rates/{metalRate}', [MetalRateController::class, 'destroy'])->middleware('permission:metal-rates.delete');
+
+        Route::post('old-gold/quote', [OldGoldReceiptController::class, 'quote'])->middleware('permission:old-gold.view');
+        Route::get('old-gold', [OldGoldReceiptController::class, 'index'])->middleware('permission:old-gold.view');
+        Route::post('old-gold', [OldGoldReceiptController::class, 'store'])->middleware('permission:old-gold.create');
+        Route::get('old-gold/{oldGoldReceipt}', [OldGoldReceiptController::class, 'show'])->middleware('permission:old-gold.view');
+        Route::delete('old-gold/{oldGoldReceipt}', [OldGoldReceiptController::class, 'destroy'])->middleware('permission:old-gold.delete');
+
+        /*
+        |----------------------------------------------------------------------
+        | Pharmacy: prescriptions and the Schedule H1 / X register. The register
+        | is read-only by design — its rows are written by dispensing at the
+        | counter, never by hand, so there is no write route to reach them.
+        |----------------------------------------------------------------------
+        */
+        Route::get('drug-register', [PrescriptionController::class, 'register'])->middleware('permission:drug-register.view');
+        $crud('prescriptions', PrescriptionController::class, 'prescriptions', 'prescription');
 
         /*
         |----------------------------------------------------------------------

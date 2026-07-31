@@ -30,6 +30,60 @@ const pt = usePt()
 const crud = useCrud('/products')
 const canScanBarcodes = computed(() => auth.can('barcodes.view'))
 
+// Drug schedules under the Drugs and Cosmetics Rules. G carries a caution
+// label but needs no prescription; H, H1 and X do.
+const DRUG_SCHEDULES = [
+  { label: 'Not a scheduled drug', value: 'none' },
+  { label: 'Schedule G (caution label)', value: 'g' },
+  { label: 'Schedule H (prescription)', value: 'h' },
+  { label: 'Schedule H1 (prescription + register)', value: 'h1' },
+  { label: 'Schedule X (licence + register)', value: 'x' },
+]
+
+// Jewellery. A metal switches the item to rate pricing (JewelleryPricingService).
+const METALS = [
+  { label: 'Gold', value: 'gold' },
+  { label: 'Silver', value: 'silver' },
+  { label: 'Platinum', value: 'platinum' },
+]
+const PURITIES = ['24K', '22K', '18K', '14K', '999', '925']
+const MAKING_TYPES = [
+  { label: '% of metal value', value: 'percent' },
+  { label: 'Per gram', value: 'per_gram' },
+  { label: 'Flat amount', value: 'flat' },
+]
+
+// Optical lens specification.
+const LENS_TYPES = [
+  { label: 'Single vision', value: 'single_vision' },
+  { label: 'Bifocal', value: 'bifocal' },
+  { label: 'Progressive', value: 'progressive' },
+  { label: 'Zero power', value: 'zero_power' },
+]
+const LENS_MATERIALS = [
+  { label: 'CR-39', value: 'cr39' },
+  { label: 'Polycarbonate', value: 'polycarbonate' },
+  { label: 'Trivex', value: 'trivex' },
+  { label: 'High index', value: 'high_index' },
+  { label: 'Glass', value: 'glass' },
+]
+const LENS_COATINGS = [
+  { label: 'None', value: 'none' },
+  { label: 'Anti-reflective', value: 'ar' },
+  { label: 'Blue cut', value: 'blue_cut' },
+  { label: 'Photochromic', value: 'photochromic' },
+  { label: 'UV', value: 'uv' },
+]
+
+// Restaurant: firing a round splits the KOTs by station.
+const KITCHEN_STATIONS = [
+  { label: 'Kitchen', value: 'kitchen' },
+  { label: 'Tandoor', value: 'tandoor' },
+  { label: 'Chinese', value: 'chinese' },
+  { label: 'Bar', value: 'bar' },
+  { label: 'Dessert', value: 'dessert' },
+]
+
 const search = ref('')
 const categoryFilter = ref<number | null>(null)
 const activeFilter = ref<boolean | null>(null)
@@ -131,6 +185,35 @@ function blankForm(): Record<string, any> {
     track_batch: false,
     track_serial: false,
     track_expiry: false,
+    // Pharmacy: 'none' for anything that is not a scheduled medicine.
+    drug_schedule: 'none',
+    composition: null,
+    manufacturer: null,
+    // Jewellery: a null metal means "not an ornament" and the stored selling
+    // price is used as normal.
+    metal: null,
+    purity: null,
+    gross_weight: null,
+    net_weight: null,
+    stone_weight: null,
+    stone_value: 0,
+    making_charge_type: 'percent',
+    making_charge_value: 0,
+    wastage_percent: 0,
+    huid: null,
+    // Optical: a null lens_type means "not a lens"; is_frame marks the other
+    // half of a spectacle order.
+    lens_type: null,
+    lens_material: null,
+    lens_index: null,
+    lens_coating: null,
+    min_sph: null,
+    max_sph: null,
+    max_cyl: null,
+    is_frame: false,
+    // Restaurant: which station cooks it.
+    kitchen_station: null,
+    prep_minutes: null,
     is_active: true,
     attributes: {},
   }
@@ -648,7 +731,154 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Pharmacy. Shown to every trade because a general store can stock a
+             scheduled medicine too; 'none' is the default and costs nothing. -->
+        <div class="form-field">
+          <label>{{ pt('Drug Schedule') }}</label>
+          <Select
+            v-model="form.drug_schedule"
+            :options="DRUG_SCHEDULES"
+            optionLabel="label"
+            optionValue="value"
+            class="w-full"
+          />
+          <small class="muted">{{ pt('H, H1 and X cannot be sold without a prescription.') }}</small>
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Composition / Salt') }}</label>
+          <InputText v-model="form.composition" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Manufacturer') }}</label>
+          <InputText v-model="form.manufacturer" class="w-full" />
+        </div>
+
+        <!-- Jewellery. Choosing a metal switches the item to rate pricing: its
+             stored selling price stops being used entirely. -->
+        <div class="form-field">
+          <label>{{ pt('Metal') }}</label>
+          <Select
+            v-model="form.metal"
+            :options="METALS"
+            optionLabel="label"
+            optionValue="value"
+            showClear
+            :placeholder="pt('Not a jewellery item')"
+            class="w-full"
+          />
+        </div>
+        <template v-if="form.metal">
+          <div class="form-field">
+            <label>{{ pt('Purity') }}</label>
+            <Select v-model="form.purity" :options="PURITIES" editable class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Gross weight (g)') }}</label>
+            <InputNumber v-model="form.gross_weight" :min="0" :maxFractionDigits="3" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Net weight (g)') }}</label>
+            <InputNumber v-model="form.net_weight" :min="0" :maxFractionDigits="3" class="w-full" />
+            <small class="muted">{{ pt('Metal only — this is what earns the rate.') }}</small>
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Stone weight (g)') }}</label>
+            <InputNumber v-model="form.stone_weight" :min="0" :maxFractionDigits="3" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Stone value') }}</label>
+            <InputNumber v-model="form.stone_value" :min="0" :maxFractionDigits="2" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Making charge type') }}</label>
+            <Select
+              v-model="form.making_charge_type"
+              :options="MAKING_TYPES"
+              optionLabel="label"
+              optionValue="value"
+              class="w-full"
+            />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Making charge') }}</label>
+            <InputNumber v-model="form.making_charge_value" :min="0" :maxFractionDigits="2" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Wastage %') }}</label>
+            <InputNumber v-model="form.wastage_percent" :min="0" :maxFractionDigits="3" suffix=" %" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('HUID (hallmark)') }}</label>
+            <InputText v-model="form.huid" class="w-full" />
+          </div>
+        </template>
+
+        <!-- Optical. A lens type switches on the power range the blank can be
+             ground within; a frame is the other half of a spectacle order. -->
+        <div class="form-field">
+          <label>{{ pt('Lens Type') }}</label>
+          <Select
+            v-model="form.lens_type"
+            :options="LENS_TYPES"
+            optionLabel="label"
+            optionValue="value"
+            showClear
+            :placeholder="pt('Not a lens')"
+            class="w-full"
+          />
+        </div>
+        <template v-if="form.lens_type">
+          <div class="form-field">
+            <label>{{ pt('Lens Material') }}</label>
+            <Select v-model="form.lens_material" :options="LENS_MATERIALS" optionLabel="label" optionValue="value" showClear class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Index') }}</label>
+            <InputNumber v-model="form.lens_index" :min="1" :max="2" :maxFractionDigits="2" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Coating') }}</label>
+            <Select v-model="form.lens_coating" :options="LENS_COATINGS" optionLabel="label" optionValue="value" showClear class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Min SPH') }}</label>
+            <InputNumber v-model="form.min_sph" :step="0.25" :minFractionDigits="2" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Max SPH') }}</label>
+            <InputNumber v-model="form.max_sph" :step="0.25" :minFractionDigits="2" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Max CYL') }}</label>
+            <InputNumber v-model="form.max_cyl" :step="0.25" :minFractionDigits="2" class="w-full" />
+            <small class="muted">{{ pt('An order outside this range is refused.') }}</small>
+          </div>
+        </template>
+
+        <!-- Restaurant. The station decides which KOT a dish lands on when the
+             round is fired. -->
+        <div class="form-field">
+          <label>{{ pt('Kitchen Station') }}</label>
+          <Select
+            v-model="form.kitchen_station"
+            :options="KITCHEN_STATIONS"
+            optionLabel="label"
+            optionValue="value"
+            showClear
+            :placeholder="pt('Not a kitchen item')"
+            class="w-full"
+          />
+        </div>
+        <div v-if="form.kitchen_station" class="form-field">
+          <label>{{ pt('Prep Minutes') }}</label>
+          <InputNumber v-model="form.prep_minutes" :min="0" :max="240" class="w-full" />
+        </div>
+
         <div class="form-field full checkbox-group">
+          <div class="checkbox-row">
+            <Checkbox v-model="form.is_frame" binary inputId="is_frame" />
+            <label for="is_frame">{{ pt('Spectacle Frame') }}</label>
+          </div>
           <div class="checkbox-row">
             <Checkbox v-model="form.track_batch" binary inputId="track_batch" />
             <label for="track_batch">{{ pt('Track Batch') }}</label>

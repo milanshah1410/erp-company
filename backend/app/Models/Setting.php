@@ -68,6 +68,12 @@ class Setting extends Model
         'service_job_number_prefix' => 'SVC',
         'service_contract_number_prefix' => 'AMC',
         'project_number_prefix' => 'PRJ',
+        'prescription_number_prefix' => 'RX',
+        'old_gold_receipt_number_prefix' => 'OG',
+        'eye_prescription_number_prefix' => 'EYE',
+        'optical_order_number_prefix' => 'OPT',
+        'restaurant_order_number_prefix' => 'RO',
+        'kot_number_prefix' => 'KOT',
         'dispatch_number_prefix' => 'DSP',
         'transport_charge_number_prefix' => 'TRC',
         // Import/export shipments number per leg, so each gets its own prefix
