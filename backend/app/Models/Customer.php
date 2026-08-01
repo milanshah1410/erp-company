@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasCustomFields;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
@@ -22,7 +23,7 @@ use Laravel\Scout\Searchable;
  */
 class Customer extends Model implements AuthenticatableContract
 {
-    use AuthenticatableTrait, BelongsToTenant, HasApiTokens, LogsAuditActivity, Notifiable, Searchable;
+    use AuthenticatableTrait, BelongsToTenant, HasApiTokens, HasCustomFields, LogsAuditActivity, Notifiable, Searchable;
 
     protected $fillable = [
         'code', 'name', 'company_name', 'email', 'phone', 'type', 'customer_category_id',

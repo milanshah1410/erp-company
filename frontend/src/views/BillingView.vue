@@ -150,7 +150,7 @@ async function openCheckout(data: {
   const rzp = new window.Razorpay({
     key: data.razorpay_key,
     subscription_id: data.razorpay_subscription_id,
-    name: 'SIMS',
+    name: 'Kosha',
     description: data.plan_name ? `${data.plan_name} plan subscription` : 'Plan subscription',
     prefill: data.prefill ?? {},
     theme: { color: '#e8a33d' },

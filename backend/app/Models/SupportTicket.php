@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesCentralConnection;
+use App\Services\Support\SlaPolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -16,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class SupportTicket extends Model
 {
-    use \App\Models\Concerns\UsesCentralConnection;
+    use UsesCentralConnection;
 
     public const STATUSES = ['open', 'pending', 'resolved', 'closed'];
 
@@ -26,14 +28,21 @@ class SupportTicket extends Model
 
     protected $fillable = [
         'tenant_id', 'subject', 'category', 'status', 'priority',
+        'sla_tier', 'response_due_at', 'resolution_due_at', 'first_response_at',
         'contact_name', 'contact_email', 'assigned_to', 'created_by',
         'last_activity_at', 'resolved_at', 'closed_at',
+        'rating', 'rating_comment', 'rated_at',
     ];
 
     protected $casts = [
         'last_activity_at' => 'datetime',
         'resolved_at' => 'datetime',
         'closed_at' => 'datetime',
+        'response_due_at' => 'datetime',
+        'resolution_due_at' => 'datetime',
+        'first_response_at' => 'datetime',
+        'rated_at' => 'datetime',
+        'rating' => 'integer',
     ];
 
     public function tenant(): BelongsTo
@@ -56,8 +65,29 @@ class SupportTicket extends Model
         return $this->hasMany(SupportTicketMessage::class);
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(SupportTicketAttachment::class);
+    }
+
     public function isOpen(): bool
     {
         return in_array($this->status, ['open', 'pending'], true);
+    }
+
+    /** Resolved or closed — the resolution clock has stopped either way. */
+    public function isSettled(): bool
+    {
+        return in_array($this->status, ['resolved', 'closed'], true);
+    }
+
+    /**
+     * SLA verdict for this row (state + per-clock detail).
+     *
+     * @return array{state: string, response: string, resolution: string, minutes_to_due: ?int}
+     */
+    public function sla(): array
+    {
+        return SlaPolicy::state($this);
     }
 }

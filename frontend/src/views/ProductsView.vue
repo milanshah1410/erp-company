@@ -23,6 +23,8 @@ import DetailDialog from '../components/DetailDialog.vue'
 import PageHeader from '../components/PageHeader.vue'
 import StatusPill from '../components/StatusPill.vue'
 import CameraScanButton from '../components/CameraScanButton.vue'
+import CustomFieldsPanel from '../components/CustomFieldsPanel.vue'
+import { useCustomFields } from '../composables/useCustomFields'
 
 const toast = useToast()
 const auth = useAuthStore()
@@ -216,6 +218,9 @@ function blankForm(): Record<string, any> {
     prep_minutes: null,
     is_active: true,
     attributes: {},
+    // Whatever this shop keeps that the columns above do not name — an ISBN,
+    // an age band, a wattage. Defined in Administration → Custom Fields.
+    custom_fields: {},
   }
 }
 
@@ -502,8 +507,13 @@ async function printBarcodeLabel() {
   }
 }
 
+// Tenant-defined fields the admin asked to see as list columns. The panel
+// inside the dialog loads the same (cached) schema for the form.
+const { listColumns: customColumns, display: customDisplay, load: loadCustomFields } = useCustomFields('product')
+
 onMounted(async () => {
   reload()
+  loadCustomFields()
   try {
     const [c, b, u, s] = await Promise.all([
       http.get('/categories', { params: { per_page: 100 } }),
@@ -594,6 +604,10 @@ onMounted(async () => {
           </template>
           <span v-else class="muted">—</span>
         </template>
+      </Column>
+      <!-- Whatever this shop added and asked to see here. -->
+      <Column v-for="field in customColumns" :key="field.key" :header="field.label">
+        <template #body="{ data }">{{ customDisplay(field, data.custom_fields) }}</template>
       </Column>
       <Column :header="pt('Active')" style="width: 8rem">
         <template #body="{ data }"><StatusPill :active="!!data.is_active" /></template>
@@ -910,6 +924,9 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+
+      <!-- Renders nothing until this tenant defines a field of its own. -->
+      <CustomFieldsPanel entity="product" v-model="form.custom_fields" :errors="errors" />
 
       <template #footer>
         <Button :label="pt('Cancel')" text @click="dialogVisible = false" />

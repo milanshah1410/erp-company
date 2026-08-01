@@ -62,6 +62,16 @@ final class TenantStorage
     }
 
     /**
+     * The same private disk, for an explicit tenant id rather than the active
+     * context. The platform panel meters storage per tenant (App\Support\
+     * UsageMeter) with no tenant context to read, so it names the tenant instead.
+     */
+    public static function diskForTenant(int $tenantId): Filesystem
+    {
+        return Storage::build(self::tenantConfig($tenantId));
+    }
+
+    /**
      * Build the tenant-scoped disk config for an explicit tenant id. Used by the
      * local streaming route, which learns the tenant from the signed URL rather
      * than from the request's TenantContext.

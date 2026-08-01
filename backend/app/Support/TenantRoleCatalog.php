@@ -64,6 +64,11 @@ class TenantRoleCatalog
         'payments', 'payment-gateways',
         'bank-accounts', 'vouchers', 'tds-tcs-rates',
         'workflows',
+        // The custom-field builder. Separate from 'settings' because defining a
+        // field changes what every other user is required to fill in — it is
+        // closer to editing the schema than to flipping a preference, and a
+        // workspace usually wants fewer people holding it than hold settings.
+        'custom-fields',
         // Device Manager: configuring hardware is an admin/IT act, so it gets a
         // full permission set of its own rather than riding on 'settings'.
         'devices',
@@ -86,6 +91,11 @@ class TenantRoleCatalog
         // Restaurant. The floor, the tickets and the kitchen display are three
         // different screens held by three different people.
         'restaurant-tables', 'restaurant-orders', 'kitchen-orders',
+        // Food & Beverage plugin. The menu and the recipe book are separated on
+        // purpose: a floor manager marks the fish sold out every other evening,
+        // while what a dish is made of — and therefore its food cost — is the
+        // chef's and the owner's business, not the shift's.
+        'restaurant-menu', 'restaurant-recipes',
     ];
 
     /** Modules that are view-only (no create/edit/delete). */
@@ -153,7 +163,10 @@ class TenantRoleCatalog
             'PHARMACY' => ['prescriptions', 'drug-register'],
             'JEWELLERY' => ['metal-rates', 'old-gold'],
             'OPTICAL' => ['eye-prescriptions', 'optical-orders'],
-            'RESTAURANT' => ['restaurant-tables', 'restaurant-orders', 'kitchen-orders'],
+            'RESTAURANT' => [
+                'restaurant-tables', 'restaurant-orders', 'kitchen-orders',
+                'restaurant-menu', 'restaurant-recipes',
+            ],
         ];
     }
 
@@ -357,14 +370,17 @@ class TenantRoleCatalog
                 'customers:c', 'employees:v', 'payments:c', 'reports:v', 'notifications:v', 'ai:v',
             ]],
             // A waiter opens tables and fires food but cannot settle a bill or
-            // change the menu.
+            // change the menu. They read the menu to know what is off tonight.
             'waiter' => ['label' => 'Waiter / Steward', 'spec' => [
                 'restaurant-tables:v', 'restaurant-orders:c', 'kitchen-orders:v',
-                'products:v', 'customers:c', 'notifications:v',
+                'restaurant-menu:v', 'products:v', 'customers:c', 'notifications:v',
             ]],
-            // The kitchen only needs its own board.
+            // The kitchen needs its own board, the recipes it cooks from, and the
+            // ability to mark a dish sold out — the pass is where that is known
+            // first, and routing it through a manager just delays the bad news.
             'kitchen-staff' => ['label' => 'Kitchen Staff', 'spec' => [
-                'kitchen-orders:c', 'restaurant-orders:v', 'products:v', 'notifications:v',
+                'kitchen-orders:c', 'restaurant-orders:v', 'restaurant-menu:c',
+                'restaurant-recipes:v', 'products:v', 'notifications:v',
             ]],
 
             // ---- Optical ----

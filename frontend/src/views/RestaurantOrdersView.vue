@@ -6,6 +6,7 @@ import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
+import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
@@ -71,11 +72,62 @@ const ticket = ref<any>(null)
 const menu = ref<any[]>([])
 const busy = ref(false)
 
+/**
+ * Parcel / delivery fields (Food & Beverage plugin).
+ *
+ * Held in their own form object rather than bound straight to `ticket`, because
+ * the ticket is re-read from the server after every line change — binding to it
+ * would wipe a half-typed address the moment a waiter added a dish.
+ */
+const charges = ref<any>({
+  packaging_charge: 0,
+  delivery_charge: 0,
+  delivery_address: '',
+  delivery_phone: '',
+  rider_id: null,
+})
+const riders = ref<any[]>([])
+
+async function loadRiders() {
+  const { data } = await http.get('/employees', { params: { per_page: 200, is_active: 1 } })
+  riders.value = (data.data ?? data).map((e: any) => ({
+    label: e.name ?? `${e.first_name ?? ''} ${e.last_name ?? ''}`.trim(),
+    value: e.id,
+  }))
+}
+
+async function saveCharges() {
+  if (!ticket.value) return
+  busy.value = true
+  try {
+    const { data } = await http.put(`/restaurant-orders/${ticket.value.id}`, charges.value)
+    ticket.value = data.data
+    await load()
+    toast.add({ severity: 'success', summary: pt('Charges updated'), life: 2000 })
+  } catch (e: any) {
+    toast.add({
+      severity: 'error',
+      summary: e.response?.data?.message ?? pt('Could not update the ticket'),
+      life: 3000,
+    })
+  } finally {
+    busy.value = false
+  }
+}
+
 async function openTicket(id: number) {
   ticketVisible.value = true
   const { data } = await http.get(`/restaurant-orders/${id}`)
   ticket.value = data.data
+  charges.value = {
+    packaging_charge: Number(ticket.value.packaging_charge) || 0,
+    delivery_charge: Number(ticket.value.delivery_charge) || 0,
+    delivery_address: ticket.value.delivery_address ?? '',
+    delivery_phone: ticket.value.delivery_phone ?? '',
+    rider_id: ticket.value.rider_id ?? null,
+  }
   if (!menu.value.length) await loadMenu()
+  if (ticket.value.order_type === 'delivery' && !riders.value.length) await loadRiders()
 }
 
 async function loadMenu() {
@@ -282,6 +334,86 @@ onMounted(async () => {
       :style="{ width: '46rem' }"
     >
       <template v-if="ticket">
+        <!--
+          Parcel / delivery (Food & Beverage plugin). Only shown for the ticket
+          types it applies to: a dine-in table has no address and no rider, and
+          rendering empty fields for it would just be noise on a busy screen.
+        -->
+        <div v-if="ticket.order_type !== 'dine_in'" class="delivery-panel">
+          <div class="dp-head">
+            <i :class="ticket.order_type === 'delivery' ? 'pi pi-send' : 'pi pi-shopping-bag'" />
+            <strong>{{ ticket.order_type === 'delivery' ? pt('Delivery') : pt('Parcel') }}</strong>
+          </div>
+
+          <div class="dp-grid">
+            <div class="fld">
+              <label>{{ pt('Packaging charge') }}</label>
+              <InputNumber
+                v-model="charges.packaging_charge"
+                :min="0"
+                :disabled="!canEdit || ticket.status !== 'open'"
+                class="w-full"
+              />
+            </div>
+
+            <template v-if="ticket.order_type === 'delivery'">
+              <div class="fld">
+                <label>{{ pt('Delivery charge') }}</label>
+                <InputNumber
+                  v-model="charges.delivery_charge"
+                  :min="0"
+                  :disabled="!canEdit || ticket.status !== 'open'"
+                  class="w-full"
+                />
+              </div>
+              <div class="fld">
+                <label>{{ pt('Rider') }}</label>
+                <Select
+                  v-model="charges.rider_id"
+                  :options="riders"
+                  optionLabel="label"
+                  optionValue="value"
+                  filter
+                  show-clear
+                  :disabled="!canEdit || ticket.status !== 'open'"
+                  :placeholder="pt('Not assigned')"
+                  class="w-full"
+                />
+              </div>
+              <div class="fld dp-wide">
+                <label>{{ pt('Address') }}</label>
+                <Textarea
+                  v-model="charges.delivery_address"
+                  rows="2"
+                  auto-resize
+                  :disabled="!canEdit || ticket.status !== 'open'"
+                  class="w-full"
+                />
+              </div>
+              <div class="fld">
+                <label>{{ pt('Phone') }}</label>
+                <InputText
+                  v-model="charges.delivery_phone"
+                  :disabled="!canEdit || ticket.status !== 'open'"
+                  class="w-full"
+                />
+              </div>
+            </template>
+
+            <div v-if="canEdit && ticket.status === 'open'" class="fld dp-save">
+              <label>&nbsp;</label>
+              <Button
+                :label="pt('Save charges')"
+                icon="pi pi-check"
+                size="small"
+                outlined
+                :loading="busy"
+                @click="saveCharges"
+              />
+            </div>
+          </div>
+        </div>
+
         <div v-if="canEdit && ticket.status === 'open'" class="add-row">
           <Select
             v-model="newLine.product_id"
@@ -351,6 +483,12 @@ onMounted(async () => {
             <span>{{ pt('Service charge') }} ({{ ticket.service_charge_percent }}%)</span>
             <span>{{ money(ticket.service_charge) }}</span>
           </div>
+          <div v-if="ticket.packaging_charge">
+            <span>{{ pt('Packaging') }}</span><span>{{ money(ticket.packaging_charge) }}</span>
+          </div>
+          <div v-if="ticket.delivery_charge">
+            <span>{{ pt('Delivery') }}</span><span>{{ money(ticket.delivery_charge) }}</span>
+          </div>
           <div><span>{{ pt('Tax') }}</span><span>{{ money(ticket.tax_amount) }}</span></div>
           <div v-if="ticket.round_off"><span>{{ pt('Round off') }}</span><span>{{ money(ticket.round_off) }}</span></div>
           <div class="grand"><span>{{ pt('Total') }}</span><span>{{ money(ticket.total) }}</span></div>
@@ -390,6 +528,22 @@ onMounted(async () => {
 .inline-check { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: #374151; }
 .muted { color: #6b7280; }
 .link { color: #2c4a5e; font-weight: 600; cursor: pointer; text-decoration: underline; }
+/* Parcel / delivery panel (Food & Beverage plugin). */
+.delivery-panel {
+  border: 1px solid var(--surface-border, #e5e7eb);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.9rem;
+  background: rgba(44, 74, 94, 0.04);
+}
+.dp-head { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; margin-bottom: 0.6rem; }
+.dp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.6rem; }
+.dp-wide { grid-column: 1 / -1; }
+.dp-save { justify-content: flex-end; }
+.fld { display: flex; flex-direction: column; gap: 0.25rem; }
+.fld label { font-size: 0.72rem; color: #374151; }
+.w-full { width: 100%; }
+
 .add-row { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
 .al-dish { flex: 1 1 14rem; min-width: 10rem; }
 .al-qty { width: 7rem; }

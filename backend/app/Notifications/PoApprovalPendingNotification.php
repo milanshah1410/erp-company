@@ -28,7 +28,7 @@ class PoApprovalPendingNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage())
-            ->subject("SIMS: PO {$this->purchaseOrder->po_number} needs final approval")
+            ->subject("Kosha: PO {$this->purchaseOrder->po_number} needs final approval")
             ->line("Purchase order {$this->purchaseOrder->po_number} totalling ₹{$this->purchaseOrder->total} has cleared its first approval and exceeds the approval threshold.")
             ->line('A final approval from a different admin is required before it can proceed.')
             ->action('Review Purchase Order', url('/purchase-orders'));

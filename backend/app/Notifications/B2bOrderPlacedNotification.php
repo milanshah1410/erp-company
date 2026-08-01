@@ -35,7 +35,7 @@ class B2bOrderPlacedNotification extends Notification
         $customer = $this->salesOrder->customer;
 
         return (new MailMessage)
-            ->subject("SIMS: New B2B order {$this->salesOrder->so_number} awaiting approval")
+            ->subject("Kosha: New B2B order {$this->salesOrder->so_number} awaiting approval")
             ->line("{$customer?->name} placed order {$this->salesOrder->so_number} totalling ₹{$this->salesOrder->total} through the B2B portal.")
             ->action('Review B2B Orders', url('/b2b-orders'));
     }

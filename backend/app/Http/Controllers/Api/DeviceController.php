@@ -11,6 +11,8 @@ use App\Models\Device;
 use App\Modules\DeviceManager\Data\PrintJob;
 use App\Modules\DeviceManager\Support\DeviceRegistry;
 use App\Services\DeviceManagerService;
+use App\Support\MarketplaceGate;
+use App\Support\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -26,10 +28,36 @@ class DeviceController extends Controller
 {
     public function __construct(private readonly DeviceManagerService $devices) {}
 
-    /** Supported device classes, brand adapters and their configuration fields. */
+    /**
+     * Supported device classes, brand adapters and their configuration fields —
+     * filtered to what the SaaS owner offers this workspace (Volume 11
+     * §"Device Marketplace").
+     *
+     * A withdrawn class disappears entirely; a withdrawn brand disappears from
+     * an otherwise intact class. A class whose every brand was withdrawn is
+     * dropped rather than shown empty.
+     */
     public function catalogue()
     {
-        return response()->json(['data' => DeviceRegistry::forFrontend()]);
+        $tenantId = app(TenantContext::class)->id();
+
+        $catalogue = [];
+        foreach (DeviceRegistry::forFrontend() as $type) {
+            if (! MarketplaceGate::allowsDevice($type['type'], null, $tenantId)) {
+                continue;
+            }
+
+            $type['drivers'] = array_values(array_filter(
+                $type['drivers'],
+                fn (array $d) => MarketplaceGate::allowsDevice($type['type'], $d['driver'], $tenantId),
+            ));
+
+            if ($type['drivers'] !== []) {
+                $catalogue[] = $type;
+            }
+        }
+
+        return response()->json(['data' => $catalogue]);
     }
 
     public function index(Request $request)
@@ -61,6 +89,17 @@ class DeviceController extends Controller
     public function store(DeviceRequest $request)
     {
         $data = $request->validated();
+
+        // The catalogue endpoint already hides withdrawn brands; this refuses
+        // the guessable POST behind it. Only new devices are gated — type and
+        // driver are create-only, so an already-configured terminal keeps
+        // working after its brand is withdrawn from sale.
+        if (! MarketplaceGate::allowsDevice($data['type'], $data['driver'], app(TenantContext::class)->id())) {
+            return response()->json([
+                'message' => 'That device is not available on your plan. Contact support to enable it.',
+                'error' => 'device_unavailable',
+            ], 403);
+        }
 
         $device = new Device([
             'type' => $data['type'],

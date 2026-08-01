@@ -27,6 +27,41 @@ class Plan extends Model
         'feature_limits' => 'array',
     ];
 
+    /**
+     * Slugs of retired plans, mapped to the tier that replaced them.
+     *
+     * A plan slug leaks out of the product — into pricing links, saved API
+     * payloads and half-finished signups — so retiring a tier cannot mean
+     * invalidating its slug. The retired row stays in the table (deactivated, so
+     * it is off the pricing page) and everything that resolves a slug to a plan
+     * goes through findBySlug(), which forwards it here.
+     *
+     * @var array<string, string>
+     */
+    public const LEGACY_SLUGS = [
+        'growth' => 'business',
+    ];
+
+    /**
+     * Resolve a plan by slug, forwarding retired slugs to their replacement.
+     *
+     * Prefers an active plan: a legacy slug only resolves to the retired row if
+     * its replacement is somehow missing, which keeps a stale `?plan=growth`
+     * link selling the current equivalent rather than a dormant tier.
+     */
+    public static function findBySlug(?string $slug): ?self
+    {
+        $slug = trim((string) $slug);
+        if ($slug === '') {
+            return null;
+        }
+
+        $replacement = self::LEGACY_SLUGS[$slug] ?? null;
+
+        return ($replacement ? self::where('slug', $replacement)->first() : null)
+            ?? self::where('slug', $slug)->first();
+    }
+
     public function subscriptions(): HasMany
     {
         return $this->hasMany(Subscription::class);

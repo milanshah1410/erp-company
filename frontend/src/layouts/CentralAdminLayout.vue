@@ -12,7 +12,8 @@ interface NavItem {
   label: string
   icon: string
   to: string
-  permission?: string
+  /** A list means "any of these" — for screens whose tabs are permissioned separately. */
+  permission?: string | string[]
 }
 
 // The platform panel navigation. Items are hidden unless the operator holds the
@@ -20,14 +21,25 @@ interface NavItem {
 const adminNav: NavItem[] = [
   { label: 'Dashboard', icon: 'pi pi-th-large', to: '/platform' },
   { label: 'Tenants', icon: 'pi pi-building', to: '/platform/tenants', permission: 'tenants.view' },
-  { label: 'Billing', icon: 'pi pi-credit-card', to: '/platform/billing', permission: 'plans.view' },
+  { label: 'Industries', icon: 'pi pi-sitemap', to: '/platform/industries', permission: 'industries.view' },
+  { label: 'Subscription Plans', icon: 'pi pi-box', to: '/platform/plans', permission: 'plans.view' },
+  { label: 'Billing', icon: 'pi pi-credit-card', to: '/platform/billing', permission: 'subscriptions.view' },
+  { label: 'Marketplace', icon: 'pi pi-shopping-bag', to: '/platform/marketplace', permission: ['integrations.view', 'devices.view'] },
+  { label: 'Tenant Usage', icon: 'pi pi-chart-bar', to: '/platform/usage', permission: 'usage.view' },
+  { label: 'Analytics', icon: 'pi pi-chart-line', to: '/platform/analytics', permission: 'analytics.view' },
+  { label: 'AI Insights', icon: 'pi pi-sparkles', to: '/platform/insights', permission: 'insights.view' },
   { label: 'Support', icon: 'pi pi-comments', to: '/platform/support', permission: 'support.view' },
   { label: 'Operators', icon: 'pi pi-users', to: '/platform/operators', permission: 'operators.view' },
   { label: 'Roles & Permissions', icon: 'pi pi-shield', to: '/platform/roles', permission: 'roles.view' },
   { label: 'Ops', icon: 'pi pi-server', to: '/platform/ops', permission: 'ops-health.view' },
 ]
 
-const visibleAdminNav = computed(() => adminNav.filter((i) => !i.permission || auth.can(i.permission)))
+const visibleAdminNav = computed(() =>
+  adminNav.filter((i) => {
+    if (!i.permission) return true
+    return Array.isArray(i.permission) ? i.permission.some((p) => auth.can(p)) : auth.can(i.permission)
+  }),
+)
 
 const initials = computed(() => {
   const name = auth.operator?.name ?? '?'

@@ -13,6 +13,8 @@ import http from '../api/http'
 import NotificationBell from '../components/NotificationBell.vue'
 import GlobalSearch from '../components/GlobalSearch.vue'
 import NavFlyoutNode from '../components/NavFlyoutNode.vue'
+import BrandLogo from '../components/BrandLogo.vue'
+import { useBranding } from '../composables/useBranding'
 
 // Subscription banner (trial countdown / suspended read-only notice).
 const subscription = ref<{ status: string; on_trial: boolean; trial_days_left: number } | null>(null)
@@ -29,6 +31,8 @@ const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
 const { isDark, toggle: toggleTheme } = useTheme()
+// White label: a branded workspace wears its own mark + name in the top bar.
+const { isWhiteLabelled } = useBranding()
 
 // Initials stand in for a missing profile photo in the top bar.
 const userInitials = computed(() =>
@@ -243,9 +247,11 @@ async function logout() {
   <div class="layout">
     <!-- Brand + context/user row -->
     <header class="topbar">
+      <!-- The workspace's own logo + name when it has been white labelled,
+           the platform mark otherwise (components/BrandLogo.vue). -->
       <RouterLink to="/" class="logo">
-        <i class="pi pi-box" />
-        <span>SIMS</span>
+        <BrandLogo :height="26" variant="mark" with-name />
+        <span v-if="!isWhiteLabelled">kosha</span>
       </RouterLink>
       <GlobalSearch />
       <div class="spacer" />
@@ -430,9 +436,8 @@ async function logout() {
   color: #fff;
   text-decoration: none;
 }
-.logo i {
-  font-size: 1.3rem;
-  color: var(--safety-amber, #e8a33d);
+.logo span {
+  letter-spacing: -0.01em;
 }
 .spacer {
   flex: 1;

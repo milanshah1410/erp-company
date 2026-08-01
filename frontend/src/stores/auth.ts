@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import http from '../api/http'
+import { refreshTenantBranding } from '../composables/useBranding'
 
 interface CompanyRef {
   id: number
@@ -73,12 +74,17 @@ export const useAuthStore = defineStore('auth', {
       this.token = data.token
       this.user = data.user
       localStorage.setItem('sims_token', data.token)
+      // Now that the workspace is known for certain, wear its brand (Volume 11
+      // §White Label). The boot-time host lookup can only guess on a
+      // single-host deployment. Fire-and-forget: never block the sign-in.
+      void refreshTenantBranding()
     },
 
     async fetchUser() {
       if (!this.token) return
       const { data } = await http.get('/me')
       this.user = data
+      void refreshTenantBranding()
     },
 
     async switchContext(companyId: number, branchId: number | null) {

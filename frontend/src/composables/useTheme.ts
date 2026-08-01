@@ -15,6 +15,22 @@ function applyClass(dark: boolean) {
   document.documentElement.classList.toggle('dark-mode', dark)
 }
 
+/**
+ * Open in dark mode because the workspace's brand says so (white label —
+ * see composables/useBranding.ts), without recording it as a choice: a user who
+ * has picked a theme keeps it, and one who has not stays free to be moved back
+ * if the brand default changes.
+ */
+export function applyBrandDefaultDark(dark: boolean) {
+  const saved = localStorage.getItem(STORAGE_KEY)
+  if (saved === 'dark' || saved === 'light') {
+    return // the user's own choice always wins
+  }
+
+  isDark.value = dark
+  applyClass(dark)
+}
+
 /** Read the saved preference (falling back to the OS setting) and apply it. */
 export function initTheme() {
   const saved = localStorage.getItem(STORAGE_KEY)

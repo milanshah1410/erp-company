@@ -5,9 +5,14 @@
 // navigating back into the app (every API call would fail anyway).
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import BrandMark from '../components/BrandMark.vue'
+import { useBranding } from '../composables/useBranding'
 
 const router = useRouter()
 const auth = useAuthStore()
+// White label: a branded workspace can suppress the platform credit line
+// (Volume 11 §"White Label" — the `brand_powered_by` setting).
+const { branding } = useBranding()
 
 async function signOut() {
   await auth.logout()
@@ -31,6 +36,8 @@ async function signOut() {
       <button class="go" type="button" @click="signOut">
         <i class="pi pi-sign-out" /> Sign out
       </button>
+
+      <p v-if="branding.powered_by" class="by"><BrandMark :size="16" /> kosha</p>
     </div>
   </div>
 </template>
@@ -86,5 +93,19 @@ h1 {
   padding: 0.7rem 1.4rem;
   font-weight: 700;
   font-size: 0.9rem;
+}
+.by {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 1.75rem 0 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid #eceae4;
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
+  color: #9ca3af;
 }
 </style>

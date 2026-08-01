@@ -6,8 +6,8 @@ namespace App\Http\Controllers\Central;
 
 use App\Http\Controllers\Controller;
 use App\Models\Subscription;
-use App\Models\SubscriptionInvoice;
 use App\Models\Tenant;
+use App\Services\Billing\SubscriptionBillingService;
 use App\Services\RazorpayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +21,10 @@ use Illuminate\Support\Facades\Log;
  */
 class RazorpayWebhookController extends Controller
 {
-    public function __construct(private RazorpayService $razorpay) {}
+    public function __construct(
+        private RazorpayService $razorpay,
+        private SubscriptionBillingService $billing,
+    ) {}
 
     public function handle(Request $request): JsonResponse
     {
@@ -84,21 +87,33 @@ class RazorpayWebhookController extends Controller
 
         $amount = $payload['payload']['payment']['entity']['amount'] ?? null;
         $paymentId = $payload['payload']['payment']['entity']['id'] ?? null;
+        $currency = $payload['payload']['payment']['entity']['currency'] ?? 'INR';
 
-        if ($amount !== null) {
-            $values = [
-                'subscription_id' => $subscription->id,
-                'amount' => $amount / 100,
-                'status' => 'paid',
-                'paid_at' => now(),
-            ];
-
-            // Keyed by payment id so the in-app checkout confirmation and this
-            // webhook can't record the same charge twice.
-            $paymentId
-                ? SubscriptionInvoice::firstOrCreate(['payment_gateway_ref' => $paymentId], $values)
-                : SubscriptionInvoice::create($values + ['payment_gateway_ref' => null]);
+        if ($amount === null) {
+            return;
         }
+
+        // Raised through the billing service so a webhook-recorded charge is a
+        // proper GST tax invoice — numbered, with the tax back-computed out of the
+        // collected total. Keyed by payment id, so the in-app checkout
+        // confirmation and this webhook cannot record the same charge twice.
+        if ($paymentId) {
+            $this->billing->recordGatewayPayment(
+                $subscription->refresh(),
+                $paymentId,
+                ((int) $amount) / 100,
+                $currency,
+            );
+
+            return;
+        }
+
+        // No payment id to key on (rare, and only on a malformed payload): fall
+        // back to an offline-style record rather than dropping the money.
+        $this->billing->recordOfflinePayment($subscription->refresh(), ((int) $amount) / 100, [
+            'method' => 'other',
+            'notes' => 'Razorpay webhook without a payment id',
+        ]);
     }
 
     private function markPastDue(Subscription $subscription): void

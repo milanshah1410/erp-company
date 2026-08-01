@@ -60,7 +60,16 @@ export default {
   },
 
   login: {
-    tagline: 'Stock & Inventory Management',
+    tagline: 'ERP for every trade',
+    welcomeBack: 'Welcome back',
+    headline: 'Sign in to Kosha',
+    blurb: 'One core, every trade — stock, billing, GST and your industry module in a single workspace.',
+    cardTitle: 'Sign in',
+    subtitle: 'Enter your credentials to continue.',
+    language: 'Language',
+    hlLedger: 'Stock, billing & GST on one ledger',
+    hlTrade: 'Modules built for your exact trade',
+    hlPayments: 'UPI, cards and e-way bills included',
     email: 'Email',
     password: 'Password',
     signIn: 'Sign In',

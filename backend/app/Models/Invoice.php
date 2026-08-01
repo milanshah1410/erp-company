@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasCustomFields;
 use App\Models\Concerns\HasDocumentNumber;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,7 @@ use Laravel\Scout\Searchable;
 
 class Invoice extends Model
 {
-    use BelongsToTenant, HasDocumentNumber, LogsAuditActivity, Searchable;
+    use BelongsToTenant, HasCustomFields, HasDocumentNumber, LogsAuditActivity, Searchable;
 
     protected static string $numberSettingKey = 'invoice_number_prefix';
 

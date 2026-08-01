@@ -25,6 +25,14 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\SetLocale::class,
         ]);
 
+        // Volume 11 §"Tenant Usage" → API Calls. Appended, and metering happens
+        // in terminate(), so it observes every tenant API call without sitting
+        // in front of one. Central/public routes resolve no tenant and are not
+        // counted.
+        $middleware->api(append: [
+            \App\Http\Middleware\MeterApiUsage::class,
+        ]);
+
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             // Spatie's permission check plus the operator's per-tenant menu

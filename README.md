@@ -1,9 +1,18 @@
-# Stock & Inventory Management System (SIMS)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="frontend/public/logo-kosha-inverse.svg">
+  <img src="frontend/public/logo-kosha.svg" alt="Kosha" height="56">
+</picture>
 
-Large-scale, multi-warehouse Stock & Inventory Management System.
-This repository currently implements the **Phase 1 MVP foundation** from the SRS
-(`.claude/Stock_Inventory_Management_SRS_Merged.md`): authentication, RBAC, and the
-Master Data module, on top of a data model ready for the later inventory/purchase/sales phases.
+# Kosha — ERP for every trade
+
+Multi-tenant SaaS ERP for Indian SMBs. A shared core (inventory, purchase, sales,
+accounting, GST, POS, HR) wrapped in per-trade industry modules — pharmacy, jewellery,
+optical, restaurant, import/export, services and projects — switched on per tenant by
+shop profile.
+
+The name is कोश: a storehouse, and the layer wrapped around a core. Both are the
+architecture. The original SRS this grew out of is
+`.claude/Stock_Inventory_Management_SRS_Merged.md`.
 
 ## Stack (as built)
 
@@ -127,53 +136,161 @@ screens; navigation and action buttons are gated by the logged-in user's permiss
   approve, customer-linked), **Users** (role assignment), **Roles &
   Permissions** (per-module matrix)
 
-## Multi-Tenant SaaS layer (stancl/tenancy)
+## Multi-Tenant SaaS layer
 
-A **database-per-tenant** SaaS layer sits on top of the inventory system
-(`stancl/tenancy` v3). Each tenant (a signed-up company) gets an isolated
-MySQL database; the shared **central** database holds tenants, domains,
-subscription plans, subscriptions, invoices, platform users, and onboarding
-progress.
+A **shared-database, row-scoped** SaaS layer sits on top of the inventory
+system: every business table carries a `tenant_id` and is filtered by the
+`BelongsToTenant` global scope. Landlord-owned tables — tenants, domains,
+plans, subscriptions, invoices, platform users, pending registrations and
+onboarding progress — are unscoped and pinned to the `central` connection.
 
 ### How requests are routed
 
-| Host | Context | Serves |
-|---|---|---|
-| `localhost` / `yourapp.com` | **central** | Signup, email verification, provisioning status, plan catalogue, Razorpay webhook |
-| `{tenant}.localhost` / `{tenant}.yourapp.com` | **tenant** | The full inventory app (login + all business APIs), resolved to that tenant's DB |
+Everything is served from a **single host**. The tenant is resolved from the
+authenticated user (`App\Support\TenantContext`), not from the URL, so there is
+no subdomain-routing middleware in the request path.
 
-Central routes live in `routes/api.php`; tenant routes in `routes/tenant.php`
-(behind `InitializeTenancyBySubdomain` + `PreventAccessFromCentralDomains`).
-The `TenancyServiceProvider` gives the tenancy middleware top priority so the
-DB connection is switched **before** auth/route-model-binding run.
+| Surface | Serves |
+|---|---|
+| `/api/*` (public block) | Signup, workspace-address check, email verification, provisioning status, plan catalogue, payment webhooks |
+| `/api/*` (auth block) | The full ERP for the signed-in user's tenant |
+| `/api/central/*` | The platform (SaaS-owner) panel, on the `central` guard |
+
+**Workspace addresses.** A signup still claims `{subdomain}.{root domain}`:
+it is validated and reserved (`App\Support\Subdomain`), stored on
+`tenants.subdomain`, and mirrored into a primary `domains` row. Today it is
+*identity* — shown at signup, in the ready email and on the platform tenant
+list. Pointing wildcard DNS at the app and switching resolution over to the
+host is an infra step (see **Production infra** below); the reservation is what
+makes that switch possible without re-issuing anyone's address.
+
+Configure the host with `SAAS_ROOT_DOMAIN` (default `yourapp.com`).
 
 ### Signup → provisioning flow
 
-1. `POST /api/register` (central) — company, admin, email, password, phone,
-   chosen subdomain (validated: 3-30 chars, lowercase alnum+hyphen, not
-   reserved, not taken). Emails a 6-digit code.
-2. `POST /api/verify-email` — verifies the code, dispatches the queued
-   `ProvisionTenant` job, and returns `status: provisioning`.
-3. `ProvisionTenant` (queued) — creates the tenant + subdomain, creates &
-   migrates its database, seeds roles/units/warehouse/company, creates the
-   owner admin from the signup credentials, starts a 14-day **trialing**
-   subscription, and emails "your account is ready".
-4. The signup UI polls `GET /api/provisioning-status/{id}` and redirects to
-   `{tenant}.<domain>` when `active`.
+1. `GET /api/check-subdomain?company=Acme+Traders` — suggests a free workspace
+   address; `?subdomain=acme` checks one live (3-30 chars, lowercase
+   alphanumeric + hyphen, not reserved, not taken) and offers alternatives.
+2. `POST /api/register` (central) — package, modules, company, workspace
+   address, admin, email, password, phone. Creates a `pending_registrations`
+   row and emails a 6-digit code. No tenant exists yet.
+3. `POST /api/verify-email` — verifies the code (or the magic-link token),
+   dispatches the queued `ProvisionTenant` job, returns `status: provisioning`.
+4. `ProvisionTenant` (queued) — runs the eight onboarding phases below and
+   emails "your account is ready". The address is re-checked at this point and
+   gains a numeric tail if it was claimed while the signup sat unverified.
+5. The signup UI polls `GET /api/provisioning-status/{id}` and redirects to the
+   login page when `active`.
+
+### Onboarding automation
+
+`ProvisionTenant` is organised as the eight documented phases, each run through
+`App\Support\ProvisionSteps`, which writes its outcome back to
+`pending_registrations.provision_steps` **while the job is still running**:
+
+| # | Phase | What it does |
+|---|---|---|
+| 1 | Create Tenant | `tenants` row + its primary `domains` row |
+| 2 | Select Industry | records the vertical/trade that drives phases 6-7 |
+| 3 | Select Plan | 14-day trialing `subscriptions` row + onboarding tracker |
+| 4 | Migration | tenants share one schema, so this verifies the shared catalogues (global roles/permissions + the menu template) — idempotent, so it self-heals an unseeded deploy |
+| 5 | Seeder | `TenantDatabaseSeeder`: company, branch, warehouse, chart of accounts |
+| 6 | Enable Modules | clones the menu catalogue for the tenant, writes `enabled_modules` (+ `module_grants` for anything comped beyond the plan), industry, tax, number series, company profile |
+| 7 | Create Admin | the owner account + any extra team members from the wizard |
+| 8 | Demo Data | optional sample data (skipped, with a reason, when not requested) |
+
+Both status endpoints (`GET /api/provisioning-status/{id}` and
+`GET /api/central/tenants/provisioning/{id}`) return that list — key, label,
+`pending|running|done|skipped|failed`, a one-line note of what happened and a
+timestamp. The signup screen and the platform panel render it directly, so a
+failed provision names the phase it died in instead of only saying "failed".
+A registration row with nothing stored (or one predating a phase) is served the
+full checklist as `pending`.
+
+Operators can drive the same pipeline from **/platform/tenants → New Tenant**,
+optionally hand-picking the module set (step 6) and the demo-data volume
+(step 8) instead of taking the trade's preset.
+
+### White label
+
+**/platform/tenants → White Label** (permissions `white-label.view` /
+`white-label.edit`) re-skins one workspace across four surfaces:
+
+- **Logo** — uploaded to the `public` disk under `branding/tenant-{id}/`, because
+  it has to render on the sign-in page with nobody authenticated. It is stored as
+  the tenant's `company_logo_url`, i.e. deliberately the *same* image its
+  invoices print — one workspace, one mark.
+- **Domain** — extra `domains` rows for customer-owned hosts. Recording a host is
+  identity, not routing (same as the workspace subdomain): DNS + certificate are
+  infra steps, and what it buys today is that an unauthenticated page served
+  there wears the tenant's brand.
+- **Theme** — display name, tagline, primary/accent colour (hex only), open-in-
+  dark-mode, and whether the "powered by" credit shows.
+- **SMTP** — the account this tenant's outgoing mail leaves from, with a
+  send-test button. Branded screens sending from the platform's address would
+  give the game away, which is why mail lives here.
+
+Everything is stored in the tenant's own `settings` rows, so the panel and the
+tenant's Settings → Email screen read one source of truth. `App\Support\Branding`
+resolves it back out — by host, falling back field-by-field to the platform brand
+in `config('saas.branding')` (`SAAS_BRAND_*` in `.env`), so a workspace that was
+never white labelled is untouched.
+
+The SPA reads the public `GET /api/branding` once on boot
+(`frontend/src/composables/useBranding.ts`), pushes the colours into
+`--safety-amber` / `--ink-blue` and PrimeVue's `--p-primary-*` tokens, and swaps
+the logo through `components/BrandLogo.vue` — used by the app top bar, the auth
+screens and the B2B portal login.
+
+Because everything is served from **one host**, that host lookup can only answer
+with the platform brand for a signed-in user, so the auth store also calls the
+tenant-side `GET /api/my-branding` on login / `fetchUser` and re-applies the
+authoritative answer. The host lookup is what brands the screens that come
+*before* a session (and what will simply start working once wildcard DNS or a
+custom domain is pointed at the app). The platform panel is never white
+labelled: it resolves to the platform host and so to the platform brand.
 
 ### Plans & limits
 
-Three seeded plans (`PlanSeeder`): **Starter ₹999** (1 warehouse / 3 users /
-500 products), **Growth ₹2,999** (5 / 15 / 10,000 + barcode + reports),
-**Enterprise** (custom, unlimited, API + integrations). Create actions for
-products/warehouses/users pass through `plan.limit` middleware
-(`EnforcePlanLimit`), which returns HTTP 402 + an upgrade prompt when a limit
-is hit. `tenant.active` middleware makes a lapsed (suspended) tenant read-only.
+Five seeded plans (`PlanSeeder`): **Starter ₹999** (1 warehouse / 3 users /
+500 products), **Business ₹2,999** (5 / 15 / 10,000 + barcode + reports),
+**Professional ₹5,999** (15 / 50 / 50,000 + API + integrations + e-commerce and
+light production), **Enterprise ₹11,999** (unlimited, the whole module
+catalogue) and **Custom** (quote-based). Each tier is a superset of the one
+below, so an upgrade can never switch a module off. The retired `growth` slug
+still resolves — `Plan::LEGACY_SLUGS` forwards it to Business, and a migration
+repointed its subscribers.
+
+Create actions for products/warehouses/users pass through `plan.limit`
+middleware (`EnforcePlanLimit`), which returns HTTP 402 + an upgrade prompt when
+a limit is hit. The cap is the plan's, unless the platform panel recorded a
+per-tenant override in `tenants.limit_overrides` — see `App\Support\TenantLimits`,
+which owns the merge and the usage counts behind /platform/tenants → Limits.
+Only creation is metered, so tightening a cap never makes existing records
+unreachable. `tenant.active` middleware makes a lapsed (suspended) tenant
+read-only.
+
+### Industry templates
+
+The verticals a signup can choose from live in `industry_templates` (seeded by
+`IndustryTemplateSeeder`, edited at **/platform/industries**): Retail,
+Restaurant & Food, Manufacturing, Healthcare, Logistics & Distribution,
+Construction, Agriculture, Services & Projects and Other. Each names the trades
+offered under it (`App\Support\ShopProfiles` keys) and the modules a workspace in
+it starts with; `GET /api/industries` is what the signup wizard groups its trade
+picker by, and `tenants.industry` / `tenants.business_type` are what the platform
+panel filters and reports on.
+
+A template is packaging, not code — editing one changes what the next signup is
+offered and never reconfigures a workspace already sold. Code-declared industry
+*plugins* (`app/Modules/Industry`, e.g. Food & Beverage) are unchanged: each gets
+a system template row pointing back at it via `plugin_key`, and the plugin
+remains the source of truth for that vertical's trades.
 
 ### Local testing (Windows / WAMP)
 
-`*.localhost` resolves to `127.0.0.1` automatically, so no hosts-file edits are
-needed.
+Everything runs on one host, so no hosts-file edits or wildcard DNS are needed
+for local development.
 
 ```bash
 # backend
@@ -188,20 +305,22 @@ npm run dev                           # http://localhost:5173  (central signup)
 ```
 ngrok http 5173
 
-- Sign up at `http://localhost:5173`, grab the dev verification code (shown
-  in the response / mail log), and after provisioning open
-  `http://<subdomain>.localhost:5173` to log in as the owner.
+- Sign up at `http://localhost:5173/register`, grab the dev verification code
+  (pre-filled in the OTP boxes locally, and shown in the mail log), then log in
+  as the owner once provisioning finishes.
 - Emails use `MAIL_MAILER=log` locally — the verification code is also
   returned in the API response as `dev_code` in the `local` environment.
-- A ready-made demo tenant may already exist from setup testing: log in at
-  `http://demo1.localhost:5173` with `dee@demo1.test` / `secret1234`.
 
 ### Create a tenant from the CLI
 
 ```bash
 php artisan tinker
->>> $t = App\Models\Tenant::create(['company_name' => 'Acme', 'status' => 'trial']);
->>> $t->domains()->create(['domain' => 'acme']);   // -> acme.localhost
+>>> $t = App\Models\Tenant::create([
+...   'company_name' => 'Acme', 'subdomain' => 'acme', 'status' => 'trial',
+... ]);
+>>> $t->domains()->create([
+...   'domain' => App\Support\Subdomain::fqdn('acme'), 'is_primary' => true,
+... ]);
 ```
 
 ### Scheduling & queues
@@ -232,7 +351,9 @@ immediately without calling Razorpay.
 
 ### Production infra: wildcard DNS + SSL  *(DevOps, outside the Laravel app)*
 
-Database-per-tenant on subdomains requires:
+The app reserves a workspace address per tenant but serves every request from
+one host, so **none of this is required to run the product**. It is what turns
+`acme.yourapp.com` from a recorded address into a working one:
 
 - **Wildcard DNS** — an `A`/`CNAME` record for `*.yourapp.com` pointing at the
   app server, so every `{tenant}.yourapp.com` resolves without per-tenant DNS.
@@ -240,10 +361,14 @@ Database-per-tenant on subdomains requires:
   (DNS-01 challenge, e.g. certbot with a DNS plugin) or Cloudflare, terminated
   at your web server / load balancer. A single-host cert will **not** cover
   tenant subdomains.
-- **DB privileges** — the MySQL user needs `CREATE DATABASE` (and `DROP`) so
-  `stancl/tenancy` can provision/tear down tenant databases.
-- **Custom domains (future)** — tenants can later map their own domain via a
-  `CNAME` to `yourapp.com`; add it to the tenant's `domains` records.
+- **Set `SAAS_ROOT_DOMAIN`** to the real host before the first production
+  signup — addresses already handed out are not re-issued if it changes later.
+- **App-side switch (not built)** — resolving the tenant from the host instead
+  of the signed-in user means middleware that looks the subdomain up in
+  `domains` and pushes it into `TenantContext` before auth runs. The data it
+  needs is already there; the middleware is not.
+- **Custom domains (future)** — tenants map their own domain via a `CNAME` to
+  `yourapp.com`; add it as a non-primary row in the tenant's `domains` records.
 
 ## Not yet built (later SRS phases)
 

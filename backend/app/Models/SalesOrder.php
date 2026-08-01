@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasCustomFields;
 use App\Models\Concerns\HasDocumentNumber;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SalesOrder extends Model
 {
-    use BelongsToTenant, HasDocumentNumber, LogsAuditActivity;
+    use BelongsToTenant, HasCustomFields, HasDocumentNumber, LogsAuditActivity;
 
     protected static string $numberSettingKey = 'so_number_prefix';
 

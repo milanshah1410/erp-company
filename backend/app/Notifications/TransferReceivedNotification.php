@@ -28,7 +28,7 @@ class TransferReceivedNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage())
-            ->subject("SIMS: Transfer {$this->transfer->transfer_number} received")
+            ->subject("Kosha: Transfer {$this->transfer->transfer_number} received")
             ->line("Stock transfer {$this->transfer->transfer_number} has arrived and been received at the destination warehouse.")
             ->action('View Transfer', url('/stock-transfers'));
     }

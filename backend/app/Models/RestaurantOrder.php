@@ -28,6 +28,10 @@ class RestaurantOrder extends Model
         'status', 'guest_count',
         'subtotal', 'item_discount_total', 'discount_type', 'discount_value', 'discount_amount',
         'service_charge_percent', 'service_charge', 'tax_amount', 'round_off', 'total',
+        // Parcel / delivery (Food & Beverage plugin): flat charges the customer
+        // sees on the bill, plus where the food is going and who is taking it.
+        'packaging_charge', 'delivery_charge', 'delivery_address', 'delivery_phone',
+        'rider_id', 'dispatched_at', 'delivered_at',
         'sales_order_id', 'invoice_id', 'opened_at', 'settled_at', 'notes', 'created_by',
     ];
 
@@ -39,11 +43,15 @@ class RestaurantOrder extends Model
         'discount_amount' => 'decimal:2',
         'service_charge_percent' => 'decimal:2',
         'service_charge' => 'decimal:2',
+        'packaging_charge' => 'decimal:2',
+        'delivery_charge' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'round_off' => 'decimal:2',
         'total' => 'decimal:2',
         'opened_at' => 'datetime',
         'settled_at' => 'datetime',
+        'dispatched_at' => 'datetime',
+        'delivered_at' => 'datetime',
     ];
 
     public function table(): BelongsTo
@@ -54,6 +62,12 @@ class RestaurantOrder extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /** Who is carrying a delivery order out. */
+    public function rider(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'rider_id');
     }
 
     public function waiter(): BelongsTo

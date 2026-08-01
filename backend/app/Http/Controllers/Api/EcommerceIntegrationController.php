@@ -9,6 +9,8 @@ use App\Http\Resources\ChannelIntegrationResource;
 use App\Models\ChannelIntegration;
 use App\Services\Ecommerce\ChannelSyncService;
 use App\Services\Ecommerce\PlatformRegistry;
+use App\Support\MarketplaceGate;
+use App\Support\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Throwable;
@@ -22,10 +24,22 @@ class EcommerceIntegrationController extends Controller
 {
     public function __construct(private readonly ChannelSyncService $sync) {}
 
-    /** Supported platforms + the fields the connect dialog must collect. */
+    /**
+     * Supported platforms + the fields the connect dialog must collect, minus
+     * anything the SaaS owner has withdrawn or reserved for another plan
+     * (Volume 11 §"Integration Marketplace").
+     */
     public function platforms()
     {
-        return response()->json(['data' => PlatformRegistry::forFrontend()]);
+        $tenantId = app(TenantContext::class)->id();
+
+        $platforms = MarketplaceGate::filterIntegrations(
+            PlatformRegistry::forFrontend(),
+            fn (array $p) => $p['platform'],
+            $tenantId,
+        );
+
+        return response()->json(['data' => $platforms]);
     }
 
     public function index(Request $request)
@@ -53,6 +67,17 @@ class EcommerceIntegrationController extends Controller
     public function store(Request $request)
     {
         $data = $this->validatePayload($request, creating: true);
+
+        // Filtering the picker is not enough — the key is guessable, so the
+        // write has to refuse it too. Existing connections are left alone: an
+        // owner withdrawing a platform stops new ones, it does not cut a tenant
+        // off mid-season.
+        if (! MarketplaceGate::allowsIntegration($data['platform'], app(TenantContext::class)->id())) {
+            return response()->json([
+                'message' => 'That marketplace is not available on your plan. Contact support to enable it.',
+                'error' => 'integration_unavailable',
+            ], 403);
+        }
 
         $integration = new ChannelIntegration([
             'platform' => $data['platform'],

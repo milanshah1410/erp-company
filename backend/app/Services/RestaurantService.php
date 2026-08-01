@@ -12,6 +12,7 @@ use App\Models\RestaurantOrderItem;
 use App\Models\RestaurantTable;
 use App\Models\SalesOrder;
 use App\Models\Warehouse;
+use App\Modules\Industry\FoodBeverage\Services\RecipeConsumptionService;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -33,6 +34,14 @@ class RestaurantService
     public function __construct(
         private readonly DocumentPricingService $pricing,
         private readonly BrokerCommissionService $brokerCommissions,
+        /**
+         * Ingredient draw-down on settle, from the Food & Beverage industry
+         * plugin. This class is itself F&B domain code that predates the plugin
+         * layer, so the dependency is within one vertical rather than core
+         * reaching into a plugin — but it does mean the plugin's Models and
+         * Services directories are load-bearing for settling a bill.
+         */
+        private readonly RecipeConsumptionService $recipeConsumption,
     ) {}
 
     /**
@@ -81,6 +90,9 @@ class RestaurantService
         $items = $order->billableItems()->get();
 
         if ($items->isEmpty()) {
+            // Packaging and delivery are deliberately *not* zeroed here: an empty
+            // ticket has no food value, and charging for the box around nothing
+            // would be the wrong bill. They come back the moment a dish is keyed.
             $order->fill([
                 'subtotal' => 0, 'item_discount_total' => 0, 'discount_amount' => 0,
                 'service_charge' => 0, 'tax_amount' => 0, 'round_off' => 0, 'total' => 0,
@@ -121,7 +133,22 @@ class RestaurantService
             2,
         );
 
-        $preRound = (float) $header['taxable'] + $serviceCharge + (float) $header['tax_amount'];
+        /**
+         * Parcel and delivery are flat amounts the counter sets, not percentages,
+         * and they ride on the bill the same way the service charge does: added to
+         * the payable, not folded into the taxable food value. That keeps them
+         * consistent with how service charge has always behaved here, and keeps
+         * the food's own tax figure honest — a bigger box does not change the GST
+         * on a biryani.
+         */
+        $packaging = round((float) $order->packaging_charge, 2);
+        $delivery = round((float) $order->delivery_charge, 2);
+
+        $preRound = (float) $header['taxable']
+            + $serviceCharge
+            + $packaging
+            + $delivery
+            + (float) $header['tax_amount'];
         $total = round($preRound, 0);
 
         $order->fill([
@@ -269,21 +296,33 @@ class RestaurantService
             ]);
         }
 
-        // The service charge is real revenue the customer paid, so it has to be
-        // on the document — as its own line, the way the bill shows it.
-        if ((float) $order->service_charge > 0) {
-            $product = $this->serviceChargeProduct();
+        /**
+         * Service charge, packaging and delivery are all real revenue the customer
+         * paid, so each has to be on the document as its own line — the way the
+         * bill shows them. Rolling them into the food would misstate both the food
+         * total and, at year end, what the shop actually earned on delivery.
+         */
+        foreach ([
+            ['amount' => (float) $order->service_charge, 'sku' => 'SERVICE-CHARGE', 'name' => 'Service Charge', 'note' => 'Restaurant service charge.'],
+            ['amount' => (float) $order->packaging_charge, 'sku' => 'PACKAGING-CHARGE', 'name' => 'Packaging Charge', 'note' => 'Parcel / takeaway packaging.'],
+            ['amount' => (float) $order->delivery_charge, 'sku' => 'DELIVERY-CHARGE', 'name' => 'Delivery Charge', 'note' => 'Home delivery charge.'],
+        ] as $charge) {
+            if ($charge['amount'] <= 0) {
+                continue;
+            }
+
+            $product = $this->chargeProduct($charge['sku'], $charge['name'], $charge['note']);
             $salesOrder->items()->create([
                 'product_id' => $product->id,
                 'variant_id' => null,
                 'quantity' => 1,
-                'unit_price' => $order->service_charge,
+                'unit_price' => $charge['amount'],
                 'discount_type' => null,
                 'discount_value' => 0,
                 'discount_amount' => 0,
                 'tax_percent' => 0,
                 'tax_amount' => 0,
-                'line_total' => $order->service_charge,
+                'line_total' => $charge['amount'],
             ]);
         }
 
@@ -299,6 +338,22 @@ class RestaurantService
 
         $this->brokerCommissions->accrueForInvoice($invoice);
 
+        /**
+         * Move the stock the meal actually ate — ingredients for dishes that have
+         * a recipe, the item itself for anything sold as bought.
+         *
+         * Placed after the invoice-exists guard at the top of this method, so the
+         * idempotency that protects against a double-tap at the till protects the
+         * draw-down too: a ticket cannot be depleted twice. Inside the caller's
+         * transaction, so a failure here rolls the whole settlement back rather
+         * than leaving a billed table with unconsumed stock.
+         */
+        $this->recipeConsumption->consumeForOrder(
+            $order,
+            (int) $salesOrder->warehouse_id,
+            $userId,
+        );
+
         $order->forceFill([
             'sales_order_id' => $salesOrder->id,
             'invoice_id' => $invoice->id,
@@ -313,17 +368,21 @@ class RestaurantService
     }
 
     /**
-     * The catalogue product a service charge is billed under, created on first
+     * The catalogue product a bill-level charge is billed under, created on first
      * use — same reasoning as the service module's labour line: an invoice line
      * needs a product, and a bill cannot wait for someone to create one.
+     *
+     * Flagged `is_service` so nothing tries to deplete stock for it, which is also
+     * what keeps RecipeConsumptionService from looking for a recipe for "Delivery
+     * Charge".
      */
-    private function serviceChargeProduct(): Product
+    private function chargeProduct(string $sku, string $name, string $description): Product
     {
         return Product::firstOrCreate(
-            ['sku' => 'SERVICE-CHARGE'],
+            ['sku' => $sku],
             [
-                'name' => 'Service Charge',
-                'description' => 'Restaurant service charge.',
+                'name' => $name,
+                'description' => $description,
                 'is_service' => true,
                 'is_active' => true,
                 'cost_price' => 0,

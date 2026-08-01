@@ -55,7 +55,7 @@ class PaymentDueNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage())
-            ->subject('SIMS: '.($this->kind === 'purchase' ? 'Purchase bill due' : 'Payment due'))
+            ->subject('Kosha: '.($this->kind === 'purchase' ? 'Purchase bill due' : 'Payment due'))
             ->line($this->summary())
             ->action('View Invoice', url($this->kind === 'purchase' ? '/purchase-invoices' : '/sales-orders'));
     }

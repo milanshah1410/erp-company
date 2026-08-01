@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\SubscriptionInvoice;
 use App\Models\Tenant;
+use App\Services\Billing\SubscriptionBillingService;
 use App\Services\RazorpayService;
 use App\Support\TenantContext;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -26,7 +27,10 @@ use Throwable;
  */
 class SubscriptionController extends Controller
 {
-    public function __construct(private RazorpayService $razorpay) {}
+    public function __construct(
+        private RazorpayService $razorpay,
+        private SubscriptionBillingService $billing,
+    ) {}
 
     private function current(): ?Subscription
     {
@@ -57,8 +61,30 @@ class SubscriptionController extends Controller
                 'trial_ends_at' => $sub->trial_ends_at,
                 'trial_days_left' => $sub->trialDaysLeft(),
                 'current_period_end' => $sub->current_period_end,
+                // A discount the workspace holds, so the billing page can say why
+                // it is being charged less than the list price.
+                'coupon_code' => $sub->coupon_code,
+                'coupon_cycles_remaining' => $sub->coupon_cycles_remaining,
             ],
         ]);
+    }
+
+    /**
+     * What the next charge comes to: list price, coupon, GST, total.
+     *
+     * The plan page shows a price; this shows the invoice. On an 18% GST
+     * deployment those are different numbers, and finding that out at the payment
+     * gateway is a bad way to find it out.
+     */
+    public function quote(): JsonResponse
+    {
+        $sub = $this->current();
+
+        if (! $sub) {
+            return response()->json(['data' => null]);
+        }
+
+        return response()->json(['data' => $this->billing->quote($sub)]);
     }
 
     public function plans(): JsonResponse
@@ -92,11 +118,22 @@ class SubscriptionController extends Controller
             ->get()
             ->map(fn (SubscriptionInvoice $inv) => [
                 'id' => $inv->id,
-                'number' => sprintf('SUB-%06d', $inv->id),
+                'number' => $inv->displayNumber(),
+                'type' => $inv->type,
                 'plan' => $inv->subscription?->plan?->name,
                 'amount' => (float) $inv->amount,
                 'currency' => $inv->currency,
                 'status' => $inv->status,
+                // The GST breakdown, so the workspace's own accountant can claim
+                // the input credit without opening the PDF.
+                'subtotal' => (float) $inv->subtotal,
+                'discount_amount' => (float) $inv->discount_amount,
+                'coupon_code' => $inv->coupon_code,
+                'tax_rate' => (float) $inv->tax_rate,
+                'tax_amount' => (float) $inv->tax_amount,
+                'period_start' => $inv->period_start?->toDateString(),
+                'period_end' => $inv->period_end?->toDateString(),
+                'due_date' => $inv->due_date?->toDateString(),
                 'payment_method' => $inv->payment_method,
                 'paid_at' => $inv->paid_at,
                 'refund_amount' => $inv->refund_amount !== null ? (float) $inv->refund_amount : null,
@@ -120,21 +157,21 @@ class SubscriptionController extends Controller
             ->whereHas('subscription', fn ($q) => $q->where('tenant_id', $tenantId))
             ->findOrFail($invoice);
 
-        $number = sprintf('SUB-%06d', $inv->id);
+        $number = $inv->displayNumber();
+        $tenant = Tenant::findOrFail($tenantId);
+
+        // Seller identity + the customer's GST details as captured on the invoice —
+        // see SubscriptionBillingService::documentContext(). The seller half fills
+        // the shared letterhead ($company), so the operator's own GSTIN and legal
+        // name appear on the invoice it is raising.
+        $context = $this->billing->documentContext($inv, $tenant);
 
         $pdf = Pdf::loadView('documents.subscription-invoice', [
             'invoice' => $inv,
             'number' => $number,
-            'tenant' => Tenant::findOrFail($tenantId),
-            'company' => [
-                'name' => config('app.name'),
-                'legal_name' => null,
-                'address' => null,
-                'phone' => null,
-                'email' => config('mail.from.address'),
-                'gstin' => null,
-                'pan' => null,
-            ],
+            'tenant' => $tenant,
+            'context' => $context,
+            'company' => $context['seller'],
             'currency' => $inv->currency === 'INR' ? '₹' : $inv->currency.' ',
             'generatedAt' => now()->format('d M Y, H:i'),
         ])->setPaper('a4');
@@ -160,11 +197,13 @@ class SubscriptionController extends Controller
             return response()->json(['message' => 'No subscription found for this tenant.'], 404);
         }
 
-        $plan = Plan::where('slug', $data['plan_slug'])->firstOrFail();
+        // findBySlug so a retired slug (Plan::LEGACY_SLUGS) upgrades to the tier
+        // that replaced it instead of 404-ing on a link the customer still has.
+        $plan = Plan::findBySlug($data['plan_slug']) ?? abort(404);
 
         if ($plan->is_custom) {
             return response()->json([
-                'message' => 'Enterprise is quote-based — our team will contact you to finalise pricing.',
+                'message' => 'A Custom plan is quote-based — our team will contact you to finalise pricing.',
                 'contact_sales' => true,
             ], 202);
         }
@@ -334,18 +373,16 @@ class SubscriptionController extends Controller
         Tenant::where('id', $sub->tenant_id)->update(['status' => 'active', 'suspended_by' => null]);
 
         // Record the invoice with the gateway-confirmed amount (never the
-        // browser's); keyed by payment id so the webhook can't duplicate it.
+        // browser's); keyed by payment id so the webhook can't duplicate it. The
+        // billing service back-computes the GST out of the collected total and
+        // assigns the tax-invoice number.
         try {
             $payment = $this->razorpay->fetchPayment($data['razorpay_payment_id']);
-            SubscriptionInvoice::firstOrCreate(
-                ['payment_gateway_ref' => $data['razorpay_payment_id']],
-                [
-                    'subscription_id' => $sub->id,
-                    'amount' => ((int) ($payment['amount'] ?? 0)) / 100,
-                    'currency' => $payment['currency'] ?? 'INR',
-                    'status' => 'paid',
-                    'paid_at' => now(),
-                ],
+            $this->billing->recordGatewayPayment(
+                $sub,
+                $data['razorpay_payment_id'],
+                ((int) ($payment['amount'] ?? 0)) / 100,
+                $payment['currency'] ?? 'INR',
             );
         } catch (Throwable $e) {
             // Activation already succeeded; the webhook will backfill the invoice.

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasCustomFields;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Supplier extends Model
 {
-    use BelongsToTenant, LogsAuditActivity;
+    use BelongsToTenant, HasCustomFields, LogsAuditActivity;
 
     protected $fillable = [
         'code', 'name', 'company_name', 'email', 'phone', 'gst_number',

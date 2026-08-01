@@ -28,7 +28,7 @@ class RestaurantOrderController extends Controller
     {
         $query = RestaurantOrder::query()->with([
             'table:id,name', 'customer:id,name', 'waiter:id,first_name,last_name',
-            'invoice:id,invoice_number',
+            'rider:id,first_name,last_name', 'invoice:id,invoice_number',
         ])->withCount('items');
 
         if ($search = $request->query('search')) {
@@ -62,6 +62,12 @@ class RestaurantOrderController extends Controller
             'waiter_id' => ['nullable', 'exists:employees,id'],
             'guest_count' => ['nullable', 'integer', 'min:1', 'max:100'],
             'service_charge_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            // Parcel / delivery (F&B plugin).
+            'packaging_charge' => ['nullable', 'numeric', 'min:0'],
+            'delivery_charge' => ['nullable', 'numeric', 'min:0'],
+            'delivery_address' => ['nullable', 'string', 'max:1000'],
+            'delivery_phone' => ['nullable', 'string', 'max:20'],
+            'rider_id' => ['nullable', 'exists:employees,id'],
             'notes' => ['nullable', 'string'],
         ]);
 
@@ -73,6 +79,22 @@ class RestaurantOrderController extends Controller
         // Takeaway occupies no table; accepting one would strand it as occupied.
         if ($data['order_type'] !== 'dine_in') {
             $data['restaurant_table_id'] = null;
+        }
+
+        // A delivery has to be going somewhere. Enforced here rather than left to
+        // the rider to chase, because the address is unrecoverable once the party
+        // has hung up.
+        if ($data['order_type'] === 'delivery' && empty($data['delivery_address'])) {
+            throw ValidationException::withMessages([
+                'delivery_address' => ['A delivery order needs an address.'],
+            ]);
+        }
+
+        // Charges that belong to a service style the ticket is not: a dine-in
+        // ticket carrying a delivery charge is a keying slip, not an intention.
+        if ($data['order_type'] === 'dine_in') {
+            $data['delivery_charge'] = 0;
+            $data['packaging_charge'] = $data['packaging_charge'] ?? 0;
         }
 
         try {
@@ -119,6 +141,13 @@ class RestaurantOrderController extends Controller
             'discount_type' => ['nullable', Rule::in(['percent', 'flat'])],
             'discount_value' => ['nullable', 'numeric', 'min:0'],
             'service_charge_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            // Parcel / delivery (F&B plugin). Editable while the ticket is open:
+            // a table that decides to parcel the leftovers is normal.
+            'packaging_charge' => ['nullable', 'numeric', 'min:0'],
+            'delivery_charge' => ['nullable', 'numeric', 'min:0'],
+            'delivery_address' => ['nullable', 'string', 'max:1000'],
+            'delivery_phone' => ['nullable', 'string', 'max:20'],
+            'rider_id' => ['nullable', 'exists:employees,id'],
             'notes' => ['nullable', 'string'],
         ]);
 
@@ -147,6 +176,23 @@ class RestaurantOrderController extends Controller
             'items.*.instructions' => ['nullable', 'string', 'max:150'],
             'items.*.course' => ['nullable', 'integer', 'min:1', 'max:9'],
         ]);
+
+        /**
+         * Refuse anything marked sold out (F&B plugin — the menu's `is_available`
+         * switch). Checked here rather than only hidden in the UI: the KOT is the
+         * point of no return, and a dish that reaches the kitchen because a stale
+         * tab still listed it becomes a guest waiting for food nobody can cook.
+         */
+        $soldOut = Product::query()
+            ->whereIn('id', collect($data['items'])->pluck('product_id')->unique())
+            ->where('is_available', false)
+            ->pluck('name');
+
+        if ($soldOut->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'items' => ['Sold out right now: '.$soldOut->implode(', ').'.'],
+            ]);
+        }
 
         DB::transaction(function () use ($request, $restaurantOrder, $data) {
             foreach ($data['items'] as $line) {
@@ -319,6 +365,14 @@ class RestaurantOrderController extends Controller
             'discount_amount' => (float) $o->discount_amount,
             'service_charge_percent' => (float) $o->service_charge_percent,
             'service_charge' => (float) $o->service_charge,
+            'packaging_charge' => (float) $o->packaging_charge,
+            'delivery_charge' => (float) $o->delivery_charge,
+            'delivery_address' => $o->delivery_address,
+            'delivery_phone' => $o->delivery_phone,
+            'rider_id' => $o->rider_id,
+            'rider' => $o->relationLoaded('rider') ? $o->rider?->fullName() : null,
+            'dispatched_at' => $o->dispatched_at?->toIso8601String(),
+            'delivered_at' => $o->delivered_at?->toIso8601String(),
             'tax_amount' => (float) $o->tax_amount,
             'round_off' => (float) $o->round_off,
             'total' => (float) $o->total,
@@ -359,7 +413,7 @@ class RestaurantOrderController extends Controller
     {
         return [
             'table:id,name', 'customer:id,name', 'waiter:id,first_name,last_name',
-            'invoice:id,invoice_number',
+            'rider:id,first_name,last_name', 'invoice:id,invoice_number',
         ];
     }
 }

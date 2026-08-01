@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PaymentGatewayAccountResource;
 use App\Models\PaymentGatewayAccount;
 use App\Services\PaymentGateways\PaymentGatewayManager;
+use App\Support\MarketplaceGate;
+use App\Support\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -23,10 +25,18 @@ class PaymentGatewayAccountController extends Controller
         return PaymentGatewayAccountResource::collection($accounts);
     }
 
-    /** Catalogue of supported gateways + the credential fields each one needs. */
+    /**
+     * Catalogue of supported gateways + the credential fields each one needs,
+     * minus anything the SaaS owner has withdrawn or reserved for another plan
+     * (Volume 11 §"Integration Marketplace").
+     */
     public function catalog()
     {
-        $catalog = collect(config('payments.gateways'))->map(fn ($g, $key) => [
+        $tenantId = app(TenantContext::class)->id();
+
+        $catalog = collect(config('payments.gateways'))
+            ->filter(fn ($g, $key) => MarketplaceGate::allowsIntegration((string) $key, $tenantId))
+            ->map(fn ($g, $key) => [
             'gateway' => $key,
             'label' => $g['label'],
             'currencies' => $g['currencies'],
@@ -53,6 +63,16 @@ class PaymentGatewayAccountController extends Controller
             'is_default' => ['boolean'],
             'credentials' => ['array'],
         ]);
+
+        // Hiding it from the catalogue is only half the gate — refuse the write
+        // as well. Accounts already configured keep collecting; withdrawing a
+        // gateway stops new ones.
+        if (! MarketplaceGate::allowsIntegration($data['gateway'], app(TenantContext::class)->id())) {
+            return response()->json([
+                'message' => 'That payment gateway is not available on your plan. Contact support to enable it.',
+                'error' => 'integration_unavailable',
+            ], 403);
+        }
 
         $credentials = $this->cleanCredentials($data['gateway'], $request->input('credentials', []));
 

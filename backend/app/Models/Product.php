@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasCustomFields;
 use App\Models\Concerns\LogsAuditActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +13,7 @@ use Laravel\Scout\Searchable;
 
 class Product extends Model
 {
-    use BelongsToTenant, LogsAuditActivity, Searchable, SoftDeletes;
+    use BelongsToTenant, HasCustomFields, LogsAuditActivity, Searchable, SoftDeletes;
 
     protected $fillable = [
         'sku', 'barcode', 'rfid_tag', 'name', 'description',
@@ -34,6 +35,10 @@ class Product extends Model
         'min_sph', 'max_sph', 'max_cyl', 'is_frame',
         // Restaurant: which station cooks it, and how long it takes.
         'kitchen_station', 'prep_minutes',
+        // Food & Beverage plugin: the menu card's own attributes. `is_available`
+        // is the sold-out switch and is distinct from `is_active` — a dish off
+        // tonight is not a dish withdrawn from the menu.
+        'food_type', 'is_available', 'menu_sort_order',
     ];
 
     /** Schedules that may not be sold without a prescription. */
@@ -65,6 +70,10 @@ class Product extends Model
         'max_cyl' => 'decimal:2',
         'is_frame' => 'boolean',
         'is_active' => 'boolean',
+        // Food & Beverage plugin.
+        'is_available' => 'boolean',
+        'prep_minutes' => 'integer',
+        'menu_sort_order' => 'integer',
     ];
 
     protected static function booted(): void

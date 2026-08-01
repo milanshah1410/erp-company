@@ -38,7 +38,7 @@ class ExpenseApprovalPendingNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('SIMS: Expense approval pending')
+            ->subject('Kosha: Expense approval pending')
             ->line($this->summary())
             ->action('Review Expenses', url('/expenses'));
     }

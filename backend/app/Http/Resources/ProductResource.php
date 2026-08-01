@@ -42,6 +42,10 @@ class ProductResource extends JsonResource
             'image' => $this->image,
             'image_url' => TenantStorage::temporaryUrl($this->image),
             'attributes' => $this->getAttribute('attributes') ?? [],
+            // Tenant-defined fields. Separate from `attributes`, which belongs
+            // to variants and category attributes. Cast so an empty bag is `{}`
+            // and not `[]` — the form binds keys straight onto it.
+            'custom_fields' => (object) ($this->custom_fields ?? []),
             'track_expiry' => $this->track_expiry,
             'track_batch' => $this->track_batch,
             'track_serial' => $this->track_serial,

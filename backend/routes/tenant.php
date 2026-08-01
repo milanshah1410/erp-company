@@ -37,6 +37,9 @@ use App\Http\Controllers\Api\BatchController;
 use App\Http\Controllers\Api\BomController;
 use App\Http\Controllers\Api\BrandController;
 use App\Http\Controllers\Api\BranchController;
+// White label (Volume 11): the tenant-side read of the brand the signed-in
+// workspace wears. Shares the controller with the public host lookup.
+use App\Http\Controllers\Central\BrandingController;
 use App\Http\Controllers\Api\BrokerCommissionRateController;
 use App\Http\Controllers\Api\BrokerController;
 use App\Http\Controllers\Api\BrokerReportController;
@@ -46,6 +49,7 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CompanyController;
 use App\Http\Controllers\Api\ContextController;
 use App\Http\Controllers\Api\CouponController;
+use App\Http\Controllers\Api\CustomFieldDefinitionController;
 use App\Http\Controllers\Api\CustomerAddressController;
 use App\Http\Controllers\Api\CustomerCategoryController;
 use App\Http\Controllers\Api\CustomerController;
@@ -255,6 +259,14 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('/profile/avatar', [ProfileController::class, 'uploadAvatar']);
         Route::delete('/profile/avatar', [ProfileController::class, 'deleteAvatar']);
 
+        // The signed-in workspace's white label (Volume 11). The public
+        // GET /api/branding resolves a brand from the request host, which is
+        // enough for the screens that come before login — but the whole app is
+        // served from one host today, so once there IS a session this is what
+        // tells the SPA which tenant's brand to wear. No permission gate: it is
+        // the logo and two colours every screen already renders.
+        Route::get('/my-branding', [BrandingController::class, 'mine']);
+
         // Global omni-search (SRS §22): products + customers + invoices, each
         // scoped to the current tenant and gated per-group by the caller's
         // module view permissions inside the controller.
@@ -319,7 +331,9 @@ Route::middleware('api')->prefix('api')->group(function () {
         $crud('customer-categories', CustomerCategoryController::class, 'customer-categories', 'customerCategory');
         // Upcoming birthdays/anniversaries — must precede the /{customer} wildcard.
         Route::get('customers/occasions', [CustomerController::class, 'occasions'])->middleware('permission:customers.view');
-        $crud('customers', CustomerController::class, 'customers', 'customer');
+        // Metered like products (App\Support\TenantLimits::METERED). No shipped
+        // plan sets max_customers, so this gate is inert until an owner sets one.
+        $crud('customers', CustomerController::class, 'customers', 'customer', 'customers');
         // B2B portal access: enable/disable login + (re)set the portal password.
         Route::post('customers/{customer}/portal-access', [CustomerController::class, 'setPortalAccess'])->middleware('permission:customers.edit');
         Route::get('customers/{customer}/purchase-history', [CustomerController::class, 'purchaseHistory'])->middleware('permission:customers.view');
@@ -1460,6 +1474,21 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('settings', [SettingController::class, 'index'])->middleware('permission:settings.view');
         Route::match(['put', 'patch'], 'settings', [SettingController::class, 'update'])->middleware('permission:settings.edit');
 
+        /*
+        |----------------------------------------------------------------------
+        | Custom Fields — the field builder, and the schema every form reads.
+        |
+        | The schema route carries no permission on purpose: it is form
+        | metadata, not configuration. A salesman who can create a product must
+        | be able to see which extra fields that product now requires, without
+        | also being able to redefine them. Defining is `custom-fields.*`, and
+        | the builder screen sits under Administration.
+        |----------------------------------------------------------------------
+        */
+        Route::get('custom-fields/schema', [CustomFieldDefinitionController::class, 'schema']);
+        Route::get('custom-fields/entities', [CustomFieldDefinitionController::class, 'entities'])->middleware('permission:custom-fields.view');
+        $crud('custom-fields', CustomFieldDefinitionController::class, 'custom-fields', 'customFieldDefinition');
+
         // System Tools → Import Data (project-stack.md §8): Excel / CSV / JSON.
         // Import is the only System Tool a tenant gets. The Demo Data generator
         // (§7) and Performance diagnostics (§17) are operator tools and live on
@@ -1586,10 +1615,27 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         Route::get('subscription', [SubscriptionController::class, 'show']);
         Route::get('subscription/plans', [SubscriptionController::class, 'plans']);
+        // What the next charge actually comes to: list price → coupon → GST.
+        Route::get('subscription/quote', [SubscriptionController::class, 'quote']);
         Route::get('subscription/invoices', [SubscriptionController::class, 'invoices']);
         Route::get('subscription/invoices/{invoice}/pdf', [SubscriptionController::class, 'invoicePdf']);
         Route::post('subscription/change-plan', [SubscriptionController::class, 'changePlan']);
         Route::post('subscription/confirm-payment', [SubscriptionController::class, 'confirmPayment']);
         Route::post('subscription/pay-now', [SubscriptionController::class, 'payNow']);
+
+        /*
+        |----------------------------------------------------------------------
+        | Industry plugins (app/Modules/Industry).
+        |
+        | Required here, inside the group, rather than loaded by a service
+        | provider: a vertical's endpoints must inherit this file's tenancy,
+        | authentication, permission and module-gating middleware. A provider
+        | registering them would produce a bare, unprotected route group — and
+        | nothing in the plugin would make that visible.
+        |----------------------------------------------------------------------
+        */
+        foreach (\App\Modules\Industry\Support\IndustryRegistry::routeFiles() as $industryRoutes) {
+            require $industryRoutes;
+        }
     });
 });

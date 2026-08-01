@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="272" height="72" viewBox="0 0 272 72" fill="none" role="img" aria-label="Kosha">
+  <!--
+    Full Kosha lockup, inked for LIGHT backgrounds. For dark backgrounds use
+    logo-kosha-inverse.svg; inside the app use components/BrandLockup.vue.
+
+    This file used to carry an @media (prefers-color-scheme: dark) block that
+    flipped the ink. Referenced via <img>, that query reads the viewer's OS
+    theme — NOT the background the logo was placed on — so a dark-OS user
+    looking at a light page got a near-white wordmark on cream, i.e. nothing.
+    Two deterministic files beat one that guesses. Pair them with <picture> and
+    a media source where the host supports it (GitHub READMEs do).
+
+    NOTE: the wordmark is live <text>, not outlined paths, so it falls back to
+    whatever sans-serif the viewer has if Space Grotesk is unavailable. Before
+    any print run or trademark filing, open this in Figma/Illustrator and
+    convert the text to outlines.
+  -->
+  <g transform="translate(6 4)">
+    <path d="M55.38 18.5L55.38 45.5L32 59L8.62 45.5L8.62 18.5L32 5"
+      stroke="#2c4a5e" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity="0.55" />
+    <path d="M32 14.5L47.16 23.25L47.16 40.75L32 49.5L16.84 40.75L16.84 23.25Z"
+      stroke="#2c4a5e" stroke-width="4.5" stroke-linejoin="round" />
+    <path d="M32 22.5L40.23 27.25L40.23 36.75L32 41.5L23.77 36.75L23.77 27.25Z" fill="#e8a33d" />
+  </g>
+
+  <text
+    x="82"
+    y="49"
+    fill="#1e2328"
+    font-family="'Space Grotesk','Inter','Segoe UI',system-ui,sans-serif"
+    font-size="40"
+    font-weight="700"
+    letter-spacing="-0.5"
+  >kosha</text>
+</svg>

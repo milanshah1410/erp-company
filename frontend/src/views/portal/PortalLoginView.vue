@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import { usePortalAuthStore } from '../../stores/portalAuth'
+import BrandLogo from '../../components/BrandLogo.vue'
 
 const router = useRouter()
 const auth = usePortalAuthStore()
@@ -72,7 +73,9 @@ async function verifyOtp() {
   <div class="wrap">
     <div class="card">
       <div class="head">
-        <i class="pi pi-shopping-bag" />
+        <!-- The seller's own brand when the workspace is white labelled: this
+             is their customers' door, so it should read as their shop. -->
+        <BrandLogo :height="42" variant="lockup" with-name class="logo" />
         <h1>B2B Order Portal</h1>
         <p>Sign in to browse the catalogue and place orders.</p>
       </div>
@@ -123,10 +126,15 @@ async function verifyOtp() {
 <style scoped>
 .wrap { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(135deg, #fef3c7, #f6f7f9); padding: 1.5rem; }
 .card { width: 100%; max-width: 400px; background: #fff; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); padding: 2rem; }
-.head { text-align: center; margin-bottom: 1.25rem; }
-.head i { font-size: 2rem; color: #b45309; }
-.head h1 { font-size: 1.4rem; font-weight: 700; margin: 0.5rem 0 0.25rem; }
-.head p { color: #6b7280; font-size: 0.88rem; }
+/* Dark ink on this light card — the lockup takes its sheath/wordmark colour
+   from here, so no separate light/dark asset is needed. */
+.head { text-align: center; margin-bottom: 1.25rem; color: #1e2328; }
+.head .logo { margin: 0 auto 0.85rem; }
+.head h1 {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 0.3rem;
+}
+.head p { color: #6b7280; font-size: 0.88rem; margin: 0; }
 .tabs { display: flex; gap: 0.25rem; background: #f3f4f6; border-radius: 10px; padding: 0.25rem; margin-bottom: 1.25rem; }
 .tabs button { flex: 1; border: none; background: transparent; padding: 0.5rem; border-radius: 8px; font-size: 0.88rem; font-weight: 500; color: #6b7280; cursor: pointer; }
 .tabs button.active { background: #fff; color: #b45309; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }

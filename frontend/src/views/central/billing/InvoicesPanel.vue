@@ -12,7 +12,7 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import centralHttp from '../../../api/centralHttp'
 import { useCentralAuthStore } from '../../../stores/centralAuth'
-import { fmtMoney, fmtDate, invoiceSeverity, INVOICE_STATUSES } from './shared'
+import { fmtMoney, fmtDate, fmtPercent, invoiceSeverity, INVOICE_STATUSES, INVOICE_TYPES } from './shared'
 
 const toast = useToast()
 const auth = useCentralAuthStore()
@@ -25,9 +25,20 @@ const loading = ref(false)
 const page = ref(1)
 const perPage = ref(15)
 const statusFilter = ref<string | null>(null)
+const typeFilter = ref<string | null>(null)
 const search = ref('')
 
 const statusOptions = INVOICE_STATUSES.map((s) => ({ label: s, value: s }))
+const typeOptions = INVOICE_TYPES.map((t) => ({ label: t, value: t }))
+
+/** The GST line for one invoice: CGST+SGST intra-state, IGST inter-state. */
+function taxLine(row: any): string | null {
+  if (!Number(row.tax_amount)) return null
+  const half = fmtPercent(Number(row.tax_rate) / 2)
+  return row.is_interstate
+    ? `IGST ${fmtPercent(row.tax_rate)}`
+    : `CGST ${half} + SGST ${half}`
+}
 
 async function load() {
   loading.value = true
@@ -37,6 +48,7 @@ async function load() {
         page: page.value,
         per_page: perPage.value,
         status: statusFilter.value || undefined,
+        type: typeFilter.value || undefined,
         search: search.value || undefined,
       },
     })
@@ -56,7 +68,7 @@ function onPage(event: any) {
 }
 
 let searchTimer: number | undefined
-watch([search, statusFilter], () => {
+watch([search, statusFilter, typeFilter], () => {
   window.clearTimeout(searchTimer)
   searchTimer = window.setTimeout(() => {
     page.value = 1
@@ -114,20 +126,50 @@ onMounted(load)
         <InputText v-model="search" placeholder="Search tenant name / email…" class="search" />
         <Select v-model="statusFilter" :options="statusOptions" optionLabel="label" optionValue="value"
           placeholder="All statuses" showClear class="status-filter" />
+        <Select v-model="typeFilter" :options="typeOptions" optionLabel="label" optionValue="value"
+          placeholder="All types" showClear class="status-filter" />
       </div>
     </div>
 
     <DataTable :value="rows" :loading="loading" dataKey="id" class="p-datatable-sm"
       lazy paginator :rows="perPage" :totalRecords="total" :rowsPerPageOptions="[15, 30, 50]" @page="onPage">
-      <Column field="id" header="#" style="width: 4.5rem" />
+      <Column header="Invoice" style="width: 11rem">
+        <template #body="{ data }">
+          <div class="cell-2line">
+            <span class="mono">{{ data.number }}</span>
+            <span class="muted">
+              <template v-if="data.type !== 'subscription'">{{ data.type }} · </template>{{ fmtDate(data.created_at) }}
+            </span>
+          </div>
+        </template>
+      </Column>
       <Column header="Tenant">
         <template #body="{ data }">
-          <span class="strong">{{ data.tenant_name ?? '—' }}</span>
+          <div class="cell-2line">
+            <span class="strong">{{ data.tenant_name ?? '—' }}</span>
+            <span v-if="data.customer_gstin" class="mono muted-sm">{{ data.customer_gstin }}</span>
+          </div>
         </template>
       </Column>
       <Column field="plan_name" header="Plan" />
       <Column header="Amount">
-        <template #body="{ data }">{{ fmtMoney(data.amount, data.currency) }}</template>
+        <template #body="{ data }">
+          <div class="cell-2line">
+            <span class="strong">{{ fmtMoney(data.amount, data.currency) }}</span>
+            <span v-if="Number(data.discount_amount) > 0" class="muted">
+              less {{ fmtMoney(data.discount_amount, data.currency) }}<template v-if="data.coupon_code"> ({{ data.coupon_code }})</template>
+            </span>
+          </div>
+        </template>
+      </Column>
+      <Column header="GST" style="width: 10rem">
+        <template #body="{ data }">
+          <div v-if="taxLine(data)" class="cell-2line">
+            <span>{{ fmtMoney(data.tax_amount, data.currency) }}</span>
+            <span class="muted">{{ taxLine(data) }}<template v-if="data.place_of_supply"> · {{ data.place_of_supply }}</template></span>
+          </div>
+          <span v-else class="muted">zero-rated</span>
+        </template>
       </Column>
       <Column header="Status" style="width: 7.5rem">
         <template #body="{ data }">
@@ -142,8 +184,15 @@ onMounted(load)
           </div>
         </template>
       </Column>
-      <Column header="Paid at" style="width: 8rem">
-        <template #body="{ data }">{{ fmtDate(data.paid_at) }}</template>
+      <Column header="Paid / Due" style="width: 8rem">
+        <template #body="{ data }">
+          <template v-if="data.paid_at">{{ fmtDate(data.paid_at) }}</template>
+          <div v-else-if="data.due_date" class="cell-2line">
+            <span>{{ data.due_date }}</span>
+            <span v-if="data.days_overdue > 0" class="overdue">{{ data.days_overdue }}d overdue</span>
+          </div>
+          <span v-else class="muted">—</span>
+        </template>
       </Column>
       <Column header="Refund">
         <template #body="{ data }">
@@ -197,6 +246,7 @@ onMounted(load)
 .status-filter { width: 160px; }
 .strong { font-weight: 600; }
 .muted { color: #9ca3af; font-size: 0.8rem; }
+.overdue { color: #dc2626; font-size: 0.75rem; font-weight: 500; }
 .mono { font-family: ui-monospace, monospace; font-size: 0.8rem; }
 .muted-sm { color: #9ca3af; }
 .cap { text-transform: capitalize; }

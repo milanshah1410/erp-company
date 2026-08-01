@@ -30,7 +30,7 @@ class InventoryAlertNotification extends Notification
         $title = $this->alert->type === 'expiry' ? 'Expiry Alert' : 'Low Stock Alert';
 
         return (new MailMessage())
-            ->subject("SIMS: {$title}")
+            ->subject("Kosha: {$title}")
             ->line($this->alert->message)
             ->action('View Inventory Alerts', url('/inventory-alerts'));
     }

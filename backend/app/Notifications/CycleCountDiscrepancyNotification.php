@@ -32,7 +32,7 @@ class CycleCountDiscrepancyNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage())
-            ->subject("SIMS: Discrepancy in cycle count {$this->cycleCount->count_number}")
+            ->subject("Kosha: Discrepancy in cycle count {$this->cycleCount->count_number}")
             ->line("Cycle count {$this->cycleCount->count_number} was completed with {$this->itemsWithVariance} item(s) showing a variance, valued at ₹{$this->varianceValue}.")
             ->action('Review Cycle Count', url('/cycle-counts'));
     }

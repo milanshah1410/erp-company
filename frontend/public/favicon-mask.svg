@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="Kosha">
+  <!--
+    Safari pinned-tab mask icon (rel="mask-icon").
+
+    Safari ignores colour here and keys off the alpha channel alone, painting
+    the result in the `color` given on the <link>. Pointing mask-icon at
+    favicon.svg would therefore render its opaque tile as a solid black square
+    with no letter visible at all — hence this separate glyph-only file.
+
+    Drawn heavier and closer to the edges than the favicon's K, since there is
+    no tile around it to provide the visual mass.
+  -->
+  <g stroke="#000" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 8V56" />
+    <path d="M47 8L23 32L47 56" />
+  </g>
+</svg>

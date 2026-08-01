@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="272" height="72" viewBox="0 0 272 72" fill="none" role="img" aria-label="Kosha">
+  <!--
+    Full Kosha lockup, inked for DARK backgrounds. Light-background twin:
+    logo-kosha.svg. Inside the app use components/BrandLockup.vue instead — it
+    inherits currentColor and needs no variant at all.
+
+    Deliberately no @media (prefers-color-scheme) here: inside an <img> that
+    query reports the viewer's OS theme, not the surface the logo sits on, so a
+    self-switching file is wrong exactly half the time. Pick the file that
+    matches the background.
+  -->
+  <g transform="translate(6 4)">
+    <path d="M55.38 18.5L55.38 45.5L32 59L8.62 45.5L8.62 18.5L32 5"
+      stroke="#8fb3c9" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity="0.55" />
+    <path d="M32 14.5L47.16 23.25L47.16 40.75L32 49.5L16.84 40.75L16.84 23.25Z"
+      stroke="#8fb3c9" stroke-width="4.5" stroke-linejoin="round" />
+    <path d="M32 22.5L40.23 27.25L40.23 36.75L32 41.5L23.77 36.75L23.77 27.25Z" fill="#e8a33d" />
+  </g>
+
+  <text
+    x="82"
+    y="49"
+    fill="#f4f1ea"
+    font-family="'Space Grotesk','Inter','Segoe UI',system-ui,sans-serif"
+    font-size="40"
+    font-weight="700"
+    letter-spacing="-0.5"
+  >kosha</text>
+</svg>

@@ -283,11 +283,21 @@ async function save() {
             <i :class="mod.icon" />
             {{ mod.label }}
           </span>
+          <!-- Held through a marketplace pack. Switching it off here only hides
+               the menu — the entitlement returns on the next sync until the pack
+               itself is revoked, so the tag is a pointer to the right lever. -->
+          <Tag
+            v-if="mod.granted_by_pack"
+            value="pack"
+            severity="info"
+            class="plan-tag"
+            title="Granted by a marketplace pack — revoke the pack under Marketplace → Pack Grants to remove it"
+          />
           <!-- The plan is advisory here, not a lock: the operator may switch on a
                module the tenant never bought, and EnabledModules keeps it via the
                recorded grant. -->
           <Tag
-            v-if="!mod.allowed_by_plan"
+            v-else-if="!mod.allowed_by_plan"
             value="off plan"
             severity="secondary"
             class="plan-tag"

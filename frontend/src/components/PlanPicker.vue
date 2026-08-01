@@ -26,6 +26,12 @@ const props = defineProps<{
   modules: ModuleOption[]
   /** Show the module-name list on each card (step 1 + step 3 both do). */
   showModules?: boolean
+  /**
+   * Keep the "N modules" line but drop the chip list under it. Used where the
+   * chosen package's modules are already listed in full further down the same
+   * screen — the chips then cost ~120px of scrolling to repeat it.
+   */
+  compact?: boolean
 }>()
 
 const slug = defineModel<string>({ required: true })
@@ -72,6 +78,9 @@ function isPopular(index: number): boolean {
     >
       <span v-if="isPopular(i)" class="ribbon">Popular</span>
       <span v-else-if="p.is_custom" class="ribbon premium-ribbon">Full access</span>
+      <!-- The rail goes gold on the active card; without a word in it, a plan
+           carrying no banner just looks like it lost its label. -->
+      <span v-else-if="slug === p.slug" class="ribbon">Selected</span>
 
       <span class="plan-head">
         <span class="plan-name">{{ p.name }}</span>
@@ -96,7 +105,7 @@ function isPopular(index: number): boolean {
           <i class="pi pi-th-large" />
           {{ moduleCount(p) }} modules
         </span>
-        <span class="plan-modules" :title="moduleLabels(p).join(', ')">
+        <span v-if="!compact" class="plan-modules" :title="moduleLabels(p).join(', ')">
           <span v-for="label in moduleLabels(p)" :key="label" class="mod-chip">{{ label }}</span>
         </span>
       </template>
@@ -121,7 +130,10 @@ function isPopular(index: number): boolean {
   border: 1px solid #e8e4da;
   background: linear-gradient(180deg, #fff, #fbfaf7);
   border-radius: 14px;
-  padding: 0.85rem 0.8rem 0.7rem;
+  /* Top padding clears the accent rail, which is now tall enough to hold a
+     label (see .ribbon). Every card reserves the same strip so the three
+     stay aligned whether or not they carry a banner. */
+  padding: 1.85rem 0.8rem 0.7rem;
   cursor: pointer;
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.18s, transform 0.18s;
@@ -131,8 +143,9 @@ function isPopular(index: number): boolean {
   content: '';
   position: absolute;
   inset: 0 0 auto 0;
-  height: 3px;
-  background: #e3ded3;
+  height: 1.4rem;
+  background: #f1eee7;
+  border-bottom: 1px solid #e8e4da;
   transition: background 0.15s;
 }
 .plan:hover {
@@ -145,31 +158,45 @@ function isPopular(index: number): boolean {
   background: linear-gradient(180deg, #fffdf8, rgba(232, 163, 61, 0.1));
   box-shadow: 0 0 0 1px #e8a33d inset, 0 10px 26px rgba(232, 163, 61, 0.18);
 }
+.plan.popular::before,
+.plan.premium::before {
+  border-bottom-color: transparent;
+}
+.plan.popular::before {
+  background: linear-gradient(90deg, #eaad48, #c98730);
+}
+.plan.premium::before {
+  background: linear-gradient(90deg, #2c4a5e, #3d637c);
+}
 .plan.active::before {
   background: linear-gradient(90deg, #eaad48, #c98730);
+  border-bottom-color: transparent;
 }
 .plan.premium.active::before {
   background: linear-gradient(90deg, #2c4a5e, #3d637c);
 }
 
+/* Full-width banner riding the top rail.
+   This used to be a 35°-rotated corner ribbon, which the card's `overflow:
+   hidden` sliced at both ends — "Full access" lost its F. A straight strip
+   spanning the card can't be clipped at any label length. */
 .ribbon {
   position: absolute;
-  top: 0.55rem;
-  right: -1.6rem;
-  transform: rotate(35deg);
-  width: 6.5rem;
-  text-align: center;
-  font-size: 0.58rem;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #23292f;
-  background: linear-gradient(135deg, #eaad48, #c98730);
-  padding: 0.12rem 0;
 }
 .ribbon.premium-ribbon {
   color: #fff;
-  background: linear-gradient(135deg, #2c4a5e, #3d637c);
 }
 
 .plan-head {

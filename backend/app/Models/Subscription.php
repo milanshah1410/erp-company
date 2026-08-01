@@ -17,6 +17,7 @@ class Subscription extends Model
         'tenant_id', 'plan_id', 'pending_plan_id', 'status', 'trial_ends_at',
         'current_period_start', 'current_period_end', 'cancelled_at',
         'razorpay_subscription_id', 'razorpay_customer_id',
+        'platform_coupon_id', 'coupon_code', 'coupon_cycles_remaining',
     ];
 
     protected $casts = [
@@ -24,6 +25,7 @@ class Subscription extends Model
         'current_period_start' => 'datetime',
         'current_period_end' => 'datetime',
         'cancelled_at' => 'datetime',
+        'coupon_cycles_remaining' => 'integer',
     ];
 
     public function tenant(): BelongsTo
@@ -45,6 +47,37 @@ class Subscription extends Model
     public function invoices(): HasMany
     {
         return $this->hasMany(SubscriptionInvoice::class);
+    }
+
+    /** The recurring coupon pinned to this subscription, if one is attached. */
+    public function coupon(): BelongsTo
+    {
+        return $this->belongsTo(PlatformCoupon::class, 'platform_coupon_id');
+    }
+
+    /**
+     * Does the pinned coupon still discount the next invoice?
+     *
+     * A null `coupon_cycles_remaining` with a coupon attached is a `forever`
+     * coupon; a positive count is a `repeating` one mid-run. The count is
+     * decremented by CouponService as each invoice consumes a cycle.
+     */
+    public function hasLiveCoupon(): bool
+    {
+        return $this->platform_coupon_id !== null
+            && ($this->coupon_cycles_remaining === null || $this->coupon_cycles_remaining > 0);
+    }
+
+    /** The end of the period this subscription's next invoice should cover. */
+    public function nextPeriodEnd(?Plan $plan = null): Carbon
+    {
+        $plan ??= $this->plan;
+
+        $base = $this->current_period_end?->isFuture()
+            ? $this->current_period_end->copy()
+            : Carbon::now();
+
+        return $plan?->billing_cycle === 'yearly' ? $base->addYear() : $base->addMonth();
     }
 
     public function onTrial(): bool

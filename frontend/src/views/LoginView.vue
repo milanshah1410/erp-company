@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+/**
+ * Tenant sign-in.
+ *
+ * Shares AuthShell with the signup journey (register → verify → provisioning)
+ * so the two halves of the same funnel look like one product. No step rail
+ * here — login is a single screen — and the perks strip swaps the trial pitch
+ * for reassurance that matters once you already have an account.
+ */
+import { ref, computed } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
 import Button from 'primevue/button'
-import Message from 'primevue/message'
 import { useAuthStore } from '../stores/auth'
 import { SUPPORTED_LOCALES, setLocale } from '../i18n'
+import AuthShell from '../components/auth/AuthShell.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -17,6 +25,20 @@ const email = ref('admin@sims.test')
 const password = ref('password')
 const error = ref('')
 const loading = ref(false)
+
+const PERKS = [
+  { icon: 'pi pi-shield', label: 'Bank-grade encryption' },
+  { icon: 'pi pi-clock', label: '99.9% uptime' },
+  { icon: 'pi pi-headphones', label: 'Support in EN · हिन्दी · ગુજરાતી' },
+]
+
+// Fills the rail space the signup step spine occupies. Computed so the copy
+// follows the language picker in the card below.
+const highlights = computed(() => [
+  { icon: 'pi pi-book', label: t('login.hlLedger') },
+  { icon: 'pi pi-th-large', label: t('login.hlTrade') },
+  { icon: 'pi pi-indian-rupee', label: t('login.hlPayments') },
+])
 
 async function submit() {
   error.value = ''
@@ -33,114 +55,127 @@ async function submit() {
 </script>
 
 <template>
-  <div class="login-page">
-    <div class="login-card">
-      <div class="brand">
-        <div class="brand-icon"><i class="pi pi-box" /></div>
-        <h1>SIMS</h1>
-        <p>{{ t('login.tagline') }}</p>
-      </div>
-      <div class="barcode-divider" />
-
-      <div class="lang-row">
-        <button
-          v-for="l in SUPPORTED_LOCALES"
-          :key="l.code"
-          type="button"
-          class="lang-btn"
-          :class="{ on: locale === l.code }"
-          @click="setLocale(l.code)"
-        >
-          {{ l.label }}
-        </button>
-      </div>
-
-      <Message v-if="error" severity="error" :closable="false">{{ error }}</Message>
-
-      <form @submit.prevent="submit">
-        <label>{{ t('login.email') }}</label>
-        <InputText v-model="email" type="email" placeholder="you@example.com" autocomplete="username" />
-
-        <label>{{ t('login.password') }}</label>
-        <Password v-model="password" :feedback="false" toggleMask inputClass="w-full" placeholder="••••••••" />
-
-        <Button type="submit" :label="t('login.signIn')" :loading="loading" class="submit" />
-      </form>
-
-      <p class="signup">
-        {{ t('login.noAccount') }}
-        <RouterLink to="/register">{{ t('login.createOne') }}</RouterLink>
-      </p>
-
-      <p class="hint">{{ t('login.defaultAdmin') }} <code>admin@sims.test</code> / <code>password</code></p>
+  <AuthShell
+    :eyebrow="t('login.welcomeBack')"
+    :headline="t('login.headline')"
+    :blurb="t('login.blurb')"
+    :perks="PERKS"
+    :highlights="highlights"
+  >
+    <div class="head">
+      <h1>{{ t('login.cardTitle') }}</h1>
+      <p>{{ t('login.subtitle') }}</p>
     </div>
-  </div>
+
+    <div class="lang-row" role="group" :aria-label="t('login.language')">
+      <button
+        v-for="l in SUPPORTED_LOCALES"
+        :key="l.code"
+        type="button"
+        class="lang-btn"
+        :class="{ on: locale === l.code }"
+        :aria-pressed="locale === l.code"
+        @click="setLocale(l.code)"
+      >
+        {{ l.label }}
+      </button>
+    </div>
+
+    <p v-if="error" class="err" role="alert">
+      <i class="pi pi-exclamation-circle" />
+      <span>{{ error }}</span>
+    </p>
+
+    <form @submit.prevent="submit">
+      <div class="fld">
+        <label for="login-email">{{ t('login.email') }}</label>
+        <span class="input-wrap">
+          <i class="pi pi-envelope" aria-hidden="true" />
+          <InputText
+            id="login-email"
+            v-model="email"
+            type="email"
+            placeholder="you@example.com"
+            autocomplete="username"
+            required
+          />
+        </span>
+      </div>
+
+      <div class="fld">
+        <label for="login-password">{{ t('login.password') }}</label>
+        <span class="input-wrap has-toggle">
+          <i class="pi pi-lock" aria-hidden="true" />
+          <Password
+            input-id="login-password"
+            v-model="password"
+            :feedback="false"
+            toggle-mask
+            placeholder="••••••••"
+            autocomplete="current-password"
+            required
+          />
+        </span>
+      </div>
+
+      <Button type="submit" :label="t('login.signIn')" :loading="loading" class="submit" />
+    </form>
+
+    <p class="signup">
+      {{ t('login.noAccount') }}
+      <RouterLink to="/register">{{ t('login.createOne') }}</RouterLink>
+    </p>
+
+    <p class="hint">
+      {{ t('login.defaultAdmin') }} <code>admin@sims.test</code> / <code>password</code>
+    </p>
+
+    <template #footer>
+      By continuing you agree to our Terms of Service and Privacy Policy.
+    </template>
+  </AuthShell>
 </template>
 
 <style scoped>
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #2c4a5e 0%, #1e2328 65%, #171a1e 100%);
-  padding: 1rem;
+.head {
+  margin-bottom: 1.5rem;
 }
-.login-card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 2.5rem;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-}
-.brand {
-  text-align: center;
-  margin-bottom: 1.25rem;
-}
-.brand-icon {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 0.75rem;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #eaad48 0%, #e8a33d 55%, #c98730 100%);
-  box-shadow: 0 8px 20px rgba(232, 163, 61, 0.35);
-}
-.brand-icon i {
-  font-size: 1.6rem;
-  color: #1e2328;
-}
-.brand h1 {
-  font-size: 1.75rem;
+.head h1 {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  font-size: 1.5rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
   color: #1e2328;
-  margin: 0.25rem 0 0;
+  margin: 0;
 }
-.brand p {
-  color: #6b7280;
+.head p {
+  margin: 0.35rem 0 0;
   font-size: 0.9rem;
+  color: #6b7280;
 }
-.barcode-divider {
-  margin-bottom: 1.25rem;
-}
+
 .lang-row {
   display: flex;
-  justify-content: center;
   gap: 0.4rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.35rem;
 }
 .lang-btn {
   border: 1px solid #e5e7eb;
   background: #fff;
   color: #6b7280;
   font-size: 0.8rem;
-  padding: 0.25rem 0.7rem;
+  padding: 0.3rem 0.8rem;
   border-radius: 999px;
   cursor: pointer;
   font-family: inherit;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+.lang-btn:hover {
+  border-color: #d6cfc2;
+  background: #faf8f4;
 }
 .lang-btn.on {
   border-color: #e8a33d;
@@ -148,28 +183,82 @@ async function submit() {
   color: #a06a27;
   font-weight: 600;
 }
+
+.err {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #f3c7c7;
+  background: #fdf2f2;
+  color: #b3261e;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.err i {
+  margin-top: 0.1rem;
+  flex: none;
+}
+
 form {
   display: flex;
   flex-direction: column;
+  gap: 1.05rem;
+}
+.fld {
+  display: flex;
+  flex-direction: column;
   gap: 0.4rem;
-  margin-top: 1rem;
 }
-form label {
-  font-size: 0.85rem;
-  font-weight: 500;
+.fld label {
+  font-size: 0.82rem;
+  font-weight: 600;
   color: #374151;
-  margin-top: 0.5rem;
 }
-form :deep(.p-inputtext),
-form :deep(.p-password),
-form :deep(.p-password input) {
+
+/* Leading icon sits inside the field; the input gets matching left padding.
+   Hand-rolled rather than PrimeVue IconField so the Password toggle (which
+   renders its own trailing icon) keeps working unchanged. */
+.input-wrap {
+  position: relative;
+  display: block;
+}
+.input-wrap > i {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.9rem;
+  color: #9ca3af;
+  pointer-events: none;
+  z-index: 1;
+}
+.input-wrap :deep(.p-inputtext),
+.input-wrap :deep(.p-password) {
   width: 100%;
 }
-.submit {
-  margin-top: 1.25rem;
+.input-wrap :deep(.p-inputtext) {
+  padding-left: 2.5rem;
+  padding-block: 0.7rem;
+  border-radius: 10px;
 }
+.input-wrap:focus-within > i {
+  color: #c98730;
+}
+
+.submit {
+  margin-top: 0.35rem;
+  padding-block: 0.72rem;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
 .signup {
-  margin-top: 1.5rem;
+  margin: 1.5rem 0 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid #ede9e0;
   text-align: center;
   font-size: 0.9rem;
   color: #6b7280;
@@ -182,15 +271,23 @@ form :deep(.p-password input) {
 .signup a:hover {
   text-decoration: underline;
 }
+
 .hint {
-  margin-top: 1rem;
+  margin: 0.9rem 0 0;
   text-align: center;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: #9ca3af;
 }
 .hint code {
   background: #f3f4f6;
   padding: 1px 5px;
   border-radius: 4px;
+  font-size: 0.95em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lang-btn {
+    transition: none;
+  }
 }
 </style>

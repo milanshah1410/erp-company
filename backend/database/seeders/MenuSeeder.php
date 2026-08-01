@@ -172,6 +172,10 @@ class MenuSeeder extends Seeder
                 ['label' => 'Floor', 'icon' => 'pi pi-table', 'to' => '/restaurant/floor', 'permission' => 'restaurant-tables.view'],
                 ['label' => 'Orders', 'icon' => 'pi pi-receipt', 'to' => '/restaurant/orders', 'permission' => 'restaurant-orders.view'],
                 ['label' => 'Kitchen Display', 'icon' => 'pi pi-desktop', 'to' => '/restaurant/kitchen', 'permission' => 'kitchen-orders.view'],
+                // Food & Beverage plugin. Menu leads Recipes: a shop marks dishes
+                // sold out every service, and writes a recipe once.
+                ['label' => 'Menu', 'icon' => 'pi pi-book', 'to' => '/restaurant/menu', 'permission' => 'restaurant-menu.view'],
+                ['label' => 'Recipes', 'icon' => 'pi pi-list-check', 'to' => '/restaurant/recipes', 'permission' => 'restaurant-recipes.view'],
                 ['label' => 'Tables & Sections', 'icon' => 'pi pi-th-large', 'to' => '/restaurant/tables', 'permission' => 'restaurant-tables.edit'],
             ]],
 
@@ -242,6 +246,17 @@ class MenuSeeder extends Seeder
                     ['label' => 'Manufacturing Orders', 'icon' => 'pi pi-wrench', 'to' => '/manufacturing-orders', 'permission' => 'manufacturing-orders.view'],
                     ['label' => 'Colour Printing', 'icon' => 'pi pi-palette', 'to' => '/colour-printings', 'permission' => 'colour-printing.view'],
                     ['label' => 'Job Work', 'icon' => 'pi pi-briefcase', 'to' => '/job-works', 'permission' => 'job-works.view'],
+                    // Second door to the F&B plugin's Recipes screen. A bakery,
+                    // sweet mart or ice-cream parlour genuinely works to recipes
+                    // but has no tables, so it runs Manufacturing rather than
+                    // Restaurant — and would otherwise never reach this.
+                    //
+                    // Two menu rows for one permission group is the supported way
+                    // to say "either module owns this": permissionGroupMap()
+                    // collects owners into a list and groupAvailable() passes if
+                    // *any* is enabled (the same rule that lets POS share
+                    // sales.create). Nothing is duplicated but the nav row.
+                    ['label' => 'Recipes', 'icon' => 'pi pi-list-check', 'to' => '/restaurant/recipes', 'permission' => 'restaurant-recipes.view'],
                 ]],
                 ['label' => 'Textile', 'icon' => 'pi pi-th-large', 'module' => 'textile', 'children' => [
                     ['label' => 'Fabric Rolls', 'icon' => 'pi pi-clone', 'to' => '/fabric-rolls', 'permission' => 'textile.view'],
@@ -411,6 +426,10 @@ class MenuSeeder extends Seeder
                     ['label' => 'Embroidery', 'icon' => 'pi pi-palette', 'to' => '/reports/embroidery', 'permission' => 'reports.view', 'module' => 'embroidery'],
                     ['label' => 'Printing', 'icon' => 'pi pi-print', 'to' => '/reports/printing', 'permission' => 'reports.view', 'module' => 'manufacturing'],
                 ]],
+                // Food & Beverage plugin reports.
+                ['label' => 'Restaurant Reports', 'icon' => 'pi pi-shop', 'module' => 'restaurant', 'children' => [
+                    ['label' => 'Waiter Performance', 'icon' => 'pi pi-users', 'to' => '/reports/waiter-performance', 'permission' => 'reports.view'],
+                ]],
                 ['label' => 'HR Reports', 'icon' => 'pi pi-id-card', 'module' => 'hrms', 'children' => [
                     // No HR report screens exist yet; the group stays hidden (a group
                     // with no visible children is dropped) until routes are added.
@@ -451,6 +470,11 @@ class MenuSeeder extends Seeder
                     ['label' => 'Branches', 'icon' => 'pi pi-map-marker', 'to' => '/branches', 'permission' => 'branches.view'],
                     ['label' => 'Billing & Plan', 'icon' => 'pi pi-credit-card', 'to' => '/billing'],
                     ['label' => 'Workflows', 'icon' => 'pi pi-share-alt', 'to' => '/workflows', 'permission' => 'workflows.view', 'module' => 'workflow'],
+                    // Custom Fields carries no module tag on purpose: it is how
+                    // a trade the module catalogue does not name — a book store,
+                    // a toy shop — makes the product master its own, so it must
+                    // never be one of the things that can be switched off.
+                    ['label' => 'Custom Fields', 'icon' => 'pi pi-list-check', 'to' => '/custom-fields', 'permission' => 'custom-fields.view'],
                     ['label' => 'Settings', 'icon' => 'pi pi-cog', 'to' => '/settings', 'permission' => 'settings.view'],
                     ['label' => 'System Tools', 'icon' => 'pi pi-wrench', 'to' => '/system-tools', 'permission' => 'settings.view'],
                 ]],

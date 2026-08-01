@@ -53,7 +53,7 @@ class OutstandingBalanceNotification extends Notification
         $title = $this->kind === 'customer' ? 'Customer over credit limit' : 'Supplier over credit limit';
 
         return (new MailMessage)
-            ->subject("SIMS: {$title}")
+            ->subject("Kosha: {$title}")
             ->line($this->summary())
             ->action($this->kind === 'customer' ? 'View Customers' : 'View Suppliers',
                 url($this->kind === 'customer' ? '/customers' : '/suppliers'));

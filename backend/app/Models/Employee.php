@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HasCustomFields;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Employee extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, HasCustomFields;
 
     protected $fillable = [
         'user_id', 'department_id', 'employee_code', 'first_name', 'last_name',

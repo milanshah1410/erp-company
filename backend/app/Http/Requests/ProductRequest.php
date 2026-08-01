@@ -2,21 +2,31 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesCustomFields;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class ProductRequest extends FormRequest
 {
+    use ValidatesCustomFields;
+
     public function authorize(): bool
     {
         return true; // route middleware handles permission checks
+    }
+
+    protected function customFieldEntity(): string
+    {
+        return 'product';
     }
 
     public function rules(): array
     {
         $productId = $this->route('product')?->id;
 
-        return [
+        // The tenant's own fields are appended, so a book store's ISBN is
+        // validated exactly like `sku` without this file knowing it exists.
+        return $this->customFieldRules() + [
             'sku' => ['required', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($productId)],
             'barcode' => ['nullable', 'string', 'max:255'],
             'rfid_tag' => ['nullable', 'string', 'max:255', Rule::unique('products', 'rfid_tag')->ignore($productId)],

@@ -59,10 +59,11 @@ final class EnabledModules
 
         if ($plan) {
             // The plan is the ceiling, plus whatever the platform operator has
-            // comped this workspace on /platform/tenants → Access. Without that
-            // union an operator could switch a module on and watch it come
-            // straight back off, since this narrowing runs on every read.
-            $allowed = array_merge($plan->allowedModules(), self::operatorGrants());
+            // comped this workspace on /platform/tenants → Access, plus whatever
+            // its marketplace packs unlock. Without that union an operator could
+            // switch a module on and watch it come straight back off, since this
+            // narrowing runs on every read.
+            $allowed = array_merge($plan->allowedModules(), self::operatorGrants(), self::packModules());
             $modules = array_values(array_intersect($modules, $allowed));
         }
 
@@ -88,6 +89,29 @@ final class EnabledModules
         $grants = is_array($raw) ? $raw : json_decode((string) $raw, true);
 
         return is_array($grants) ? array_values($grants) : [];
+    }
+
+    /**
+     * Modules unlocked by the workspace's marketplace packs (Volume 11 §Module
+     * Marketplace).
+     *
+     * Read from the `pack_modules` setting rather than from the pack tables:
+     * PackEntitlementService projects the tenant's live grants into it whenever one
+     * changes, which keeps this — a hot path, hit on every menu and permission
+     * read — one tenant-scoped lookup instead of a cross-connection join.
+     *
+     * @return list<string>
+     */
+    public static function packModules(): array
+    {
+        $raw = Setting::where('key', 'pack_modules')->value('value');
+        if (empty($raw)) {
+            return [];
+        }
+
+        $modules = is_array($raw) ? $raw : json_decode((string) $raw, true);
+
+        return is_array($modules) ? array_values($modules) : [];
     }
 
     /**

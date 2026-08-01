@@ -40,7 +40,7 @@ class CustomerOccasionNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('SIMS: Customer '.$this->occasion.' today')
+            ->subject('Kosha: Customer '.$this->occasion.' today')
             ->line($this->summary())
             ->action('Open Occasions', url('/crm/occasions'));
     }

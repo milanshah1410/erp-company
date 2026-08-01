@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Central;
 use App\Http\Controllers\Controller;
 use App\Models\MenuItem;
 use App\Models\Plan;
+use App\Support\IndustryTemplates;
 use App\Support\Modules;
 use App\Support\ShopProfiles;
 use Illuminate\Http\JsonResponse;
@@ -47,6 +48,19 @@ class PlanController extends Controller
     public function shopProfiles(): JsonResponse
     {
         return response()->json(['data' => ShopProfiles::options()]);
+    }
+
+    /**
+     * The active industry catalogue, each vertical carrying its trades with
+     * their module presets — the wizard's "what kind of business is this?" step.
+     *
+     * Trades also arrive flat from /shop-profiles (each tagged with its
+     * industry), so a client can render either a grouped picker or a flat one
+     * from whichever endpoint suits it.
+     */
+    public function industries(): JsonResponse
+    {
+        return response()->json(['data' => IndustryTemplates::catalogue()]);
     }
 
     /**

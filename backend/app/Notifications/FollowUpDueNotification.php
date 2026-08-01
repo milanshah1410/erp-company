@@ -42,7 +42,7 @@ class FollowUpDueNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('SIMS: Follow-up due')
+            ->subject('Kosha: Follow-up due')
             ->line($this->summary())
             ->action('View Follow-ups', url('/follow-ups'));
     }

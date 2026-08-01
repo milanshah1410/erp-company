@@ -9,6 +9,7 @@ use App\Services\Ai\Contracts\AiTextProvider;
 use App\Services\Ai\Providers\AnthropicProvider;
 use App\Services\Ai\Providers\LocalProvider;
 use App\Services\Ai\Providers\OpenAiProvider;
+use App\Support\UsageMeter;
 
 /**
  * Resolves the active narration provider from tenant Settings (with an env/config
@@ -68,6 +69,13 @@ class AiProviderManager
      */
     public function narrate(string $system, string $prompt, string $fallback): string
     {
+        // Every narration in the product funnels through here, which makes it
+        // the one honest place to count AI usage for the platform panel
+        // (Volume 11 §"Tenant Usage" → AI Usage). Local-provider calls count too:
+        // the tenant used an AI feature, and which engine served it is our
+        // implementation detail, not their consumption.
+        UsageMeter::hit(UsageMeter::AI_CALLS);
+
         $result = $this->provider()->complete($system, $prompt);
 
         return ($result !== null && $result !== '') ? $result : $fallback;

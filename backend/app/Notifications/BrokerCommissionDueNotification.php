@@ -40,7 +40,7 @@ class BrokerCommissionDueNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('SIMS: Broker commission due')
+            ->subject('Kosha: Broker commission due')
             ->line($this->summary())
             ->action('View Broker Ledger', url('/brokers/ledger'));
     }

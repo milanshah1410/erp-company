@@ -7,12 +7,11 @@ namespace App\Http\Controllers\Central;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\Subscription;
-use App\Models\SubscriptionInvoice;
-use App\Models\Tenant;
+use App\Services\Billing\CouponService;
+use App\Services\Billing\SubscriptionBillingService;
 use App\Services\RazorpayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -27,6 +26,8 @@ use Throwable;
  */
 class BillingSubscriptionController extends Controller
 {
+    public function __construct(private SubscriptionBillingService $billing) {}
+
     /** subscription status → tenant status, kept in sync on manual edits. */
     private const TENANT_STATUS = [
         'trialing' => 'trial',
@@ -141,43 +142,22 @@ class BillingSubscriptionController extends Controller
 
         $extend = (bool) ($data['extend_period'] ?? true);
 
-        $invoice = SubscriptionInvoice::create([
-            'subscription_id' => $subscription->id,
-            'amount' => $data['amount'],
-            'currency' => $subscription->plan?->currency ?? 'INR',
-            'status' => 'paid',
-            'payment_gateway_ref' => $data['reference'] ?? null,
-            'payment_method' => $data['method'],
+        // Raised through the billing service so an offline payment produces the
+        // same GST tax invoice — number, place of supply, CGST/SGST or IGST — as a
+        // gateway payment. The received amount is the gross, so the tax is
+        // back-computed out of it rather than added on top.
+        $invoice = $this->billing->recordOfflinePayment($subscription, (float) $data['amount'], [
+            'method' => $data['method'],
+            'reference' => $data['reference'] ?? null,
             'notes' => $data['notes'] ?? null,
-            'paid_at' => isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
+            'paid_at' => $data['paid_at'] ?? null,
         ]);
 
         if ($extend) {
-            // A plan change parked at change-plan time takes effect on payment,
-            // same as the gateway paths.
-            $plan = $subscription->pendingPlan ?: $subscription->plan;
-
-            // Paying early extends from the current period end; a lapsed
-            // period restarts from now.
-            $base = $subscription->current_period_end?->isFuture()
-                ? $subscription->current_period_end
-                : now();
-
-            $subscription->update([
-                'plan_id' => $plan->id,
-                'pending_plan_id' => null,
-                'status' => 'active',
-                'cancelled_at' => null,
-                'current_period_start' => now(),
-                'current_period_end' => $plan->billing_cycle === 'yearly' ? $base->copy()->addYear() : $base->copy()->addMonth(),
-            ]);
-
-            // Reactivate the workspace — unless it is operator-locked, which
-            // only an explicit unsuspend may lift.
-            $tenant = $subscription->tenant;
-            if ($tenant && ! $tenant->isOperatorSuspended()) {
-                $tenant->update(['status' => 'active', 'suspended_by' => null]);
-            }
+            // Rolls the period forward, applies a plan change parked at
+            // change-plan time, and reactivates the workspace unless it is
+            // operator-locked — which only an explicit unsuspend may lift.
+            $this->billing->applyPaidPeriod($subscription);
         }
 
         activity('central-billing')->causedBy($request->user())
@@ -200,6 +180,74 @@ class BillingSubscriptionController extends Controller
                 ? 'Payment recorded and subscription renewed.'
                 : 'Payment recorded (subscription left unchanged).',
             'data' => $this->payload($subscription, withInvoices: true),
+        ]);
+    }
+
+    /**
+     * Attach or clear the recurring coupon on a subscription.
+     *
+     * Sending a code pins it (a `repeating`/`forever` coupon then discounts each
+     * renewal); sending null clears it. Nothing is redeemed here — the discount is
+     * spent when an invoice is raised, so pinning a coupon costs a redemption only
+     * once it has actually taken money off something.
+     */
+    public function applyCoupon(Request $request, CouponService $coupons, Subscription $subscription): JsonResponse
+    {
+        $data = $request->validate([
+            'coupon_code' => ['present', 'nullable', 'string', 'max:40'],
+        ]);
+
+        if (trim((string) $data['coupon_code']) === '') {
+            $coupons->detachFromSubscription($subscription);
+
+            activity('central-billing')->causedBy($request->user())
+                ->withProperties(['ip' => $request->ip(), 'subscription_id' => $subscription->id])
+                ->event('subscription-coupon-cleared')
+                ->log('Operator cleared the coupon on subscription for "'.($subscription->tenant?->company_name ?? '?').'"');
+
+            return response()->json([
+                'message' => 'Coupon removed. Future renewals bill at list price.',
+                'data' => $this->payload($subscription->fresh(['tenant', 'plan'])),
+            ]);
+        }
+
+        // Validated in the subscription's own context, so a plan-restricted or
+        // already-used-by-this-tenant code is refused with the real reason.
+        $coupon = $coupons->validate($data['coupon_code'], [
+            'tenant_id' => $subscription->tenant_id,
+            'plan_id' => $subscription->plan_id,
+            'amount' => (float) ($subscription->plan?->price ?? 0),
+            'purchase_type' => 'subscription',
+        ]);
+
+        $coupons->attachToSubscription($subscription, $coupon);
+
+        activity('central-billing')->causedBy($request->user())
+            ->withProperties(['ip' => $request->ip(), 'subscription_id' => $subscription->id, 'code' => $coupon->code])
+            ->event('subscription-coupon-applied')
+            ->log("Operator applied coupon {$coupon->code} to subscription for \"".($subscription->tenant?->company_name ?? '?').'"');
+
+        return response()->json([
+            'message' => $coupon->code.' applied — '.$coupon->label().'.',
+            'data' => $this->payload($subscription->fresh(['tenant', 'plan'])),
+        ]);
+    }
+
+    /**
+     * What the subscription's next invoice will come to: list price, coupon, GST
+     * split, total. Read-only — nothing is raised or redeemed.
+     */
+    public function quote(Request $request, Subscription $subscription): JsonResponse
+    {
+        $data = $request->validate([
+            'coupon_code' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'plan_id' => ['sometimes', 'integer', Rule::exists('plans', 'id')],
+        ]);
+
+        $plan = isset($data['plan_id']) ? Plan::find($data['plan_id']) : null;
+
+        return response()->json([
+            'data' => $this->billing->quote($subscription, $plan, $data['coupon_code'] ?? null),
         ]);
     }
 
@@ -266,6 +314,11 @@ class BillingSubscriptionController extends Controller
             'plan_id' => $s->plan_id,
             'plan_name' => $s->plan?->name,
             'plan_price' => $s->plan?->price,
+            // A plan the tenant chose itself and hasn't paid for yet. Surfaced so
+            // an operator changing the plan can see there is already a change in
+            // flight, instead of overwriting it blind.
+            'pending_plan_id' => $s->pending_plan_id,
+            'pending_plan_name' => $s->pending_plan_id ? Plan::find($s->pending_plan_id)?->name : null,
             'billing_cycle' => $s->plan?->billing_cycle,
             'currency' => $s->plan?->currency ?? 'INR',
             'status' => $s->status,
@@ -274,13 +327,22 @@ class BillingSubscriptionController extends Controller
             'current_period_end' => $s->current_period_end?->toDateTimeString(),
             'cancelled_at' => $s->cancelled_at?->toDateTimeString(),
             'razorpay_subscription_id' => $s->razorpay_subscription_id,
+            // The recurring coupon pinned to this subscription, and how many
+            // renewals it still discounts (null with a code = forever).
+            'coupon_code' => $s->coupon_code,
+            'coupon_cycles_remaining' => $s->coupon_cycles_remaining,
             'created_at' => $s->created_at?->toDateTimeString(),
         ];
 
         if ($withInvoices) {
             $row['invoices'] = $s->invoices->map(fn ($i) => [
                 'id' => $i->id,
+                'number' => $i->displayNumber(),
+                'type' => $i->type,
                 'amount' => $i->amount,
+                'discount_amount' => $i->discount_amount,
+                'tax_amount' => $i->tax_amount,
+                'due_date' => $i->due_date?->toDateString(),
                 'currency' => $i->currency,
                 'status' => $i->status,
                 'payment_gateway_ref' => $i->payment_gateway_ref,

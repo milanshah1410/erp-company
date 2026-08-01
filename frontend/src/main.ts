@@ -13,10 +13,17 @@ import './styles/list-design.css'
 import App from './App.vue'
 import router from './router'
 import { initTheme } from './composables/useTheme'
+import { initBranding } from './composables/useBranding'
 import i18n, { getStoredLocale } from './i18n'
 
 // Apply the saved light/dark preference before mount to avoid a flash.
 initTheme()
+
+// White label (Volume 11): fetch the brand for this host and push its colours
+// into the CSS variables the theme reads. Deliberately not awaited — the app
+// boots on the platform brand and re-tints as soon as the lookup lands, so a
+// slow (or failed) branding call can never hold the first paint.
+void initBranding()
 
 // Reflect the saved UI language (en/hi/gu) on the document element.
 document.documentElement.setAttribute('lang', getStoredLocale())

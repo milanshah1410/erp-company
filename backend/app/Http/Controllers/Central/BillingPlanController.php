@@ -27,7 +27,16 @@ class BillingPlanController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        return response()->json(['data' => $plans]);
+        return response()->json([
+            // `modules` resolved through the plan so '*' arrives expanded, and
+            // `modules_all` flags the plans that place no restriction at all —
+            // what a plan sells is half of any change-plan decision, and callers
+            // shouldn't have to re-implement the '*' rule to see it.
+            'data' => $plans->map(fn (Plan $p) => $p->toArray() + [
+                'modules' => $p->allowedModules(),
+                'modules_all' => $p->allowsAllModules(),
+            ])->values(),
+        ]);
     }
 
     public function store(Request $request): JsonResponse

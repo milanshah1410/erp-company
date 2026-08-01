@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Plan;
+use App\Models\PlatformPaymentGateway;
 use App\Models\Tenant;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Throwable;
 
 /**
  * Thin wrapper over the Razorpay REST API (https://api.razorpay.com/v1) for
@@ -16,30 +18,90 @@ use RuntimeException;
  * no extra SDK dependency is required. When credentials are absent (local /
  * unconfigured), calls throw a clear "not configured" error that callers can
  * translate into a friendly response.
+ *
+ * Credentials resolve database-first: an active Razorpay row in
+ * `platform_payment_gateways` (Billing → Payment Gateways) wins over
+ * config('saas.razorpay'), so an operator can rotate keys or switch test→live
+ * without a deploy. The .env values remain the fallback, which is what keeps a
+ * fresh install and the local environment working with no panel setup at all.
  */
 class RazorpayService
 {
     private const BASE = 'https://api.razorpay.com/v1';
 
+    /** Resolved once per request — this sits on the checkout path. */
+    private ?array $resolved = null;
+
     public function configured(): bool
     {
-        return ! empty(config('saas.razorpay.key')) && ! empty(config('saas.razorpay.secret'));
+        $creds = $this->credentials();
+
+        return ! empty($creds['key']) && ! empty($creds['secret']);
     }
 
     /** Public key id — safe to expose to the browser for Checkout. */
     public function keyId(): ?string
     {
-        return config('saas.razorpay.key');
+        return $this->credentials()['key'];
+    }
+
+    /** 'live' or 'test' — surfaced so the panel can warn about test keys. */
+    public function mode(): string
+    {
+        return $this->credentials()['mode'];
+    }
+
+    /**
+     * The credentials in force: the panel's Razorpay row if one is active and
+     * configured, else .env.
+     *
+     * @return array{key: ?string, secret: ?string, webhook_secret: ?string, mode: string, source: string}
+     */
+    public function credentials(): array
+    {
+        if ($this->resolved !== null) {
+            return $this->resolved;
+        }
+
+        try {
+            $row = PlatformPaymentGateway::activeFor('razorpay');
+        } catch (Throwable) {
+            // The table may not exist yet (mid-migration) or the central
+            // connection may be unavailable — fall back rather than break
+            // checkout on an infrastructure detail.
+            $row = null;
+        }
+
+        if ($row && $row->credential('key_id') && $row->credential('key_secret')) {
+            return $this->resolved = [
+                'key' => $row->credential('key_id'),
+                'secret' => $row->credential('key_secret'),
+                'webhook_secret' => $row->credential('webhook_secret'),
+                'mode' => $row->mode ?: 'test',
+                'source' => 'panel',
+            ];
+        }
+
+        return $this->resolved = [
+            'key' => config('saas.razorpay.key'),
+            'secret' => config('saas.razorpay.secret'),
+            'webhook_secret' => config('saas.razorpay.webhook_secret'),
+            // A live key id is not prefixed rzp_test_; infer rather than guess.
+            'mode' => str_starts_with((string) config('saas.razorpay.key'), 'rzp_test') ? 'test' : 'live',
+            'source' => 'config',
+        ];
     }
 
     private function client(): PendingRequest
     {
+        $creds = $this->credentials();
+
         if (! $this->configured()) {
-            throw new RuntimeException('Razorpay is not configured. Set RAZORPAY_KEY and RAZORPAY_SECRET.');
+            throw new RuntimeException('Razorpay is not configured. Add it under Billing → Payment Gateways, or set RAZORPAY_KEY and RAZORPAY_SECRET.');
         }
 
         return Http::baseUrl(self::BASE)
-            ->withBasicAuth(config('saas.razorpay.key'), config('saas.razorpay.secret'))
+            ->withBasicAuth($creds['key'], $creds['secret'])
             ->acceptJson()
             ->asJson();
     }
@@ -118,6 +180,18 @@ class RazorpayService
             ->first();
     }
 
+    /**
+     * Cheapest authenticated round-trip Razorpay offers: list one plan.
+     *
+     * Read-only and side-effect free, so the platform panel can confirm stored
+     * credentials without creating anything on the merchant account. Throws on
+     * rejection — the caller turns that into the operator-facing message.
+     */
+    public function ping(): void
+    {
+        $this->client()->get('/plans', ['count' => 1])->throw();
+    }
+
     /** Fetch a payment so amount/status come from Razorpay, not the browser. */
     public function fetchPayment(string $paymentId): array
     {
@@ -130,7 +204,7 @@ class RazorpayService
      */
     public function verifyCheckoutSignature(string $paymentId, string $subscriptionId, string $signature): bool
     {
-        $secret = config('saas.razorpay.secret');
+        $secret = $this->credentials()['secret'];
         if (empty($secret)) {
             return false;
         }
@@ -146,7 +220,7 @@ class RazorpayService
      */
     public function verifyWebhookSignature(string $rawBody, ?string $signature): bool
     {
-        $secret = config('saas.razorpay.webhook_secret');
+        $secret = $this->credentials()['webhook_secret'];
         if (empty($secret) || empty($signature)) {
             return false;
         }

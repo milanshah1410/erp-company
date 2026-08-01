@@ -46,7 +46,7 @@ class ManufacturingOrderDueNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('SIMS: Manufacturing order '.($this->isOverdue() ? 'overdue' : 'due soon'))
+            ->subject('Kosha: Manufacturing order '.($this->isOverdue() ? 'overdue' : 'due soon'))
             ->line($this->summary())
             ->action('View Manufacturing Orders', url('/manufacturing-orders'));
     }

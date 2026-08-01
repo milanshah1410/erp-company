@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Support\Modules;
+use App\Support\PackEntitlement;
 use App\Support\TenantCache;
 use App\Support\TenantContext;
 use App\Support\TenantMenuAccess;
@@ -48,7 +49,12 @@ class TenantAccessController extends Controller
         $plan = Subscription::with('plan')->where('tenant_id', $tenant->id)->latest('id')->first()?->plan;
         $allowedByPlan = $plan?->allowedModules() ?? Modules::keys();
 
-        return app(TenantContext::class)->runWith($tenant->id, function () use ($tenant, $plan, $allowedByPlan): JsonResponse {
+        // Modules the workspace holds through a marketplace pack. Shown so an
+        // operator can see why a module beyond the plan is on — and so unticking
+        // it reads as "this needs the pack revoked", not as a lever that failed.
+        $packModules = PackEntitlement::modulesFor($tenant->id);
+
+        return app(TenantContext::class)->runWith($tenant->id, function () use ($tenant, $plan, $allowedByPlan, $packModules): JsonResponse {
             // A legacy tenant (provisioned before per-tenant menus) has no rows of
             // its own and is served the global catalogue. Clone it now so the
             // operator has something tenant-owned to switch off.
@@ -79,6 +85,10 @@ class TenantAccessController extends Controller
                     // operator may switch on anything and the workspace keeps it
                     // (the grant is recorded, see update()).
                     'allowed_by_plan' => in_array($key, $allowedByPlan, true),
+                    // Held through a marketplace pack. Switching it off here only
+                    // hides the menu; the entitlement returns on the next sync
+                    // until the pack itself is revoked.
+                    'granted_by_pack' => in_array($key, $packModules, true),
                 ])->values(),
                 // False when the tenant never chose a module set; the UI says so,
                 // because saving this screen is what starts gating it.
@@ -121,8 +131,13 @@ class TenantAccessController extends Controller
         // is the SaaS owner and may comp a workspace a module it never bought.
         // Anything switched on beyond the plan is recorded as a grant, which is
         // what stops EnabledModules narrowing it away again on the next read.
+        //
+        // Pack-held modules are excluded from that record: the pack already
+        // entitles them, and writing them here too would leave the module switched
+        // on as an operator comp after the pack was revoked.
         $modules = Modules::sanitize($data['modules']);
-        $grants = array_values(array_diff($modules, $allowedByPlan));
+        $packModules = PackEntitlement::modulesFor($tenant->id);
+        $grants = array_values(array_diff($modules, $allowedByPlan, $packModules));
 
         return app(TenantContext::class)->runWith($tenant->id, function () use ($tenant, $modules, $grants, $data): JsonResponse {
             TenantMenuAccess::cloneForTenant($tenant->id);

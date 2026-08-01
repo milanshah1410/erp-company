@@ -133,6 +133,21 @@ class Setting extends Model
         'ai_model' => '',                  // blank = provider default (config/ai.php)
         'ai_lead_time_days' => '7',        // supplier lead time for purchase suggestions
 
+        // White label (Volume 11 §"White Label"). Set by the SaaS owner per
+        // tenant from /platform/tenants → White Label, read back by the SPA
+        // through the public GET /api/branding (App\Support\Branding). Defaults
+        // are the platform's own brand, so a tenant that was never white
+        // labelled looks exactly as it does today.
+        // The logo is deliberately NOT a key of its own: it is
+        // `company_logo_url` — the same image the invoices already print, so a
+        // workspace can never end up with two competing logos.
+        'brand_app_name' => '',            // blank = the platform name
+        'brand_tagline' => '',             // one line under the logo on sign-in
+        'brand_primary_color' => '',       // blank = --safety-amber (#e8a33d)
+        'brand_accent_color' => '',        // blank = --ink-blue (#2c4a5e)
+        'brand_dark_default' => '0',       // first visit opens in dark mode
+        'brand_powered_by' => '1',         // show the "powered by" credit line
+
         // Loyalty programme (SRS §21). Points are earned per unit of spend and
         // redeemed as a flat discount, which is how Indian retail counters run it
         // — "₹1 off per point" reads at the till in a way percentages do not.
@@ -229,6 +244,16 @@ class Setting extends Model
     {
         return static::get($settingKey, self::NUMBER_PREFIX_DEFAULTS[$settingKey] ?? '');
     }
+
+    /**
+     * Keys holding the tenant's white-label appearance. `company_logo_url` is
+     * part of the set: the brand logo and the invoice logo are one image.
+     */
+    public const BRAND_KEYS = [
+        'company_logo_url', 'brand_app_name', 'brand_tagline',
+        'brand_primary_color', 'brand_accent_color',
+        'brand_dark_default', 'brand_powered_by',
+    ];
 
     /** Keys holding outgoing-mail (SMTP) configuration. */
     public const MAIL_KEYS = [

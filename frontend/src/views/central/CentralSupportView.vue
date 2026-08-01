@@ -9,9 +9,11 @@ import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import Checkbox from 'primevue/checkbox'
 import Tag from 'primevue/tag'
+import Rating from 'primevue/rating'
 import { useToast } from 'primevue/usetoast'
 import centralHttp from '../../api/centralHttp'
 import { useCentralAuthStore } from '../../stores/centralAuth'
+import { slaSeverity, slaLabel } from './analytics/shared'
 
 const toast = useToast()
 const auth = useCentralAuthStore()
@@ -35,6 +37,29 @@ function apiError(e: any, fallback: string) {
 
 function fmtDate(v: string | null | undefined): string {
   return v ? v.slice(0, 16).replace('T', ' ') : '—'
+}
+
+function fmtBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB']
+  let value = bytes / 1024
+  let i = 0
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024
+    i++
+  }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[i]}`
+}
+
+/** "in 3h 20m" / "4h 05m overdue" for whichever SLA clock is still running. */
+function fmtCountdown(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined) return ''
+  const overdue = minutes < 0
+  const total = Math.abs(minutes)
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  const span = h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`
+  return overdue ? `${span} overdue` : `in ${span}`
 }
 
 const healthSeverity: Record<string, string> = { healthy: 'success', warning: 'warn', at_risk: 'danger' }
@@ -105,8 +130,18 @@ const ticketsSummary = ref<any>(null)
 const ticketsLoading = ref(false)
 const ticketStatus = ref<string | null>('open_any')
 const ticketPriority = ref<string | null>(null)
+const ticketSla = ref<string | null>(null)
 const ticketSearch = ref('')
 const PER_PAGE = 15
+
+// SLA/CSAT cuts of the queue. Server-side, because they are date predicates on
+// the stored clocks — filtering after pagination would return short pages.
+const slaOptions = [
+  { label: 'SLA breached', value: 'breached' },
+  { label: 'Due soon', value: 'due_soon' },
+  { label: 'Awaiting rating', value: 'unrated' },
+  { label: 'Rated', value: 'rated' },
+]
 
 const statusOptions = [
   { label: 'Open + pending', value: 'open_any' },
@@ -125,6 +160,7 @@ async function loadTickets(page = 1) {
     const params: Record<string, any> = { page, per_page: PER_PAGE }
     if (ticketStatus.value) params.status = ticketStatus.value
     if (ticketPriority.value) params.priority = ticketPriority.value
+    if (ticketSla.value) params.sla = ticketSla.value
     if (ticketSearch.value.trim()) params.search = ticketSearch.value.trim()
     const { data } = await centralHttp.get('/support/tickets', { params })
     tickets.value = data.data
@@ -162,6 +198,95 @@ const replySending = ref(false)
 const closeNote = ref('')
 const closing = ref(false)
 
+// ---- Attachments -------------------------------------------------------------------
+const replyFiles = ref<File[]>([])
+const ticketFiles = ref<File[]>([])
+const uploading = ref(false)
+const replyFileInput = ref<HTMLInputElement | null>(null)
+const ticketFileInput = ref<HTMLInputElement | null>(null)
+const newFileInput = ref<HTMLInputElement | null>(null)
+const newFiles = ref<File[]>([])
+
+function pickFiles(target: 'reply' | 'ticket' | 'new', event: Event) {
+  const input = event.target as HTMLInputElement
+  const chosen = Array.from(input.files ?? [])
+  if (target === 'reply') replyFiles.value = chosen
+  else if (target === 'ticket') ticketFiles.value = chosen
+  else newFiles.value = chosen
+}
+
+function clearFileInput(el: HTMLInputElement | null) {
+  if (el) el.value = ''
+}
+
+/**
+ * Stream an attachment through the API client rather than linking to it: the
+ * download route is bearer-authenticated, so a plain href would 401.
+ */
+async function downloadAttachment(a: any) {
+  try {
+    const res = await centralHttp.get(`/support/tickets/${ticket.value.id}/attachments/${a.id}`, { responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = a.name
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (e: any) {
+    apiError(e, 'Could not download that file')
+  }
+}
+
+async function uploadTicketFiles() {
+  if (!ticketFiles.value.length) return
+  uploading.value = true
+  try {
+    const form = new FormData()
+    ticketFiles.value.forEach((f) => form.append('files[]', f))
+    await centralHttp.post(`/support/tickets/${ticket.value.id}/attachments`, form)
+    ticketFiles.value = []
+    clearFileInput(ticketFileInput.value)
+    await openTicket(ticket.value)
+    toast.add({ severity: 'success', summary: 'Files attached', life: 2500 })
+  } catch (e: any) {
+    apiError(e, 'Upload failed')
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function removeAttachment(a: any) {
+  try {
+    await centralHttp.delete(`/support/tickets/${ticket.value.id}/attachments/${a.id}`)
+    await openTicket(ticket.value)
+  } catch (e: any) {
+    apiError(e, 'Could not remove that file')
+  }
+}
+
+// ---- CSAT rating -------------------------------------------------------------------
+const ratingValue = ref<number | undefined>(undefined)
+const ratingComment = ref('')
+const ratingSaving = ref(false)
+
+async function saveRating() {
+  if (!ratingValue.value) return
+  ratingSaving.value = true
+  try {
+    const { data } = await centralHttp.post(`/support/tickets/${ticket.value.id}/rating`, {
+      rating: ratingValue.value,
+      comment: ratingComment.value.trim() || null,
+    })
+    Object.assign(ticket.value, data.data)
+    toast.add({ severity: 'success', summary: 'Rating recorded', life: 2500 })
+    await loadTickets(ticketsPage.value)
+  } catch (e: any) {
+    apiError(e, 'Could not save the rating')
+  } finally {
+    ratingSaving.value = false
+  }
+}
+
 async function openTicket(row: any) {
   ticketDialog.value = true
   ticketLoading.value = true
@@ -169,11 +294,17 @@ async function openTicket(row: any) {
   replyBody.value = ''
   replyInternal.value = false
   replyAsTenant.value = false
+  replyFiles.value = []
+  ticketFiles.value = []
+  clearFileInput(replyFileInput.value)
+  clearFileInput(ticketFileInput.value)
   closeNote.value = ''
   try {
     const { data } = await centralHttp.get(`/support/tickets/${row.id}`)
     ticket.value = data.data
     ticketEdit.value = { status: data.data.status, priority: data.data.priority, assigned_to: data.data.assigned_to }
+    ratingValue.value = data.data.rating ?? undefined
+    ratingComment.value = data.data.rating_comment ?? ''
   } catch (e: any) {
     ticketDialog.value = false
     apiError(e, 'Could not load ticket')
@@ -214,7 +345,15 @@ async function sendReply() {
   if (!replyBody.value.trim()) return
   replySending.value = true
   try {
-    await centralHttp.post(`/support/tickets/${ticket.value.id}/replies`, {
+    // Multipart whenever files ride along; a plain JSON body otherwise, so the
+    // common case does not pay for a FormData round-trip.
+    const form = new FormData()
+    form.append('body', replyBody.value)
+    form.append('is_internal', replyInternal.value ? '1' : '0')
+    form.append('author_type', replyAsTenant.value ? 'tenant' : 'operator')
+    replyFiles.value.forEach((f) => form.append('files[]', f))
+
+    await centralHttp.post(`/support/tickets/${ticket.value.id}/replies`, replyFiles.value.length ? form : {
       body: replyBody.value,
       is_internal: replyInternal.value,
       author_type: replyAsTenant.value ? 'tenant' : 'operator',
@@ -222,6 +361,8 @@ async function sendReply() {
     replyBody.value = ''
     replyInternal.value = false
     replyAsTenant.value = false
+    replyFiles.value = []
+    clearFileInput(replyFileInput.value)
     await openTicket(ticket.value)
     await loadTickets(ticketsPage.value)
   } catch (e: any) {
@@ -263,6 +404,8 @@ async function openNewTicket(tenantId: number | null = null) {
     contact_name: '', contact_email: '', assigned_to: null,
   }
   newErrors.value = {}
+  newFiles.value = []
+  clearFileInput(newFileInput.value)
   newDialog.value = true
   loadAgents()
   // Tenant options come from the health scorecard — make sure it's loaded.
@@ -273,10 +416,21 @@ async function createTicket() {
   newSaving.value = true
   newErrors.value = {}
   try {
-    const payload = { ...newForm.value }
+    const payload: Record<string, any> = { ...newForm.value }
     if (!payload.contact_name) delete payload.contact_name
     if (!payload.contact_email) delete payload.contact_email
-    const { data } = await centralHttp.post('/support/tickets', payload)
+
+    let body: any = payload
+    if (newFiles.value.length) {
+      const form = new FormData()
+      Object.entries(payload).forEach(([k, v]) => {
+        if (v !== null && v !== undefined) form.append(k, String(v))
+      })
+      newFiles.value.forEach((f) => form.append('files[]', f))
+      body = form
+    }
+
+    const { data } = await centralHttp.post('/support/tickets', body)
     toast.add({ severity: 'success', summary: `Ticket #${data.data.id} opened`, life: 2500 })
     newDialog.value = false
     activeTab.value = 'tickets'
@@ -524,6 +678,23 @@ onMounted(() => {
             <span class="stat-value">{{ ticketsSummary?.unassigned ?? '—' }}</span>
             <span class="stat-label">Unassigned</span>
           </div>
+          <div class="stat">
+            <span class="stat-value danger">{{ ticketsSummary?.sla_breached_open ?? '—' }}</span>
+            <span class="stat-label">SLA breached</span>
+          </div>
+          <div class="stat" title="Share of settled tickets resolved inside their target">
+            <span class="stat-value" :class="(ticketsSummary?.sla_compliance ?? 100) >= 90 ? 'ok' : 'warn'">
+              {{ ticketsSummary?.sla_compliance === null || ticketsSummary?.sla_compliance === undefined
+                ? '—' : `${ticketsSummary.sla_compliance}%` }}
+            </span>
+            <span class="stat-label">SLA met</span>
+          </div>
+          <div class="stat" :title="`${ticketsSummary?.awaiting_rating ?? 0} settled ticket(s) not yet rated`">
+            <span class="stat-value">
+              {{ ticketsSummary?.rating_average ? `${ticketsSummary.rating_average}★` : '—' }}
+            </span>
+            <span class="stat-label">CSAT ({{ ticketsSummary?.ratings_count ?? 0 }})</span>
+          </div>
         </div>
         <div class="actions wrap">
           <InputText v-model="ticketSearch" placeholder="Search subject or tenant…" class="w-14" @keyup.enter="loadTickets(1)" />
@@ -531,6 +702,8 @@ onMounted(() => {
             placeholder="All statuses" showClear class="w-12" @change="loadTickets(1)" />
           <Select v-model="ticketPriority" :options="priorityOptions" optionLabel="label" optionValue="value"
             placeholder="All priorities" showClear class="w-11" @change="loadTickets(1)" />
+          <Select v-model="ticketSla" :options="slaOptions" optionLabel="label" optionValue="value"
+            placeholder="SLA / rating" showClear class="w-12" @change="loadTickets(1)" />
           <Button label="Refresh" icon="pi pi-refresh" size="small" outlined :loading="ticketsLoading" @click="loadTickets(ticketsPage)" />
         </div>
       </div>
@@ -555,6 +728,23 @@ onMounted(() => {
         </Column>
         <Column field="status" header="Status" style="width: 7.5rem">
           <template #body="{ data }"><Tag :severity="ticketStatusSeverity[data.status]" :value="data.status" /></template>
+        </Column>
+        <Column header="SLA" style="width: 9.5rem">
+          <template #body="{ data }">
+            <div class="sla-cell">
+              <Tag :severity="slaSeverity[data.sla.state]" :value="slaLabel[data.sla.state]" />
+              <span v-if="data.sla.minutes_to_due !== null" class="muted">
+                {{ fmtCountdown(data.sla.minutes_to_due) }}
+              </span>
+              <span v-else class="muted">{{ data.sla.tier_label }}</span>
+            </div>
+          </template>
+        </Column>
+        <Column header="CSAT" style="width: 6rem">
+          <template #body="{ data }">
+            <span v-if="data.rating" class="csat">{{ data.rating }}★</span>
+            <span v-else class="muted">—</span>
+          </template>
         </Column>
         <Column field="assignee_name" header="Assignee" style="width: 10rem">
           <template #body="{ data }">
@@ -585,12 +775,54 @@ onMounted(() => {
             </span>
           </div>
 
+          <!-- SLA: the tier the tenant's plan bought, and where each clock stands. -->
+          <div class="sla-bar" :class="ticket.sla.state">
+            <Tag :severity="slaSeverity[ticket.sla.state]" :value="slaLabel[ticket.sla.state]" />
+            <span class="sla-tier">{{ ticket.sla.tier_label }} SLA</span>
+            <span class="sla-clock">
+              <strong>First response</strong>
+              <template v-if="ticket.sla.first_response_at">
+                answered {{ fmtDate(ticket.sla.first_response_at) }}
+              </template>
+              <template v-else>due {{ fmtDate(ticket.sla.response_due_at) }}</template>
+              <Tag :severity="slaSeverity[ticket.sla.response]" :value="slaLabel[ticket.sla.response]" class="mini-tag" />
+            </span>
+            <span class="sla-clock">
+              <strong>Resolution</strong>
+              <template v-if="ticket.resolved_at">settled {{ fmtDate(ticket.resolved_at) }}</template>
+              <template v-else>due {{ fmtDate(ticket.sla.resolution_due_at) }}</template>
+              <Tag :severity="slaSeverity[ticket.sla.resolution]" :value="slaLabel[ticket.sla.resolution]" class="mini-tag" />
+            </span>
+          </div>
+
           <div v-if="canEditTickets && ticket.status !== 'closed'" class="triage-row">
             <Select v-model="ticketEdit.status" :options="statusOptions.slice(1, 4)" optionLabel="label" optionValue="value" class="w-10" />
             <Select v-model="ticketEdit.priority" :options="priorityOptions" optionLabel="label" optionValue="value" class="w-10" />
             <Select v-model="ticketEdit.assigned_to" :options="agents" optionLabel="name" optionValue="id"
               placeholder="Unassigned" showClear class="w-12" />
             <Button label="Save" size="small" :disabled="!ticketDirty" :loading="ticketSaving" @click="saveTicket" />
+          </div>
+
+          <!-- Files attached to the ticket itself, as opposed to a single reply. -->
+          <div v-if="ticket.attachments?.length || canEditTickets" class="files-box">
+            <div class="files-head">
+              <strong>Attachments</strong>
+              <span class="muted">{{ ticket.attachments?.length ?? 0 }} on the ticket</span>
+            </div>
+            <div v-if="ticket.attachments?.length" class="file-list">
+              <span v-for="a in ticket.attachments" :key="a.id" class="file-chip">
+                <i :class="a.is_image ? 'pi pi-image' : 'pi pi-file'" />
+                <button type="button" class="file-name" :title="a.name" @click="downloadAttachment(a)">{{ a.name }}</button>
+                <span class="muted">{{ fmtBytes(a.size) }}</span>
+                <Button v-if="canEditTickets" icon="pi pi-times" text rounded size="small"
+                  severity="secondary" title="Remove" @click="removeAttachment(a)" />
+              </span>
+            </div>
+            <div v-if="canEditTickets" class="file-add">
+              <input ref="ticketFileInput" type="file" multiple class="file-input" @change="pickFiles('ticket', $event)" />
+              <Button label="Attach" icon="pi pi-paperclip" size="small" outlined
+                :disabled="!ticketFiles.length" :loading="uploading" @click="uploadTicketFiles" />
+            </div>
           </div>
 
           <div class="thread">
@@ -602,6 +834,13 @@ onMounted(() => {
                 <span class="muted">{{ fmtDate(m.created_at) }}</span>
               </div>
               <p class="message-body">{{ m.body }}</p>
+              <div v-if="m.attachments?.length" class="file-list inline">
+                <span v-for="a in m.attachments" :key="a.id" class="file-chip">
+                  <i :class="a.is_image ? 'pi pi-image' : 'pi pi-file'" />
+                  <button type="button" class="file-name" :title="a.name" @click="downloadAttachment(a)">{{ a.name }}</button>
+                  <span class="muted">{{ fmtBytes(a.size) }}</span>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -617,10 +856,34 @@ onMounted(() => {
                   <Checkbox v-model="replyAsTenant" binary inputId="reply-tenant" :disabled="replyInternal" />
                   <label for="reply-tenant" title="Transcribe a reply that arrived by email/phone">Log as customer reply</label>
                 </div>
+                <input ref="replyFileInput" type="file" multiple class="file-input" @change="pickFiles('reply', $event)" />
                 <Button label="Send" icon="pi pi-send" size="small" :disabled="!replyBody.trim()" :loading="replySending" @click="sendReply" />
               </div>
             </div>
           </template>
+
+          <!-- CSAT. Only a settled ticket can be rated; before that the question
+               has no answer, so the box explains itself rather than disappearing. -->
+          <div v-if="canEditTickets" class="rating-box">
+            <div class="files-head">
+              <strong>Customer satisfaction</strong>
+              <span v-if="ticket.rated_at" class="muted">recorded {{ fmtDate(ticket.rated_at) }}</span>
+            </div>
+            <template v-if="ticket.status === 'resolved' || ticket.status === 'closed'">
+              <div class="rating-row">
+                <Rating v-model="ratingValue" :stars="5" />
+                <InputText v-model="ratingComment" placeholder="What the customer said (optional)" class="rating-note" />
+                <Button :label="ticket.rating ? 'Update' : 'Save'" size="small" :disabled="!ratingValue"
+                  :loading="ratingSaving" @click="saveRating" />
+              </div>
+              <p class="muted">
+                Transcribe the score the customer gave — by email, phone or the follow-up survey.
+              </p>
+            </template>
+            <p v-else class="muted">
+              Available once the ticket is resolved or closed.
+            </p>
+          </div>
 
           <div v-if="canCloseTickets && ticket.status !== 'closed'" class="close-box">
             <InputText v-model="closeNote" placeholder="Closing note (optional)" />
@@ -674,6 +937,12 @@ onMounted(() => {
           <label>Description <span class="req">*</span></label>
           <Textarea v-model="newForm.body" rows="4" autoResize :class="{ invalid: fieldError('body') }" />
           <small v-if="fieldError('body')" class="error-text">{{ fieldError('body') }}</small>
+        </div>
+        <div class="form-field full">
+          <label>Attachments</label>
+          <input ref="newFileInput" type="file" multiple class="file-input" @change="pickFiles('new', $event)" />
+          <small v-if="fieldError('files.0')" class="error-text">{{ fieldError('files.0') }}</small>
+          <small class="muted">Screenshots, logs or exports the issue refers to.</small>
         </div>
       </div>
       <template #footer>
@@ -755,6 +1024,50 @@ onMounted(() => {
 
 .close-box { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px dashed #e5e7eb; display: flex; gap: 0.5rem; align-items: center; }
 .close-box :deep(.p-inputtext) { flex: 1; }
+
+/* ---- SLA ------------------------------------------------------------------ */
+.sla-cell { display: flex; flex-direction: column; gap: 0.15rem; align-items: flex-start; }
+.csat { font-weight: 600; color: #b45309; }
+.sla-bar {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  background: #f9fafb; border: 1px solid #e5e7eb; border-left: 3px solid #9ca3af;
+  border-radius: 8px; padding: 0.5rem 0.8rem; margin-bottom: 0.9rem; font-size: 0.82rem;
+}
+.sla-bar.breached { border-left-color: #dc2626; background: #fef2f2; }
+.sla-bar.due_soon { border-left-color: #d97706; background: #fffbeb; }
+.sla-bar.met { border-left-color: #16a34a; }
+.sla-tier { font-weight: 600; color: #374151; }
+.sla-clock { display: flex; align-items: center; gap: 0.4rem; color: #6b7280; }
+.sla-clock strong { color: #374151; font-weight: 600; }
+
+/* ---- Attachments ----------------------------------------------------------- */
+.files-box, .rating-box {
+  margin-top: 1rem; padding: 0.7rem 0.85rem;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+}
+.files-head { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.45rem; font-size: 0.88rem; }
+.file-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.file-list.inline { margin-top: 0.5rem; }
+.file-chip {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px;
+  padding: 0.15rem 0.3rem 0.15rem 0.6rem; font-size: 0.8rem; max-width: 100%;
+}
+.file-chip i { color: #6b7280; font-size: 0.8rem; }
+.file-name {
+  background: none; border: none; padding: 0; cursor: pointer; color: #1d4ed8;
+  font-size: 0.8rem; max-width: 15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.file-name:hover { text-decoration: underline; }
+.file-add { margin-top: 0.55rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.file-input { font-size: 0.8rem; max-width: 100%; }
+.file-input::file-selector-button {
+  border: 1px solid #d1d5db; background: #fff; border-radius: 6px;
+  padding: 0.25rem 0.6rem; margin-right: 0.5rem; cursor: pointer; font-size: 0.8rem;
+}
+
+.rating-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+.rating-note { flex: 1; min-width: 12rem; }
 
 .w-10 { width: 10rem; }
 .w-11 { width: 11rem; }

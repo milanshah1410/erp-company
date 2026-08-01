@@ -14,6 +14,8 @@ class TenantReadyEmail extends Notification
 
     public function __construct(
         public string $companyName,
+        /** Workspace address claimed at signup, e.g. `acme.yourapp.com`. */
+        public ?string $workspaceAddress = null,
     ) {}
 
     public function via(object $notifiable): array
@@ -25,10 +27,16 @@ class TenantReadyEmail extends Notification
     {
         $url = (string) config('app.frontend_url', config('app.url'));
 
-        return (new MailMessage)
+        $mail = (new MailMessage)
             ->subject('Your '.config('app.name').' account is ready 🎉')
             ->greeting('You’re all set!')
-            ->line($this->companyName.' is provisioned and ready to use.')
+            ->line($this->companyName.' is provisioned and ready to use.');
+
+        if ($this->workspaceAddress) {
+            $mail->line('Your workspace address is **'.$this->workspaceAddress.'**.');
+        }
+
+        return $mail
             ->action('Log in', $url)
             ->line('You’re on a '.config('saas.trial_days', 14).'-day free trial. No card required.');
     }

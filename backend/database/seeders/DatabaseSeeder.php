@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Company;
+use App\Models\MarketplaceItem;
 use App\Models\OnboardingProgress;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -27,6 +28,10 @@ class DatabaseSeeder extends Seeder
         // 1. Platform-global data (no tenant).
         $this->call(PlanSeeder::class);
 
+        // The industry catalogue (Volume 11 §"Industry Templates") — seeded
+        // before the dev tenant so its industry/business type resolve.
+        $this->call(IndustryTemplateSeeder::class);
+
         // The dynamic navigation catalogue (project-stack.md §3) is global too
         // (tenant_id NULL), shared by every tenant like the permission set.
         $this->call(MenuSeeder::class);
@@ -41,11 +46,29 @@ class DatabaseSeeder extends Seeder
         // (NULL) team context internally.
         $this->call(CentralRolePermissionSeeder::class);
 
+        // The marketplace catalogue (Volume 11 §"Integration Marketplace" /
+        // §"Device Marketplace") — one row per integration and device offering,
+        // all on sale by default. The panel re-syncs on open, so this only makes
+        // a fresh install deterministic rather than being the sole source.
+        MarketplaceItem::syncCatalogue();
+
+        // The module marketplace (Volume 11 §"Module Marketplace") — Industry,
+        // Feature and AI packs. Seeded after PlanSeeder because each pack declares
+        // the plan slugs that bundle it.
+        $this->call(PlatformPackSeeder::class);
+
         // 2. The dev tenant — seeded active (not on a trial) so it can never be
         //    swept up by the daily lapse/suspension processing.
         $tenant = Tenant::updateOrCreate(
             ['email' => 'admin@sims.test'],
-            ['company_name' => 'Demo Company', 'status' => 'active', 'suspended_by' => null],
+            [
+                'company_name' => 'Demo Company',
+                'status' => 'active',
+                'suspended_by' => null,
+                // Industry / trade, mirroring what the wizard records at signup.
+                'industry' => 'retail',
+                'business_type' => 'garment',
+            ],
         );
 
         // 3. Tenant-scoped data: admin user + baseline, inside the tenant context.

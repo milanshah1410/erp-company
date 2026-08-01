@@ -20,7 +20,10 @@ class ProductController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('sku', 'like', "%{$search}%")
                     ->orWhere('barcode', 'like', "%{$search}%")
-                    ->orWhere('rfid_tag', 'like', "%{$search}%");
+                    ->orWhere('rfid_tag', 'like', "%{$search}%")
+                    // …and any custom field the tenant marked searchable, so a
+                    // book store finds a title by ISBN from the same box.
+                    ->orWhere(fn ($sub) => $sub->searchCustomFields($search));
             });
         }
 

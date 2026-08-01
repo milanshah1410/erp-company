@@ -105,6 +105,103 @@ const phrases: PhraseFile = {
     hi: 'टेम्पलेट यहीं देखने के लिए प्रीव्यू दबाएँ, या नए टैब में खोलने के लिए प्रिंट।',
     gu: 'ટેમ્પ્લેટ અહીં જ જોવા માટે પ્રીવ્યૂ દબાવો, અથવા નવા ટૅબમાં ખોલવા માટે પ્રિન્ટ.',
   },
+
+  // --- Custom Fields (the field builder + the panel it renders) ---
+  'Custom Fields': { hi: 'कस्टम फ़ील्ड', gu: 'કસ્ટમ ફીલ્ડ' },
+  'Extra fields this business keeps — they appear on the matching form, list and export straight away': {
+    hi: 'इस व्यवसाय के अपने अतिरिक्त फ़ील्ड — ये तुरंत संबंधित फ़ॉर्म, सूची और एक्सपोर्ट में दिखने लगते हैं',
+    gu: 'આ ધંધો રાખે છે તે વધારાનાં ફીલ્ડ — તે તરત જ સંબંધિત ફૉર્મ, યાદી અને એક્સપોર્ટમાં દેખાય છે',
+  },
+  'Additional details': { hi: 'अतिरिक्त विवरण', gu: 'વધારાની વિગતો' },
+  'New Field': { hi: 'नया फ़ील्ड', gu: 'નવું ફીલ્ડ' },
+  'New Custom Field': { hi: 'नया कस्टम फ़ील्ड', gu: 'નવું કસ્ટમ ફીલ્ડ' },
+  'Edit Custom Field': { hi: 'कस्टम फ़ील्ड संपादित करें', gu: 'કસ્ટમ ફીલ્ડ સંપાદિત કરો' },
+  'Custom field saved': { hi: 'कस्टम फ़ील्ड सहेजा गया', gu: 'કસ્ટમ ફીલ્ડ સાચવ્યું' },
+  'Custom field removed': { hi: 'कस्टम फ़ील्ड हटाया गया', gu: 'કસ્ટમ ફીલ્ડ કાઢી નાખ્યું' },
+  'Could not save the custom field': {
+    hi: 'कस्टम फ़ील्ड सहेजा नहीं जा सका',
+    gu: 'કસ્ટમ ફીલ્ડ સાચવી શકાયું નહીં',
+  },
+  'Remove this field?': { hi: 'यह फ़ील्ड हटाएँ?', gu: 'આ ફીલ્ડ કાઢી નાખવું?' },
+  'Values already saved under this key are kept and reappear if you create the field again.': {
+    hi: 'इस key के तहत पहले से सहेजे मान बने रहते हैं और फ़ील्ड दोबारा बनाने पर फिर दिखने लगते हैं।',
+    gu: 'આ key હેઠળ પહેલેથી સાચવેલા મૂલ્યો રહે છે અને ફીલ્ડ ફરી બનાવો તો પાછા દેખાય છે.',
+  },
+  'No custom fields yet. Add one to put this trade’s own details on the standard forms.': {
+    hi: 'अभी कोई कस्टम फ़ील्ड नहीं। इस धंधे के अपने विवरण मानक फ़ॉर्म पर लाने के लिए एक जोड़ें।',
+    gu: 'હજી કોઈ કસ્ટમ ફીલ્ડ નથી. આ ધંધાની પોતાની વિગતો પ્રમાણભૂત ફૉર્મ પર લાવવા એક ઉમેરો.',
+  },
+  'All records': { hi: 'सभी रिकॉर्ड', gu: 'બધા રેકોર્ડ' },
+  'Record': { hi: 'रिकॉर्ड', gu: 'રેકોર્ડ' },
+  'What and where': { hi: 'क्या और कहाँ', gu: 'શું અને ક્યાં' },
+  'Attach to': { hi: 'किससे जोड़ें', gu: 'કોની સાથે જોડો' },
+  'Fixed after creation — values are already stored against it.': {
+    hi: 'बनाने के बाद तय — इसके विरुद्ध मान पहले से संग्रहित हैं।',
+    gu: 'બનાવ્યા પછી નિશ્ચિત — તેની સામે મૂલ્યો પહેલેથી સંગ્રહિત છે.',
+  },
+  'Key': { hi: 'Key', gu: 'Key' },
+  'Lowercase, no spaces — e.g. isbn_number.': {
+    hi: 'छोटे अक्षर, बिना स्पेस — जैसे isbn_number।',
+    gu: 'નાના અક્ષર, જગ્યા વગર — દા.ત. isbn_number.',
+  },
+  'Help text': { hi: 'सहायता पाठ', gu: 'મદદ લખાણ' },
+  'Shown under the input on the form.': {
+    hi: 'फ़ॉर्म पर इनपुट के नीचे दिखता है।',
+    gu: 'ફૉર્મ પર ઇનપુટની નીચે દેખાય છે.',
+  },
+  'Choices': { hi: 'विकल्प', gu: 'વિકલ્પો' },
+  'choices': { hi: 'विकल्प', gu: 'વિકલ્પો' },
+  'Add choice': { hi: 'विकल्प जोड़ें', gu: 'વિકલ્પ ઉમેરો' },
+  'Stored value': { hi: 'संग्रहित मान', gu: 'સંગ્રહિત મૂલ્ય' },
+  'Shown label (optional)': { hi: 'दिखने वाला लेबल (वैकल्पिक)', gu: 'દેખાતું લેબલ (વૈકલ્પિક)' },
+  'Rules': { hi: 'नियम', gu: 'નિયમો' },
+  // 'Required' is already translated in masters.ts — dictionaries merge into
+  // one namespace, so redefining it here would silently retranslate it
+  // everywhere else too.
+  'The record cannot be saved without it.': {
+    hi: 'इसके बिना रिकॉर्ड सहेजा नहीं जा सकता।',
+    gu: 'તેના વગર રેકોર્ડ સાચવી શકાતો નથી.',
+  },
+  'Default value': { hi: 'डिफ़ॉल्ट मान', gu: 'ડિફૉલ્ટ મૂલ્ય' },
+  'Pre-filled on new records.': { hi: 'नए रिकॉर्ड पर पहले से भरा होता है।', gu: 'નવા રેકોર્ડ પર પહેલેથી ભરેલું હોય છે.' },
+  'Minimum length': { hi: 'न्यूनतम लंबाई', gu: 'ન્યૂનતમ લંબાઈ' },
+  'Maximum length': { hi: 'अधिकतम लंबाई', gu: 'મહત્તમ લંબાઈ' },
+  'Minimum value': { hi: 'न्यूनतम मान', gu: 'ન્યૂનતમ મૂલ્ય' },
+  'Maximum value': { hi: 'अधिकतम मान', gu: 'મહત્તમ મૂલ્ય' },
+  'Pattern': { hi: 'पैटर्न', gu: 'પૅટર્ન' },
+  'Optional regular expression the whole value must match — worth refusing an ISBN or IMEI at entry.': {
+    hi: 'वैकल्पिक regular expression जिससे पूरा मान मेल खाना चाहिए — ISBN या IMEI को प्रविष्टि पर ही रोकने लायक।',
+    gu: 'વૈકલ્પિક regular expression જેની સાથે આખું મૂલ્ય મેળ ખાવું જોઈએ — ISBN કે IMEI ને એન્ટ્રી વખતે જ રોકવા યોગ્ય.',
+  },
+  'Where it shows': { hi: 'कहाँ दिखे', gu: 'ક્યાં દેખાય' },
+  'Column on the list screen': { hi: 'सूची स्क्रीन पर कॉलम', gu: 'યાદી સ્ક્રીન પર કૉલમ' },
+  'Included in search': { hi: 'खोज में शामिल', gu: 'શોધમાં સામેલ' },
+  'Switch off to hide it without losing saved values.': {
+    hi: 'सहेजे मान खोए बिना छिपाने के लिए बंद करें।',
+    gu: 'સાચવેલા મૂલ્યો ગુમાવ્યા વગર છુપાવવા બંધ કરો.',
+  },
+  'Only with module': { hi: 'केवल इस मॉड्यूल के साथ', gu: 'ફક્ત આ મોડ્યુલ સાથે' },
+  'Always shown': { hi: 'हमेशा दिखे', gu: 'હંમેશાં દેખાય' },
+  'Always': { hi: 'हमेशा', gu: 'હંમેશાં' },
+  'Hidden when that module is switched off.': {
+    hi: 'वह मॉड्यूल बंद होने पर छिपा रहता है।',
+    gu: 'તે મોડ્યુલ બંધ હોય ત્યારે છુપાયેલું રહે છે.',
+  },
+  'Sort order': { hi: 'क्रम', gu: 'ક્રમ' },
+  'Shown in': { hi: 'कहाँ दिखता है', gu: 'ક્યાં દેખાય છે' },
+  'In list': { hi: 'सूची में', gu: 'યાદીમાં' },
+  'In search': { hi: 'खोज में', gu: 'શોધમાં' },
+  'Form only': { hi: 'केवल फ़ॉर्म', gu: 'ફક્ત ફૉર્મ' },
+  'Off': { hi: 'बंद', gu: 'બંધ' },
+  // Field type names, as the builder lists them. 'Text' and 'Remove' are
+  // already owned by masters.ts / sales.ts and are left to them.
+  'Long text': { hi: 'लंबा टेक्स्ट', gu: 'લાંબું ટેક્સ્ટ' },
+  'Whole number': { hi: 'पूर्ण संख्या', gu: 'પૂર્ણ સંખ્યા' },
+  'Decimal': { hi: 'दशमलव', gu: 'દશાંશ' },
+  'Dropdown (one)': { hi: 'ड्रॉपडाउन (एक)', gu: 'ડ્રૉપડાઉન (એક)' },
+  'Dropdown (many)': { hi: 'ड्रॉपडाउन (कई)', gu: 'ડ્રૉપડાઉન (ઘણા)' },
+  'Yes / No': { hi: 'हाँ / नहीं', gu: 'હા / ના' },
+  'Link': { hi: 'लिंक', gu: 'લિંક' },
 }
 
 export default phrases

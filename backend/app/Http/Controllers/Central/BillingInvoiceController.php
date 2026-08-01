@@ -27,6 +27,9 @@ class BillingInvoiceController extends Controller
         if ($status = $request->query('status')) {
             $query->where('status', $status);
         }
+        if ($type = $request->query('type')) {
+            $query->where('type', $type);
+        }
         if ($search = trim((string) $request->query('search', ''))) {
             // Tenants live on the landlord connection — resolve ids first,
             // then filter through the (central-connection) subscription.
@@ -44,6 +47,8 @@ class BillingInvoiceController extends Controller
         return response()->json([
             'data' => collect($page->items())->map(fn (SubscriptionInvoice $i) => [
                 'id' => $i->id,
+                'number' => $i->displayNumber(),
+                'type' => $i->type,
                 'subscription_id' => $i->subscription_id,
                 'tenant_id' => $i->subscription?->tenant_id,
                 'tenant_name' => $i->subscription?->tenant?->company_name,
@@ -51,6 +56,23 @@ class BillingInvoiceController extends Controller
                 'amount' => $i->amount,
                 'currency' => $i->currency,
                 'status' => $i->status,
+                // The GST decomposition behind `amount` (see SubscriptionInvoice).
+                'subtotal' => $i->subtotal,
+                'discount_amount' => $i->discount_amount,
+                'coupon_code' => $i->coupon_code,
+                'taxable_amount' => $i->taxable_amount,
+                'tax_rate' => $i->tax_rate,
+                'cgst_amount' => $i->cgst_amount,
+                'sgst_amount' => $i->sgst_amount,
+                'igst_amount' => $i->igst_amount,
+                'tax_amount' => $i->tax_amount,
+                'place_of_supply' => $i->place_of_supply,
+                'is_interstate' => $i->is_interstate,
+                'customer_gstin' => $i->customer_gstin,
+                'period_start' => $i->period_start?->toDateString(),
+                'period_end' => $i->period_end?->toDateString(),
+                'due_date' => $i->due_date?->toDateString(),
+                'days_overdue' => $i->daysOverdue(),
                 'payment_gateway_ref' => $i->payment_gateway_ref,
                 'payment_method' => $i->payment_method,
                 'notes' => $i->notes,

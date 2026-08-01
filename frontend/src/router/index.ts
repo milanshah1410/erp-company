@@ -22,7 +22,13 @@ const CentralDashboardView = () => import('../views/central/CentralDashboardView
 const CentralOperatorsView = () => import('../views/central/CentralOperatorsView.vue')
 const CentralRolesView = () => import('../views/central/CentralRolesView.vue')
 const CentralTenantsView = () => import('../views/central/CentralTenantsView.vue')
+const CentralIndustriesView = () => import('../views/central/CentralIndustriesView.vue')
+const CentralPlansView = () => import('../views/central/CentralPlansView.vue')
 const CentralBillingView = () => import('../views/central/CentralBillingView.vue')
+const CentralMarketplaceView = () => import('../views/central/CentralMarketplaceView.vue')
+const CentralUsageView = () => import('../views/central/CentralUsageView.vue')
+const CentralAnalyticsView = () => import('../views/central/CentralAnalyticsView.vue')
+const CentralInsightsView = () => import('../views/central/CentralInsightsView.vue')
 const CentralOpsView = () => import('../views/central/CentralOpsView.vue')
 const CentralSupportView = () => import('../views/central/CentralSupportView.vue')
 const PortalLoginView = () => import('../views/portal/PortalLoginView.vue')
@@ -77,6 +83,11 @@ const RestaurantFloorView = () => import('../views/RestaurantFloorView.vue')
 const RestaurantOrdersView = () => import('../views/RestaurantOrdersView.vue')
 const KitchenDisplayView = () => import('../views/KitchenDisplayView.vue')
 const RestaurantTablesView = () => import('../views/RestaurantTablesView.vue')
+// Food & Beverage industry plugin (app/Modules/Industry/FoodBeverage).
+const RestaurantMenuView = () => import('../views/RestaurantMenuView.vue')
+const RestaurantRecipesView = () => import('../views/RestaurantRecipesView.vue')
+const WaiterPerformanceView = () => import('../views/WaiterPerformanceView.vue')
+const QrMenuView = () => import('../views/QrMenuView.vue')
 const EyePrescriptionsView = () => import('../views/EyePrescriptionsView.vue')
 const OpticalOrdersView = () => import('../views/OpticalOrdersView.vue')
 const MetalRatesView = () => import('../views/MetalRatesView.vue')
@@ -223,6 +234,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'restaurant/orders', component: RestaurantOrdersView, meta: { permission: 'restaurant-orders.view' } },
       { path: 'restaurant/kitchen', component: KitchenDisplayView, meta: { permission: 'kitchen-orders.view' } },
       { path: 'restaurant/tables', component: RestaurantTablesView, meta: { permission: 'restaurant-tables.edit' } },
+      { path: 'restaurant/menu', component: RestaurantMenuView, meta: { permission: 'restaurant-menu.view' } },
+      { path: 'restaurant/recipes', component: RestaurantRecipesView, meta: { permission: 'restaurant-recipes.view' } },
+      { path: 'reports/waiter-performance', component: WaiterPerformanceView, meta: { permission: 'reports.view' } },
       { path: 'eye-prescriptions', component: EyePrescriptionsView, meta: { permission: 'eye-prescriptions.view' } },
       { path: 'optical-orders', component: OpticalOrdersView, meta: { permission: 'optical-orders.view' } },
       { path: 'metal-rates', component: MetalRatesView, meta: { permission: 'metal-rates.view' } },
@@ -376,6 +390,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'profile', name: 'profile', component: () => import('../views/ProfileView.vue') },
       { path: 'settings', component: SettingsView, meta: { permission: 'settings.view' } },
       { path: 'system-tools', component: () => import('../views/SystemToolsView.vue'), meta: { permission: 'settings.view' } },
+      // The field builder. Untagged by module: it is how a trade the module
+      // catalogue does not name makes the masters its own.
+      { path: 'custom-fields', component: () => import('../views/CustomFieldsView.vue'), meta: { permission: 'custom-fields.view' } },
       { path: 'printer-test', component: () => import('../views/PrinterTestView.vue'), meta: { permission: 'settings.view' } },
       { path: 'workflows', component: () => import('../views/WorkflowsView.vue'), meta: { permission: 'workflows.view' } },
       { path: 'audit-logs', component: AuditLogsView, meta: { permission: 'audit-logs.view' } },
@@ -403,6 +420,11 @@ const routes: RouteRecordRaw[] = [
   // login. Outside AppLayout; the tenant is derived server-side from the token.
   { path: '/pay/:token', name: 'pay', component: PayView, meta: { public: true } },
 
+  // Public QR menu (Food & Beverage plugin): a guest scans the sticker on their
+  // table. No login, outside AppLayout, and read-only — the tenant and table are
+  // derived server-side from the token. There is deliberately no ordering route.
+  { path: '/menu/:token', name: 'qr-menu', component: QrMenuView, meta: { public: true } },
+
   // B2B customer portal (SRS §14): a separate authenticated surface for
   // dealers/distributors/retailers, gated by its own portal token.
   { path: '/portal/login', name: 'portal-login', component: PortalLoginView, meta: { portal: true, portalPublic: true } },
@@ -428,7 +450,15 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'central-dashboard', component: CentralDashboardView },
       { path: 'tenants', name: 'central-tenants', component: CentralTenantsView, meta: { permission: 'tenants.view' } },
-      { path: 'billing', name: 'central-billing', component: CentralBillingView, meta: { permission: 'plans.view' } },
+      { path: 'industries', name: 'central-industries', component: CentralIndustriesView, meta: { permission: 'industries.view' } },
+      { path: 'plans', name: 'central-plans', component: CentralPlansView, meta: { permission: 'plans.view' } },
+      { path: 'billing', name: 'central-billing', component: CentralBillingView, meta: { permission: 'subscriptions.view' } },
+      // The marketplace shell renders whichever tab the operator is entitled to,
+      // so either permission is enough to open it.
+      { path: 'marketplace', name: 'central-marketplace', component: CentralMarketplaceView, meta: { permission: ['integrations.view', 'devices.view'] } },
+      { path: 'usage', name: 'central-usage', component: CentralUsageView, meta: { permission: 'usage.view' } },
+      { path: 'analytics', name: 'central-analytics', component: CentralAnalyticsView, meta: { permission: 'analytics.view' } },
+      { path: 'insights', name: 'central-insights', component: CentralInsightsView, meta: { permission: 'insights.view' } },
       { path: 'operators', name: 'central-operators', component: CentralOperatorsView, meta: { permission: 'operators.view' } },
       { path: 'roles', name: 'central-roles', component: CentralRolesView, meta: { permission: 'roles.view' } },
       { path: 'ops', name: 'central-ops', component: CentralOpsView, meta: { permission: 'ops-health.view' } },
@@ -470,8 +500,15 @@ router.beforeEach(async (to) => {
         return { name: 'central-login' }
       }
     }
-    if (to.meta.permission && !central.can(to.meta.permission as string)) {
-      return { name: 'central-dashboard' }
+    // An array means "any of these" — for screens like the Marketplace whose
+    // tabs are permissioned separately and which are worth opening if the
+    // operator holds even one of them.
+    if (to.meta.permission) {
+      const required = to.meta.permission as string | string[]
+      const allowed = Array.isArray(required)
+        ? required.some((p) => central.can(p))
+        : central.can(required)
+      if (!allowed) return { name: 'central-dashboard' }
     }
     return true
   }

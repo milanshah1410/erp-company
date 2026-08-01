@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Models\Branch;
 use App\Models\Company;
+use App\Models\Domain;
 use App\Models\FinancialYear;
 use App\Models\MenuItem;
 use App\Models\OnboardingProgress;
@@ -17,7 +18,12 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Notifications\TenantReadyEmail;
+use App\Services\Billing\CouponService;
 use App\Services\DemoDataGenerator;
+use App\Support\IndustryTemplates;
+use App\Support\ProvisionSteps;
+use App\Support\ShopProfiles;
+use App\Support\Subdomain;
 use App\Support\TenantContext;
 use App\Support\TenantMenuAccess;
 use Database\Seeders\MenuSeeder;
@@ -33,6 +39,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Throwable;
@@ -41,6 +49,14 @@ use Throwable;
  * Provisions a tenant end-to-end from a verified PendingRegistration in the
  * shared database: a tenants row, baseline data + the first admin user (all
  * scoped to the new tenant_id), and a trialing subscription.
+ *
+ * The work is organised as the eight documented onboarding phases (Volume 11
+ * §"Onboarding Automation") — Create Tenant, Select Industry, Select Plan,
+ * Migration, Seeder, Enable Modules, Create Admin, Demo Data — each run through
+ * App\Support\ProvisionSteps so its outcome is written back to the registration
+ * row while the job is still running. That row is what the operator panel and
+ * the self-serve provisioning screen poll, so the progress they show is the
+ * real thing rather than a timed animation.
  *
  * Roles/permissions are global (tenant_id = NULL, shared across tenants); this
  * job only assigns the admin's role — it ensures the global set exists first so
@@ -63,99 +79,203 @@ class ProvisionTenant implements ShouldQueue
             return; // already provisioned (idempotent)
         }
 
-        $plan = Plan::where('slug', $registration->plan_slug)->firstOrFail();
+        // findBySlug, not a bare where: a registration created before a tier was
+        // retired must still provision — onto its replacement (Plan::LEGACY_SLUGS).
+        $plan = Plan::findBySlug($registration->plan_slug)
+            ?? throw new RuntimeException("Unknown plan slug \"{$registration->plan_slug}\".");
 
-        $this->ensureGlobalRolesExist();
-        $this->ensureGlobalMenuExists();
+        // Phase-by-phase progress, written back to the registration row as each
+        // one finishes so a poll mid-provision reports what actually happened
+        // (Volume 11 §"Onboarding Automation").
+        $steps = new ProvisionSteps($registration);
 
-        // 1. Central tenant record (landlord-owned, no tenant scope).
-        $tenant = Tenant::create([
-            'company_name' => $registration->company_name,
-            'email' => $registration->email,
-            'phone' => $registration->phone,
-            'status' => 'trial',
-        ]);
+        $config = (array) ($registration->config ?? []);
+        $trade = $config['shop_profile'] ?? null;
+        $trade = is_string($trade) && array_key_exists($trade, ShopProfiles::all()) ? $trade : null;
+        // Older wizard builds send the trade's *label* here, so resolve rather
+        // than store: a signup is never failed over a classification field.
+        $industry = IndustryTemplates::resolveKey($config['industry'] ?? null, $config['shop_profile'] ?? null);
 
-        // 2. Seed baseline + create the first admin, all scoped to the tenant.
-        app(TenantContext::class)->runWith($tenant->id, function () use ($registration, $tenant) {
-            app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
+        // --- 1. Create Tenant ---------------------------------------------
+        // Central tenant record (landlord-owned, no tenant scope), and the
+        // workspace address it claimed at signup. The address is re-resolved
+        // rather than trusted blindly: a registration can sit unverified long
+        // enough for someone else to take what it reserved.
+        //
+        // Industry + trade land on the tenant row here as well as in the
+        // workspace's own settings (phase 6). Both are needed: tenant-side
+        // screens read the setting, while the platform panel — which has no
+        // tenant context — lists, filters and reports off the column.
+        $subdomain = $this->claimSubdomain($registration);
 
-            (new TenantDatabaseSeeder)->run();
-
-            // Give the tenant its own copy of the navigation catalogue, stamped
-            // with its tenant_id, so it can be reordered/customised per tenant
-            // without touching the shared template. The read-time permission /
-            // plan-feature / module gating in MenuController still applies on
-            // top of these rows.
-            $this->cloneMenuForTenant($tenant->id);
-
-            $admin = new User();
-            $admin->name = $registration->admin_name;
-            $admin->email = $registration->email;
-            $admin->phone = $registration->phone;
-            $admin->is_active = true;
-            // Copy the already-hashed password verbatim (the 'hashed' cast
-            // leaves an existing hash untouched), so the owner logs in with
-            // the password they chose at signup.
-            $admin->password = $registration->getRawOriginal('password');
-            $admin->save();
-
-            $admin->assignRole('super-admin');
-
-            $company = Company::where('code', 'MAIN')->first();
-            $branch = Branch::where('code', 'HO')->first();
-            if ($company && $branch) {
-                $admin->companies()->syncWithoutDetaching([$company->id]);
-                $admin->branches()->syncWithoutDetaching([$branch->id]);
-                $admin->update([
-                    'current_company_id' => $company->id,
-                    'current_branch_id' => $branch->id,
+        $tenant = $steps->run(
+            'tenant',
+            function () use ($registration, $subdomain, $industry, $trade): Tenant {
+                $tenant = Tenant::create([
+                    'company_name' => $registration->company_name,
+                    'subdomain' => $subdomain,
+                    'email' => $registration->email,
+                    'phone' => $registration->phone,
+                    'industry' => $industry,
+                    'business_type' => $trade,
+                    'status' => 'trial',
                 ]);
+
+                Domain::create([
+                    'tenant_id' => $tenant->id,
+                    'domain' => Subdomain::fqdn($subdomain),
+                    'is_primary' => true,
+                ]);
+
+                return $tenant;
+            },
+            fn (Tenant $t) => Subdomain::fqdn((string) $t->subdomain),
+        );
+
+        // --- 2. Select Industry -------------------------------------------
+        // Decided at signup and already stored above; recorded as its own phase
+        // because it is what drives phases 6 and 7 (module preset, industry
+        // plugin screens) and the operator wants to see which vertical landed.
+        $industryLabel = $tenant->industryLabel();
+        $tradeLabel = $tenant->businessTypeLabel();
+        if ($industryLabel === null && $tradeLabel === null) {
+            $steps->skip('industry', 'Not classified — the workspace can pick a trade later.');
+        } else {
+            $steps->done('industry', trim(($industryLabel ?? 'Unclassified').($tradeLabel ? " · {$tradeLabel}" : '')));
+        }
+
+        // --- 3. Select Plan -----------------------------------------------
+        // Trialing subscription + the tenant-side onboarding tracker (both
+        // landlord-owned, so an explicit tenant_id rather than a scope).
+        $steps->run('plan', function () use ($tenant, $plan, $config): string {
+            $trialDays = (int) config('saas.trial_days', 14);
+
+            $subscription = Subscription::create([
+                'tenant_id' => $tenant->id,
+                'plan_id' => $plan->id,
+                'status' => 'trialing',
+                'trial_ends_at' => now()->addDays($trialDays),
+                'current_period_start' => now(),
+            ]);
+
+            OnboardingProgress::create([
+                'tenant_id' => $tenant->id,
+                'steps' => [],
+            ]);
+
+            // A promo code from signup is pinned to the subscription, not redeemed:
+            // it discounts the first invoice, which is raised when the trial
+            // converts. Re-validated here because the code may have expired or run
+            // out between signing up and verifying the email — in which case the
+            // workspace is still provisioned, just at list price.
+            $couponNote = '';
+            $code = trim((string) ($config['coupon_code'] ?? ''));
+            if ($code !== '') {
+                $coupons = app(CouponService::class);
+                try {
+                    $coupon = $coupons->validate($code, [
+                        'tenant_id' => $tenant->id,
+                        'plan_id' => $plan->id,
+                        'amount' => (float) $plan->price,
+                        'purchase_type' => 'subscription',
+                        'is_new_tenant' => true,
+                    ]);
+                    $coupons->attachToSubscription($subscription, $coupon);
+                    $couponNote = " · coupon {$coupon->code}";
+                } catch (ValidationException) {
+                    $couponNote = " · coupon {$code} no longer valid";
+                }
             }
 
-            // Apply the onboarding-wizard choices (steps 1-6) on top of the
-            // baseline seed, then optionally load sample data (step 7).
-            $this->applyWizardConfig($registration->config ?? [], $admin, $company, $branch);
+            return "{$plan->name} — {$trialDays}-day trial{$couponNote}";
         });
 
-        // 3. Trialing subscription (landlord, explicit tenant_id).
-        $trialDays = (int) config('saas.trial_days', 14);
-        Subscription::create([
-            'tenant_id' => $tenant->id,
-            'plan_id' => $plan->id,
-            'status' => 'trialing',
-            'trial_ends_at' => now()->addDays($trialDays),
-            'current_period_start' => now(),
-        ]);
+        // --- 4. Migration --------------------------------------------------
+        // Tenants share one schema (row-level tenant_id), so there is no
+        // per-tenant migration to run; the equivalent step is making sure the
+        // shared catalogues this workspace is about to be built from exist.
+        // Both are idempotent, so this also self-heals a deploy that was never
+        // seeded — the very first signup on a fresh install still works.
+        $steps->run('schema', function (): string {
+            $this->ensureGlobalRolesExist();
+            $this->ensureGlobalMenuExists();
 
-        // 4. Onboarding tracker (landlord).
-        OnboardingProgress::create([
-            'tenant_id' => $tenant->id,
-            'steps' => [],
-        ]);
+            return 'Shared schema ready — global roles + menu catalogue verified.';
+        });
 
-        // 5. Mark the registration active + wire it to the tenant.
+        // Everything below writes tenant-scoped rows, so it runs inside the
+        // tenant context with Spatie's team scope pinned to the same tenant.
+        app(TenantContext::class)->runWith($tenant->id, function () use ($registration, $tenant, $steps, $config): void {
+            app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
+
+            // --- 5. Seeder -------------------------------------------------
+            $steps->run('seed', function (): string {
+                (new TenantDatabaseSeeder)->run();
+
+                return 'Company, branch, warehouse, chart of accounts and reference data.';
+            });
+
+            // --- 6. Enable Modules -----------------------------------------
+            // The tenant's own copy of the navigation catalogue plus the wizard
+            // choices that decide what it can reach: module selection, industry,
+            // tax, number series, company profile.
+            $steps->run('modules', function () use ($tenant, $config): string {
+                $this->cloneMenuForTenant($tenant->id);
+
+                return $this->applyWizardConfig($config);
+            });
+
+            // --- 7. Create Admin -------------------------------------------
+            $admin = $steps->run(
+                'admin',
+                fn (): User => $this->createAdmin($registration, $config),
+                fn (User $u) => $u->email,
+            );
+
+            // --- 8. Demo Data ----------------------------------------------
+            $count = (int) ($config['demo_count'] ?? 100);
+            if (empty($config['load_demo'])) {
+                $steps->skip('demo', 'Not requested — the workspace starts empty.');
+            } else {
+                $steps->run('demo', function () use ($admin, $count): string {
+                    (new DemoDataGenerator($admin->id))->generate(array_keys(DemoDataGenerator::MODULES), $count);
+
+                    return "Sample data generated (~{$count} rows per module).";
+                });
+            }
+        });
+
+        // Mark the registration active + wire it to the tenant.
         $registration->update([
             'status' => 'active',
             'tenant_id' => $tenant->id,
+            // Mirror back the address actually granted — it may have gained a
+            // numeric tail since the signup reserved it.
+            'subdomain' => $subdomain,
         ]);
 
-        // 6. "Your account is ready" email.
+        // "Your account is ready" email.
         Notification::route('mail', $registration->email)
-            ->notify(new TenantReadyEmail($registration->company_name));
+            ->notify(new TenantReadyEmail($registration->company_name, Subdomain::fqdn($subdomain)));
     }
 
     /**
-     * Apply the onboarding-wizard payload to the freshly-seeded tenant. Runs
-     * inside the tenant context, so every write is tenant-scoped. Every section
-     * is optional — a bare signup (no wizard) leaves the baseline seed intact.
+     * Apply the onboarding-wizard payload to the freshly-seeded tenant: company
+     * profile, financial year, settings and the module selection. Runs inside
+     * the tenant context, so every write is tenant-scoped. Every section is
+     * optional — a bare signup (no wizard) leaves the baseline seed intact.
+     *
+     * Returns the one-line summary recorded against the "Enable Modules" step.
      *
      * @param  array<string, mixed>  $config
      */
-    private function applyWizardConfig(array $config, User $admin, ?Company $company, ?Branch $branch): void
+    private function applyWizardConfig(array $config): string
     {
+        $company = Company::where('code', 'MAIN')->first();
+        $branch = Branch::where('code', 'HO')->first();
+
         if ($config === []) {
-            return;
+            return 'Navigation cloned; plan defaults left in place.';
         }
 
         // --- Step 1 / 5 / 6: company profile, currency, financial-year start ---
@@ -205,8 +325,15 @@ class ProvisionTenant implements ShouldQueue
 
         // --- Steps 2 / 3 / 6: settings (industry, modules, tax, number series) ---
         $settings = [];
-        if (! empty($config['industry'])) {
-            $settings['industry'] = (string) $config['industry'];
+        // Stored as the industry-template *key*, matching the tenants.industry
+        // column, so tenant-side reads and the platform panel agree. An older
+        // wizard build sending a label is resolved, not stored verbatim.
+        $industry = IndustryTemplates::resolveKey(
+            $config['industry'] ?? null,
+            is_string($config['shop_profile'] ?? null) ? $config['shop_profile'] : null,
+        );
+        if ($industry !== null) {
+            $settings['industry'] = $industry;
         }
         // The shop-type preset the signup started from. Kept alongside the
         // resolved module list so a later "reset to the Grocery defaults" knows
@@ -216,6 +343,13 @@ class ProvisionTenant implements ShouldQueue
         }
         if (! empty($config['modules']) && is_array($config['modules'])) {
             $settings['enabled_modules'] = json_encode(array_values($config['modules']));
+        }
+        // Modules an operator hand-picked beyond what the plan sells. Kept in
+        // their own setting for the same reason the Access panel does it: a
+        // later downgrade narrows everything except what was deliberately
+        // comped (App\Support\EnabledModules::operatorGrants).
+        if (! empty($config['module_grants']) && is_array($config['module_grants'])) {
+            $settings['module_grants'] = json_encode(array_values($config['module_grants']));
         }
         if (isset($config['tax']['gst_enabled'])) {
             $settings['gst_enabled'] = $config['tax']['gst_enabled'] ? '1' : '0';
@@ -236,7 +370,42 @@ class ProvisionTenant implements ShouldQueue
             Setting::updateOrCreate(['key' => $key], ['value' => $value]);
         }
 
-        // --- Step 4: additional team members ---
+        $modules = is_array($config['modules'] ?? null) ? $config['modules'] : [];
+
+        return $modules === []
+            ? 'Navigation cloned; every module the plan allows is on.'
+            : count($modules).' module'.(count($modules) === 1 ? '' : 's').' switched on: '.implode(', ', array_slice($modules, 0, 8))
+                .(count($modules) > 8 ? '…' : '');
+    }
+
+    /**
+     * Create the workspace's first admin — the account the signup logs in with —
+     * and any extra team members the wizard listed. Runs inside the tenant
+     * context with the permission team scope already pinned.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    private function createAdmin(PendingRegistration $registration, array $config): User
+    {
+        $company = Company::where('code', 'MAIN')->first();
+        $branch = Branch::where('code', 'HO')->first();
+
+        $admin = new User();
+        $admin->name = $registration->admin_name;
+        $admin->email = $registration->email;
+        $admin->phone = $registration->phone;
+        $admin->is_active = true;
+        // Copy the already-hashed password verbatim (the 'hashed' cast leaves an
+        // existing hash untouched), so the owner logs in with the password they
+        // chose at signup.
+        $admin->password = $registration->getRawOriginal('password');
+        $admin->save();
+
+        $admin->assignRole('super-admin');
+
+        $this->attachToContext($admin, $company, $branch);
+
+        // --- Additional team members from the wizard ---
         foreach ($config['users'] ?? [] as $u) {
             if (empty($u['email']) || empty($u['name'])) {
                 continue;
@@ -248,21 +417,64 @@ class ProvisionTenant implements ShouldQueue
             $user->is_active = true;
             $user->save();
 
-            $role = $this->resolveRole($u['role'] ?? null);
-            $user->assignRole($role);
+            $user->assignRole($this->resolveRole($u['role'] ?? null));
 
-            if ($company && $branch) {
-                $user->companies()->syncWithoutDetaching([$company->id]);
-                $user->branches()->syncWithoutDetaching([$branch->id]);
-                $user->update(['current_company_id' => $company->id, 'current_branch_id' => $branch->id]);
+            $this->attachToContext($user, $company, $branch);
+        }
+
+        return $admin;
+    }
+
+    /** Give a freshly-created user the default company/branch to work in. */
+    private function attachToContext(User $user, ?Company $company, ?Branch $branch): void
+    {
+        if (! $company || ! $branch) {
+            return;
+        }
+
+        $user->companies()->syncWithoutDetaching([$company->id]);
+        $user->branches()->syncWithoutDetaching([$branch->id]);
+        $user->update([
+            'current_company_id' => $company->id,
+            'current_branch_id' => $branch->id,
+        ]);
+    }
+
+    /**
+     * Settle on the workspace address for this tenant. The signup reserved one,
+     * but a registration can sit unverified for days, so the address is
+     * re-checked against what actually outlives it (live tenants + recorded
+     * domains) and given a numeric tail if it was claimed in the meantime.
+     * Never fails the provision over an address — a signup that got this far
+     * has already paid the email-verification cost.
+     */
+    private function claimSubdomain(PendingRegistration $registration): string
+    {
+        $wanted = Subdomain::normalize((string) $registration->subdomain)
+            ?: Subdomain::suggest((string) $registration->company_name);
+
+        if (strlen($wanted) < Subdomain::MIN) {
+            $wanted = 'workspace';
+        }
+
+        // Deliberately not Subdomain::isTaken(): that counts this very
+        // registration's own reservation as a conflict.
+        $free = static fn (string $s): bool => ! in_array($s, Subdomain::RESERVED, true)
+            && ! Tenant::where('subdomain', $s)->exists()
+            && ! Domain::where('domain', Subdomain::fqdn($s))->exists();
+
+        if ($free($wanted)) {
+            return $wanted;
+        }
+
+        $base = trim(substr($wanted, 0, Subdomain::MAX - 4), '-');
+        for ($i = 1; $i <= 999; $i++) {
+            if ($free($candidate = $base.'-'.$i)) {
+                return $candidate;
             }
         }
 
-        // --- Step 7: optional sample data ---
-        if (! empty($config['load_demo'])) {
-            $count = (int) ($config['demo_count'] ?? 100);
-            (new DemoDataGenerator($admin->id))->generate(array_keys(DemoDataGenerator::MODULES), $count);
-        }
+        return $base.'-'.Str::lower(Str::random(4));
     }
 
     /** Map a requested role slug to an existing web role, defaulting to staff. */
