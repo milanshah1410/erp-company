@@ -47,6 +47,12 @@ class TenantRoleCatalog
         'embroidery-vendors', 'embroidery-works', 'embroidery-payments',
         'boms', 'manufacturing-orders', 'colour-printing', 'job-works',
         'textile',
+        // Manufacturing plugin shop floor. Three separate permissions because
+        // they are three different authorities: registering plant is an admin
+        // act, judging a lot is the inspector's, and writing stock off as scrap
+        // is neither — it is a call on the company's money, which is why an
+        // inspector can fail a lot without being able to scrap it.
+        'machines', 'quality-inspections', 'production-scrap',
         'expenses', 'expense-categories',
         'vehicles', 'assets',
         'employee-claims', 'vehicle-expenses', 'fuel-expenses',
@@ -96,6 +102,57 @@ class TenantRoleCatalog
         // while what a dish is made of — and therefore its food cost — is the
         // chef's and the owner's business, not the shift's.
         'restaurant-menu', 'restaurant-recipes',
+        /**
+         * The other Food & Beverage trades. Each is its own permission because each
+         * is a different person's job in a different kind of shop: pricing a combo
+         * or a happy hour is the owner's, selling a club card is the counter's, the
+         * cake order book belongs to the bakery, and a dairy's collection counter
+         * and its delivery round are two different shifts that must not be able to
+         * edit each other's numbers.
+         */
+        'menu-combos', 'menu-happy-hours', 'memberships', 'cake-orders',
+        'milk-collections', 'milk-subscriptions',
+        /**
+         * The daily round sheet, separate from the standing orders it is generated
+         * from. This is the split that lets a delivery boy correct what was left at
+         * a door without also being able to change what a household is charged —
+         * one permission for both would have made the sheet unusable by the only
+         * person who walks it.
+         */
+        'milk-round',
+        // Agriculture plugin. The dealer's licence register, and the farm's herd,
+        // flocks and daily book. Production is split from the registers because
+        // the person who keys the morning yield is not the person who decides
+        // which cow to cull.
+        'agri-licences', 'livestock-animals', 'livestock-flocks', 'farm-production',
+        // Healthcare plugin. The test master is separated from the orders run
+        // against it for the same reason a price list is separated from a bill:
+        // defining what "normal" is for a test governs every report the lab ever
+        // issues, and that is not a bench decision.
+        'lab-tests', 'lab-orders',
+        // The ward indent. One permission for the whole document — the ward
+        // raises it and the store approves and issues it, which is the approve
+        // level, not a separate module.
+        'hospital-indents',
+        // Automobile plugin. Three registers, three different desks: the counter
+        // takes bookings all day, the vehicle master is edited when a car is
+        // first seen or its papers renewed, and the warranty register decides
+        // who pays for a repair — which is emphatically not a booking clerk's
+        // call. The job card itself is a service job and needs no permission of
+        // its own.
+        'automobile-vehicles', 'automobile-bookings', 'automobile-warranties',
+        /**
+         * Distribution & Wholesale plugin. Its own permission rather than riding
+         * on 'customers': raising a party's credit limit or lifting a supply hold
+         * is a decision about money at risk, and the desk that edits a party's
+         * phone number is not the desk that should be taking it.
+         *
+         * `.view` is the collections clerk's read of the book; `.edit` covers
+         * holding, releasing and changing a party's terms. `.create` and
+         * `.delete` are seeded but unused — a party's credit standing is not a
+         * record anyone creates or destroys, it is a state they are in.
+         */
+        'credit-control',
     ];
 
     /** Modules that are view-only (no create/edit/delete). */
@@ -121,6 +178,14 @@ class TenantRoleCatalog
         // Only approved hours can be invoiced, so approval is a distinct act
         // from logging them.
         'project-timesheets',
+        /**
+         * Healthcare. Both are cases where approval is the moment something
+         * becomes irreversible and the signature has to be someone else's:
+         * verifying a lab report turns a reading into a clinical result (and
+         * billing it moves money), while issuing an indent physically empties a
+         * shelf on a ward's say-so.
+         */
+        'lab-orders', 'hospital-indents',
     ];
 
     /**
@@ -140,7 +205,10 @@ class TenantRoleCatalog
             'SALES' => ['sales', 'sales-returns', 'b2b-orders'],
             'PURCHASE' => ['suppliers', 'purchase-indents', 'rfqs', 'vendor-ratings', 'purchases', 'purchase-invoices'],
             'INVENTORY' => ['warehouses', 'stock', 'stock-ledger', 'stock-adjustments', 'stock-transfers', 'stock-returns', 'cycle-counts', 'gate-entries', 'advanced-inventory', 'barcodes'],
-            'MFG' => ['boms', 'manufacturing-orders', 'colour-printing', 'job-works', 'textile'],
+            'MFG' => [
+                'boms', 'manufacturing-orders', 'colour-printing', 'job-works', 'textile',
+                'machines', 'quality-inspections', 'production-scrap',
+            ],
             'TAILOR' => ['tailors', 'contractors', 'rate-cards', 'piece-rates', 'tailor-works', 'tailor-alterations', 'tailor-bonuses', 'tailor-payments'],
             'EMBROIDERY' => ['embroidery-vendors', 'embroidery-works', 'embroidery-payments'],
             'EXPENSES' => ['expenses', 'expense-categories', 'employee-claims', 'vehicle-expenses', 'fuel-expenses', 'electricity-bills', 'factory-maintenances', 'asset-maintenances'],
@@ -166,7 +234,34 @@ class TenantRoleCatalog
             'RESTAURANT' => [
                 'restaurant-tables', 'restaurant-orders', 'kitchen-orders',
                 'restaurant-menu', 'restaurant-recipes',
+                // Menu pricing rides with the menu: whoever may edit the card is
+                // who a café expects to set its four-o'clock offer.
+                'menu-combos', 'menu-happy-hours',
             ],
+            /**
+             * The counter-service F&B trades, bundled by the shop they belong to
+             * rather than by the vertical — a bakery manager holds the cake book
+             * and nothing restaurant-shaped, and a dairy office holds the round and
+             * the collection counter together.
+             */
+            'BAKERY' => ['cake-orders'],
+            'DAIRY' => ['milk-collections', 'milk-subscriptions', 'milk-round'],
+            'MEMBERSHIP' => ['memberships'],
+            // Agriculture: the dealer's compliance desk …
+            'AGRI' => ['agri-licences'],
+            // … and the farm. Bundled because a farm manager holds the registers
+            // and the daily book together; the shed hand gets farm-production
+            // alone (see the farm-worker role).
+            'LIVESTOCK' => ['livestock-animals', 'livestock-flocks', 'farm-production'],
+            // Healthcare: the lab, and the hospital store. Kept apart because a
+            // standalone pathology lab has no wards and a nursing home's store
+            // keeper has no business signing off a blood report.
+            'DIAGNOSTICS' => ['lab-tests', 'lab-orders'],
+            'HOSPITAL_STORE' => ['hospital-indents'],
+            // Automobile: the three registers a workshop keeps. SERVICE is not
+            // folded in — a parts counter runs the vehicle and warranty
+            // registers with no job book behind them at all.
+            'AUTOMOBILE' => ['automobile-vehicles', 'automobile-bookings', 'automobile-warranties'],
         ];
     }
 
@@ -209,6 +304,7 @@ class TenantRoleCatalog
             'HR' => ['hr-manager', 'hr-executive', 'payroll-executive'],
             'Transport' => ['transport-manager', 'dispatch-executive', 'transport-coordinator', 'driver', 'delivery-boy'],
             'Import & Export' => ['logistics-manager', 'import-executive', 'export-executive', 'documentation-executive', 'cha-executive'],
+            'Agriculture' => ['agri-manager', 'farm-manager', 'farm-worker'],
             'Administration' => ['office-admin', 'receptionist'],
             'System' => ['super-admin', 'admin', 'staff'],
         ];
@@ -248,17 +344,20 @@ class TenantRoleCatalog
                 'TREASURY:m', 'ASSETS:m', 'GST:m', 'HR:a', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m', 'BROKER:m',
                 'accounts:v', 'reports:v', 'workflows:m', 'audit-logs:v',
                 'users:v', 'roles:v', 'companies:v', 'branches:v', 'settings:v', 'notifications:v', 'ai:v',
+                'credit-control:m',
             ]],
             'general-manager' => ['label' => 'General Manager', 'spec' => [
                 'CATALOG:m', 'CRM_CORE:m', 'PRICE:m', 'COMMS:m', 'FIELD_SALES:m', 'SALES:a',
                 'PURCHASE:a', 'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'EXPENSES:a',
                 'TREASURY:v', 'ASSETS:m', 'GST:v', 'HR:m', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m', 'BROKER:m',
                 'accounts:v', 'reports:v', 'workflows:v', 'notifications:v', 'ai:v',
+                'credit-control:c',
             ]],
             'branch-manager' => ['label' => 'Branch Manager', 'spec' => [
                 'CATALOG:v', 'CRM_CORE:m', 'PRICE:v', 'COMMS:c', 'FIELD_SALES:m', 'SALES:a',
                 'PURCHASE:c', 'INVENTORY:a', 'MFG:v', 'TRANSPORT:m', 'EXPENSES:c', 'BROKER:v', 'DEVICES:m',
                 'reports:v', 'notifications:v', 'ai:v',
+                'credit-control:c',
             ]],
             'operations-manager' => ['label' => 'Operations Manager', 'spec' => [
                 'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'PURCHASE:c', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m',
@@ -270,10 +369,14 @@ class TenantRoleCatalog
             'crm-manager' => ['label' => 'CRM Manager', 'spec' => [
                 'CRM_CORE:m', 'PRICE:m', 'COMMS:m', 'FIELD_SALES:m', 'SALES:a', 'CATALOG:v',
                 'reports:v', 'notifications:v', 'ai:v',
+                'credit-control:v',
             ]],
             'sales-executive' => ['label' => 'Sales Executive', 'spec' => [
                 'customers:c', 'customer-categories:v', 'leads:c', 'follow-ups:c', 'price-lists:v',
                 'SALES:c', 'CATALOG:v', 'stock:v', 'FIELD_SALES:v', 'reports:v', 'notifications:v',
+                // Read-only, and load-bearing: an order booked against a stopped
+                // party is wasted work, so the person booking it can see the flag.
+                'credit-control:v',
             ]],
             'telecaller' => ['label' => 'Telecaller', 'spec' => [
                 'leads:c', 'follow-ups:c', 'customers:v', 'whatsapp:c', 'sms:c', 'email:c', 'notifications:v',
@@ -324,6 +427,9 @@ class TenantRoleCatalog
             ]],
             'production-supervisor' => ['label' => 'Production Supervisor', 'spec' => [
                 'manufacturing-orders:c', 'boms:v', 'job-works:c', 'textile:c', 'tailor-works:c', 'embroidery-works:c',
+                // Runs the floor: loads machines and logs their stops, records
+                // inspections, and raises the scrap that comes out of them.
+                'machines:c', 'quality-inspections:c', 'production-scrap:c',
                 'stock:v', 'products:v', 'notifications:v',
             ]],
             'factory-manager' => ['label' => 'Factory Manager', 'spec' => [
@@ -332,6 +438,11 @@ class TenantRoleCatalog
             ]],
             'machine-operator' => ['label' => 'Machine Operator', 'spec' => [
                 'manufacturing-orders:v', 'job-works:c', 'textile:v', 'stock:v', 'products:v', 'notifications:v',
+                // Logging a stop sits on machines.edit — the operator standing at
+                // the machine when it fails is the person who has to record it,
+                // and routing that through a supervisor means it is recorded an
+                // hour late or not at all.
+                'machines:c',
             ]],
             'tailor' => ['label' => 'Tailor', 'spec' => [
                 'tailor-works:c', 'tailor-alterations:c', 'piece-rates:v', 'rate-cards:v', 'products:v', 'notifications:v',
@@ -350,6 +461,13 @@ class TenantRoleCatalog
             ]],
             'qc-inspector' => ['label' => 'QC Inspector', 'spec' => [
                 'textile:c', 'manufacturing-orders:v', 'job-works:v', 'stock:v', 'products:v', 'reports:v', 'notifications:v',
+                /**
+                 * Inspections at contribute level, and scrap at view only. The
+                 * inspector says what failed; writing the failure off against the
+                 * company's stock is somebody else's call, which is the whole
+                 * reason the two are separate permissions.
+                 */
+                'quality-inspections:c', 'machines:v', 'production-scrap:v',
             ]],
 
             // ---- Service ----
@@ -362,12 +480,39 @@ class TenantRoleCatalog
             'service-technician' => ['label' => 'Service Technician', 'spec' => [
                 'service-jobs:c', 'service-contracts:v', 'stock:v', 'products:v',
                 'customers:v', 'notifications:v',
+                // A vehicle on the ramp is read, not edited, by the person
+                // working on it — but they do need to see what is still covered
+                // before they start replacing parts for free.
+                'automobile-vehicles:v', 'automobile-warranties:v',
+            ]],
+
+            // ---- Automobile ----
+            // The service advisor owns the front of a workshop: they take the
+            // booking, meet the vehicle, open the job card and hand back the
+            // keys. Warranty is contribute rather than manage — registering
+            // cover a manufacturer has given is part of taking a vehicle in;
+            // voiding it is not, and that sits on delete.
+            'service-advisor' => ['label' => 'Service Advisor', 'spec' => [
+                'AUTOMOBILE:c', 'service-jobs:c', 'service-contracts:v',
+                'customers:c', 'stock:v', 'products:v', 'sales:v',
+                'employees:v', 'whatsapp:c', 'sms:c', 'reports:v', 'notifications:v',
+            ]],
+            // Runs the workshop end to end: prices and closes job cards, and
+            // holds the warranty register outright because deciding who pays for
+            // a repair is exactly this desk's job.
+            'workshop-manager' => ['label' => 'Workshop Manager', 'spec' => [
+                'AUTOMOBILE:m', 'SERVICE:m', 'CATALOG:v', 'stock:c', 'advanced-inventory:v',
+                'customers:c', 'employees:v', 'sales:a', 'payments:v',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
             ]],
 
             // ---- Restaurant ----
             'restaurant-manager' => ['label' => 'Restaurant Manager', 'spec' => [
                 'RESTAURANT:m', 'sales:a', 'CATALOG:m', 'stock:v', 'EXPENSES:c',
                 'customers:c', 'employees:v', 'payments:c', 'reports:v', 'notifications:v', 'ai:v',
+                // Club cards are sold and honoured at the same counter the bills
+                // are settled at.
+                'MEMBERSHIP:m', 'loyalty:c',
             ]],
             // A waiter opens tables and fires food but cannot settle a bill or
             // change the menu. They read the menu to know what is off tonight.
@@ -381,6 +526,52 @@ class TenantRoleCatalog
             'kitchen-staff' => ['label' => 'Kitchen Staff', 'spec' => [
                 'kitchen-orders:c', 'restaurant-orders:v', 'restaurant-menu:c',
                 'restaurant-recipes:v', 'products:v', 'notifications:v',
+            ]],
+
+            // ---- Bakery / counter-service F&B ----
+            /**
+             * The cake book is the bakery's own document. A baker takes the order,
+             * prices it and hands it over, so they hold the book and the authority
+             * to raise the sale — but not the menu, the recipes or the kitchen
+             * boards, none of which a counter bakery runs.
+             */
+            'bakery-manager' => ['label' => 'Bakery Manager', 'spec' => [
+                'BAKERY:m', 'sales:a', 'CATALOG:m', 'stock:c', 'advanced-inventory:v',
+                'customers:c', 'payments:c', 'MEMBERSHIP:c', 'boms:v', 'manufacturing-orders:c',
+                'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // Takes orders at the counter and works the board; cannot bill, which
+            // is what keeps the advance and the handover on the manager's authority.
+            'bakery-counter' => ['label' => 'Bakery Counter Staff', 'spec' => [
+                'cake-orders:c', 'products:v', 'customers:c', 'memberships:v', 'notifications:v',
+            ]],
+
+            // ---- Dairy ----
+            /**
+             * The dairy office holds both halves: what came in off the round and
+             * what goes out on standing order. Settling farmers and billing
+             * households are both money, so both carry the invoice permissions
+             * rather than the entry ones.
+             */
+            'dairy-manager' => ['label' => 'Dairy Manager', 'spec' => [
+                'DAIRY:m', 'purchase-invoices:a', 'sales:a', 'suppliers:c', 'customers:c',
+                'CATALOG:m', 'stock:c', 'delivery-routes:c', 'payments:c',
+                'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            /**
+             * The collection counter: keys cans and reads the chart, and cannot
+             * settle a farmer or touch the delivery round. The chart itself is
+             * view-only by way of milk-collections:c — creating a chart is
+             * :m — because the rate governs every slip in the centre.
+             */
+            'milk-collector' => ['label' => 'Milk Collection Clerk', 'spec' => [
+                'milk-collections:c', 'suppliers:v', 'products:v', 'notifications:v',
+            ]],
+            // Walks the round and corrects the sheet. No billing, no standing-order
+            // edits — a delivery boy changing a household's rate is not a thing,
+            // which is exactly why the sheet has its own permission.
+            'milk-delivery' => ['label' => 'Milk Delivery Staff', 'spec' => [
+                'milk-round:c', 'milk-subscriptions:v', 'customers:v', 'notifications:v',
             ]],
 
             // ---- Optical ----
@@ -420,6 +611,73 @@ class TenantRoleCatalog
                 'customers:c', 'notifications:v',
             ]],
 
+            // ---- Diagnostic Lab ----
+            /**
+             * The pathologist owns the test definitions and is the only one who
+             * signs a report off — which is the same authority as billing it, so
+             * lab-orders is granted at approve level here and nowhere below.
+             */
+            'pathologist' => ['label' => 'Pathologist / Lab Manager', 'spec' => [
+                'lab-tests:m', 'lab-orders:a', 'customers:c', 'prescriptions:v',
+                'sales:v', 'payments:v', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            /**
+             * A technician runs the bench: registers patients, marks samples in
+             * and types values. Deliberately no approve — the whole point of
+             * verification is that the person who entered the number is not the
+             * person who stands behind it.
+             */
+            'lab-technician' => ['label' => 'Lab Technician', 'spec' => [
+                'lab-orders:c', 'lab-tests:v', 'customers:v', 'notifications:v',
+            ]],
+            // The desk that registers walk-ins and hands reports over. Cannot
+            // touch a result.
+            'lab-receptionist' => ['label' => 'Lab Receptionist', 'spec' => [
+                'lab-orders:c', 'lab-tests:v', 'customers:c', 'sales:v',
+                'payments:v', 'notifications:v',
+            ]],
+
+            // ---- Hospital Store ----
+            /**
+             * The store keeper approves and issues; a ward sister raises. Split
+             * across two roles rather than one so that requesting stock for your
+             * own department and releasing it are never the same signature.
+             */
+            'hospital-store-keeper' => ['label' => 'Hospital Store Keeper', 'spec' => [
+                'hospital-indents:a', 'INVENTORY:c', 'CATALOG:v', 'departments:v',
+                'advanced-inventory:v', 'purchase-indents:c', 'reports:v', 'notifications:v',
+            ]],
+            'ward-in-charge' => ['label' => 'Ward In-charge', 'spec' => [
+                // warehouses:v is not decoration — raising an indent means
+                // picking the store to draw from, and without it the form's
+                // first dropdown 403s.
+                'hospital-indents:c', 'products:v', 'stock:v', 'warehouses:v',
+                'departments:v', 'prescriptions:v', 'lab-orders:v', 'notifications:v',
+            ]],
+
+            // ---- Agriculture ----
+            // An agri counter is a licensed shop: the person running it answers
+            // for the licences as well as the till, so compliance and selling sit
+            // in one role rather than being split off to a back office nobody in
+            // a village shop has.
+            'agri-manager' => ['label' => 'Agri Store Manager', 'spec' => [
+                'AGRI:m', 'sales:a', 'CATALOG:m', 'stock:c', 'advanced-inventory:v',
+                'customers:c', 'suppliers:v', 'payments:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // Runs the herd or the sheds: owns the registers, the daily book and
+            // the feed that comes out of the store to fill it.
+            'farm-manager' => ['label' => 'Farm Manager', 'spec' => [
+                'LIVESTOCK:m', 'CATALOG:c', 'stock:c', 'stock-ledger:v', 'advanced-inventory:v',
+                'employees:v', 'attendance:c', 'sales:c', 'purchases:v', 'suppliers:v',
+                'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            // The milker at 5am. Keys the day's output — which is what moves stock
+            // — but does not decide which animal is culled or what a batch cost.
+            'farm-worker' => ['label' => 'Farm Worker / Milker', 'spec' => [
+                'farm-production:c', 'livestock-animals:v', 'livestock-flocks:v',
+                'products:v', 'stock:v', 'notifications:v',
+            ]],
+
             // ---- Projects ----
             'project-manager' => ['label' => 'Project Manager', 'spec' => [
                 'PROJECTS:m', 'project-timesheets:a', 'customers:v', 'employees:v',
@@ -445,14 +703,21 @@ class TenantRoleCatalog
                 'EXPENSES:a', 'TREASURY:m', 'GST:m', 'accounts:v', 'reports:v',
                 'purchase-invoices:a', 'sales:v', 'purchases:v', 'financial-years:m',
                 'payroll:v', 'salaries:v', 'suppliers:v', 'customers:v', 'notifications:v', 'ai:v',
+                // Distribution: whose limit gets raised and whose supply stops is
+                // this desk's call, so it holds the lever, not just the view.
+                'credit-control:c',
             ]],
             'senior-accountant' => ['label' => 'Senior Accountant', 'spec' => [
                 'EXPENSES:a', 'TREASURY:m', 'GST:m', 'accounts:v', 'reports:v',
                 'purchase-invoices:a', 'purchases:v', 'sales:v', 'suppliers:v', 'customers:v', 'notifications:v',
+                'credit-control:c',
             ]],
             'cashier' => ['label' => 'Cashier', 'spec' => [
                 'payments:c', 'vouchers:c', 'bank-accounts:v', 'expenses:c', 'accounts:v',
                 'sales:v', 'customers:v', 'devices:v', 'device-events:v', 'notifications:v',
+                // Read-only: the counter needs to know a party is stopped before
+                // billing them, and must not be the one who un-stops them.
+                'credit-control:v',
             ]],
 
             // ---- HR ----

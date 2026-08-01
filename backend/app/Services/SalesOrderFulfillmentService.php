@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\SalesItem;
 use App\Models\SalesOrder;
 use App\Models\WarehouseStock;
+use App\Modules\Industry\Distribution\Services\CreditControlService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -17,31 +19,36 @@ use Illuminate\Support\Facades\DB;
  */
 class SalesOrderFulfillmentService
 {
-    public function __construct(private readonly StockService $stock) {}
+    public function __construct(
+        private readonly StockService $stock,
+        private readonly CreditControlService $credit,
+    ) {}
 
     /**
-     * Human-readable error if confirming this order would breach the customer's
-     * credit limit, or null when it is within limit (0 limit = unlimited).
+     * Human-readable reason this order must not be confirmed, or null when it
+     * may go ahead.
+     *
+     * The rule itself lives in CreditControlService (Distribution & Wholesale
+     * plugin) rather than here, because it is asked in four places — this
+     * confirm, the B2B approve, the POS counter and the despatch door — and four
+     * copies of "is this party good for it?" is how a wholesaler ends up
+     * supplying a party they had stopped. The default policy reproduces exactly
+     * what this method used to do; the overdue-age and supply-hold rules only
+     * bite once a workspace configures them.
      */
     public function creditLimitError(SalesOrder $salesOrder): ?string
     {
-        $customer = $salesOrder->customer;
-        $limit = (float) $customer->credit_limit;
-        if ($limit <= 0) {
-            return null;
-        }
+        return $this->credit->blockReason($salesOrder->customer, (float) $salesOrder->total);
+    }
 
-        $exposure = $customer->outstandingBalance() + (float) $salesOrder->total;
-        if ($exposure <= $limit) {
-            return null;
-        }
-
-        return sprintf(
-            'Credit limit exceeded: outstanding ₹%s + this order ₹%s is over the ₹%s limit.',
-            number_format($customer->outstandingBalance(), 2),
-            number_format((float) $salesOrder->total, 2),
-            number_format($limit, 2),
-        );
+    /**
+     * The same question asked of a party rather than of a document, for the
+     * despatch gate — where the order's own value is already part of the party's
+     * exposure and must not be counted twice.
+     */
+    public function creditBlockReason(Customer $customer): ?string
+    {
+        return $this->credit->blockReason($customer);
     }
 
     /**

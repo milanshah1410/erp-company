@@ -51,6 +51,17 @@ final class Modules
             'icon' => 'pi pi-map',
             'description' => 'Salesmen, beat plans, visits, live tracking, collections',
         ],
+        /**
+         * Distribution & Wholesale. Separate from `field_sales` on purpose: beats
+         * are how a distributor *reaches* its parties, this is how it decides
+         * whether to supply them — and a cash & carry counter with no salesman at
+         * all still lives or dies on party credit.
+         */
+        'distribution' => [
+            'label' => 'Distribution & Wholesale',
+            'icon' => 'pi pi-truck',
+            'description' => 'Party credit control, supply holds and outstanding ageing by days past due',
+        ],
         'ecommerce' => [
             'label' => 'E-commerce',
             'icon' => 'pi pi-globe',
@@ -135,6 +146,45 @@ final class Modules
             'label' => 'Pharmacy',
             'icon' => 'pi pi-heart-fill',
             'description' => 'Drug schedules, prescriptions and the Schedule H1/X register',
+        ],
+        'diagnostics' => [
+            'label' => 'Diagnostic Lab',
+            'icon' => 'pi pi-filter',
+            'description' => 'Test master, sample collection, results against reference ranges and verified reports',
+        ],
+        // Separate from `diagnostics` on purpose: a standalone pathology lab has
+        // no wards to issue to, and a nursing home may run a store without a lab.
+        // One combined "healthcare" module would force each to carry the other's
+        // menu.
+        'hospital' => [
+            'label' => 'Hospital Store',
+            'icon' => 'pi pi-building',
+            'description' => 'Ward indents, department-wise issue of drugs and consumables, consumption reporting',
+        ],
+        'agriculture' => [
+            'label' => 'Agriculture',
+            'icon' => 'pi pi-sun',
+            'description' => 'Seed, fertiliser & pesticide attributes and the statutory licence register',
+        ],
+        // Separate from 'agriculture' on purpose: an agro-input counter and a
+        // dairy farm are both "agriculture" to a brochure, but a fertiliser
+        // dealer has no animals and a poultry farm sells no licences. Splitting
+        // them keeps each trade's nav to what it actually works with.
+        'livestock' => [
+            'label' => 'Livestock & Poultry',
+            'icon' => 'pi pi-heart',
+            'description' => 'Cattle & flock registers, daily milk/egg output, feed and mortality',
+        ],
+        // Separate from 'service' on purpose: the job-card lifecycle a garage
+        // runs on is the Service module and is shared with every other repair
+        // trade. What is peculiar to vehicles — the VIN register, the
+        // appointment book, warranty by date *and* distance — is this one, so a
+        // parts counter with no workshop can run it alone and an appliance
+        // repair shop never sees an odometer.
+        'automobile' => [
+            'label' => 'Automobile',
+            'icon' => 'pi pi-car',
+            'description' => 'Vehicle register by VIN, service bookings, job cards and warranty tracking',
         ],
         'projects' => [
             'label' => 'Project Management',

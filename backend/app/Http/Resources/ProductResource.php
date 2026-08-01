@@ -56,6 +56,13 @@ class ProductResource extends JsonResource
             'manufacturer' => $this->manufacturer,
             // Derived so the POS never has to know which schedules mean what.
             'requires_prescription' => $this->resource->requiresPrescription(),
+            // Agriculture plugin: crop, grade and technical name.
+            'agri_input_type' => $this->agri_input_type,
+            'crop' => $this->crop,
+            'variety' => $this->variety,
+            'technical_name' => $this->technical_name,
+            'nutrient_content' => $this->nutrient_content,
+            'germination_percent' => $this->germination_percent === null ? null : (float) $this->germination_percent,
             'is_active' => $this->is_active,
             'total_stock' => $this->when(
                 $this->relationLoaded('stocks'),

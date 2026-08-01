@@ -82,6 +82,10 @@ class ServiceJobController extends Controller
                 'priority' => $data['priority'] ?? 'normal',
                 'item_name' => $data['item_name'],
                 'item_serial' => $data['item_serial'] ?? null,
+                // Industry-plugin fields, absent for every trade but the ones
+                // that put a vehicle on the ramp.
+                'vehicle_id' => $data['vehicle_id'] ?? null,
+                'odometer_in' => $data['odometer_in'] ?? null,
                 'complaint' => $data['complaint'] ?? null,
                 'diagnosis' => $data['diagnosis'] ?? null,
                 'is_warranty' => $data['is_warranty'] ?? false,
@@ -159,6 +163,11 @@ class ServiceJobController extends Controller
                 'priority' => $data['priority'] ?? $serviceJob->priority,
                 'item_name' => $data['item_name'],
                 'item_serial' => $data['item_serial'] ?? null,
+                'vehicle_id' => $data['vehicle_id'] ?? $serviceJob->vehicle_id,
+                'odometer_in' => $data['odometer_in'] ?? $serviceJob->odometer_in,
+                // Taken when the work is handed back, so it arrives on an edit
+                // rather than at intake.
+                'odometer_out' => $data['odometer_out'] ?? $serviceJob->odometer_out,
                 'complaint' => $data['complaint'] ?? null,
                 'diagnosis' => $data['diagnosis'] ?? null,
                 'resolution' => $data['resolution'] ?? null,
@@ -439,6 +448,10 @@ class ServiceJobController extends Controller
             'customer:id,name,phone', 'contract', 'warehouse:id,name',
             'technician:id,employee_code,first_name,last_name', 'items.product:id,sku,name,is_service',
             'invoice:id,invoice_number,total,status', 'creator:id,name',
+            // Whatever an industry vertical has hung off the job — a vehicle,
+            // for a workshop. Empty when no such plugin is registered, so the
+            // relation is never asked for unless something defined it.
+            ...array_values(ServiceJob::$pluginRelations),
         ];
     }
 }

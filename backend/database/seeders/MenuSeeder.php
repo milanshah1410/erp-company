@@ -122,6 +122,16 @@ class MenuSeeder extends Seeder
                     ['label' => 'POS', 'icon' => 'pi pi-calculator', 'to' => '/pos', 'permission' => 'sales.create', 'module' => 'pos'],
                     ['label' => 'Sales Returns', 'icon' => 'pi pi-replay', 'to' => '/sales-returns', 'permission' => 'sales-returns.view'],
                     ['label' => 'B2B Orders', 'icon' => 'pi pi-check-square', 'to' => '/b2b-orders', 'permission' => 'b2b-orders.view'],
+                    // Distribution & Wholesale plugin. Under Sales rather than
+                    // Finance because it is a supply decision — the question it
+                    // answers is "does this order go out?", asked by the desk that
+                    // takes the order, not by the one that reconciles the bank.
+                    //
+                    // Tagged `distribution` rather than inheriting the group's
+                    // `sales`: the row belongs to the vertical, and its API route
+                    // is gated the same way. A leaf tag overrides the branch it
+                    // hangs from (EnabledModules walks up only until it finds one).
+                    ['label' => 'Credit Control', 'icon' => 'pi pi-shield', 'to' => '/credit-control', 'permission' => 'credit-control.view', 'module' => 'distribution'],
                 ]],
                 ['label' => 'CRM', 'icon' => 'pi pi-heart', 'module' => 'crm', 'children' => [
                     ['label' => 'Leads', 'icon' => 'pi pi-filter', 'to' => '/leads', 'permission' => 'leads.view'],
@@ -166,6 +176,23 @@ class MenuSeeder extends Seeder
                 ['label' => 'AMC Contracts', 'icon' => 'pi pi-file-check', 'to' => '/service-contracts', 'permission' => 'service-contracts.view'],
             ]],
 
+            // Automobile. Bookings lead: the appointment book is what a service
+            // manager opens first thing, because it is the only screen that says
+            // what today looks like before any of it has happened.
+            //
+            // "Job Cards" is a second door onto /service-jobs, the same screen
+            // the Service section reaches. That is the supported way to say "two
+            // modules own this": permissionGroupMap() collects owners into a
+            // list and groupAvailable() passes if *any* is enabled, so a garage
+            // running Automobile + Service sees one job book from two places —
+            // and nothing is duplicated but the nav row.
+            ['label' => 'Automobile', 'icon' => 'pi pi-car', 'module' => 'automobile', 'children' => [
+                ['label' => 'Service Bookings', 'icon' => 'pi pi-calendar', 'to' => '/automobile/bookings', 'permission' => 'automobile-bookings.view'],
+                ['label' => 'Job Cards', 'icon' => 'pi pi-wrench', 'to' => '/service-jobs', 'permission' => 'service-jobs.view'],
+                ['label' => 'Vehicles', 'icon' => 'pi pi-car', 'to' => '/automobile/vehicles', 'permission' => 'automobile-vehicles.view'],
+                ['label' => 'Warranties', 'icon' => 'pi pi-verified', 'to' => '/automobile/warranties', 'permission' => 'automobile-warranties.view'],
+            ]],
+
             // Restaurant. The floor leads — it is the screen the shift actually
             // runs on; the kitchen board is its own display on its own device.
             ['label' => 'Restaurant', 'icon' => 'pi pi-shop', 'module' => 'restaurant', 'children' => [
@@ -176,7 +203,46 @@ class MenuSeeder extends Seeder
                 // sold out every service, and writes a recipe once.
                 ['label' => 'Menu', 'icon' => 'pi pi-book', 'to' => '/restaurant/menu', 'permission' => 'restaurant-menu.view'],
                 ['label' => 'Recipes', 'icon' => 'pi pi-list-check', 'to' => '/restaurant/recipes', 'permission' => 'restaurant-recipes.view'],
+                // Counter queue — a QSR has no tables, so this is its floor screen.
+                ['label' => 'Token Queue', 'icon' => 'pi pi-ticket', 'to' => '/restaurant/tokens', 'permission' => 'kitchen-orders.view'],
+                // Menu pricing. Combos before happy hours: a shop builds its
+                // combos once and reprices its hours with the seasons.
+                ['label' => 'Combos', 'icon' => 'pi pi-th-large', 'to' => '/restaurant/combos', 'permission' => 'menu-combos.view'],
+                ['label' => 'Happy Hours', 'icon' => 'pi pi-clock', 'to' => '/restaurant/happy-hours', 'permission' => 'menu-happy-hours.view'],
                 ['label' => 'Tables & Sections', 'icon' => 'pi pi-th-large', 'to' => '/restaurant/tables', 'permission' => 'restaurant-tables.edit'],
+            ]],
+
+            /**
+             * The counter-service Food & Beverage trades. Deliberately their own
+             * groups rather than children of Restaurant: a bakery, a dairy and an
+             * ice-cream parlour do not run a kitchen module, and burying their only
+             * screens under a "Restaurant" heading would hide them from the trades
+             * they were built for.
+             */
+            ['label' => 'Bakery', 'icon' => 'pi pi-gift', 'module' => 'sales', 'children' => [
+                ['label' => 'Cake Orders', 'icon' => 'pi pi-calendar-clock', 'to' => '/cake-orders', 'permission' => 'cake-orders.view'],
+            ]],
+
+            ['label' => 'Dairy', 'icon' => 'pi pi-truck', 'children' => [
+                // The round leads: it is the screen walked every morning. Then the
+                // standing orders behind it, then the collection counter.
+                ['label' => 'Milk Round', 'icon' => 'pi pi-map', 'to' => '/milk-round', 'permission' => 'milk-round.view', 'module' => 'sales'],
+                ['label' => 'Subscriptions', 'icon' => 'pi pi-sync', 'to' => '/milk-subscriptions', 'permission' => 'milk-subscriptions.view', 'module' => 'sales'],
+                ['label' => 'Milk Collection', 'icon' => 'pi pi-inbox', 'to' => '/milk-collections', 'permission' => 'milk-collections.view', 'module' => 'purchase'],
+            ]],
+
+            ['label' => 'Parlour', 'icon' => 'pi pi-sun', 'module' => 'inventory', 'children' => [
+                ['label' => 'Freezers & Flavours', 'icon' => 'pi pi-snowflake', 'to' => '/parlour/freezers', 'permission' => 'stock.view'],
+            ]],
+
+            /**
+             * Memberships sit under Loyalty's module rather than a trade of their
+             * own: a club card is a customer-rewards feature, and the shop that
+             * sells one may be a café, a bakery or a sweet mart.
+             */
+            ['label' => 'Memberships', 'icon' => 'pi pi-id-card', 'module' => 'loyalty', 'children' => [
+                ['label' => 'Members', 'icon' => 'pi pi-users', 'to' => '/memberships', 'permission' => 'memberships.view'],
+                ['label' => 'Membership Plans', 'icon' => 'pi pi-tags', 'to' => '/membership-plans', 'permission' => 'memberships.view'],
             ]],
 
             // Optical. Eye tests lead: a spectacle order cannot be raised until
@@ -199,6 +265,39 @@ class MenuSeeder extends Seeder
             ['label' => 'Pharmacy', 'icon' => 'pi pi-heart-fill', 'module' => 'pharmacy', 'children' => [
                 ['label' => 'Prescriptions', 'icon' => 'pi pi-file-edit', 'to' => '/prescriptions', 'permission' => 'prescriptions.view'],
                 ['label' => 'Drug Register', 'icon' => 'pi pi-book', 'to' => '/drug-register', 'permission' => 'drug-register.view'],
+            ]],
+
+            // Healthcare plugin — the diagnostic lab. Orders lead because the
+            // worklist is the screen the bench lives on all day; the test master
+            // is configured once and then rarely touched.
+            ['label' => 'Diagnostics', 'icon' => 'pi pi-filter', 'module' => 'diagnostics', 'children' => [
+                ['label' => 'Lab Orders', 'icon' => 'pi pi-file-edit', 'to' => '/lab-orders', 'permission' => 'lab-orders.view'],
+                ['label' => 'Test Master', 'icon' => 'pi pi-list-check', 'to' => '/lab-tests', 'permission' => 'lab-tests.view'],
+            ]],
+
+            // Healthcare plugin — the hospital store. Consumption is a menu row
+            // of its own rather than a tab inside indents: it is what the
+            // administrator opens, and they never open an indent.
+            ['label' => 'Hospital Store', 'icon' => 'pi pi-building', 'module' => 'hospital', 'children' => [
+                ['label' => 'Ward Indents', 'icon' => 'pi pi-clipboard', 'to' => '/hospital-indents', 'permission' => 'hospital-indents.view'],
+                ['label' => 'Department Consumption', 'icon' => 'pi pi-chart-bar', 'to' => '/hospital-consumption', 'permission' => 'hospital-indents.view'],
+            ]],
+
+            // Agriculture plugin — the dealer's half. One row today, and a
+            // section of its own rather than a leaf under Masters, because for a
+            // licensed agri counter this is the compliance desk: the screen
+            // someone opens before a season, and before an inspection.
+            ['label' => 'Agriculture', 'icon' => 'pi pi-sun', 'module' => 'agriculture', 'children' => [
+                ['label' => 'Input Licences', 'icon' => 'pi pi-verified', 'to' => '/agri-licences', 'permission' => 'agri-licences.view'],
+            ]],
+
+            // Agriculture plugin — the farm's half. Daily Production leads: the
+            // registers are set up once, but the book is keyed twice a day and is
+            // what actually moves stock.
+            ['label' => 'Farm', 'icon' => 'pi pi-heart', 'module' => 'livestock', 'children' => [
+                ['label' => 'Daily Production', 'icon' => 'pi pi-calendar-clock', 'to' => '/livestock/production', 'permission' => 'farm-production.view'],
+                ['label' => 'Animals', 'icon' => 'pi pi-list', 'to' => '/livestock/animals', 'permission' => 'livestock-animals.view'],
+                ['label' => 'Flock Batches', 'icon' => 'pi pi-building', 'to' => '/livestock/flocks', 'permission' => 'livestock-flocks.view'],
             ]],
 
             // Project Management. Like Service, a section of its own: for a
@@ -257,6 +356,16 @@ class MenuSeeder extends Seeder
                     // *any* is enabled (the same rule that lets POS share
                     // sales.create). Nothing is duplicated but the nav row.
                     ['label' => 'Recipes', 'icon' => 'pi pi-list-check', 'to' => '/restaurant/recipes', 'permission' => 'restaurant-recipes.view'],
+                ]],
+                // The shop floor, from the Manufacturing industry plugin. Its own
+                // group rather than three more rows under Production: these are
+                // what a supervisor lives in during a shift, while Production is
+                // what a planner opens once a day.
+                ['label' => 'Shop Floor', 'icon' => 'pi pi-wrench', 'module' => 'manufacturing', 'children' => [
+                    ['label' => 'Machines', 'icon' => 'pi pi-cog', 'to' => '/machines', 'permission' => 'machines.view'],
+                    ['label' => 'Machine Utilisation', 'icon' => 'pi pi-chart-bar', 'to' => '/machines/utilisation', 'permission' => 'machines.view'],
+                    ['label' => 'Quality Inspection', 'icon' => 'pi pi-verified', 'to' => '/quality-inspections', 'permission' => 'quality-inspections.view'],
+                    ['label' => 'Scrap & Rejection', 'icon' => 'pi pi-trash', 'to' => '/production-scraps', 'permission' => 'production-scrap.view'],
                 ]],
                 ['label' => 'Textile', 'icon' => 'pi pi-th-large', 'module' => 'textile', 'children' => [
                     ['label' => 'Fabric Rolls', 'icon' => 'pi pi-clone', 'to' => '/fabric-rolls', 'permission' => 'textile.view'],
@@ -397,6 +506,11 @@ class MenuSeeder extends Seeder
                     ['label' => 'Broker Commissions', 'icon' => 'pi pi-percentage', 'to' => '/reports/broker-commissions', 'permission' => 'reports.view', 'module' => 'broker'],
                     ['label' => 'Broker-wise Sales', 'icon' => 'pi pi-users', 'to' => '/reports/broker-wise-sales', 'permission' => 'reports.view', 'module' => 'broker'],
                     ['label' => 'Profitability', 'icon' => 'pi pi-chart-line', 'to' => '/reports/profitability', 'permission' => 'reports.view', 'module' => 'sales'],
+                    // Distribution & Wholesale plugin. Sits with the sales reports,
+                    // not with Finance's ledgers: receivables follow the invoices
+                    // this section raised, and the salesman-wise reading of them is
+                    // how a collection round gets planned.
+                    ['label' => 'Outstanding & Ageing', 'icon' => 'pi pi-clock', 'to' => '/reports/receivables-ageing', 'permission' => 'reports.view', 'module' => 'distribution'],
                 ]],
                 ['label' => 'Purchase Reports', 'icon' => 'pi pi-shopping-bag', 'module' => 'purchase', 'children' => [
                     ['label' => 'Purchases', 'icon' => 'pi pi-file-edit', 'to' => '/reports/purchases', 'permission' => 'reports.view'],

@@ -127,7 +127,10 @@
       "Bash(command -v meilisearch)",
       "Bash(powershell.exe -NoProfile -Command \"Get-Process meilisearch -ErrorAction SilentlyContinue | Select-Object -First 1 Name,Id; \\(Get-Command meilisearch -ErrorAction SilentlyContinue\\).Source\")",
       "Bash(grep -vE \"Psy|INFO|^\\\\s*$\")",
-      "Bash(grep -vE \"Psy|INFO|Warning: Using|^\\\\s*$\")"
+      "Bash(grep -vE \"Psy|INFO|Warning: Using|^\\\\s*$\")",
+      "Bash(git mv *)",
+      "Bash(mv app/Modules/Industry/Manufacturing/Database/ManufacturingDemoSeeder.php app/Modules/Industry/Manufacturing/Database/DemoSeeder.php)",
+      "Bash(php -l app/Modules/Industry/Manufacturing/Database/DemoSeeder.php)"
     ],
     "additionalDirectories": [
       "\\tmp",

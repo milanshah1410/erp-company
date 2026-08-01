@@ -29,10 +29,29 @@ class ServiceJob extends Model
     /** Statuses that no longer accept work — parts, assignment or billing. */
     public const CLOSED_STATUSES = ['delivered', 'cancelled'];
 
+    /**
+     * Relations an industry plugin has attached to this model, name => name.
+     *
+     * A vertical that extends the job with its own record — Automobile puts a
+     * vehicle on it — registers the relation at boot with resolveRelationUsing
+     * and lists it here, so the controller knows what is safe to eager-load. The
+     * indirection is the point: with that plugin unregistered the list is empty,
+     * the column is an unused nullable, and nothing here has to know a vehicle
+     * was ever a possibility.
+     *
+     * @var array<string, string>
+     */
+    public static array $pluginRelations = [];
+
     protected $fillable = [
         'job_number', 'customer_id', 'service_contract_id', 'warehouse_id', 'assigned_to',
         'status', 'priority', 'item_name', 'item_serial',
         'complaint', 'diagnosis', 'resolution', 'is_warranty',
+        // Industry-plugin columns. Nullable and meaningless to most repair
+        // trades — an air conditioner has no odometer — but fillable here so a
+        // vertical can open a job through the ordinary create path rather than
+        // force-filling around the model.
+        'vehicle_id', 'booking_id', 'warranty_id', 'odometer_in', 'odometer_out',
         'received_at', 'promised_at', 'started_at', 'completed_at', 'delivered_at',
         'labour_charge', 'labour_tax_percent', 'parts_total',
         'discount_type', 'discount_value', 'discount_amount',
@@ -42,6 +61,8 @@ class ServiceJob extends Model
 
     protected $casts = [
         'is_warranty' => 'boolean',
+        'odometer_in' => 'integer',
+        'odometer_out' => 'integer',
         'received_at' => 'datetime',
         'promised_at' => 'datetime',
         'started_at' => 'datetime',

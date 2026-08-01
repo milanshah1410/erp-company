@@ -39,6 +39,15 @@ class Product extends Model
         // is the sold-out switch and is distinct from `is_active` — a dish off
         // tonight is not a dish withdrawn from the menu.
         'food_type', 'is_available', 'menu_sort_order',
+        // A meal deal. The bundle's contents live in menu_combos; this flag is on
+        // the product so the menu card and the POS grid can badge it without a
+        // join for a boolean.
+        'is_combo',
+        // Agriculture plugin: what a farmer asks for. A pesticide is bought by
+        // its technical name, a fertiliser by its grade and a seed by its crop and
+        // germination — none of which is expressible as a brand or an SKU.
+        'agri_input_type', 'crop', 'variety',
+        'technical_name', 'nutrient_content', 'germination_percent',
     ];
 
     /** Schedules that may not be sold without a prescription. */
@@ -74,6 +83,9 @@ class Product extends Model
         'is_available' => 'boolean',
         'prep_minutes' => 'integer',
         'menu_sort_order' => 'integer',
+        'is_combo' => 'boolean',
+        // Agriculture plugin.
+        'germination_percent' => 'decimal:2',
     ];
 
     protected static function booted(): void

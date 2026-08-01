@@ -48,12 +48,41 @@ type Template = {
   is_active: boolean
   sort_order: number
   tenants_count: number
+  /**
+   * What each trade under this vertical actually delivers, derived from the
+   * plugin that declares it. Empty entries are hand-written presets, which make
+   * no capability claims.
+   */
+  trade_coverage: TradeCoverage[]
+}
+
+type TradeCoverage = {
+  key: string
+  label: string
+  available: number
+  planned: number
+  features: Record<string, string>
 }
 
 const templates = ref<Template[]>([])
 const availableTrades = ref<any[]>([])
 const availableModules = ref<any[]>([])
 const loading = ref(false)
+/** Rows whose per-trade capability breakdown is open. */
+const expandedRows = ref<Record<string, boolean>>({})
+
+/** Feature keys are snake_case; the chip wants "Cake orders". */
+function featureLabel(key: string): string {
+  const spaced = key.replace(/_/g, ' ')
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+/** Rolled-up coverage for a vertical: how much of what it claims actually ships. */
+function coverageOf(row: Template) {
+  const available = row.trade_coverage.reduce((n, t) => n + t.available, 0)
+  const planned = row.trade_coverage.reduce((n, t) => n + t.planned, 0)
+  return { available, planned, total: available + planned }
+}
 
 const dialogVisible = ref(false)
 const editing = ref<Template | null>(null)
@@ -205,7 +234,14 @@ onMounted(load)
       asking for a module the package doesn't sell simply doesn't get it.
     </p>
 
-    <DataTable :value="templates" :loading="loading" dataKey="id" class="p-datatable-sm">
+    <DataTable
+      v-model:expandedRows="expandedRows"
+      :value="templates"
+      :loading="loading"
+      dataKey="id"
+      class="p-datatable-sm"
+    >
+      <Column expander style="width: 3rem" />
       <Column field="label" header="Industry" sortable>
         <template #body="{ data }">
           <div class="name">
@@ -228,6 +264,24 @@ onMounted(load)
       </Column>
       <Column header="Modules" sortable :field="'modules.length'" style="width: 7rem">
         <template #body="{ data }">{{ data.modules.length || '—' }}</template>
+      </Column>
+      <!-- What the vertical actually delivers against what it claims. A
+           hand-written preset declares nothing, so it reports "—" rather than a
+           misleading 0/0. -->
+      <Column header="Built" style="width: 8rem">
+        <template #body="{ data }">
+          <template v-if="coverageOf(data).total">
+            <span class="built">{{ coverageOf(data).available }}</span>
+            <span class="muted">/{{ coverageOf(data).total }}</span>
+            <Tag
+              v-if="coverageOf(data).planned"
+              :value="`${coverageOf(data).planned} soon`"
+              severity="warn"
+              class="mini"
+            />
+          </template>
+          <span v-else class="muted">—</span>
+        </template>
       </Column>
       <Column field="tenants_count" header="Tenants" sortable style="width: 7rem" />
       <Column header="Active" style="width: 6rem">
@@ -256,6 +310,41 @@ onMounted(load)
         </template>
       </Column>
       <template #empty>No industry templates yet.</template>
+
+      <!-- Trade-by-trade capability breakdown. This is the answer to "what does a
+           bakery buyer actually get?", which until now was only written down in a
+           plugin's PHP. -->
+      <template #expansion="{ data }">
+        <div class="coverage">
+          <p v-if="!data.trade_coverage.length" class="muted">
+            No trades are offered under this vertical yet.
+          </p>
+
+          <div v-for="trade in data.trade_coverage" :key="trade.key" class="cov-trade">
+            <div class="cov-head">
+              <strong>{{ trade.label }}</strong>
+              <code class="key">{{ trade.key }}</code>
+              <span v-if="trade.available + trade.planned" class="cov-count">
+                {{ trade.available }} built<span v-if="trade.planned">, {{ trade.planned }} planned</span>
+              </span>
+              <span v-else class="muted">no declared capabilities</span>
+            </div>
+
+            <div v-if="trade.available + trade.planned" class="cov-chips">
+              <span
+                v-for="(status, key) in trade.features"
+                :key="key"
+                class="cov-chip"
+                :class="{ planned: status !== 'available' }"
+                :title="status === 'available' ? 'Shipping today' : 'Declared but not built yet'"
+              >
+                <i :class="status === 'available' ? 'pi pi-check' : 'pi pi-clock'" />
+                {{ featureLabel(String(key)) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </template>
     </DataTable>
 
     <Dialog
@@ -388,6 +477,56 @@ onMounted(load)
   font-size: 0.72rem;
   background: var(--surface-2, #f2f0ea);
   border: 1px solid var(--border, #e3ded3);
+}
+
+/* ---------- Capability coverage (row expansion) ---------- */
+.built {
+  font-weight: 700;
+}
+.coverage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.6rem 0.4rem;
+}
+.cov-trade {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.cov-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.cov-count {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+.cov-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.cov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  border: 1px solid #cfe6d4;
+  background: rgba(22, 163, 74, 0.07);
+  color: #15803d;
+}
+/* Declared but unbuilt: dashed and grey, so an operator quoting this screen to a
+   prospect cannot mistake a roadmap item for something shipping today. */
+.cov-chip.planned {
+  border-style: dashed;
+  border-color: #d8dde5;
+  background: transparent;
+  color: #9ca3af;
 }
 .form-grid {
   display: grid;

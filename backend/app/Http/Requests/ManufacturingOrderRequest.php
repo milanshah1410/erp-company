@@ -20,6 +20,9 @@ class ManufacturingOrderRequest extends FormRequest
             'variant_id' => ['nullable', 'exists:product_variants,id'],
             'bom_id' => ['nullable', 'exists:boms,id'],
             'warehouse_id' => ['required', 'exists:warehouses,id'],
+            // The machine the run is loaded on (Manufacturing industry plugin).
+            // Optional: hand finishing runs on nobody's press.
+            'machine_id' => ['nullable', 'exists:machines,id'],
             'quantity_to_produce' => ['required', 'numeric', 'min:0.001'],
             'order_date' => ['required', 'date'],
             'expected_completion_date' => ['nullable', 'date'],
@@ -27,6 +30,8 @@ class ManufacturingOrderRequest extends FormRequest
 
             // Production-cost buckets (raw material is derived from the lines).
             'tailor_cost' => ['nullable', 'numeric', 'min:0'],
+            'labour_cost' => ['nullable', 'numeric', 'min:0'],
+            'machine_cost' => ['nullable', 'numeric', 'min:0'],
             'printing_cost' => ['nullable', 'numeric', 'min:0'],
             'embroidery_cost' => ['nullable', 'numeric', 'min:0'],
             'packing_cost' => ['nullable', 'numeric', 'min:0'],

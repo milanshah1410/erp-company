@@ -22,6 +22,10 @@ class RestaurantOrderItem extends Model
     protected $fillable = [
         'restaurant_order_id', 'kitchen_order_ticket_id', 'product_id', 'variant_id',
         'quantity', 'unit_price', 'discount_type', 'discount_value', 'discount_amount',
+        // Which happy hour priced this line, if one did. Both the audit trail and
+        // the flag that tells an offer discount from a manager's manual one —
+        // MenuOfferService re-evaluates the former and never touches the latter.
+        'menu_happy_hour_id',
         'tax_percent', 'tax_amount', 'line_total',
         'status', 'void_reason', 'instructions', 'course', 'created_by',
     ];

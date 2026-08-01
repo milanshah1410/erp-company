@@ -55,6 +55,15 @@ class ProductRequest extends FormRequest
             'drug_schedule' => ['nullable', Rule::in(['none', 'g', 'h', 'h1', 'x'])],
             'composition' => ['nullable', 'string', 'max:255'],
             'manufacturer' => ['nullable', 'string', 'max:255'],
+            // Agriculture: what a farmer asks for. `agri_input_type` also decides
+            // which licence the licence register expects to find behind this
+            // item, so it is the one field here that is more than a description.
+            'agri_input_type' => ['nullable', Rule::in(['seed', 'fertilizer', 'pesticide', 'feed', 'equipment', 'other'])],
+            'crop' => ['nullable', 'string', 'max:100'],
+            'variety' => ['nullable', 'string', 'max:100'],
+            'technical_name' => ['nullable', 'string', 'max:255'],
+            'nutrient_content' => ['nullable', 'string', 'max:100'],
+            'germination_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'is_active' => ['boolean'],
         ];
     }

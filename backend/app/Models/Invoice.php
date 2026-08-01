@@ -35,7 +35,23 @@ class Invoice extends Model
     {
         static::creating(function (Invoice $invoice) {
             if (empty($invoice->due_date)) {
-                $termDays = (int) Setting::get('sales_payment_term_days', '30');
+                /**
+                 * The party's own credit period wins over the workspace default.
+                 * A distributor runs 7-day chemists and 45-day institutions off
+                 * one book (Distribution & Wholesale plugin), and a single global
+                 * term made every ageing figure wrong for one of them. Falls back
+                 * to the setting when the customer has no terms of their own — and
+                 * therefore behaves exactly as before for everyone who has not set
+                 * any.
+                 */
+                $customerTerms = (int) (Customer::query()
+                    ->whereKey($invoice->customer_id)
+                    ->value('payment_terms_days') ?? 0);
+
+                $termDays = $customerTerms > 0
+                    ? $customerTerms
+                    : (int) Setting::get('sales_payment_term_days', '30');
+
                 $invoice->due_date = \Carbon\Carbon::parse($invoice->invoice_date)->addDays($termDays);
             }
         });

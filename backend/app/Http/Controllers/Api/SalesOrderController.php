@@ -232,6 +232,21 @@ class SalesOrderController extends Controller
             return response()->json(['message' => 'Only packed orders can be shipped.'], 422);
         }
 
+        /**
+         * The credit gate again, at the door. An order confirmed on Monday can
+         * ship on Thursday, by which time the party may have crossed their limit
+         * on other bills, aged past the workspace's overdue cut-off, or been put
+         * on supply hold outright. Once the lorry has gone, none of that can be
+         * undone — so this is the last honest place to ask.
+         *
+         * Nothing is added to the exposure: this order is already counted (it is
+         * confirmed, so it sits in the pipeline), and adding its value again would
+         * refuse a party for the very goods being loaded.
+         */
+        if ($error = $this->fulfillment->creditBlockReason($salesOrder->customer)) {
+            return response()->json(['message' => $error], 422);
+        }
+
         $salesOrder->update([
             'fulfillment_stage' => 'shipped',
             'shipped_at' => now(),

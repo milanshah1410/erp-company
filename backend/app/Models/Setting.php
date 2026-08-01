@@ -67,13 +67,34 @@ class Setting extends Model
         'asset_maintenance_number_prefix' => 'AMN',
         'service_job_number_prefix' => 'SVC',
         'service_contract_number_prefix' => 'AMC',
+        // Automobile. A job card numbers as an ordinary service job (SVC) — it
+        // is one — so only the two documents the plugin adds are here.
+        'vehicle_booking_number_prefix' => 'BKG',
+        'warranty_number_prefix' => 'WTY',
         'project_number_prefix' => 'PRJ',
         'prescription_number_prefix' => 'RX',
+        // Healthcare. A lab order number is read out to a patient collecting a
+        // report, and a ward indent number is what a nurse quotes when chasing
+        // the store — both need a short series of their own ('PI' is already the
+        // purchase indent's).
+        'lab_order_number_prefix' => 'LAB',
+        'hospital_indent_number_prefix' => 'WIN',
         'old_gold_receipt_number_prefix' => 'OG',
         'eye_prescription_number_prefix' => 'EYE',
         'optical_order_number_prefix' => 'OPT',
         'restaurant_order_number_prefix' => 'RO',
         'kot_number_prefix' => 'KOT',
+        // Manufacturing shop floor. Both are documents a factory quotes back —
+        // an inspection number ends up on a customer's rejection claim, and a
+        // scrap note is what an auditor asks to see behind a write-off.
+        'qc_number_prefix' => 'QC',
+        'scrap_number_prefix' => 'SCR',
+        // Food & Beverage trades. A cake order and a milk round are documents a
+        // customer is quoted by number over a counter or a phone, so each needs
+        // its own short, sayable series.
+        'cake_order_number_prefix' => 'CAKE',
+        'milk_collection_number_prefix' => 'MC',
+        'milk_subscription_number_prefix' => 'MS',
         'dispatch_number_prefix' => 'DSP',
         'transport_charge_number_prefix' => 'TRC',
         // Import/export shipments number per leg, so each gets its own prefix

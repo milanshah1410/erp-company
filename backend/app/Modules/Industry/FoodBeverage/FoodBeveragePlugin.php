@@ -16,10 +16,24 @@ use App\Modules\Industry\Contracts\IndustryPlugin;
  * to know a dish is not a stock item — it is paneer, cream and gas — which is
  * why Recipe appears in four of the eight trades below.
  *
- * Feature statuses are load-bearing. Restaurant is fully built; the other seven
- * are declared so the trade picker is complete and their module presets are
- * right from day one, with their trade-specific screens marked 'planned' rather
- * than pretended into existence.
+ * Feature statuses are load-bearing, and the debt they recorded has been paid:
+ * every trade-specific feature below is now 'available'. What remains 'planned' is
+ * only the menu card for the three counter trades — a bakery, a sweet mart and an
+ * ice-cream parlour price from the product master and do not run the Restaurant
+ * module, so the card is genuinely not reachable for them rather than merely
+ * unbuilt.
+ *
+ * Where each trade's feature actually lives is worth stating once, because it is
+ * not always under Restaurant:
+ *
+ *  - Combos and happy hours are menu-price rules, so they ride with the menu
+ *    (module: restaurant) and are evaluated while a ticket is priced.
+ *  - Memberships are a rewards feature (module: loyalty) — a café, a bakery and a
+ *    sweet mart all sell club cards.
+ *  - Cake orders are a forward sale with a deposit (module: sales).
+ *  - Milk collection is a purchase from farmers (module: purchase); milk
+ *    subscriptions are a standing sale (module: sales).
+ *  - Flavour and freezer stock are a projection over inventory (module: inventory).
  */
 class FoodBeveragePlugin implements IndustryPlugin
 {
@@ -89,11 +103,18 @@ class FoodBeveragePlugin implements IndustryPlugin
                     'menu' => 'available',
                     'recipe' => 'available',
                     'qr_menu' => 'available',
-                    // Points and coupons ship in the Loyalty module; a paid
-                    // membership tier with its own pricing does not yet.
-                    'membership' => 'planned',
-                    'happy_hours' => 'planned',
-                    'combo' => 'planned',
+                    /**
+                     * Points and coupons ship in Loyalty; a *paid* tier with its own
+                     * price and expiry is its own thing and now ships too. The
+                     * card's discount is applied to a ticket automatically, so the
+                     * entitlement is the card's rather than the till operator's
+                     * memory.
+                     */
+                    'membership' => 'available',
+                    // Both are menu-price rules evaluated while a ticket is priced,
+                    // rather than switches somebody has to remember to flip.
+                    'happy_hours' => 'available',
+                    'combo' => 'available',
                 ],
             ],
 
@@ -113,9 +134,14 @@ class FoodBeveragePlugin implements IndustryPlugin
                     // Batch + expiry already exist in advanced inventory.
                     'batch' => 'available',
                     'expiry' => 'available',
-                    // A dated, part-paid, decorated-to-order cake is its own
-                    // document — closest existing shape is a sales order.
-                    'cake_orders' => 'planned',
+                    /**
+                     * A dated, part-paid, decorated-to-order cake is its own
+                     * document. It holds only what a sales order cannot say — the
+                     * inscription, the weight, the reference photo, the hour it is
+                     * needed — and raises the sale on the 'cake' channel at
+                     * handover, carrying the advance across as a payment.
+                     */
+                    'cake_orders' => 'available',
                     // The menu card (veg marks, sold-out, QR) belongs to the
                     // Restaurant module. A counter bakery prices from the product
                     // master instead, so this is not reachable for this trade.
@@ -153,10 +179,13 @@ class FoodBeveragePlugin implements IndustryPlugin
                     'qr_menu' => 'available',
                     'parcel' => 'available',
                     'delivery' => 'available',
-                    // A called-out token queue is not a table plan; it needs its
-                    // own display and numbering.
-                    'token' => 'planned',
-                    'combo' => 'planned',
+                    /**
+                     * A called-out token queue is not a table plan, so it got its
+                     * own numbering (restarting daily, so it stays small enough to
+                     * shout) and its own customer-facing display.
+                     */
+                    'token' => 'available',
+                    'combo' => 'available',
                 ],
             ],
 
@@ -184,10 +213,16 @@ class FoodBeveragePlugin implements IndustryPlugin
                     'batch' => 'available',
                     'expiry' => 'available',
                     'route' => 'available',
-                    // Fat/SNF-graded collection from farmers, and a standing
-                    // daily order that bills monthly, are both their own thing.
-                    'milk_collection' => 'planned',
-                    'subscription' => 'planned',
+                    /**
+                     * Fat/SNF-graded collection from farmers, and a standing daily
+                     * order that bills monthly. The farmer is a supplier and the
+                     * fortnight settles into a purchase invoice; the household's
+                     * month is billed from the delivery rows and never from the
+                     * standing order, which is the difference between a bill and an
+                     * argument.
+                     */
+                    'milk_collection' => 'available',
+                    'subscription' => 'available',
                 ],
             ],
 
@@ -205,11 +240,15 @@ class FoodBeveragePlugin implements IndustryPlugin
                     'expiry' => 'available',
                     // As for Bakery: the menu card belongs to the Restaurant module.
                     'menu' => 'planned',
-                    // A flavour is a product variant; a freezer is a warehouse
-                    // location. Both exist — what is missing is the parlour-shaped
-                    // screen over them.
-                    'flavor' => 'planned',
-                    'freezer_stock' => 'planned',
+                    /**
+                     * A flavour is a product variant; a freezer is a warehouse
+                     * location. Both already existed, so what shipped is the
+                     * parlour-shaped screen over them — flavour-wise stock per
+                     * freezer, soonest to expire first — plus the one flag a
+                     * location needed to say it is a freezer at all.
+                     */
+                    'flavor' => 'available',
+                    'freezer_stock' => 'available',
                 ],
             ],
         ];

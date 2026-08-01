@@ -88,6 +88,11 @@ const form = ref<any>(blankForm())
 // from the materials). Mirrors ManufacturingOrder::COST_BUCKETS on the backend.
 const COST_BUCKETS = [
   { key: 'tailor_cost', label: 'Tailor Cost' },
+  // Shift wages and machine hours. Machine cost is normally written by charging
+  // hours against the run's machine rather than typed here, but the box stays
+  // editable for a shop that has not rated its plant.
+  { key: 'labour_cost', label: 'Labour Cost' },
+  { key: 'machine_cost', label: 'Machine Cost' },
   { key: 'printing_cost', label: 'Printing Cost' },
   { key: 'embroidery_cost', label: 'Embroidery Cost' },
   { key: 'packing_cost', label: 'Packing Cost' },
@@ -109,6 +114,8 @@ function blankForm() {
     // default: every stage selected; user unchecks the ones that don't apply.
     stages: MANUFACTURING_STAGES.map((s) => s.key),
     tailor_cost: 0,
+    labour_cost: 0,
+    machine_cost: 0,
     printing_cost: 0,
     embroidery_cost: 0,
     packing_cost: 0,
@@ -238,6 +245,8 @@ async function openEdit(row: any) {
       })),
       stages: (o.stages || []).map((s: any) => s.stage_key),
       tailor_cost: Number(o.tailor_cost) || 0,
+      labour_cost: Number(o.labour_cost) || 0,
+      machine_cost: Number(o.machine_cost) || 0,
       printing_cost: Number(o.printing_cost) || 0,
       embroidery_cost: Number(o.embroidery_cost) || 0,
       packing_cost: Number(o.packing_cost) || 0,
@@ -268,6 +277,8 @@ async function saveOrder() {
     materials: form.value.materials,
     stages: form.value.stages,
     tailor_cost: form.value.tailor_cost || 0,
+    labour_cost: form.value.labour_cost || 0,
+    machine_cost: form.value.machine_cost || 0,
     printing_cost: form.value.printing_cost || 0,
     embroidery_cost: form.value.embroidery_cost || 0,
     packing_cost: form.value.packing_cost || 0,

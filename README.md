@@ -7,8 +7,8 @@
 
 Multi-tenant SaaS ERP for Indian SMBs. A shared core (inventory, purchase, sales,
 accounting, GST, POS, HR) wrapped in per-trade industry modules — pharmacy, jewellery,
-optical, restaurant, import/export, services and projects — switched on per tenant by
-shop profile.
+optical, restaurant, agriculture & livestock, import/export, services and projects —
+switched on per tenant by shop profile.
 
 The name is कोश: a storehouse, and the layer wrapped around a core. Both are the
 architecture. The original SRS this grew out of is
@@ -286,6 +286,34 @@ offered and never reconfigures a workspace already sold. Code-declared industry
 *plugins* (`app/Modules/Industry`, e.g. Food & Beverage) are unchanged: each gets
 a system template row pointing back at it via `plugin_key`, and the plugin
 remains the source of truth for that vertical's trades.
+
+### Agriculture (industry plugin)
+
+`app/Modules/Industry/Agriculture` covers six trades and splits deliberately in
+two, because a fertiliser counter and a dairy farm share almost nothing but the
+books:
+
+- **Dealers** (`agriculture`, `seeds`, `fertilizer`, `pesticides`) run the
+  `agriculture` module: the **input-licence register** (/agri-licences) whose
+  point is the expiry date — trading a day past a seed, fertiliser or insecticide
+  licence is an offence — plus crop, variety, technical name, nutrient grade and
+  germination on the product master, since that is what a farmer asks for.
+  Licence *expiry* is derived on every read, never stored, and the register pairs
+  each licence type with the stocked products that depend on it, so "no valid
+  licence" is only raised where there is stock behind it.
+- **Farms** (`dairy_farm`, `poultry`) run the `livestock` module: the herd
+  register per head (/livestock/animals), flock batches per placement
+  (/livestock/flocks) and the **daily production book** (/livestock/production).
+
+A farm's output is *created*, not purchased, so `FarmProductionService` is the
+mirror of the F&B plugin's `RecipeConsumptionService`: saving an entry posts
+produce inward (`farm_produce`) and feed outward (`feed_consume`), and moves the
+flock's mortality/feed/egg counters. `posted_at` is the idempotency guard — the
+double-tap in a shed with one bar of signal must not deplete a sack of feed twice
+— and correcting an entry unposts and re-posts inside one transaction. Every
+movement allows a negative balance in **both** directions on purpose: the feed was
+physically eaten, and a shed that learns the system rejects its entries stops
+making them.
 
 ### Local testing (Windows / WAMP)
 

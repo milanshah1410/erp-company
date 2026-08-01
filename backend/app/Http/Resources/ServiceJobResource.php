@@ -39,6 +39,22 @@ class ServiceJobResource extends JsonResource
             'priority' => $this->priority,
             'item_name' => $this->item_name,
             'item_serial' => $this->item_serial,
+
+            // Job-card fields from the Automobile plugin. `vehicle` resolves
+            // only when that plugin registered the relation and the controller
+            // eager-loaded it; for every other trade these are simply null.
+            'vehicle_id' => $this->vehicle_id,
+            'vehicle' => $this->whenLoaded('vehicle', fn () => $this->vehicle ? [
+                'id' => $this->vehicle->id,
+                'label' => $this->vehicle->label(),
+                'registration_no' => $this->vehicle->registration_no,
+                'vin' => $this->vehicle->vin,
+                'odometer' => (int) $this->vehicle->odometer,
+            ] : null),
+            'booking_id' => $this->booking_id,
+            'warranty_id' => $this->warranty_id,
+            'odometer_in' => $this->odometer_in,
+            'odometer_out' => $this->odometer_out,
             'complaint' => $this->complaint,
             'diagnosis' => $this->diagnosis,
             'resolution' => $this->resolution,

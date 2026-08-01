@@ -86,6 +86,17 @@ const KITCHEN_STATIONS = [
   { label: 'Dessert', value: 'dessert' },
 ]
 
+// Agriculture. 'feed' is here as well as the three controlled inputs because a
+// farm buys it as stock and the daily production log draws it down.
+const AGRI_INPUT_TYPES = [
+  { label: 'Seed', value: 'seed' },
+  { label: 'Fertiliser', value: 'fertilizer' },
+  { label: 'Pesticide', value: 'pesticide' },
+  { label: 'Cattle / Poultry Feed', value: 'feed' },
+  { label: 'Equipment', value: 'equipment' },
+  { label: 'Other', value: 'other' },
+]
+
 const search = ref('')
 const categoryFilter = ref<number | null>(null)
 const activeFilter = ref<boolean | null>(null)
@@ -216,6 +227,14 @@ function blankForm(): Record<string, any> {
     // Restaurant: which station cooks it.
     kitchen_station: null,
     prep_minutes: null,
+    // Agriculture: a null input type means "not a controlled agri input", and
+    // the fields below stay hidden.
+    agri_input_type: null,
+    crop: null,
+    variety: null,
+    technical_name: null,
+    nutrient_content: null,
+    germination_percent: null,
     is_active: true,
     attributes: {},
     // Whatever this shop keeps that the columns above do not name — an ISBN,
@@ -887,6 +906,46 @@ onMounted(async () => {
           <label>{{ pt('Prep Minutes') }}</label>
           <InputNumber v-model="form.prep_minutes" :min="0" :max="240" class="w-full" />
         </div>
+
+        <!-- Agriculture. The input type is what decides which licence the
+             licence register expects to find behind this item, so it leads; the
+             rest are what a farmer actually asks for at the counter. -->
+        <div class="form-field">
+          <label>{{ pt('Agri Input Type') }}</label>
+          <Select
+            v-model="form.agri_input_type"
+            :options="AGRI_INPUT_TYPES"
+            optionLabel="label"
+            optionValue="value"
+            showClear
+            :placeholder="pt('Not an agri input')"
+            class="w-full"
+          />
+        </div>
+        <template v-if="form.agri_input_type">
+          <div class="form-field">
+            <label>{{ pt('Crop') }}</label>
+            <InputText v-model="form.crop" class="w-full" :placeholder="pt('Cotton, wheat, groundnut')" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Variety / Grade') }}</label>
+            <InputText v-model="form.variety" class="w-full" />
+          </div>
+          <div v-if="form.agri_input_type === 'pesticide'" class="form-field">
+            <label>{{ pt('Technical Name') }}</label>
+            <InputText v-model="form.technical_name" class="w-full" :placeholder="pt('Imidacloprid 17.8% SL')" />
+            <small class="muted">{{ pt('The active ingredient — what a farmer and an inspector both ask for.') }}</small>
+          </div>
+          <div v-if="form.agri_input_type === 'fertilizer'" class="form-field">
+            <label>{{ pt('Nutrient Content') }}</label>
+            <InputText v-model="form.nutrient_content" class="w-full" :placeholder="pt('12:32:16')" />
+          </div>
+          <div v-if="form.agri_input_type === 'seed'" class="form-field">
+            <label>{{ pt('Germination %') }}</label>
+            <InputNumber v-model="form.germination_percent" :min="0" :max="100" :maxFractionDigits="2" class="w-full" />
+            <small class="muted">{{ pt('As printed on the packet.') }}</small>
+          </div>
+        </template>
 
         <div class="form-field full checkbox-group">
           <div class="checkbox-row">

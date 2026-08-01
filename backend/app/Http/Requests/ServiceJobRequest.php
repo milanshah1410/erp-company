@@ -23,6 +23,16 @@ class ServiceJobRequest extends FormRequest
 
             'item_name' => ['required', 'string', 'max:200'],
             'item_serial' => ['nullable', 'string', 'max:100'],
+
+            /*
+             * Job-card fields, contributed by the Automobile plugin. Nullable
+             * and ignored by every other repair trade; the vehicle is validated
+             * against the plugin's table, which always exists because plugin
+             * migrations run with the rest (IndustryServiceProvider).
+             */
+            'vehicle_id' => ['nullable', 'exists:automobile_vehicles,id'],
+            'odometer_in' => ['nullable', 'integer', 'min:0'],
+            'odometer_out' => ['nullable', 'integer', 'min:0', 'gte:odometer_in'],
             'complaint' => ['nullable', 'string'],
             'diagnosis' => ['nullable', 'string'],
             'resolution' => ['nullable', 'string'],

@@ -16,6 +16,7 @@ use App\Models\PaymentGatewayAccount;
 use App\Models\OldGoldReceipt;
 use App\Models\PaymentTransaction;
 use App\Models\Prescription;
+use App\Modules\Industry\Distribution\Services\CreditControlService;
 use App\Services\BarcodeService;
 use App\Services\BrokerCommissionService;
 use App\Services\DocumentPricingService;
@@ -825,17 +826,23 @@ class PosController extends Controller
             );
     }
 
-    /** Guard the customer's credit limit against the unpaid balance of a sale. */
+    /**
+     * Guard the counter against a sale the party is not good for.
+     *
+     * Only the unpaid part of the tender is at stake, so a fully paid bill is
+     * never refused however deep in arrears the party is — cash is cash. Beyond
+     * that the decision belongs to CreditControlService, which is also what the
+     * order desk and the despatch door ask, so a party on supply hold cannot walk
+     * up to the counter and be served instead.
+     */
     private function assertWithinCreditLimit(Customer $customer, float $shortfall): void
     {
-        $limit = (float) $customer->credit_limit;
-        if ($shortfall > 0 && $limit > 0) {
-            $exposure = $customer->outstandingBalance() + $shortfall;
-            if ($exposure > $limit) {
-                throw ValidationException::withMessages([
-                    'payments' => ["Credit limit exceeded: outstanding + this sale's unpaid balance would be ₹{$exposure}, over the ₹{$limit} limit."],
-                ]);
-            }
+        if ($shortfall <= 0) {
+            return;
+        }
+
+        if ($reason = app(CreditControlService::class)->blockReason($customer, $shortfall)) {
+            throw ValidationException::withMessages(['payments' => [$reason]]);
         }
     }
 

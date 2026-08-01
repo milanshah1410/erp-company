@@ -68,6 +68,8 @@ onMounted(load)
       <Column field="quantity" header="Qty" />
       <Column header="Material"><template #body="{ data }">{{ money(data.material_cost) }}</template></Column>
       <Column header="Tailor"><template #body="{ data }">{{ money(data.tailor_cost) }}</template></Column>
+      <Column header="Labour"><template #body="{ data }">{{ money(data.labour_cost) }}</template></Column>
+      <Column header="Machine"><template #body="{ data }">{{ money(data.machine_cost) }}</template></Column>
       <Column header="Printing"><template #body="{ data }">{{ money(data.printing_cost) }}</template></Column>
       <Column header="Embroidery"><template #body="{ data }">{{ money(data.embroidery_cost) }}</template></Column>
       <Column header="Packing"><template #body="{ data }">{{ money(data.packing_cost) }}</template></Column>

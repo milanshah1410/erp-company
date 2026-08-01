@@ -104,6 +104,8 @@ class ManufacturingReportController extends Controller
             'quantity' => $mo->costingQuantity(),
             'material_cost' => (float) $mo->material_cost,
             'tailor_cost' => (float) $mo->tailor_cost,
+            'labour_cost' => (float) $mo->labour_cost,
+            'machine_cost' => (float) $mo->machine_cost,
             'printing_cost' => (float) $mo->printing_cost,
             'embroidery_cost' => (float) $mo->embroidery_cost,
             'packing_cost' => (float) $mo->packing_cost,
@@ -115,7 +117,8 @@ class ManufacturingReportController extends Controller
 
         $columns = [
             'mo_number' => 'MO Number', 'product' => 'Product', 'quantity' => 'Quantity',
-            'material_cost' => 'Material', 'tailor_cost' => 'Tailor', 'printing_cost' => 'Printing',
+            'material_cost' => 'Material', 'tailor_cost' => 'Tailor',
+            'labour_cost' => 'Labour', 'machine_cost' => 'Machine', 'printing_cost' => 'Printing',
             'embroidery_cost' => 'Embroidery', 'packing_cost' => 'Packing', 'transport_cost' => 'Transport',
             'other_cost' => 'Other', 'total_cost' => 'Total Cost', 'per_unit_cost' => 'Per Unit',
         ];

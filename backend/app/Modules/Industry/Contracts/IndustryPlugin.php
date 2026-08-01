@@ -26,6 +26,27 @@ namespace App\Modules\Industry\Contracts;
  */
 interface IndustryPlugin
 {
+    /*
+     * Optional hook, NOT part of this interface: `public function boot(): void`.
+     *
+     * A plugin that declares it gets called once per request by
+     * IndustryServiceProvider, which checks for the method rather than requiring
+     * it — most verticals are purely declarative and would only have to
+     * implement it empty.
+     *
+     * It exists for the one thing a declarative plugin cannot express: teaching
+     * a *core* model about a column the plugin added to it. A vertical that
+     * extends an existing table (Automobile puts a vehicle on a service job)
+     * registers the relation there with resolveRelationUsing, and attaches any
+     * observer that must fire wherever the record is touched rather than only
+     * inside the plugin's own endpoints.
+     *
+     * Keeping that on the plugin rather than in a provider preserves the rule
+     * this whole layer rests on: the dependency points plugin → core and never
+     * back, so unregistering a vertical leaves nothing behind but unused
+     * nullable columns.
+     */
+
     /** Stable machine key, snake_case — 'food_beverage'. Never renamed once shipped. */
     public function key(): string;
 

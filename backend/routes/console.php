@@ -17,6 +17,11 @@ Schedule::command('expenses:notify-pending-approval')->daily();
 Schedule::command('crm:notify-due-followups')->daily();
 Schedule::command('crm:notify-customer-occasions')->dailyAt('08:00');
 
+// Food & Beverage trades. Runs at 04:00 so both jobs have finished before the
+// earliest shop opens: a dairy's round is walked before dawn and needs its sheet,
+// and a café's members list should not show yesterday's lapsed cards as active.
+Schedule::command('fnb:daily')->dailyAt('04:00');
+
 Schedule::command('backup:run')->daily()->at('02:00');
 Schedule::command('backup:clean')->daily()->at('01:30');
 

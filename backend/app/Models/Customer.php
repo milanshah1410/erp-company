@@ -32,6 +32,13 @@ class Customer extends Model implements AuthenticatableContract
         'address', 'city', 'state', 'country', 'pincode',
         'credit_limit', 'opening_balance', 'default_price_level', 'is_active',
         'portal_enabled',
+        /**
+         * Distribution & Wholesale plugin — supply terms. Fillable so the Credit
+         * Control screen can set them, but deliberately absent from
+         * CustomerRequest: a hold is a credit decision taken while looking at what
+         * a party owes, not a field on the party's address form.
+         */
+        'payment_terms_days', 'credit_hold', 'credit_hold_reason', 'credit_hold_at', 'credit_hold_by',
         // Import & Export Logistics — overseas customer attributes.
         'is_overseas', 'country_id', 'currency_code', 'incoterm', 'port_id',
         'lc_terms', 'iec_code',
@@ -50,6 +57,9 @@ class Customer extends Model implements AuthenticatableContract
         'portal_enabled' => 'boolean',
         'portal_last_login_at' => 'datetime',
         'is_overseas' => 'boolean',
+        'payment_terms_days' => 'integer',
+        'credit_hold' => 'boolean',
+        'credit_hold_at' => 'datetime',
     ];
 
     /** Country master row (overseas customers); `country` stays free text. */

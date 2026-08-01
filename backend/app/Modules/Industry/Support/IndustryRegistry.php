@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\Industry\Support;
 
+use App\Modules\Industry\Agriculture\AgriculturePlugin;
+use App\Modules\Industry\Automobile\AutomobilePlugin;
+use App\Modules\Industry\Contracts\IndustryDemoSeeder;
 use App\Modules\Industry\Contracts\IndustryPlugin;
+use App\Modules\Industry\Distribution\DistributionPlugin;
 use App\Modules\Industry\FoodBeverage\FoodBeveragePlugin;
+use App\Modules\Industry\Healthcare\HealthcarePlugin;
+use App\Modules\Industry\Manufacturing\ManufacturingPlugin;
 use App\Support\Modules;
 use ReflectionClass;
 
@@ -39,6 +45,11 @@ final class IndustryRegistry
      */
     public const PLUGINS = [
         FoodBeveragePlugin::class,
+        ManufacturingPlugin::class,
+        DistributionPlugin::class,
+        AgriculturePlugin::class,
+        HealthcarePlugin::class,
+        AutomobilePlugin::class,
     ];
 
     /**
@@ -229,6 +240,42 @@ final class IndustryRegistry
     public static function publicRouteFiles(): array
     {
         return self::existingFiles('routes-public.php');
+    }
+
+    /**
+     * Demo fixtures contributed by plugins, for DemoShopSeeder.
+     *
+     * Convention, not configuration: a vertical that ships a
+     * `Database\DemoSeeder` implementing IndustryDemoSeeder gets it run for
+     * every demo workspace, and decides from the module set it is handed
+     * whether that trade has anything to seed. A plugin without one contributes
+     * nothing, exactly like a plugin without routes.
+     *
+     * This is the *module-keyed* half. Verticals whose trades want visibly
+     * different fixtures from the same module set (a cafe and a bakery are both
+     * F&B) are dispatched by trade instead — see
+     * DemoShopSeeder::seedTradeFixtures. A plugin uses one or the other, not
+     * both.
+     *
+     * Not on the IndustryPlugin interface on purpose — these are development
+     * fixtures, and the plugin contract should stay about what the product
+     * sells.
+     *
+     * @return list<IndustryDemoSeeder>
+     */
+    public static function demoSeeders(): array
+    {
+        $out = [];
+
+        foreach (self::PLUGINS as $class) {
+            $seeder = (new ReflectionClass($class))->getNamespaceName().'\\Database\\DemoSeeder';
+
+            if (class_exists($seeder) && is_subclass_of($seeder, IndustryDemoSeeder::class)) {
+                $out[] = new $seeder;
+            }
+        }
+
+        return $out;
     }
 
     /** @return list<string> */

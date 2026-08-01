@@ -53,10 +53,56 @@ class PlanSeeder extends Seeder
         ...self::STARTER_MODULES,
         'crm', 'field_sales', 'broker', 'logistics', 'gst', 'hrms',
         'service', 'projects', 'pharmacy', 'jewellery', 'optical', 'restaurant',
+        /**
+         * `restaurant` carries the whole Food & Beverage vertical's counter side:
+         * tables, KOT, the kitchen display, the menu card, combos, happy hours and
+         * the token queue all gate on it. The trades that are not restaurants need
+         * nothing extra — a bakery's cake orders ride on `sales`, a dairy's
+         * collection on `purchase` and its round on `sales`, an ice-cream parlour's
+         * freezers on `inventory`, and club cards on `loyalty` — all of which
+         * Starter already sells.
+         *
+         * The one thing a Business subscriber does *not* get is Recipes for the
+         * three producing trades (bakery, sweet mart, ice cream): those reach the
+         * recipe book through Manufacturing → Production, and `manufacturing` is a
+         * Professional module. That is the plan ceiling working as intended rather
+         * than a gap — but it is the reason a bakery that wants food costing has to
+         * be sold Professional, so change it deliberately if that is not the
+         * intent.
+         */
+        // Agriculture's two halves are single-trade verticals like the rest: an
+        // agro counter and a dairy farm are both SMBs, and pricing them above
+        // Business would put the whole vertical out of reach of the shops it was
+        // written for.
+        'agriculture', 'livestock',
+        // Healthcare's two, on the same reasoning: a two-room pathology lab and
+        // a fifty-bed nursing home are SMBs, and the trades that need these are
+        // exactly the ones that cannot pay for Professional.
+        'diagnostics', 'hospital',
+        // Automobile, likewise. A three-bay garage is the archetypal Business
+        // subscriber, and its vertical is worth nothing without `service`
+        // alongside — which this tier already sells.
+        'automobile',
+        // Distribution & Wholesale sits here for the same reason and one more:
+        // its whole value is credit control over `field_sales` beats, and both
+        // are Business keys. Pricing it above would put party-credit discipline
+        // out of reach of exactly the trade that goes under without it.
+        'distribution',
     ];
 
     /**
-     * Professional adds multi-channel selling and light production.
+     * Professional adds multi-channel selling and production.
+     *
+     * `manufacturing` is the whole shop floor, not just BOMs: production runs,
+     * the machine master with downtime and utilisation, quality inspections with
+     * defect analysis, scrap and rejection, and the finished-cost breakdown. It
+     * is what the eleven trades of the Manufacturing vertical are sold on, so a
+     * factory that stops at Business gets none of it — which is why the
+     * Manufacturing Pack exists in the marketplace for that tier.
+     *
+     * The garment chain (`tailoring`, `embroidery`) stays Enterprise-only or
+     * pack-bought; `textile` is here because fabric rolls are stock handling as
+     * much as production.
      *
      * @var list<string>
      */

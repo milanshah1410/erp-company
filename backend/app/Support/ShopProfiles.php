@@ -78,24 +78,18 @@ final class ShopProfiles
         // 'dairy' and 'restaurant' used to be defined here. Both are now trades of
         // the Food & Beverage plugin, which owns their module sets — keeping copies
         // here would leave two definitions of one trade, drifting apart.
-        'manufacturing' => [
-            'label' => 'Manufacturing / Factory',
-            'icon' => 'pi pi-cog',
-            'description' => 'BOM, production orders, tailoring, embroidery, printing and QC',
-            'modules' => [
-                'sales', 'purchase', 'inventory', 'accounts', 'gst',
-                'manufacturing', 'textile', 'tailoring', 'embroidery', 'hrms', 'assets', 'crm', 'ai',
-            ],
-        ],
-        'wholesale' => [
-            'label' => 'Wholesale / Distribution',
-            'icon' => 'pi pi-truck',
-            'description' => 'Bulk orders, brokers, customer credit, transport and outstanding',
-            'modules' => [
-                'sales', 'purchase', 'inventory', 'accounts', 'gst',
-                'broker', 'field_sales', 'logistics', 'crm', 'ai',
-            ],
-        ],
+        // 'manufacturing' used to be defined here. It is now the general-factory
+        // trade of the Manufacturing plugin, which owns its module set — with the
+        // same modules it had here, so no workspace already on this profile
+        // shifts underneath it. It had to move: the Manufacturing industry
+        // template is plugin-backed, and a plugin-backed template reports the
+        // plugin's trades instead of its curated ones, so a copy left here would
+        // have dropped out of the signup picker entirely.
+        // 'wholesale' used to be defined here. It is now a trade of the
+        // Distribution & Wholesale plugin, which owns its module set — with the
+        // same modules it had here, so no workspace already on this profile
+        // shifts underneath it. Keeping a copy would leave two definitions of one
+        // trade, drifting apart.
         'optical' => [
             'label' => 'Optical Shop',
             'icon' => 'pi pi-eye',
@@ -112,14 +106,9 @@ final class ShopProfiles
                 'jewellery', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'crm', 'ai',
             ],
         ],
-        'medical' => [
-            'label' => 'Medical Store / Pharmacy',
-            'icon' => 'pi pi-heart-fill',
-            'description' => 'Batch & expiry, drug schedules, prescriptions and the H1 register',
-            'modules' => [
-                'pharmacy', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'devices', 'loyalty', 'crm', 'ai',
-            ],
-        ],
+        // 'medical' used to be defined here. It is now a trade of the Healthcare
+        // plugin, which owns its module set alongside its five sibling trades —
+        // same reason 'dairy' and 'restaurant' left.
         'service' => [
             'label' => 'Service / Repair Centre',
             'icon' => 'pi pi-wrench',
@@ -145,15 +134,10 @@ final class ShopProfiles
                 'assets', 'hrms', 'logistics', 'crm', 'ai',
             ],
         ],
-        'agriculture' => [
-            'label' => 'Agriculture / Agri-inputs',
-            'icon' => 'pi pi-sun',
-            'description' => 'Seed, fertiliser & pesticide stock with batch/expiry, farmer credit and mandi despatch',
-            'modules' => [
-                'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst',
-                'field_sales', 'logistics', 'broker', 'crm', 'ai',
-            ],
-        ],
+        // 'agriculture' used to be defined here. It is now a trade of the
+        // Agriculture plugin, which owns its module set — and the key is
+        // deliberately unchanged, because live tenants store it as `shop_profile`
+        // and a rename would strand them on the `custom` fallback.
         'trading' => [
             'label' => 'Import / Export',
             'icon' => 'pi pi-globe',
@@ -206,7 +190,14 @@ final class ShopProfiles
      * which is how the hand-written presets get grouped. A trade no template
      * claims still reports null and the picker shows it ungrouped.
      *
-     * @return list<array{key: string, label: string, icon: string, description: string, modules: list<string>, industry: string|null}>
+     * Each row also carries the plugin's `features` map — 'kot' => 'available',
+     * and so on. That map is the honest answer to "what do I actually get if I
+     * pick this?", and until it was carried here the signup wizard had to guess by
+     * splitting the description on commas. Hand-written presets have no plugin to
+     * declare features, so they report an empty map and callers fall back to the
+     * description.
+     *
+     * @return list<array{key: string, label: string, icon: string, description: string, modules: list<string>, industry: string|null, features: array<string, string>}>
      */
     public static function options(): array
     {
@@ -216,10 +207,27 @@ final class ShopProfiles
         $out = [];
         foreach (self::all() as $key => $meta) {
             $industry = $trades[$key]['industry'] ?? $curated[$key] ?? null;
-            $out[] = ['key' => $key] + $meta + ['industry' => $industry];
+            $out[] = ['key' => $key] + $meta + [
+                'industry' => $industry,
+                'features' => $trades[$key]['features'] ?? [],
+            ];
         }
 
         return $out;
+    }
+
+    /**
+     * A trade's capability map, or an empty one for a preset no plugin declares.
+     *
+     * Thin wrapper over IndustryRegistry so callers that already speak in trade
+     * keys (the signup wizard, the platform's industry screen) do not each have to
+     * know that only plugin-backed trades have features.
+     *
+     * @return array<string, string> feature key => 'available' | 'planned'
+     */
+    public static function featuresFor(?string $key): array
+    {
+        return IndustryRegistry::featuresFor($key ?? '');
     }
 
     /**

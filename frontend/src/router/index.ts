@@ -79,6 +79,12 @@ const ReferralsView = () => import('../views/ReferralsView.vue')
 const LoyaltyView = () => import('../views/LoyaltyView.vue')
 const ServiceJobsView = () => import('../views/ServiceJobsView.vue')
 const ServiceContractsView = () => import('../views/ServiceContractsView.vue')
+// Automobile industry plugin (app/Modules/Industry/Automobile). There is no
+// job-card screen here on purpose: a job card is a service job with a vehicle
+// on it, so the Automobile menu's "Job Cards" row points at /service-jobs.
+const AutomobileVehiclesView = () => import('../views/AutomobileVehiclesView.vue')
+const AutomobileBookingsView = () => import('../views/AutomobileBookingsView.vue')
+const AutomobileWarrantiesView = () => import('../views/AutomobileWarrantiesView.vue')
 const RestaurantFloorView = () => import('../views/RestaurantFloorView.vue')
 const RestaurantOrdersView = () => import('../views/RestaurantOrdersView.vue')
 const KitchenDisplayView = () => import('../views/KitchenDisplayView.vue')
@@ -86,14 +92,39 @@ const RestaurantTablesView = () => import('../views/RestaurantTablesView.vue')
 // Food & Beverage industry plugin (app/Modules/Industry/FoodBeverage).
 const RestaurantMenuView = () => import('../views/RestaurantMenuView.vue')
 const RestaurantRecipesView = () => import('../views/RestaurantRecipesView.vue')
+// Food & Beverage trades beyond the restaurant floor.
+const TokenQueueView = () => import('../views/TokenQueueView.vue')
+const MenuCombosView = () => import('../views/MenuCombosView.vue')
+const HappyHoursView = () => import('../views/HappyHoursView.vue')
+const CakeOrdersView = () => import('../views/CakeOrdersView.vue')
+const MembershipsView = () => import('../views/MembershipsView.vue')
+const MilkCollectionsView = () => import('../views/MilkCollectionsView.vue')
+const MilkSubscriptionsView = () => import('../views/MilkSubscriptionsView.vue')
+const MilkRoundView = () => import('../views/MilkRoundView.vue')
+const ParlourFreezersView = () => import('../views/ParlourFreezersView.vue')
 const WaiterPerformanceView = () => import('../views/WaiterPerformanceView.vue')
 const QrMenuView = () => import('../views/QrMenuView.vue')
+// Distribution & Wholesale industry plugin (app/Modules/Industry/Distribution).
+// Two screens the retail spine never needed: the party credit book, and
+// receivables aged by how late they are.
+const CreditControlView = () => import('../views/CreditControlView.vue')
+const ReceivablesAgeingView = () => import('../views/ReceivablesAgeingView.vue')
+// Agriculture industry plugin (app/Modules/Industry/Agriculture). The licence
+// register belongs to the dealer half, the three farm screens to the other.
+const AgriLicencesView = () => import('../views/AgriLicencesView.vue')
+const FarmProductionView = () => import('../views/FarmProductionView.vue')
+const LivestockAnimalsView = () => import('../views/LivestockAnimalsView.vue')
+const LivestockFlocksView = () => import('../views/LivestockFlocksView.vue')
 const EyePrescriptionsView = () => import('../views/EyePrescriptionsView.vue')
 const OpticalOrdersView = () => import('../views/OpticalOrdersView.vue')
 const MetalRatesView = () => import('../views/MetalRatesView.vue')
 const OldGoldView = () => import('../views/OldGoldView.vue')
 const PrescriptionsView = () => import('../views/PrescriptionsView.vue')
 const DrugRegisterView = () => import('../views/DrugRegisterView.vue')
+const LabTestsView = () => import('../views/LabTestsView.vue')
+const LabOrdersView = () => import('../views/LabOrdersView.vue')
+const HospitalIndentsView = () => import('../views/HospitalIndentsView.vue')
+const HospitalConsumptionView = () => import('../views/HospitalConsumptionView.vue')
 const ProjectsView = () => import('../views/ProjectsView.vue')
 const ProjectTimesheetsView = () => import('../views/ProjectTimesheetsView.vue')
 const OccasionsView = () => import('../views/OccasionsView.vue')
@@ -119,6 +150,11 @@ const ChannelListingsView = () => import('../views/ChannelListingsView.vue')
 const ChannelSyncLogsView = () => import('../views/ChannelSyncLogsView.vue')
 const BomsView = () => import('../views/BomsView.vue')
 const ManufacturingOrdersView = () => import('../views/ManufacturingOrdersView.vue')
+// Manufacturing industry plugin — the shop floor.
+const MachinesView = () => import('../views/MachinesView.vue')
+const MachineUtilisationView = () => import('../views/MachineUtilisationView.vue')
+const QualityInspectionsView = () => import('../views/QualityInspectionsView.vue')
+const ProductionScrapView = () => import('../views/ProductionScrapView.vue')
 const JobWorksView = () => import('../views/JobWorksView.vue')
 const FabricRollsView = () => import('../views/FabricRollsView.vue')
 const FabricInspectionsView = () => import('../views/FabricInspectionsView.vue')
@@ -230,19 +266,50 @@ const routes: RouteRecordRaw[] = [
       { path: 'loyalty', component: LoyaltyView, meta: { permission: 'loyalty.view' } },
       { path: 'service-jobs', component: ServiceJobsView, meta: { permission: 'service-jobs.view' } },
       { path: 'service-contracts', component: ServiceContractsView, meta: { permission: 'service-contracts.view' } },
+      { path: 'automobile/vehicles', component: AutomobileVehiclesView, meta: { permission: 'automobile-vehicles.view' } },
+      { path: 'automobile/bookings', component: AutomobileBookingsView, meta: { permission: 'automobile-bookings.view' } },
+      { path: 'automobile/warranties', component: AutomobileWarrantiesView, meta: { permission: 'automobile-warranties.view' } },
       { path: 'restaurant/floor', component: RestaurantFloorView, meta: { permission: 'restaurant-tables.view' } },
       { path: 'restaurant/orders', component: RestaurantOrdersView, meta: { permission: 'restaurant-orders.view' } },
       { path: 'restaurant/kitchen', component: KitchenDisplayView, meta: { permission: 'kitchen-orders.view' } },
       { path: 'restaurant/tables', component: RestaurantTablesView, meta: { permission: 'restaurant-tables.edit' } },
       { path: 'restaurant/menu', component: RestaurantMenuView, meta: { permission: 'restaurant-menu.view' } },
       { path: 'restaurant/recipes', component: RestaurantRecipesView, meta: { permission: 'restaurant-recipes.view' } },
+      // Food & Beverage trades. The token board rides on the kitchen's
+      // permission because it is worked by whoever calls the numbers.
+      { path: 'restaurant/tokens', component: TokenQueueView, meta: { permission: 'kitchen-orders.view' } },
+      { path: 'restaurant/combos', component: MenuCombosView, meta: { permission: 'menu-combos.view' } },
+      { path: 'restaurant/happy-hours', component: HappyHoursView, meta: { permission: 'menu-happy-hours.view' } },
+      { path: 'cake-orders', component: CakeOrdersView, meta: { permission: 'cake-orders.view' } },
+      // Both membership paths land on the same tabbed screen: the tiers and the
+      // cards are one job, and the nav offers two ways in.
+      { path: 'memberships', component: MembershipsView, meta: { permission: 'memberships.view' } },
+      { path: 'membership-plans', component: MembershipsView, meta: { permission: 'memberships.view' } },
+      { path: 'milk-collections', component: MilkCollectionsView, meta: { permission: 'milk-collections.view' } },
+      { path: 'milk-subscriptions', component: MilkSubscriptionsView, meta: { permission: 'milk-subscriptions.view' } },
+      { path: 'milk-round', component: MilkRoundView, meta: { permission: 'milk-round.view' } },
+      { path: 'parlour/freezers', component: ParlourFreezersView, meta: { permission: 'stock.view' } },
       { path: 'reports/waiter-performance', component: WaiterPerformanceView, meta: { permission: 'reports.view' } },
+      // Distribution & Wholesale. The ageing report keeps its own route rather
+      // than becoming a ReportsView tab because it is a work list with its own
+      // filters and a per-party drill-down, not a table with a date range. Both
+      // must stay above the `reports/:tab?` catch-all further down.
+      { path: 'credit-control', component: CreditControlView, meta: { permission: 'credit-control.view' } },
+      { path: 'reports/receivables-ageing', component: ReceivablesAgeingView, meta: { permission: 'reports.view' } },
+      { path: 'agri-licences', component: AgriLicencesView, meta: { permission: 'agri-licences.view' } },
+      { path: 'livestock/production', component: FarmProductionView, meta: { permission: 'farm-production.view' } },
+      { path: 'livestock/animals', component: LivestockAnimalsView, meta: { permission: 'livestock-animals.view' } },
+      { path: 'livestock/flocks', component: LivestockFlocksView, meta: { permission: 'livestock-flocks.view' } },
       { path: 'eye-prescriptions', component: EyePrescriptionsView, meta: { permission: 'eye-prescriptions.view' } },
       { path: 'optical-orders', component: OpticalOrdersView, meta: { permission: 'optical-orders.view' } },
       { path: 'metal-rates', component: MetalRatesView, meta: { permission: 'metal-rates.view' } },
       { path: 'old-gold', component: OldGoldView, meta: { permission: 'old-gold.view' } },
       { path: 'prescriptions', component: PrescriptionsView, meta: { permission: 'prescriptions.view' } },
       { path: 'drug-register', component: DrugRegisterView, meta: { permission: 'drug-register.view' } },
+      { path: 'lab-orders', component: LabOrdersView, meta: { permission: 'lab-orders.view' } },
+      { path: 'lab-tests', component: LabTestsView, meta: { permission: 'lab-tests.view' } },
+      { path: 'hospital-indents', component: HospitalIndentsView, meta: { permission: 'hospital-indents.view' } },
+      { path: 'hospital-consumption', component: HospitalConsumptionView, meta: { permission: 'hospital-indents.view' } },
       { path: 'projects', component: ProjectsView, meta: { permission: 'projects.view' } },
       { path: 'project-timesheets', component: ProjectTimesheetsView, meta: { permission: 'project-timesheets.view' } },
       { path: 'referrals', component: ReferralsView, meta: { permission: 'referrals.view' } },
@@ -293,6 +360,13 @@ const routes: RouteRecordRaw[] = [
       { path: 'manufacturing-orders', component: ManufacturingOrdersView, meta: { permission: 'manufacturing-orders.view' } },
       { path: 'colour-printings', component: CrudView, meta: { resource: 'colour-printings', permission: 'colour-printing.view' } },
       { path: 'job-works', component: JobWorksView, meta: { permission: 'job-works.view' } },
+      // Shop floor. 'machines/utilisation' is declared before 'machines/:id'
+      // would be — there is no such route today, but keeping the literal first
+      // means adding one later cannot silently swallow it.
+      { path: 'machines/utilisation', component: MachineUtilisationView, meta: { permission: 'machines.view' } },
+      { path: 'machines', component: MachinesView, meta: { permission: 'machines.view' } },
+      { path: 'quality-inspections', component: QualityInspectionsView, meta: { permission: 'quality-inspections.view' } },
+      { path: 'production-scraps', component: ProductionScrapView, meta: { permission: 'production-scrap.view' } },
       { path: 'fabric-rolls', component: FabricRollsView, meta: { permission: 'textile.view' } },
       { path: 'fabric-inspections', component: FabricInspectionsView, meta: { permission: 'textile.view' } },
       { path: 'shrinkage-records', component: ShrinkageRecordsView, meta: { permission: 'textile.view' } },

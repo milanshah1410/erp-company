@@ -41,6 +41,16 @@ class ManufacturingOrder extends Model
      */
     public const COST_BUCKETS = [
         'tailor_cost' => 'Tailor Cost',
+        /**
+         * Shift wages and machine hours, added by the Manufacturing industry
+         * plugin. `tailor_cost` only ever covered garment piece-work; a moulding
+         * shop or a press pays neither piece rates nor nothing, so without these
+         * two the finished cost of anything that is not a garment was short by
+         * the two largest numbers on a factory floor. Machine cost is normally
+         * written by charging hours against the run's machine rather than typed.
+         */
+        'labour_cost' => 'Labour Cost',
+        'machine_cost' => 'Machine Cost',
         'printing_cost' => 'Printing Cost',
         'embroidery_cost' => 'Embroidery Cost',
         'packing_cost' => 'Packing Cost',
@@ -49,10 +59,11 @@ class ManufacturingOrder extends Model
     ];
 
     protected $fillable = [
-        'mo_number', 'product_id', 'variant_id', 'bom_id', 'warehouse_id',
-        'quantity_to_produce', 'quantity_produced', 'status',
+        'mo_number', 'product_id', 'variant_id', 'bom_id', 'warehouse_id', 'machine_id',
+        'quantity_to_produce', 'quantity_produced', 'quantity_rejected', 'status',
         'order_date', 'expected_completion_date',
-        'material_cost', 'tailor_cost', 'printing_cost', 'embroidery_cost',
+        'material_cost', 'tailor_cost', 'labour_cost', 'machine_cost',
+        'printing_cost', 'embroidery_cost',
         'packing_cost', 'transport_cost', 'other_cost', 'stage_cost', 'total_cost',
         'materials_consumed', 'finished_received',
         'started_at', 'completed_at', 'notes', 'created_by',
@@ -65,8 +76,11 @@ class ManufacturingOrder extends Model
         'completed_at' => 'datetime',
         'quantity_to_produce' => 'decimal:3',
         'quantity_produced' => 'decimal:3',
+        'quantity_rejected' => 'decimal:3',
         'material_cost' => 'decimal:2',
         'tailor_cost' => 'decimal:2',
+        'labour_cost' => 'decimal:2',
+        'machine_cost' => 'decimal:2',
         'printing_cost' => 'decimal:2',
         'embroidery_cost' => 'decimal:2',
         'packing_cost' => 'decimal:2',
@@ -91,6 +105,16 @@ class ManufacturingOrder extends Model
     public function bom(): BelongsTo
     {
         return $this->belongsTo(Bom::class);
+    }
+
+    /**
+     * The machine this run is loaded on, from the Manufacturing industry plugin.
+     * Nullable and safe to leave unused: a workspace that never registers a
+     * machine simply has null here, and nothing on this model requires one.
+     */
+    public function machine(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\Industry\Manufacturing\Models\Machine::class);
     }
 
     public function materials(): HasMany

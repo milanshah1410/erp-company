@@ -11,6 +11,10 @@ use App\Models\Attendance;
 use App\Models\BankAccount;
 use App\Models\Batch;
 use App\Models\Beat;
+// Beat stops. Unimported until now, which made every `beats` generation fatal
+// with "Class App\Services\BeatCustomer not found" the moment it reached
+// attachBeatStops() — i.e. for every trade that runs Field Sales.
+use App\Models\BeatCustomer;
 use App\Models\Bom;
 use App\Models\BiometricDevice;
 use App\Models\BiometricPunch;
@@ -116,6 +120,9 @@ use App\Models\VendorRating;
 use App\Models\Voucher;
 use App\Models\Warehouse;
 use App\Models\WhatsappMessage;
+use App\Modules\Industry\Manufacturing\Models\Machine;
+use App\Modules\Industry\Manufacturing\Models\ProductionScrap;
+use App\Modules\Industry\Manufacturing\Models\QualityInspection;
 use App\Support\TenantContext;
 use App\Support\TradeCatalogue;
 use Illuminate\Support\Facades\DB;
@@ -203,6 +210,12 @@ class DemoDataGenerator
         // Manufacturing & Textile
         'boms' => 'Bills of Materials',
         'manufacturing_orders' => 'Manufacturing Orders',
+        // Shop floor (Manufacturing industry plugin). Machines come first on
+        // purpose: inspections and scrap are generated against the runs that
+        // already exist, but a downtime log needs plant to hang off.
+        'machines' => 'Machines',
+        'quality_inspections' => 'Quality Inspections',
+        'production_scraps' => 'Scrap & Rejection',
         'colour_printings' => 'Colour Printing',
         'job_works' => 'Job Work',
         'fabric_rolls' => 'Fabric Rolls',
@@ -472,6 +485,9 @@ class DemoDataGenerator
                 // Manufacturing & textile
                 'boms' => $this->makeBoms($count),
                 'manufacturing_orders' => $this->makeManufacturingOrders($count),
+                'machines' => $this->makeMachines($count),
+                'quality_inspections' => $this->makeQualityInspections($count),
+                'production_scraps' => $this->makeProductionScraps($count),
                 'colour_printings' => $this->makeColourPrintings($count),
                 'job_works' => $this->makeJobWorks($count),
                 'fabric_rolls' => $this->makeStockItems($count, 'fabric_roll'),
@@ -615,6 +631,20 @@ class DemoDataGenerator
             'state' => $this->states[$i % count($this->states)],
             'country' => 'India',
             'credit_limit' => ($i % 10) * 5000,
+            /**
+             * Credit terms vary per party, because that is the fact a distributor
+             * runs on: 0 follows the workspace default, and the rest spread across
+             * the terms a real book carries. Without the spread, every invoice on
+             * the workspace ages identically and Outstanding & Ageing shows one
+             * bucket — which demonstrates nothing.
+             */
+            'payment_terms_days' => [0, 7, 15, 30, 45][$i % 5],
+            // Roughly one party in twelve is stopped, so Credit Control opens with
+            // something in the "Stopped" tile and the despatch gate has a party to
+            // refuse.
+            'credit_hold' => $i % 12 === 5,
+            'credit_hold_reason' => $i % 12 === 5 ? 'Cheque returned — supply stopped pending clearance' : null,
+            'credit_hold_at' => $i % 12 === 5 ? now()->subDays(($i % 20) + 1) : null,
             'opening_balance' => 0,
             'is_active' => true,
         ];
@@ -1070,6 +1100,36 @@ class DemoDataGenerator
      * so the dashboard's sales trend has data. Needs customers, warehouses and
      * products; returns 0 if any are missing.
      */
+    /**
+     * How far back one demo invoice is dated.
+     *
+     * Paid bills stay inside the last three weeks, so "this month's sales" on the
+     * dashboard still reads as a working month. The unpaid and part-paid ones are
+     * spread months back instead, because that is what a receivables ledger
+     * actually looks like — what is still owed is the *old* stuff — and because
+     * ageing every invoice into one bucket made Outstanding & Ageing a single
+     * column of numbers.
+     *
+     * The paid/partial/unpaid rotation is `$i % 3` in makeInvoices, and this
+     * mirrors it: keep the two in step or a "paid" invoice ends up dated 150 days
+     * ago with its receipt on the same day, which reads as a book nobody chases.
+     *
+     * POS is exempt: a counter bill is tendered on the spot, so back-dating one
+     * would misrepresent the counter rather than the credit book.
+     */
+    private function invoiceAgeDays(int $i, bool $isPos): int
+    {
+        if ($isPos) {
+            return $i % 20;
+        }
+
+        return match ($i % 3) {
+            0 => $i % 20,                 // paid — recent
+            1 => 25 + ($i % 60),          // part-paid — 25-85 days, mostly overdue
+            default => 45 + ($i % 120),   // unpaid — 45-165 days, spans every bucket
+        };
+    }
+
     private function makeInvoices(int $count, string $channel = 'standard'): int
     {
         $customerIds = Customer::pluck('id')->all();
@@ -1094,7 +1154,7 @@ class DemoDataGenerator
                     $customerId = $customerIds[$i % count($customerIds)];
                     $built = $this->buildSaleLines($i, $products, $productCount);
                     $total = $built['total'];
-                    $date = now()->subDays($i % 20);
+                    $date = now()->subDays($this->invoiceAgeDays($i, $isPos));
 
                     $order = SalesOrder::create([
                         'so_number' => ($isPos ? 'DPOS-SO-' : 'DINV-SO-') . $this->suffix($i) . '-' . $i,
@@ -1579,6 +1639,15 @@ class DemoDataGenerator
 
     // ---- Dependency-backed builders ----
 
+    /**
+     * Beats, each with its customer stops.
+     *
+     * A beat with no stops is not a route, and it is the stops that make every
+     * downstream screen mean something: the visit plan, the collection book, and
+     * the salesman- and beat-wise cuts of Credit Control and Outstanding & Ageing
+     * all reach a customer *through* `beat_customers`. Without them those filters
+     * return nothing and look broken rather than empty.
+     */
     private function makeBeats(int $count): int
     {
         $salesmanIds = Salesman::pluck('id')->all();
@@ -1587,13 +1656,48 @@ class DemoDataGenerator
         }
         $days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-        return $this->make($count, fn (int $i) => [
+        $made = $this->make($count, fn (int $i) => [
             'salesman_id' => $salesmanIds[$i % count($salesmanIds)],
             'name' => 'Beat ' . ($i + 1),
             'day_of_week' => $days[$i % count($days)],
             'area' => $this->cities[$i % count($this->cities)],
             'is_active' => true,
         ], Beat::class);
+
+        $this->attachBeatStops();
+
+        return $made;
+    }
+
+    /**
+     * Deal every customer onto a beat, in order, so each beat gets a handful of
+     * sequenced stops and no party is left uncovered. Idempotent per pair, so a
+     * re-run adds the newcomers rather than duplicating the round.
+     */
+    private function attachBeatStops(): void
+    {
+        $beatIds = Beat::pluck('id')->all();
+        $customerIds = Customer::pluck('id')->all();
+        if (empty($beatIds) || empty($customerIds)) {
+            return;
+        }
+
+        // Cap the work on a large master: a demo needs a believable round, not
+        // every one of a million parties walked onto a route.
+        $customerIds = array_slice($customerIds, 0, count($beatIds) * 25);
+        $sequences = array_fill_keys($beatIds, 0);
+
+        foreach (array_chunk($customerIds, self::CHUNK) as $chunk) {
+            DB::transaction(function () use ($chunk, $beatIds, &$sequences) {
+                foreach ($chunk as $index => $customerId) {
+                    $beatId = $beatIds[$index % count($beatIds)];
+                    BeatCustomer::firstOrCreate(
+                        ['beat_id' => $beatId, 'customer_id' => $customerId],
+                        ['sequence' => ++$sequences[$beatId]],
+                    );
+                }
+            });
+        }
     }
 
     /**
@@ -2296,6 +2400,241 @@ class DemoDataGenerator
             ]);
             $order->materials()->createMany($materials);
             $order->stages()->createMany($stageRows);
+        });
+    }
+
+    /**
+     * Machines, each with a short downtime history.
+     *
+     * The stops are the point: a machine list with no downtime shows 100%
+     * utilisation on every row, which is the one number a factory would know at
+     * a glance to be false. Every third machine is left stopped with an open
+     * row, so the "currently down" state has something to render too.
+     */
+    private function makeMachines(int $count): int
+    {
+        $warehouseIds = Warehouse::pluck('id')->all();
+        $departmentIds = Department::pluck('id')->all();
+        $employeeIds = Employee::pluck('id')->all();
+        $userId = $this->createdBy;
+        $offset = (int) Machine::count();
+
+        $types = ['Cutting', 'Sewing', 'Embroidery', 'Printing Press', 'Injection Moulding',
+            'Lathe', 'Mixer', 'Filling Line', 'Corrugator', 'Packing'];
+        $reasons = array_keys(\App\Modules\Industry\Manufacturing\Models\MachineDowntime::REASONS);
+
+        return $this->makeChunked($count, function (int $k) use (
+            $warehouseIds, $departmentIds, $employeeIds, $userId, $offset, $types, $reasons
+        ) {
+            $i = $offset + $k;
+            $type = $types[$i % count($types)];
+            // Every third machine is down right now; the rest alternate
+            // running/idle so the status filter has all three to show.
+            $down = $i % 3 === 2;
+            $status = $down ? ($i % 6 === 5 ? 'maintenance' : 'breakdown') : ($i % 2 === 0 ? 'running' : 'idle');
+
+            $machine = Machine::create([
+                'code' => 'DMC-'.$this->suffix($i).'-'.$i,
+                'name' => $type.' Unit '.($i + 1),
+                'machine_type' => $type,
+                'warehouse_id' => $warehouseIds ? $warehouseIds[$i % count($warehouseIds)] : null,
+                'department_id' => $departmentIds ? $departmentIds[$i % count($departmentIds)] : null,
+                'operator_id' => $employeeIds ? $employeeIds[$i % count($employeeIds)] : null,
+                'manufacturer' => ['Jack', 'Juki', 'Heidelberg', 'Haitian', 'Bosch'][$i % 5],
+                'model_number' => 'M-'.(1000 + $i),
+                'serial_number' => 'SN'.$this->suffix($i).$i,
+                'installed_on' => now()->subMonths(($i % 60) + 1)->toDateString(),
+                'capacity_per_hour' => ($i % 8 + 2) * 25,
+                'capacity_uom' => ['pcs', 'kg', 'm'][$i % 3],
+                'hourly_cost' => ($i % 10 + 2) * 75,
+                'power_kw' => ($i % 12 + 1) * 1.5,
+                'status' => $status,
+                'last_service_on' => now()->subDays(($i % 120) + 10)->toDateString(),
+                // Every fifth machine is overdue, so the "service due" tile is
+                // never a permanent zero.
+                'next_service_due' => now()->addDays($i % 5 === 4 ? -($i % 20) - 1 : ($i % 60) + 5)->toDateString(),
+                'is_active' => $i % 17 !== 16,
+                'notes' => 'Demo machine',
+                'created_by' => $userId,
+            ]);
+
+            // Two closed stops each, plus an open one for a machine that is down.
+            for ($d = 1; $d <= 2; $d++) {
+                $started = now()->subDays(($i + $d) % 45)->setTime(9 + $d, 0);
+                $machine->downtimes()->create([
+                    'started_at' => $started,
+                    'ended_at' => $started->copy()->addMinutes(($i + $d) % 5 * 45 + 30),
+                    'minutes' => ($i + $d) % 5 * 45 + 30,
+                    'reason' => $reasons[($i + $d) % count($reasons)],
+                    'remarks' => 'Demo stop',
+                    'reported_by' => $userId,
+                ]);
+            }
+
+            if ($down) {
+                $machine->downtimes()->create([
+                    'started_at' => now()->subHours(($i % 6) + 1),
+                    'reason' => $status === 'maintenance' ? 'maintenance' : 'breakdown',
+                    'remarks' => 'Still down — demo',
+                    'reported_by' => $userId,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * Quality inspections against existing production runs, with defect lines.
+     *
+     * Deliberately not all passes: a QC register in which nothing ever fails
+     * demonstrates nothing, and the defect Pareto — the screen's whole reason to
+     * exist — would be empty. Roughly one in three fails, one in six is accepted
+     * under deviation, and the rejected quantity is rolled onto the run exactly
+     * as the controller would.
+     */
+    private function makeQualityInspections(int $count): int
+    {
+        $orders = ManufacturingOrder::query()
+            ->whereIn('status', ['in_progress', 'completed'])
+            ->select('id', 'product_id', 'variant_id', 'quantity_to_produce', 'quantity_produced')
+            ->get();
+        $products = Product::select('id')->get();
+        if ($orders->isEmpty() && $products->isEmpty()) {
+            return 0;
+        }
+        $employeeIds = Employee::pluck('id')->all();
+        $userId = $this->createdBy;
+        $offset = (int) QualityInspection::count();
+
+        $stages = ['incoming', 'in_process', 'final', 'pre_dispatch'];
+        $defects = ['shade variation', 'broken stitch', 'short shot', 'under weight',
+            'print misregistration', 'surface scratch', 'dimension out of tolerance', 'contamination'];
+
+        $touchedOrders = [];
+
+        $made = $this->makeChunked($count, function (int $k) use (
+            $orders, $products, $employeeIds, $userId, $offset, $stages, $defects, &$touchedOrders
+        ) {
+            $i = $offset + $k;
+            $order = $orders->isNotEmpty() ? $orders[$i % $orders->count()] : null;
+            $productId = $order?->product_id ?? $products[$i % $products->count()]->id;
+
+            $lot = (float) ($order?->quantity_produced ?: $order?->quantity_to_produce ?: (($i % 10 + 1) * 50));
+            // failed → some rejected; conditional → rework only; else a clean pass.
+            $outcome = $i % 6;
+            $rejected = $outcome % 3 === 0 ? round($lot * 0.04, 3) : 0.0;
+            $rework = $outcome === 1 ? round($lot * 0.02, 3) : 0.0;
+            $accepted = round($lot - $rejected - $rework, 3);
+
+            $inspection = QualityInspection::create([
+                'inspection_number' => 'DQC-'.$this->suffix($i).'-'.$i,
+                'stage' => $stages[$i % 4],
+                'inspected_on' => now()->subDays($i % 75)->toDateString(),
+                'manufacturing_order_id' => $order?->id,
+                'product_id' => $productId,
+                'variant_id' => $order?->variant_id,
+                'lot_quantity' => $lot,
+                'sample_size' => round(max($lot * 0.1, 1), 3),
+                'accepted_quantity' => $accepted,
+                'rejected_quantity' => $rejected,
+                'rework_quantity' => $rework,
+                'result' => $rejected > 0 ? 'failed' : ($rework > 0 ? 'conditional' : 'passed'),
+                'inspector_id' => $employeeIds ? $employeeIds[$i % count($employeeIds)] : null,
+                'remarks' => 'Demo inspection',
+                'created_by' => $userId,
+            ]);
+
+            // Defect lines account for exactly what was marked down, which is
+            // the rule the request enforces — demo data that would be rejected
+            // by the form it demonstrates is worse than none.
+            $marked = $rejected + $rework;
+            if ($marked > 0) {
+                $first = round($marked * 0.6, 3);
+                $inspection->defects()->createMany([
+                    [
+                        'defect' => $defects[$i % count($defects)],
+                        'quantity' => $first,
+                        'severity' => ['major', 'critical', 'minor'][$i % 3],
+                        'remarks' => null,
+                    ],
+                    [
+                        'defect' => $defects[($i + 3) % count($defects)],
+                        'quantity' => round($marked - $first, 3),
+                        'severity' => 'minor',
+                        'remarks' => null,
+                    ],
+                ]);
+            }
+
+            if ($order) {
+                $touchedOrders[$order->id] = true;
+            }
+        });
+
+        // Roll the rejections onto their runs through the same service the API
+        // uses, so a demo workspace's orders agree with their inspections.
+        $shopFloor = app(\App\Modules\Industry\Manufacturing\Services\ShopFloorService::class);
+        foreach (array_keys($touchedOrders) as $orderId) {
+            $shopFloor->syncOrderRejections(ManufacturingOrder::find($orderId));
+        }
+
+        return $made;
+    }
+
+    /**
+     * Scrap notes across the reason codes, with recovery on the ones that would
+     * really have it.
+     *
+     * All of them are `finished` scrap and none post stock. That is not a
+     * shortcut: material scrap writes a real outward ledger movement, and a demo
+     * generator that quietly drove warehouse balances negative would be a data
+     * bug wearing a sample-data costume. The screen still shows everything —
+     * value, recovery, net loss and the loss-by-reason chart.
+     */
+    private function makeProductionScraps(int $count): int
+    {
+        $products = Product::select('id', 'cost_price')->get();
+        $warehouseIds = Warehouse::pluck('id')->all();
+        if ($products->isEmpty() || empty($warehouseIds)) {
+            return 0;
+        }
+        $orderIds = ManufacturingOrder::pluck('id')->all();
+        $userId = $this->createdBy;
+        $n = $products->count();
+        $offset = (int) ProductionScrap::count();
+        $reasons = array_keys(ProductionScrap::REASONS);
+
+        return $this->makeChunked($count, function (int $k) use (
+            $products, $n, $warehouseIds, $orderIds, $userId, $offset, $reasons
+        ) {
+            $i = $offset + $k;
+            $product = $products[$i % $n];
+            $quantity = ($i % 9 + 1) * 3;
+            $unitCost = (float) ($product->cost_price ?: 60);
+            $value = round($quantity * $unitCost, 2);
+            $reason = $reasons[$i % count($reasons)];
+            // Regrind, offcut and trim have a resale value; an expired batch or
+            // an operator error does not.
+            $recoverable = in_array($reason, ['setup_waste', 'machine_defect', 'trial_run'], true)
+                ? round($value * 0.25, 2)
+                : 0.0;
+
+            ProductionScrap::create([
+                'scrap_number' => 'DSC-'.$this->suffix($i).'-'.$i,
+                'scrap_date' => now()->subDays($i % 75)->toDateString(),
+                'manufacturing_order_id' => $orderIds ? $orderIds[$i % count($orderIds)] : null,
+                'product_id' => $product->id,
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'quantity' => $quantity,
+                'scrap_type' => 'finished',
+                'reason' => $reason,
+                'unit_cost' => $unitCost,
+                'total_value' => $value,
+                'recoverable_value' => $recoverable,
+                'affects_stock' => false,
+                'is_posted' => false,
+                'remarks' => 'Demo scrap note',
+                'created_by' => $userId,
+            ]);
         });
     }
 

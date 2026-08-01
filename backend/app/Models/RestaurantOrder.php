@@ -26,6 +26,10 @@ class RestaurantOrder extends Model
     protected $fillable = [
         'order_number', 'order_type', 'restaurant_table_id', 'customer_id', 'waiter_id',
         'status', 'guest_count',
+        // Which membership card discounted this bill, if one did (F&B plugin).
+        'customer_membership_id',
+        // Counter queue (F&B plugin): a QSR has no tables, it has token numbers.
+        'token_number', 'token_status', 'token_called_at', 'token_collected_at', 'token_date',
         'subtotal', 'item_discount_total', 'discount_type', 'discount_value', 'discount_amount',
         'service_charge_percent', 'service_charge', 'tax_amount', 'round_off', 'total',
         // Parcel / delivery (Food & Beverage plugin): flat charges the customer
@@ -52,6 +56,10 @@ class RestaurantOrder extends Model
         'settled_at' => 'datetime',
         'dispatched_at' => 'datetime',
         'delivered_at' => 'datetime',
+        'token_number' => 'integer',
+        'token_date' => 'date',
+        'token_called_at' => 'datetime',
+        'token_collected_at' => 'datetime',
     ];
 
     public function table(): BelongsTo

@@ -13,6 +13,9 @@ use App\Models\Setting;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Modules\Industry\Distribution\Database\DistributionDemoSeeder;
+use App\Modules\Industry\FoodBeverage\Database\FoodBeverageDemoSeeder;
+use App\Modules\Industry\Healthcare\Database\HealthcareDemoSeeder;
 use App\Modules\Industry\Support\IndustryRegistry;
 use App\Services\DemoDataGenerator;
 use App\Support\Modules;
@@ -22,6 +25,7 @@ use App\Support\TenantMenuAccess;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\PermissionRegistrar;
+use Throwable;
 
 /**
  * One demo workspace per shop type, each with its own login.
@@ -143,6 +147,25 @@ class DemoShopSeeder extends Seeder
             if ($withData) {
                 $this->generateData($modules, $admin->id);
             }
+
+            /**
+             * Plugin fixtures, unconditionally — not behind DEMO_SHOP_DATA like
+             * the generic transactions above.
+             *
+             * These *are* the demo: a cafe workspace with no happy hour and no
+             * members demonstrates nothing about being a cafe, which is the one
+             * thing this seeder exists to show. They are a handful of rows and
+             * they create the products and parties they need, so they do not
+             * depend on the generator having run.
+             *
+             * Two dispatches because verticals differ in what varies. Most only
+             * need to know which modules are on (module-keyed, discovered by
+             * IndustryRegistry); some need to know the trade, because a cafe and
+             * a bakery run the same modules and want completely different rows.
+             * A plugin implements one or the other.
+             */
+            $this->seedPluginFixtures($modules, $admin->id);
+            $this->seedTradeFixtures($key, $admin->id);
         });
 
         Subscription::updateOrCreate(
@@ -221,8 +244,25 @@ class DemoShopSeeder extends Seeder
             'accounts' => ['expense_categories', 'expenses', 'vouchers'],
             'crm' => ['leads'],
             'hrms' => ['employees', 'attendance'],
-            'manufacturing' => ['boms', 'manufacturing_orders'],
+            // Order matters within a module: inspections and scrap are generated
+            // against runs that already exist, so the runs have to come first.
+            // A factory demo without the shop floor shows an empty Machines
+            // screen and a Quality Inspection register with nothing to inspect —
+            // which is the half of Manufacturing the trades below are sold on.
+            'manufacturing' => [
+                'boms', 'manufacturing_orders',
+                'machines', 'quality_inspections', 'production_scraps',
+            ],
             'logistics' => ['vehicles', 'drivers'],
+            /**
+             * Field Sales was missing, so every beat-based trade — a distributor,
+             * a dairy round, an agri dealer — demoed an empty Salesmen screen and
+             * an empty Beat Plans screen. Beats bring their customer stops with
+             * them (DemoDataGenerator::makeBeats), which is also what makes the
+             * salesman- and beat-wise cuts of Credit Control and Outstanding &
+             * Ageing show anything at all.
+             */
+            'field_sales' => ['salesmen', 'beats'],
         ];
 
         foreach ($byModule as $module => $keys) {
@@ -239,6 +279,65 @@ class DemoShopSeeder extends Seeder
         ));
 
         (new DemoDataGenerator($userId))->generate($demoModules, DemoDataGenerator::COUNTS[0]);
+    }
+
+    /**
+     * Module-keyed plugin fixtures.
+     *
+     * Discovered by IndustryRegistry rather than listed here, so a vertical that
+     * drops in a `Database\DemoSeeder` needs no edit to this file. Each is handed
+     * the workspace's module set and seeds only what that trade switched on — a
+     * plugin whose modules are absent writes nothing.
+     *
+     * Wrapped per seeder so one vertical's bad fixture costs only its own rows.
+     *
+     * @param  list<string>  $modules
+     */
+    private function seedPluginFixtures(array $modules, int $userId): void
+    {
+        foreach (IndustryRegistry::demoSeeders() as $seeder) {
+            try {
+                $seeder->seed($modules, $userId);
+            } catch (Throwable $e) {
+                $this->command?->warn(
+                    '  '.class_basename($seeder).': fixtures skipped — '.$e->getMessage(),
+                );
+            }
+        }
+    }
+
+    /**
+     * Fixtures only one trade would have.
+     *
+     * Dispatched to the plugin that owns the vertical, so this seeder never learns
+     * what a cake order or a reference range is — the same division that keeps a
+     * plugin's migrations and routes inside its own folder. A trade whose plugin
+     * ships no demo seeder (or no plugin at all) is simply skipped.
+     *
+     * Wrapped so a fixture failure degrades to "one demo has less data" instead of
+     * taking down a nineteen-workspace seed.
+     */
+    private function seedTradeFixtures(string $trade, int $userId): void
+    {
+        $seeders = [
+            // vertical key => demo seeder class
+            'food_beverage' => FoodBeverageDemoSeeder::class,
+            'healthcare' => HealthcareDemoSeeder::class,
+            'distribution' => DistributionDemoSeeder::class,
+        ];
+
+        $vertical = IndustryRegistry::trades()[$trade]['industry'] ?? null;
+        $class = $seeders[$vertical] ?? null;
+
+        if (! $class) {
+            return;
+        }
+
+        try {
+            (new $class($userId))->seed($trade);
+        } catch (Throwable $e) {
+            $this->command?->warn("  {$trade}: trade fixtures skipped — {$e->getMessage()}");
+        }
     }
 
     /**

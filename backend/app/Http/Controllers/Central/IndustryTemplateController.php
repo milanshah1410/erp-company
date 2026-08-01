@@ -65,6 +65,16 @@ class IndustryTemplateController extends Controller
                 'is_active' => $t->is_active,
                 'sort_order' => $t->sort_order,
                 'tenants_count' => (int) ($counts[$t->key] ?? 0),
+                /**
+                 * What this vertical actually delivers, trade by trade.
+                 *
+                 * An operator selling "Restaurant & Food" needs to know that a
+                 * bakery buyer gets cake orders but not the menu card, and until
+                 * this was surfaced the only place that was written down was a
+                 * plugin's PHP. Derived on every read from the plugin's own
+                 * declaration, so it can never drift from what ships.
+                 */
+                'trade_coverage' => $this->coverageFor($t),
             ])->values(),
             // Reference lists so the editor renders without extra round-trips.
             'available_trades' => ShopProfiles::options(),
@@ -148,6 +158,44 @@ class IndustryTemplateController extends Controller
             ->log("Operator ".($industryTemplate->is_active ? 'activated' : 'deactivated')." industry template \"{$industryTemplate->label}\"");
 
         return response()->json(['data' => $industryTemplate->fresh()]);
+    }
+
+    /**
+     * Feature coverage for each trade a vertical offers.
+     *
+     * Reads the trades the template *resolves* to rather than the keys it stores,
+     * so a plugin-backed row (which stores none) reports its plugin's trades — the
+     * same resolution the signup picker uses, which is what makes this screen and
+     * that picker agree.
+     *
+     * A trade no plugin declares reports zero features rather than being dropped:
+     * "this hand-written preset makes no capability claims" is the honest answer,
+     * and hiding the row would read as the trade not being sold.
+     *
+     * @return list<array{
+     *     key: string, label: string, available: int, planned: int,
+     *     features: array<string, string>
+     * }>
+     */
+    private function coverageFor(IndustryTemplate $template): array
+    {
+        $presets = ShopProfiles::all();
+
+        $out = [];
+
+        foreach ($template->tradeKeys() as $key) {
+            $features = ShopProfiles::featuresFor($key);
+
+            $out[] = [
+                'key' => $key,
+                'label' => $presets[$key]['label'] ?? $key,
+                'available' => count(array_filter($features, static fn ($s) => $s === 'available')),
+                'planned' => count(array_filter($features, static fn ($s) => $s !== 'available')),
+                'features' => $features,
+            ];
+        }
+
+        return $out;
     }
 
     /**

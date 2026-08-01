@@ -101,19 +101,52 @@ class PlatformPackSeeder extends Seeder
                 'included_in_plans' => ['business', 'professional', 'enterprise'],
                 'sort_order' => 13,
             ],
+            /**
+             * The shop floor on its own, for the eight non-garment trades the
+             * Manufacturing vertical sells — plastic, steel, packaging,
+             * chemical, printing, furniture, food and the general factory.
+             *
+             * It exists because `manufacturing` is a Professional-tier module
+             * and the garment pack below is the only thing that unlocks it, so
+             * a three-machine moulding unit on Business had to buy the whole
+             * textile chain — fabric rolls, tailors, embroidery vendors — to get
+             * a BOM and a QC register. Priced like the other single-module
+             * industry packs rather than like that chain.
+             */
+            [
+                'slug' => 'manufacturing-pack',
+                'name' => 'Manufacturing Pack',
+                'type' => 'industry',
+                'tagline' => 'BOMs, production runs, machines, QC, scrap and costing',
+                'description' => 'Bills of materials and production orders, the machine master with downtime and utilisation, quality inspections with defect analysis, scrap and rejection with recovery, and the finished-cost breakdown behind them.',
+                'icon' => 'pi pi-cog',
+                'price' => 999,
+                'billing_cycle' => 'monthly',
+                'modules' => ['manufacturing'],
+                'industry_key' => 'manufacturing',
+                // Professional already sells `manufacturing`, so only Business
+                // and below have anything to buy here.
+                'included_in_plans' => ['professional', 'enterprise'],
+                'sort_order' => 14,
+            ],
             [
                 'slug' => 'textile-manufacturing-pack',
                 'name' => 'Textile & Garment Pack',
                 'type' => 'industry',
                 'tagline' => 'Fabric rolls, cutting, tailoring and embroidery',
-                'description' => 'Roll inspection and shrinkage, cutting plans, piece-rate tailoring and embroidery job work — the garment production chain end to end.',
+                'description' => 'Roll inspection and shrinkage, cutting plans, piece-rate tailoring and embroidery job work — the garment production chain end to end, on top of the manufacturing shop floor.',
                 'icon' => 'pi pi-th-large',
                 'price' => 1499,
                 'billing_cycle' => 'monthly',
                 'modules' => ['textile', 'tailoring', 'embroidery', 'manufacturing'],
                 'industry_key' => 'manufacturing',
+                // Left as shipped. Strictly, Professional sells `manufacturing`
+                // and `textile` but not `tailoring` or `embroidery`, so this
+                // bundling is more generous than the rule above describes —
+                // narrowing it would take entitlement away from subscribers who
+                // already have it, which is a pricing decision, not a fix.
                 'included_in_plans' => ['professional', 'enterprise'],
-                'sort_order' => 14,
+                'sort_order' => 15,
             ],
             [
                 'slug' => 'logistics-exim-pack',
@@ -128,6 +161,114 @@ class PlatformPackSeeder extends Seeder
                 'industry_key' => 'logistics',
                 'included_in_plans' => ['business', 'professional', 'enterprise'],
                 'sort_order' => 15,
+            ],
+            /*
+             * Healthcare's other two. Sold apart from the Pharmacy pack and from
+             * each other because the trades genuinely are apart: a standalone
+             * pathology lab has no wards to issue to, and a nursing home may run
+             * a store with no lab of its own. Bundling all three would charge a
+             * two-room lab for a hospital store it will never open.
+             */
+            [
+                'slug' => 'diagnostics-pack',
+                'name' => 'Diagnostic Lab Pack',
+                'type' => 'industry',
+                'tagline' => 'Test master, sample collection, results and verified reports',
+                'description' => 'A test and panel master with reference ranges, the registration-to-report worklist, result entry with automatic high/low flagging, and pathologist verification before a report is released.',
+                'icon' => 'pi pi-filter',
+                'price' => 699,
+                'billing_cycle' => 'monthly',
+                'modules' => ['diagnostics'],
+                'industry_key' => 'healthcare',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 16,
+            ],
+            [
+                'slug' => 'hospital-store-pack',
+                'name' => 'Hospital Store Pack',
+                'type' => 'industry',
+                'tagline' => 'Ward indents, department-wise issue and consumption',
+                'description' => 'The central store\'s side of a hospital: wards raise indents, the store approves and issues against them, and consumption is reported by department at the cost the stock actually left at.',
+                'icon' => 'pi pi-building',
+                'price' => 899,
+                'billing_cycle' => 'monthly',
+                'modules' => ['hospital'],
+                'industry_key' => 'healthcare',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 17,
+            ],
+
+            [
+                'slug' => 'distribution-pack',
+                'name' => 'Distribution & Wholesale Pack',
+                'type' => 'industry',
+                'tagline' => 'Party credit limits, supply holds and outstanding ageing',
+                'description' => 'Every party\'s limit against live exposure, a supply hold that stops the order desk, the counter and the despatch door together, and receivables aged by days past due — sliced by salesman, beat and town.',
+                'icon' => 'pi pi-truck',
+                'price' => 699,
+                'billing_cycle' => 'monthly',
+                // Sold apart from the Field Force pack on purpose: beats are how
+                // a distributor reaches its parties, this is how it decides
+                // whether to supply them. A cash & carry counter buys this and
+                // has no salesman at all; a pharma field team buys the other and
+                // may bill on cash.
+                'modules' => ['distribution'],
+                'industry_key' => 'distribution',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 18,
+            ],
+            [
+                'slug' => 'agriculture-pack',
+                'name' => 'Agri Inputs Pack',
+                'type' => 'industry',
+                'tagline' => 'Input licences, crop-wise stock and technical names',
+                'description' => 'The licence register a seed, fertiliser or pesticide dealer is inspected against, plus crop, variety, nutrient grade and technical name on the product master.',
+                'icon' => 'pi pi-sun',
+                'price' => 499,
+                'billing_cycle' => 'monthly',
+                'modules' => ['agriculture'],
+                'industry_key' => 'agriculture',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 16,
+            ],
+            [
+                'slug' => 'livestock-pack',
+                'name' => 'Livestock & Poultry Pack',
+                'type' => 'industry',
+                'tagline' => 'Herd and flock registers, daily yield, feed and mortality',
+                'description' => 'Per-animal milk yield with fat/SNF, flock batches with mortality and lay percentage, and a daily book that posts produce into stock and draws feed out of it.',
+                'icon' => 'pi pi-heart',
+                'price' => 699,
+                'billing_cycle' => 'monthly',
+                // Sold apart from the Agri Inputs pack on purpose: a dairy farm
+                // holds no dealer licences, and a fertiliser counter has no
+                // animals. Bundling them would make each trade pay for the
+                // other's screens.
+                'modules' => ['livestock'],
+                'industry_key' => 'agriculture',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 17,
+            ],
+            [
+                'slug' => 'automobile-pack',
+                'name' => 'Automobile Pack',
+                'type' => 'industry',
+                'tagline' => 'Vehicle register, service bookings, job cards and warranty',
+                'description' => 'A VIN-keyed vehicle register with service history and papers, the appointment book that feeds it, and warranty tracked on both limbs — time and distance — so a claim is settled from the record rather than from memory.',
+                'icon' => 'pi pi-car',
+                'price' => 699,
+                'billing_cycle' => 'monthly',
+                /**
+                 * `service` rides along because the pack would be hollow without
+                 * it: a job card *is* a service job, and a workshop that bought
+                 * the vehicle register without the job book could look a car up
+                 * and then do nothing to it. A parts counter that wants only the
+                 * registers unticks Service afterwards.
+                 */
+                'modules' => ['automobile', 'service'],
+                'industry_key' => 'automobile',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 18,
             ],
 
             // --- Feature packs -------------------------------------------------

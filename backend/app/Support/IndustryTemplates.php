@@ -124,6 +124,14 @@ final class IndustryTemplates
                     'icon' => $preset['icon'],
                     'description' => $preset['description'],
                     'modules' => Modules::sanitize($preset['modules']),
+                    /**
+                     * What the trade actually gives you, as declared by the plugin
+                     * that owns it. Carried through so the signup wizard can list
+                     * real capabilities — and mark the ones still on the roadmap —
+                     * instead of inferring them from the description text.
+                     * Empty for a hand-written preset with no plugin behind it.
+                     */
+                    'features' => ShopProfiles::featuresFor($tradeKey),
                 ];
             }
 

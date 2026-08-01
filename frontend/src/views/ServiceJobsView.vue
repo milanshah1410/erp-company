@@ -37,6 +37,16 @@ const employees = ref<any[]>([])
 const products = ref<any[]>([])
 const contracts = ref<any[]>([])
 
+/**
+ * A job card is a service job with a vehicle on it, so this screen *is* the
+ * workshop's job book — the Automobile menu's "Job Cards" row points here.
+ * Everything vehicle-shaped below is hidden unless that module is on: an
+ * appliance repair shop has no VIN and no odometer, and showing it those fields
+ * would be asking for data that does not exist.
+ */
+const isAutomobile = computed(() => auth.hasModule('automobile'))
+const vehicles = ref<any[]>([])
+
 const summary = ref({ open: 0, overdue: 0, unbilled_value: 0, by_status: {} as Record<string, number> })
 
 const search = ref('')
@@ -119,6 +129,22 @@ async function loadLookups() {
     tax_percent: Number(x.tax_percent) || 0,
     is_service: !!x.is_service,
   }))
+  // The vehicle register, for workshops. Fetched only when the module is on so
+  // every other trade saves the round trip, and tolerant of a 403 for the same
+  // reason the employee/contract lookups are: a technician may hold job cards
+  // without holding the register.
+  if (isAutomobile.value) {
+    const v = await http
+      .get('/automobile/vehicles', { params: { per_page: 500, is_active: 1 } })
+      .catch(() => ({ data: { data: [] } }))
+    vehicles.value = (v.data.data ?? v.data).map((x: any) => ({
+      label: x.label,
+      value: x.id,
+      customer_id: x.customer_id,
+      odometer: x.odometer,
+    }))
+  }
+
   // Only contracts that can actually take a job today are offerable — a lapsed
   // one is rejected server-side anyway.
   contracts.value = (k.data.data ?? k.data)
@@ -145,6 +171,10 @@ const blank = () => ({
   priority: 'normal',
   item_name: '',
   item_serial: '',
+  // Automobile plugin. Null on every other trade's jobs.
+  vehicle_id: null as number | null,
+  odometer_in: null as number | null,
+  odometer_out: null as number | null,
   complaint: '',
   diagnosis: '',
   resolution: '',
@@ -196,6 +226,9 @@ function openEdit(row: any) {
     priority: row.priority,
     item_name: row.item_name,
     item_serial: row.item_serial ?? '',
+    vehicle_id: row.vehicle_id ?? null,
+    odometer_in: row.odometer_in ?? null,
+    odometer_out: row.odometer_out ?? null,
     complaint: row.complaint ?? '',
     diagnosis: row.diagnosis ?? '',
     resolution: row.resolution ?? '',
@@ -222,6 +255,24 @@ function onProductPicked(line: any) {
   if (!p) return
   line.unit_price = p.selling_price
   line.tax_percent = p.tax_percent
+}
+
+/**
+ * Picking the vehicle fills in the rest of the header: the owner it is
+ * registered to, a readable description, the chassis and its last reading.
+ * The register already knows all four, and re-keying them at the gate is how a
+ * job card ends up billed to the wrong customer.
+ *
+ * Existing values are not overwritten — an advisor who has already typed
+ * something meant it.
+ */
+function onVehiclePicked() {
+  const v = vehicles.value.find((x) => x.value === form.value.vehicle_id)
+  if (!v) return
+
+  if (v.customer_id && !form.value.customer_id) form.value.customer_id = v.customer_id
+  if (!form.value.item_name) form.value.item_name = v.label
+  if (form.value.odometer_in === null) form.value.odometer_in = v.odometer ?? null
 }
 
 async function save() {
@@ -408,10 +459,24 @@ onMounted(async () => {
           <br /><small class="muted">{{ data.customer?.phone }}</small>
         </template>
       </Column>
-      <Column :header="pt('Item')">
+      <Column :header="isAutomobile ? pt('Vehicle') : pt('Item')">
         <template #body="{ data }">
-          {{ data.item_name }}
-          <br /><small class="muted">{{ data.item_serial || '—' }}</small>
+          <!--
+            For a workshop the plate is the identifier the shop floor shouts
+            across the bay, so it leads when there is one; the description and
+            the reading sit under it.
+          -->
+          <template v-if="data.vehicle">
+            <strong>{{ data.vehicle.registration_no || data.vehicle.vin || data.item_name }}</strong>
+            <br /><small class="muted">
+              {{ data.item_name }}
+              <template v-if="data.odometer_in"> · {{ Number(data.odometer_in).toLocaleString() }} km</template>
+            </small>
+          </template>
+          <template v-else>
+            {{ data.item_name }}
+            <br /><small class="muted">{{ data.item_serial || '—' }}</small>
+          </template>
         </template>
       </Column>
       <Column :header="pt('Status')">
@@ -550,6 +615,25 @@ onMounted(async () => {
       :style="{ width: '56rem' }"
     >
       <div class="grid">
+        <!--
+          Vehicle leads for a workshop: it is what arrives, and picking it fills
+          in the owner, the description and the last reading underneath.
+        -->
+        <div v-if="isAutomobile" class="fld">
+          <label>{{ pt('Vehicle') }}</label>
+          <Select
+            v-model="form.vehicle_id"
+            :options="vehicles"
+            optionLabel="label"
+            optionValue="value"
+            filter
+            showClear
+            class="w-full"
+            :placeholder="pt('Registration or chassis')"
+            @change="onVehiclePicked"
+          />
+          <small v-if="errors.vehicle_id" class="err">{{ errors.vehicle_id[0] }}</small>
+        </div>
         <div class="fld">
           <label>{{ pt('Customer') }} *</label>
           <Select v-model="form.customer_id" :options="customers" optionLabel="label" optionValue="value" filter class="w-full" />
@@ -586,6 +670,21 @@ onMounted(async () => {
         <div class="fld">
           <label>{{ pt('Serial / IMEI') }}</label>
           <InputText v-model="form.item_serial" class="w-full" />
+        </div>
+        <!--
+          Readings in and out. The pair is the only evidence of how far a
+          vehicle was driven while in the shop's custody — a question that does
+          get asked — and the "out" reading is what moves the service schedule
+          forward when the job is completed.
+        -->
+        <div v-if="isAutomobile" class="fld">
+          <label>{{ pt('Odometer in') }}</label>
+          <InputNumber v-model="form.odometer_in" :min="0" suffix=" km" class="w-full" />
+        </div>
+        <div v-if="isAutomobile" class="fld">
+          <label>{{ pt('Odometer out') }}</label>
+          <InputNumber v-model="form.odometer_out" :min="0" suffix=" km" class="w-full" />
+          <small v-if="errors.odometer_out" class="err">{{ errors.odometer_out[0] }}</small>
         </div>
         <div class="fld">
           <label>{{ pt('Priority') }}</label>

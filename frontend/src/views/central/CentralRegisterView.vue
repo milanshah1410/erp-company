@@ -38,6 +38,12 @@ interface ShopProfile {
   // Industry-template key this trade sits under ('retail', 'restaurant', …).
   // Absent only in the offline fallback list below.
   industry?: string | null
+  /**
+   * What the trade gives you, as the industry plugin declares it:
+   * 'kot' => 'available' | 'planned'. Only plugin-backed trades have one; a
+   * hand-written preset sends nothing and the UI falls back to the description.
+   */
+  features?: Record<string, string>
 }
 
 const router = useRouter()
@@ -311,20 +317,44 @@ function menuCount(m: ModuleOption): number {
   return m.menus?.length ?? 0
 }
 
+/** Feature keys are snake_case; the pill wants "Cake orders", not "cake_orders". */
+function featureLabel(key: string): string {
+  const spaced = key.replace(/_/g, ' ')
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
 /**
- * The chosen trade's description, broken into one pill per capability.
+ * What the chosen trade actually gives you, one pill per capability.
  *
- * Every profile description in ShopProfiles.php is a comma list that closes
- * with "… and X" ("Counter billing, barcode, stock, purchase and the daily
- * cash book"), so splitting on commas plus a standalone "and" gives clean
- * items. A description that isn't a list still yields one usable pill.
+ * Preferred source is the `features` map the industry plugin declares — the same
+ * map the platform's industry screen reports coverage from, so what a buyer is
+ * shown at signup and what the operator believes they are selling cannot drift.
+ * Capabilities still on the roadmap are shown greyed rather than dropped: a trade
+ * that lists nine things and quietly omits a tenth reads as a complete promise.
+ *
+ * Hand-written presets have no plugin behind them and so no feature map. For
+ * those we fall back to the description, which in ShopProfiles.php is always a
+ * comma list closing with "… and X" ("Counter billing, barcode, stock, purchase
+ * and the daily cash book"), so splitting on commas plus a standalone "and" gives
+ * clean items. A description that isn't a list still yields one usable pill.
  */
-const profileCapabilities = computed(() =>
-  (selectedProfile.value?.description ?? '')
+const profileCapabilities = computed<{ label: string; planned: boolean }[]>(() => {
+  const features = selectedProfile.value?.features ?? {}
+  const keys = Object.keys(features)
+
+  if (keys.length) {
+    return keys.map((key) => ({
+      label: featureLabel(key),
+      planned: features[key] !== 'available',
+    }))
+  }
+
+  return (selectedProfile.value?.description ?? '')
     .split(/,|\band\b/)
     .map((s) => s.trim())
-    .filter(Boolean),
-)
+    .filter(Boolean)
+    .map((label) => ({ label, planned: false }))
+})
 
 /**
  * The chosen trade's preset, scoped to the package. Falls back to everything the
@@ -660,7 +690,15 @@ async function submit() {
         <span class="std-tag"><i class="pi pi-check" /> Preset</span>
         <strong v-if="!selectedTradeVisible" class="std-name">{{ selectedProfile.label }}</strong>
         <ul v-if="profileCapabilities.length" class="std-pills">
-          <li v-for="c in profileCapabilities" :key="c">{{ c }}</li>
+          <li
+            v-for="c in profileCapabilities"
+            :key="c.label"
+            :class="{ planned: c.planned }"
+            :title="c.planned ? 'On the roadmap — not available yet' : undefined"
+          >
+            {{ c.label }}
+            <span v-if="c.planned" class="soon">soon</span>
+          </li>
         </ul>
       </div>
 
@@ -1518,6 +1556,22 @@ select {
    pills; keep them from looking like a broken row. */
 .std-pills li:first-letter {
   text-transform: uppercase;
+}
+/* A capability the trade declares but has not shipped. Shown rather than hidden
+   so the list is the whole promise, and dimmed so it cannot be mistaken for one
+   of the things being bought today. */
+.std-pills li.planned {
+  border-style: dashed;
+  border-color: #d8dde5;
+  background: transparent;
+  color: #9ca3af;
+}
+.std-pills li .soon {
+  margin-left: 0.3rem;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.85;
 }
 
 /* ---------- Module listing ---------- */

@@ -12,6 +12,8 @@ use App\Models\RestaurantOrderItem;
 use App\Models\RestaurantTable;
 use App\Models\SalesOrder;
 use App\Models\Warehouse;
+use App\Modules\Industry\FoodBeverage\Services\MembershipService;
+use App\Modules\Industry\FoodBeverage\Services\MenuOfferService;
 use App\Modules\Industry\FoodBeverage\Services\RecipeConsumptionService;
 use Illuminate\Support\Collection;
 use RuntimeException;
@@ -42,6 +44,18 @@ class RestaurantService
          * Services directories are load-bearing for settling a bill.
          */
         private readonly RecipeConsumptionService $recipeConsumption,
+        /**
+         * Happy hours and combos, also from the plugin. Consulted on every
+         * reprice: a time-window offer has to be evaluated when the ticket is
+         * priced, because a manager who must remember to switch the offer on at
+         * four o'clock is a manager who will forget.
+         */
+        private readonly MenuOfferService $offers,
+        /**
+         * A member's standing discount. Applied at the header, once, for the same
+         * reason: the entitlement is the card's, not the till operator's memory.
+         */
+        private readonly MembershipService $memberships,
     ) {}
 
     /**
@@ -87,6 +101,17 @@ class RestaurantService
      */
     public function reprice(RestaurantOrder $order): RestaurantOrder
     {
+        /**
+         * Offers first, then the member's card, then the arithmetic.
+         *
+         * Both write onto the document — the happy hour onto each line, the
+         * membership onto the header — so that by the time DocumentPricingService
+         * runs there is nothing special about a discounted ticket. One pricing
+         * path, whoever set the discount.
+         */
+        $this->offers->applyToTicket($order);
+        $this->applyMembership($order);
+
         $items = $order->billableItems()->get();
 
         if ($items->isEmpty()) {
@@ -162,6 +187,47 @@ class RestaurantService
         ])->save();
 
         return $order;
+    }
+
+    /**
+     * Put the member's standing discount on the ticket header.
+     *
+     * Only touches a ticket whose header discount is the membership's own (or
+     * absent). A manager who has typed a discount on the bill has overridden the
+     * scheme deliberately, and overwriting that mid-service would be worse than
+     * not honouring the card — the member is standing there and can be told, the
+     * manager's decision cannot be recovered.
+     *
+     * Clearing works the same way: if the customer changes on the ticket, or the
+     * card lapses between rounds, a discount this method applied is withdrawn and
+     * one it did not is left alone.
+     */
+    private function applyMembership(RestaurantOrder $order): void
+    {
+        $wasMemberPriced = $order->customer_membership_id !== null;
+
+        if (! $wasMemberPriced && (float) $order->discount_value > 0) {
+            return;
+        }
+
+        $membership = $this->memberships->activeFor($order->customer_id);
+        $percent = $membership ? (float) ($membership->plan?->discount_percent ?? 0) : 0.0;
+
+        $next = $percent > 0
+            ? ['customer_membership_id' => (int) $membership->id, 'discount_type' => 'percent', 'discount_value' => $percent]
+            : ['customer_membership_id' => null, 'discount_type' => null, 'discount_value' => 0];
+
+        $current = [
+            'customer_membership_id' => $order->customer_membership_id ? (int) $order->customer_membership_id : null,
+            'discount_type' => $order->discount_type,
+            'discount_value' => round((float) $order->discount_value, 2),
+        ];
+
+        if ($current == $next) {
+            return;
+        }
+
+        $order->forceFill($next)->save();
     }
 
     /**
