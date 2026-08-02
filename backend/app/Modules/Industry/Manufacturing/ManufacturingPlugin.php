@@ -50,20 +50,19 @@ class ManufacturingPlugin implements IndustryPlugin
     }
 
     /**
-     * What every factory runs on regardless of what it makes: it buys material
-     * and keeps stock, it converts (manufacturing), it keeps books under GST, it
-     * pays people (hrms), it owns plant (assets), and it gets the common core
-     * (crm, ai). Sales rather than POS — a factory invoices, it does not bill at
-     * a counter.
+     * What every factory adds on top of the Core ERP set regardless of what it
+     * makes: it converts (manufacturing), files under GST, pays people (hrms) and
+     * owns plant (assets). Buying material, keeping stock, invoicing and books are
+     * core, merged in by ShopProfiles::all().
+     *
+     * No `pos` here, deliberately — a factory invoices, it does not bill at a
+     * counter.
      *
      * @return list<string>
      */
     private function base(): array
     {
-        return [
-            'sales', 'purchase', 'inventory', 'manufacturing',
-            'accounts', 'gst', 'hrms', 'assets', 'crm', 'ai',
-        ];
+        return ['manufacturing', 'gst', 'hrms', 'assets'];
     }
 
     /**

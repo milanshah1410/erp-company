@@ -167,6 +167,74 @@ async function save() {
   }
 }
 
+// ---- The paper the customer brought in --------------------------------------
+//
+// The powers stay keyed — the lab is sent numbers — so this is evidence beside
+// the record, not another way of writing it. One file per test: uploading a
+// second replaces the first, because a prescription is one piece of paper.
+
+const uploadInput = ref<HTMLInputElement | null>(null)
+const uploadTarget = ref<any>(null)
+const uploading = ref(false)
+
+function pickFile(row: any) {
+  uploadTarget.value = row
+  uploadInput.value?.click()
+}
+
+async function onFilePicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !uploadTarget.value) return
+
+  const body = new FormData()
+  body.append('file', file)
+  uploading.value = true
+  try {
+    await http.post(`/optical/prescriptions/${uploadTarget.value.id}/attachment`, body)
+    toast.add({ severity: 'success', summary: pt('Prescription attached'), life: 2500 })
+    await load()
+  } catch (e: any) {
+    toast.add({
+      severity: 'error',
+      summary: e.response?.data?.message ?? pt('Could not attach the file'),
+      life: 4000,
+    })
+  } finally {
+    uploading.value = false
+    uploadTarget.value = null
+  }
+}
+
+/** The link is signed and short-lived, so it is fetched at the moment it is opened. */
+async function openAttachment(row: any) {
+  try {
+    const { data } = await http.get(`/optical/prescriptions/${row.id}/attachment`)
+    if (data.data?.attachment_url) window.open(data.data.attachment_url, '_blank', 'noopener')
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: e.response?.data?.message ?? pt('Could not open the file'), life: 4000 })
+  }
+}
+
+async function removeAttachment(row: any) {
+  const ok = await Swal.fire({
+    title: pt('Remove the attached prescription?'),
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: pt('Remove'),
+    cancelButtonText: pt('Keep'),
+    confirmButtonColor: '#b91c1c',
+  })
+  if (!ok.isConfirmed) return
+  try {
+    await http.delete(`/optical/prescriptions/${row.id}/attachment`)
+    await load()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: e.response?.data?.message ?? pt('Could not remove it'), life: 4000 })
+  }
+}
+
 async function remove(row: any) {
   const ok = await Swal.fire({
     title: pt('Delete this prescription?'),
@@ -251,6 +319,39 @@ onMounted(async () => {
       <Column :header="pt('PD')">
         <template #body="{ data }">{{ data.pd ?? '—' }}</template>
       </Column>
+      <!-- The scan of the paper that was handed over the counter. -->
+      <Column :header="pt('Rx copy')" style="width: 8rem">
+        <template #body="{ data }">
+          <template v-if="data.has_attachment">
+            <Button
+              icon="pi pi-paperclip"
+              text
+              size="small"
+              :title="data.attachment_name || pt('Open')"
+              @click="openAttachment(data)"
+            />
+            <Button
+              v-if="canDelete"
+              icon="pi pi-times"
+              text
+              size="small"
+              severity="danger"
+              :title="pt('Remove')"
+              @click="removeAttachment(data)"
+            />
+          </template>
+          <Button
+            v-else-if="canEdit"
+            icon="pi pi-upload"
+            text
+            size="small"
+            :loading="uploading && uploadTarget?.id === data.id"
+            :title="pt('Attach the prescription')"
+            @click="pickFile(data)"
+          />
+          <span v-else class="muted">—</span>
+        </template>
+      </Column>
       <Column :header="pt('Status')">
         <template #body="{ data }">
           <Tag
@@ -278,6 +379,15 @@ onMounted(async () => {
       </Column>
       <template #empty>{{ pt('No eye tests recorded yet.') }}</template>
     </DataTable>
+
+    <!-- Hidden picker, driven by the paperclip button on each row. -->
+    <input
+      ref="uploadInput"
+      type="file"
+      accept="image/jpeg,image/png,image/webp,application/pdf"
+      class="hidden-file"
+      @change="onFilePicked"
+    />
 
     <Dialog
       v-model:visible="dialogVisible"
@@ -425,4 +535,5 @@ onMounted(async () => {
   color: #8a2b2b; border-radius: 8px; padding: 0.5rem 0.7rem; font-size: 0.78rem;
 }
 .power-errors div { display: flex; align-items: center; gap: 0.35rem; padding: 0.1rem 0; }
+.hidden-file { display: none; }
 </style>

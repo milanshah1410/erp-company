@@ -188,6 +188,16 @@ function addToCart(product: any, qty = 1) {
     tax_percent: Number(product.tax_percent) || 0,
     discount_type: null,
     discount_value: 0,
+    /**
+     * Jewellery: how the server built that price — metal, wastage, making,
+     * each stone, hallmarking. Carried on the line so the counter can answer
+     * "why this much?" without leaving the till. Null for everything else.
+     * `pricing_error` is the other half of the same story: an ornament whose
+     * purity has no rate quoted today falls back to its stored price, and the
+     * counter needs to be told rather than left wondering.
+     */
+    jewellery: product.jewellery ?? null,
+    pricing_error: product.pricing_error ?? null,
   })
 }
 function removeLine(i: number) {
@@ -240,7 +250,9 @@ async function loadProducts() {
     const { data } = await http.get('/pos/products', {
       params: { warehouse_id: warehouseId.value, search: search.value || undefined },
     })
-    products.value = (data.data ?? []).map((p: any) => ({ ...p, unit_price: p.selling_price }))
+    // An ornament arrives already priced off the day's rate card — its stored
+    // selling price is meaningless — so only fall back to the shelf price.
+    products.value = (data.data ?? []).map((p: any) => ({ ...p, unit_price: p.unit_price ?? p.selling_price }))
   } catch {
     toast.add({ severity: 'error', summary: pt('Could not load products'), life: 3000 })
   }
@@ -985,7 +997,19 @@ onBeforeUnmount(() => {
           <thead><tr><th>{{ pt('Item') }}</th><th>{{ pt('Qty') }}</th><th>{{ pt('Disc') }}</th><th>{{ pt('Total') }}</th><th></th></tr></thead>
           <tbody>
             <tr v-for="(l, i) in cart" :key="i">
-              <td>{{ l.name }}</td>
+              <td>
+                {{ l.name }}
+                <!-- The jewellery split. A customer buying an ornament expects
+                     to be shown it, and a counter that cannot loses the
+                     argument — so it sits on the line, not behind a click. -->
+                <div v-if="l.jewellery" class="jw-split">
+                  <span v-for="b in l.jewellery.breakdown" :key="b.label">
+                    {{ b.label }} <strong>{{ money(b.amount) }}</strong>
+                  </span>
+                  <span v-if="l.jewellery.huid" class="muted">HUID {{ l.jewellery.huid }}</span>
+                </div>
+                <small v-if="l.pricing_error" class="err block">{{ l.pricing_error }}</small>
+              </td>
               <td><InputNumber v-model="l.quantity" :minFractionDigits="0" :maxFractionDigits="3" class="num" /></td>
               <td class="disc-cell">
                 <Select v-model="l.discount_type" :options="discountTypes" optionLabel="label" optionValue="value" showClear placeholder="—" class="disc-type" />
@@ -1341,6 +1365,12 @@ onBeforeUnmount(() => {
 .disc-val :deep(input) { width: 56px; }
 .overall-disc { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.75rem; }
 .overall-disc label { font-size: 0.85rem; font-weight: 500; color: #374151; margin-right: auto; }
+/* The jewellery build-up, under the item it explains. Wraps rather than
+   scrolls: on a narrow till it becomes two rows of chips instead of a bar the
+   counter has to drag. */
+.jw-split { display: flex; flex-wrap: wrap; gap: 0.15rem 0.6rem; margin-top: 0.15rem; font-size: 0.72rem; color: #6b7280; }
+.jw-split strong { color: #374151; font-weight: 600; }
+
 /* Old-gold credit — reads as money coming off the bill, so it sits with the
    tenders rather than with the line items. */
 .og-box { margin-top: 0.75rem; border: 1px solid #e8a33d; background: rgba(232, 163, 61, 0.09); border-radius: 8px; padding: 0.5rem 0.6rem; }

@@ -18,6 +18,7 @@ use App\Modules\Industry\FoodBeverage\Database\FoodBeverageDemoSeeder;
 use App\Modules\Industry\Healthcare\Database\HealthcareDemoSeeder;
 use App\Modules\Industry\Support\IndustryRegistry;
 use App\Services\DemoDataGenerator;
+use App\Support\IndustryTemplates;
 use App\Support\Modules;
 use App\Support\ShopProfiles;
 use App\Support\TenantContext;
@@ -61,7 +62,7 @@ class DemoShopSeeder extends Seeder
     /** Shared password for every demo login. Development fixture, never production. */
     private const PASSWORD = 'password';
 
-    /** Email domain for the demo logins — distinct from admin@sims.test. */
+    /** Email domain for the demo logins — distinct from admin@demo.test. */
     private const DOMAIN = 'demo.test';
 
     public function run(): void
@@ -111,6 +112,20 @@ class DemoShopSeeder extends Seeder
                 // demo workspace can never go dark on its own.
                 'status' => 'active',
                 'suspended_by' => null,
+                /**
+                 * The vertical and the trade, on the row — not only in the
+                 * workspace's Settings below.
+                 *
+                 * The platform panel reads these columns and nothing else:
+                 * /platform/industries counts subscribers per vertical with
+                 * `Tenant::where('industry', $key)`, and the tenant list shows
+                 * and filters on `industry` / `business_type`. Recording the
+                 * trade only as a tenant setting left every industry in the
+                 * catalogue reading "0 tenants" with fifty demo workspaces
+                 * sitting in the database.
+                 */
+                'industry' => $profile['industry'] ?? IndustryTemplates::industryOfTrade($key),
+                'business_type' => $key,
             ],
         );
 
@@ -239,6 +254,11 @@ class DemoShopSeeder extends Seeder
         $byModule = [
             'sales' => ['sales_quotations', 'sales_orders', 'invoices'],
             'pos' => ['pos_sales'],
+            // Order matters: cards are written against invoices that already
+            // exist and claims against those cards. A footwear demo whose
+            // Warranty screen is empty demonstrates nothing about being a
+            // footwear shop, which is the one thing this seeder exists to show.
+            'warranty' => ['warranties', 'warranty_claims'],
             'purchase' => ['purchase_indents', 'purchase_orders', 'vendor_invoices'],
             'inventory' => ['stock_adjustments', 'stock_transfers'],
             'accounts' => ['expense_categories', 'expenses', 'vouchers'],

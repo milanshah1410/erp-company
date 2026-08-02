@@ -61,6 +61,22 @@ class SalesOrderResource extends JsonResource
                 'tax_percent' => $i->tax_percent,
                 'tax_amount' => $i->tax_amount,
                 'line_total' => $i->line_total,
+                /**
+                 * Jewellery: the build-up this ornament was billed at, as it
+                 * stood on the day. Columns rather than a relation, and null on
+                 * every line that is not an ornament — so a shop that sells no
+                 * metal carries eight nulls it never reads, and one that does
+                 * can reprint the split without re-deriving it from a rate card
+                 * that has since moved.
+                 */
+                'metal_rate' => $i->metal_rate,
+                'net_weight' => $i->net_weight,
+                'metal_value' => $i->metal_value,
+                'making_charge' => $i->making_charge,
+                'wastage_value' => $i->wastage_value,
+                'stone_value' => $i->stone_value,
+                'hallmark_charge' => $i->hallmark_charge,
+                'stone_details' => $i->stone_details,
             ])),
             'invoice' => $this->whenLoaded('invoice', fn () => $this->invoice ? [
                 'id' => $this->invoice->id,

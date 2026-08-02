@@ -79,6 +79,48 @@
                         @elseif ($line->product?->sku)
                             <div class="item-sub">{{ $line->product->sku }}</div>
                         @endif
+
+                        {{--
+                            Jewellery: the build-up behind the rate, printed from
+                            the snapshot taken when the piece was sold rather than
+                            from today's rate card. A customer buying an ornament
+                            is owed the split — metal, wastage, making, stones —
+                            and a jeweller who cannot show it loses the argument.
+                            Every column here is null on any line that is not an
+                            ornament, so nothing prints for anyone else.
+                        --}}
+                        @if ($line->metal_rate)
+                            <div class="item-sub">
+                                {{ $line->product?->purity }}
+                                &middot; {{ rtrim(rtrim(number_format((float) $line->net_weight, 3), '0'), '.') }} g
+                                @ {{ $currency }} {{ number_format((float) $line->metal_rate, 2) }}/g
+                                &middot; Metal {{ $currency }} {{ number_format((float) $line->metal_value, 2) }}
+                                @if ((float) $line->wastage_value > 0)
+                                    &middot; Wastage {{ $currency }} {{ number_format((float) $line->wastage_value, 2) }}
+                                @endif
+                                @if ((float) $line->making_charge > 0)
+                                    &middot; Making {{ $currency }} {{ number_format((float) $line->making_charge, 2) }}
+                                @endif
+                                @if ((float) $line->stone_value > 0)
+                                    &middot; Stones {{ $currency }} {{ number_format((float) $line->stone_value, 2) }}
+                                @endif
+                                @if ((float) $line->hallmark_charge > 0)
+                                    &middot; Hallmark {{ $currency }} {{ number_format((float) $line->hallmark_charge, 2) }}
+                                @endif
+                            </div>
+                            @if ($line->product?->huid)
+                                <div class="item-sub">HUID {{ $line->product->huid }}</div>
+                            @endif
+                            {{-- The stones themselves: what a studded piece is mostly being bought for. --}}
+                            @foreach ($line->stone_details ?? [] as $stone)
+                                <div class="item-sub">
+                                    {{ $stone['label'] ?? '' }}
+                                    @if (! empty($stone['certificate_number']))
+                                        &middot; {{ $stone['certifying_lab'] ?? 'Cert' }} {{ $stone['certificate_number'] }}
+                                    @endif
+                                </div>
+                            @endforeach
+                        @endif
                     </td>
                     <td class="num">{{ rtrim(rtrim(number_format((float) $line->quantity, 3), '0'), '.') }}</td>
                     <td class="num">{{ $currency }} {{ number_format((float) $line->unit_price, 2) }}</td>

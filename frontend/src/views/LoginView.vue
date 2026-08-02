@@ -21,7 +21,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const { t, locale } = useI18n()
 
-const email = ref('admin@sims.test')
+const email = ref('admin@demo.test')
 const password = ref('password')
 const error = ref('')
 const loading = ref(false)
@@ -127,7 +127,7 @@ async function submit() {
     </p>
 
     <p class="hint">
-      {{ t('login.defaultAdmin') }} <code>admin@sims.test</code> / <code>password</code>
+      {{ t('login.defaultAdmin') }} <code>admin@demo.test</code> / <code>password</code>
     </p>
 
     <template #footer>

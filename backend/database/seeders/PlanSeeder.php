@@ -32,15 +32,88 @@ class PlanSeeder extends Seeder
     /**
      * Starter's module set — the counter-and-cash-book essentials.
      *
-     * loyalty / assets / workflow / devices / ai used to be untagged menu rows,
-     * visible to every package. They are switchable modules now, and they stay in
-     * every plan's list so becoming switchable never reads as losing a feature.
+     * The first line is the Core ERP set (App\Support\Modules::CORE), which every
+     * tier carries because no tier may price it out: Plan::allowedModules() unions
+     * it in regardless of what is declared here. It is written out anyway so the
+     * pricing page and this file agree about what Starter includes.
+     *
+     * loyalty / assets / workflow / devices used to be untagged menu rows, visible
+     * to every package. They are switchable modules now, and they stay in every
+     * plan's list so becoming switchable never reads as losing a feature.
      *
      * @var list<string>
      */
     private const STARTER_MODULES = [
-        'sales', 'pos', 'purchase', 'inventory', 'accounts',
-        'loyalty', 'assets', 'workflow', 'devices', 'ai',
+        'sales', 'crm', 'purchase', 'inventory', 'accounts', 'ai',
+        'pos', 'loyalty', 'assets', 'workflow', 'devices',
+        /**
+         * Warranty sits in Starter alongside loyalty, and for the same reason: a
+         * single-counter footwear, watch or appliance shop is exactly the tenant
+         * this tier is written for, and honouring a warranty is not an
+         * enterprise activity. Pricing the claims register above the shops that
+         * take claims every week would only push them back to a paper diary.
+         */
+        'warranty',
+        /**
+         * Grocery & Kirana is the one industry vertical in Starter, and it is
+         * here rather than in Business on purpose: every other vertical was
+         * priced at the tier its archetypal buyer sits in, and this trade's
+         * archetypal buyer *is* Starter. A neighbourhood kirana with one counter
+         * and a ₹40,000 monthly credit line is the smallest paying customer this
+         * product has, and pricing combo packs and distributor credit above it
+         * would sell the vertical to everyone except the shops it was written
+         * for. It also costs the tier nothing extra to carry: `pos`, `loyalty`
+         * and `devices` are already here, so the preset needs no other key.
+         */
+        'grocery',
+        /**
+         * Gift & Novelty sits in Starter on the same reasoning, and it is the same
+         * size of business: one counter, one owner, and a year made in the six
+         * weeks around Diwali. The module it needs costs the tier nothing extra —
+         * `pos`, `loyalty` (which carries gift vouchers) and `devices` are already
+         * here, so the preset adds no other key.
+         *
+         * Being in Starter is also why there is no Gift Pack in the marketplace:
+         * every plan already carries the module, so a pack would price something
+         * twice. If the vertical ever grows a heavier half (corporate hamper
+         * contracts, a wrapping workshop), that is when to revisit this.
+         */
+        'gift',
+        /**
+         * Toys & Games, for the same reason and with one of its own. It is the
+         * same size of business as the gift shop next door — one counter, one
+         * owner, a year made at Diwali and in birthday season — and its preset
+         * leans on `gift`, `pos`, `loyalty` and `devices`, all of which this tier
+         * already carries.
+         *
+         * The reason of its own is that this vertical is a compliance register. A
+         * toy sold on a lapsed BIS licence is an offence whatever the shop pays
+         * for software, and pricing the thing that catches it above the smallest
+         * shops would put it out of reach of precisely the ones with nobody
+         * watching the dates. Same logic as warranty above: not an enterprise
+         * activity. No marketplace pack, for the same reason as Gift — every plan
+         * carries the module, so a pack would price it twice.
+         */
+        'toys',
+        /**
+         * Books & Periodicals, and this one is priced here on a different
+         * argument from the three above it. It is not that a book shop is small —
+         * many are — but that the module is *catalogue hygiene*, and a shop with
+         * eight thousand titles and no ISBN discipline cannot reorder, cannot
+         * match a distributor's file and cannot tell a customer on the phone
+         * whether it has a book. That problem is worst at the smallest shops,
+         * which have the most titles per member of staff and the least software.
+         *
+         * The preset also ticks `ecommerce`, which is a Professional key and
+         * stays one: the online-order inbox is a genuinely bigger piece of
+         * machinery than a catalogue, and the plan remains the ceiling. A Starter
+         * book shop therefore gets its ISBN register, its authors and its
+         * publishers, and sees the Online Orders row only once it buys the tier
+         * that carries channels. That is a fair split rather than an accident —
+         * and it is stated in the trade's own feature map so nobody is sold the
+         * inbox twice.
+         */
+        'books',
     ];
 
     /**
@@ -51,7 +124,7 @@ class PlanSeeder extends Seeder
      */
     private const BUSINESS_MODULES = [
         ...self::STARTER_MODULES,
-        'crm', 'field_sales', 'broker', 'logistics', 'gst', 'hrms',
+        'field_sales', 'broker', 'logistics', 'gst', 'hrms',
         'service', 'projects', 'pharmacy', 'jewellery', 'optical', 'restaurant',
         /**
          * `restaurant` carries the whole Food & Beverage vertical's counter side:
@@ -83,11 +156,49 @@ class PlanSeeder extends Seeder
         // subscriber, and its vertical is worth nothing without `service`
         // alongside — which this tier already sells.
         'automobile',
+        // Electronics & Appliances, likewise. A mobile counter and a two-shop
+        // appliance dealer are archetypal Business subscribers, and the vertical
+        // is worth little without `service` and `logistics` beside it — both of
+        // which this tier already sells.
+        'electronics',
+        // Computer & IT, likewise. A neighbourhood laptop shop with a bench and
+        // two engineers is the archetypal Business subscriber, and the vertical
+        // is hollow without `service` beside it — which this tier already sells.
+        'computer_it',
+        // Mobile, likewise — and this one is the archetype of the tier rather than
+        // an example of it. A single-counter phone shop is the smallest business
+        // that genuinely needs four registers, and the vertical is hollow without
+        // `warranty` and `service` beside it, both of which this tier sells.
+        'mobile',
+        /**
+         * Stationery, likewise — and with the sharpest version of the argument.
+         * This trade earns most of its year in about ten weeks, and the module
+         * that makes those weeks work is the one it can least afford in the nine
+         * months either side. Pricing school supply above Business would sell it
+         * only to the chains, which are precisely the shops that already cope.
+         */
+        'stationery',
         // Distribution & Wholesale sits here for the same reason and one more:
         // its whole value is credit control over `field_sales` beats, and both
         // are Business keys. Pricing it above would put party-credit discipline
         // out of reach of exactly the trade that goes under without it.
         'distribution',
+        /**
+         * Sports & Fitness sits in Business rather than Starter, and unlike its
+         * neighbours the reason is not the size of the shop — it is that the trade
+         * preset cannot work below this tier. Two of the seven things a sports
+         * shop is sold are Repair and Warranty, and Repair is `service`, which is
+         * a Business key. Pricing `sports` into Starter would sell a hire desk
+         * beside a repair bullet with no bench behind it.
+         *
+         * The vertical is also a step up in what it manages. A hire fleet is
+         * capital that leaves the premises: deposits held against other people's
+         * money, kit promised for weekends it is already promised for, and a
+         * utilisation report that decides what to buy next season. That is a shop
+         * with an owner who looks at figures, which is what this tier is written
+         * for.
+         */
+        'sports',
     ];
 
     /**

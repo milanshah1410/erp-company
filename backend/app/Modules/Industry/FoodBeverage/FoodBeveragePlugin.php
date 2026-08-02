@@ -58,15 +58,15 @@ class FoodBeveragePlugin implements IndustryPlugin
     }
 
     /**
-     * Modules every F&B trade runs on regardless of counter style: it sells
-     * (sales/pos), it buys perishables (purchase/inventory), it keeps books
-     * under GST, and it gets the common core (crm, ai).
+     * What every F&B trade adds on top of the Core ERP set regardless of counter
+     * style: a till (pos) and GST billing. Selling, buying perishables, stock and
+     * books are core, merged in by ShopProfiles::all().
      *
      * @return list<string>
      */
     private function base(): array
     {
-        return ['sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'crm', 'ai'];
+        return ['pos', 'gst'];
     }
 
     public function trades(): array

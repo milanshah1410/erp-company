@@ -84,6 +84,10 @@ class Plan extends Model
      * nothing fails open to the full catalogue, so plans created before module
      * gating existed keep working.
      *
+     * The Core ERP set (Modules::CORE) is unioned in whatever the plan declares:
+     * core is not a tier lever, so a plan cannot price it out and a downgrade
+     * cannot narrow it away.
+     *
      * @return list<string>
      */
     public function allowedModules(): array
@@ -94,7 +98,7 @@ class Plan extends Model
             return Modules::keys();
         }
 
-        return Modules::sanitize($declared);
+        return Modules::withCore($declared);
     }
 
     /** True when the plan puts no restriction on the module set. */

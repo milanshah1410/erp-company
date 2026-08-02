@@ -14,27 +14,52 @@ use Illuminate\Http\Request;
  */
 class TailorAlterationController extends Controller
 {
-    private const RELATIONS = ['tailor:id,name', 'product:id,name,sku', 'work:id,work_number'];
+    private const RELATIONS = [
+        'tailor:id,name', 'product:id,name,sku', 'work:id,work_number',
+        // The retail half of the document — see the note on the model.
+        'customer:id,name,phone', 'invoice:id,invoice_number', 'variant:id,sku,name',
+    ];
 
     public function index(Request $request)
     {
         $query = TailorAlteration::query()->with(self::RELATIONS);
 
-        if ($request->filled('tailor_id')) {
-            $query->where('tailor_id', $request->query('tailor_id'));
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
+        foreach (['tailor_id', 'status', 'customer_id', 'invoice_id'] as $filter) {
+            if ($request->filled($filter)) {
+                $query->where($filter, $request->query($filter));
+            }
         }
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('alteration_number', 'like', "%{$search}%")
                     ->orWhere('reason', 'like', "%{$search}%")
-                    ->orWhereHas('tailor', fn ($t) => $t->where('name', 'like', "%{$search}%"));
+                    ->orWhereHas('tailor', fn ($t) => $t->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%"));
             });
         }
 
-        $query->orderByDesc('id');
+        /**
+         * The counter's chase list: promised and not delivered. Filtered in SQL
+         * rather than after paging, or page 2 would quietly hold late jobs
+         * nobody sees.
+         */
+        if ($request->boolean('late')) {
+            $query->where('status', '!=', 'done')
+                ->whereNotNull('promised_date')
+                ->whereDate('promised_date', '<', now()->toDateString());
+        }
+
+        /**
+         * Open work first, soonest promise at the top. This screen is worked
+         * rather than browsed — what is due today is what matters — and rows with
+         * no promise date fall behind those that have one rather than sorting to
+         * the top as NULLs otherwise would.
+         */
+        $query->orderByRaw("CASE WHEN status = 'done' THEN 1 ELSE 0 END")
+            ->orderByRaw('promised_date IS NULL')
+            ->orderBy('promised_date')
+            ->orderByDesc('id');
 
         $perPage = min((int) $request->query('per_page', 15), 100);
 

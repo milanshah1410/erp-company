@@ -33,6 +33,13 @@ class EyePrescription extends Model
         'left_sph', 'left_cyl', 'left_axis', 'left_add',
         'pd', 'right_pd', 'left_pd',
         'prescribed_on', 'valid_until', 'notes', 'created_by',
+        /**
+         * The scan of the paper the customer brought in, added by the Optical &
+         * Eyewear plugin. Written only through its attachment endpoint — never
+         * through the prescription form — but fillable here so the column is
+         * reachable by the ordinary model rather than force-filled around it.
+         */
+        'attachment_path', 'attachment_name', 'attachment_uploaded_at',
     ];
 
     protected $casts = [
@@ -50,7 +57,14 @@ class EyePrescription extends Model
         'left_pd' => 'decimal:1',
         'prescribed_on' => 'date',
         'valid_until' => 'date',
+        'attachment_uploaded_at' => 'datetime',
     ];
+
+    /** Is the paper it was copied from on file? */
+    public function hasAttachment(): bool
+    {
+        return $this->attachment_path !== null;
+    }
 
     public function customer(): BelongsTo
     {

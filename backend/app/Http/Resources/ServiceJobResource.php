@@ -55,6 +55,19 @@ class ServiceJobResource extends JsonResource
             'warranty_id' => $this->warranty_id,
             'odometer_in' => $this->odometer_in,
             'odometer_out' => $this->odometer_out,
+            // The same seam for the Computer & IT plugin: `itAsset` resolves
+            // only when that plugin registered the relation, so for a trade that
+            // never bought it these stay null and nothing is loaded.
+            'it_asset_id' => $this->it_asset_id,
+            'it_asset' => $this->whenLoaded('itAsset', fn () => $this->itAsset ? [
+                'id' => $this->itAsset->id,
+                'label' => $this->itAsset->label(),
+                'asset_tag' => $this->itAsset->asset_tag,
+                'serial_no' => $this->itAsset->serial_no,
+                'site' => $this->itAsset->site,
+            ] : null),
+            'it_service_call_id' => $this->it_service_call_id,
+            'it_warranty_id' => $this->it_warranty_id,
             'complaint' => $this->complaint,
             'diagnosis' => $this->diagnosis,
             'resolution' => $this->resolution,

@@ -90,16 +90,18 @@ class AutomobilePlugin implements IndustryPlugin
     }
 
     /**
-     * Modules every automobile trade runs on: it sells (sales/pos), it buys and
-     * stocks parts (purchase/inventory), it bills under GST, and it gets the
-     * common core (crm, ai). `service` and `automobile` are added per trade —
-     * a parts counter has no workshop behind it.
+     * What every automobile trade adds on top of the Core ERP set: a counter
+     * (pos) and GST billing. Selling, buying, stocking parts and keeping books
+     * are core, merged in by ShopProfiles::all().
+     *
+     * `service` and `automobile` are still added per trade — a parts counter has
+     * no workshop behind it.
      *
      * @return list<string>
      */
     private function base(): array
     {
-        return ['sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'crm', 'ai'];
+        return ['pos', 'gst'];
     }
 
     public function trades(): array

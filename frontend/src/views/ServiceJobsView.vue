@@ -473,6 +473,19 @@ onMounted(async () => {
               <template v-if="data.odometer_in"> · {{ Number(data.odometer_in).toLocaleString() }} km</template>
             </small>
           </template>
+          <!--
+            The same idea for a computer shop: the asset tag is what an engineer
+            reads back down a phone line, and where the machine sits is what tells
+            the bench whose it is. Rendered only when the Computer & IT plugin
+            actually put a machine on the job, so every other trade is unaffected.
+          -->
+          <template v-else-if="data.it_asset">
+            <strong>{{ data.it_asset.label || data.item_name }}</strong>
+            <br /><small class="muted">
+              {{ data.it_asset.asset_tag }}
+              <template v-if="data.it_asset.site"> · {{ data.it_asset.site }}</template>
+            </small>
+          </template>
           <template v-else>
             {{ data.item_name }}
             <br /><small class="muted">{{ data.item_serial || '—' }}</small>

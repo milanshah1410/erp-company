@@ -33,6 +33,14 @@ class ServiceJobRequest extends FormRequest
             'vehicle_id' => ['nullable', 'exists:automobile_vehicles,id'],
             'odometer_in' => ['nullable', 'integer', 'min:0'],
             'odometer_out' => ['nullable', 'integer', 'min:0', 'gte:odometer_in'],
+            /*
+             * The same seam, for the Computer & IT plugin: a job opened straight
+             * from the Service screen can still name the customer's machine, so
+             * a walk-in repair joins the same install base a converted call does.
+             * The cover and the call are set by the conversion service, not by a
+             * client, so only the machine is accepted here.
+             */
+            'it_asset_id' => ['nullable', 'exists:computer_it_assets,id'],
             'complaint' => ['nullable', 'string'],
             'diagnosis' => ['nullable', 'string'],
             'resolution' => ['nullable', 'string'],

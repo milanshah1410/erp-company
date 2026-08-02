@@ -13,6 +13,10 @@ class ProductVariant extends Model
     protected $fillable = [
         'product_id', 'sku', 'barcode', 'rfid_tag', 'name', 'attributes',
         'cost_price', 'selling_price', 'is_active',
+        // Cosmetics plugin: the shade this variant is, as a foreign key rather
+        // than only a word in `attributes`, so "which shades of this range are we
+        // out of" is a join. The relation is attached by CosmeticsPlugin::boot().
+        'cosmetic_shade_id',
     ];
 
     protected $casts = [

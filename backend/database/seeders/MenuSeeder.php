@@ -46,7 +46,7 @@ class MenuSeeder extends Seeder
 
     /**
      * @param  array<int, int>  $touched  Collects every seeded row id so run()
-     *                                     can sweep the rows it did not touch.
+     *                                    can sweep the rows it did not touch.
      */
     private function seedEntry(array $entry, ?int $parentId, int $order, array &$touched): void
     {
@@ -149,6 +149,12 @@ class MenuSeeder extends Seeder
                 ['label' => 'Loyalty & Offers', 'icon' => 'pi pi-ticket', 'module' => 'loyalty', 'children' => [
                     ['label' => 'Loyalty Points', 'icon' => 'pi pi-star-fill', 'to' => '/loyalty', 'permission' => 'loyalty.view'],
                     ['label' => 'Coupons', 'icon' => 'pi pi-ticket', 'to' => '/coupons', 'permission' => 'coupons.view'],
+                    // Beside coupons rather than under a trade: a gift shop, a
+                    // supermarket and a garment showroom sell the same
+                    // instrument. Unlike a coupon, this one is money already
+                    // taken — the register reports the outstanding balance as
+                    // the liability it is.
+                    ['label' => 'Gift Vouchers', 'icon' => 'pi pi-credit-card', 'to' => '/gift-vouchers', 'permission' => 'gift-vouchers.view'],
                 ]],
                 ['label' => 'Field Sales', 'icon' => 'pi pi-map', 'module' => 'field_sales', 'children' => [
                     ['label' => 'Salesmen', 'icon' => 'pi pi-user', 'to' => '/salesmen', 'permission' => 'salesmen.view'],
@@ -176,6 +182,19 @@ class MenuSeeder extends Seeder
                 ['label' => 'AMC Contracts', 'icon' => 'pi pi-file-check', 'to' => '/service-contracts', 'permission' => 'service-contracts.view'],
             ]],
 
+            // Warranty & Claims. Its own top-level section rather than a leaf
+            // under Sales: for a footwear, watch or electronics shop the claims
+            // desk is a daily job with its own queue, and burying it under
+            // Sales → … would hide the one screen a customer is standing at the
+            // counter waiting for.
+            //
+            // Cards lead. The register is what gets looked up ("is this
+            // covered?"); the claim book is only opened once the answer is yes.
+            ['label' => 'Warranty', 'icon' => 'pi pi-verified', 'module' => 'warranty', 'children' => [
+                ['label' => 'Warranty Cards', 'icon' => 'pi pi-id-card', 'to' => '/warranties', 'permission' => 'warranties.view'],
+                ['label' => 'Warranty Claims', 'icon' => 'pi pi-replay', 'to' => '/warranties/claims', 'permission' => 'warranty-claims.view'],
+            ]],
+
             // Automobile. Bookings lead: the appointment book is what a service
             // manager opens first thing, because it is the only screen that says
             // what today looks like before any of it has happened.
@@ -191,6 +210,306 @@ class MenuSeeder extends Seeder
                 ['label' => 'Job Cards', 'icon' => 'pi pi-wrench', 'to' => '/service-jobs', 'permission' => 'service-jobs.view'],
                 ['label' => 'Vehicles', 'icon' => 'pi pi-car', 'to' => '/automobile/vehicles', 'permission' => 'automobile-vehicles.view'],
                 ['label' => 'Warranties', 'icon' => 'pi pi-verified', 'to' => '/automobile/warranties', 'permission' => 'automobile-warranties.view'],
+            ]],
+
+            // Electronics & Appliances. Requests lead for the same reason
+            // bookings do above: the desk's diary is the only screen that says
+            // what today looks like before any of it has happened.
+            //
+            // "Job Cards" is a third door onto /service-jobs — Service and
+            // Automobile each have one too. That is the supported way to say
+            // "several modules own this": permissionGroupMap() collects owners
+            // into a list and groupAvailable() passes if *any* is enabled, so
+            // nothing is duplicated but the nav row.
+            ['label' => 'Electronics', 'icon' => 'pi pi-desktop', 'module' => 'electronics', 'children' => [
+                ['label' => 'Service Requests', 'icon' => 'pi pi-phone', 'to' => '/electronics/requests', 'permission' => 'electronics-requests.view'],
+                ['label' => 'Job Cards', 'icon' => 'pi pi-wrench', 'to' => '/service-jobs', 'permission' => 'service-jobs.view'],
+                ['label' => 'Units & Serials', 'icon' => 'pi pi-tag', 'to' => '/electronics/units', 'permission' => 'electronics-units.view'],
+                /**
+                 * A second door onto the core warranty register, the same screen
+                 * the Warranty section above reaches. Electronics has no register
+                 * of its own — a shop must never be given two answers about who
+                 * pays — and permissionGroupMap() lets both modules own one row,
+                 * so an appliance dealer finds cover where they expect it without
+                 * anything being duplicated but this line.
+                 */
+                ['label' => 'Warranty Cards', 'icon' => 'pi pi-verified', 'to' => '/warranties', 'permission' => 'warranties.view'],
+            ]],
+
+            /**
+             * Mobile. The handset register leads, and unlike its sibling verticals
+             * that is not a diary — it is a search box. A phone counter's day is a
+             * queue of people reading fifteen digits off the back of a handset, and
+             * every other row in this group is only reachable once that number has
+             * been resolved.
+             *
+             * Three rows are second doors onto screens other modules own — "Repair
+             * Jobs" onto /service-jobs, "Warranty Cards" onto the core register.
+             * That is the supported way to say "more than one module reaches this":
+             * permissionGroupMap() collects the owners into a list and
+             * groupAvailable() passes if *any* is enabled, so a phone shop finds
+             * cover and repairs where it expects them and nothing is duplicated but
+             * the nav row. Mobile has no warranty register of its own on purpose —
+             * a shop must never be given two answers about who pays.
+             */
+            ['label' => 'Mobile', 'icon' => 'pi pi-mobile', 'module' => 'mobile', 'children' => [
+                ['label' => 'Handsets & IMEI', 'icon' => 'pi pi-mobile', 'to' => '/mobile/handsets', 'permission' => 'mobile-handsets.view'],
+                ['label' => 'Repair Jobs', 'icon' => 'pi pi-wrench', 'to' => '/service-jobs', 'permission' => 'service-jobs.view'],
+                ['label' => 'Warranty Cards', 'icon' => 'pi pi-verified', 'to' => '/warranties', 'permission' => 'warranties.view'],
+                ['label' => 'Insurance', 'icon' => 'pi pi-shield', 'to' => '/mobile/insurance', 'permission' => 'mobile-insurance.view'],
+                ['label' => 'EMI Files', 'icon' => 'pi pi-credit-card', 'to' => '/mobile/emi', 'permission' => 'mobile-emi.view'],
+                ['label' => 'Part-Exchange', 'icon' => 'pi pi-refresh', 'to' => '/mobile/buybacks', 'permission' => 'mobile-buyback.view'],
+            ]],
+
+            // Computer & IT. Calls lead: a support desk's morning is its open
+            // call list, and nothing else on this menu says what today looks
+            // like before any of it has happened.
+            //
+            // Two rows here are second doors onto screens other modules own —
+            // "Job Cards" onto /service-jobs and "AMC Contracts" onto
+            // /service-contracts. That is the supported way to say "more than
+            // one module reaches this": permissionGroupMap() collects the owners
+            // into a list and groupAvailable() passes if *any* of them is
+            // enabled, so a shop running Computer & IT + Service sees one job
+            // book and one contract register from two places, and nothing is
+            // duplicated but the nav row.
+            ['label' => 'Computer & IT', 'icon' => 'pi pi-desktop', 'module' => 'computer_it', 'children' => [
+                ['label' => 'Service Calls', 'icon' => 'pi pi-phone', 'to' => '/computer-it/service-calls', 'permission' => 'it-service-calls.view'],
+                ['label' => 'Job Cards', 'icon' => 'pi pi-wrench', 'to' => '/service-jobs', 'permission' => 'service-jobs.view'],
+                ['label' => 'Installed Machines', 'icon' => 'pi pi-desktop', 'to' => '/computer-it/assets', 'permission' => 'it-assets.view'],
+                ['label' => 'IT Warranties', 'icon' => 'pi pi-verified', 'to' => '/computer-it/warranties', 'permission' => 'it-warranties.view'],
+                ['label' => 'Licence Keys', 'icon' => 'pi pi-key', 'to' => '/computer-it/licence-keys', 'permission' => 'it-licences.view'],
+                ['label' => 'AMC Contracts', 'icon' => 'pi pi-file-check', 'to' => '/service-contracts', 'permission' => 'service-contracts.view'],
+            ]],
+
+            /**
+             * Stationery & School Supply. Booklists lead, because between April
+             * and June they are the shop: every question at the counter is
+             * "Class 5, Sunrise" and every answer starts on that screen.
+             *
+             * Two rows here are second doors onto screens other modules own —
+             * "School Orders" onto the plugin's board over core sales orders, and
+             * "Bulk Price Lists" onto /price-lists. The second is the important
+             * one: quantity-slab pricing is core and is what makes a
+             * four-hundred-set order cheaper per unit than a parent's, so the
+             * trade needs the screen even though the module does not own it.
+             * permissionGroupMap() collects owners into a list and
+             * groupAvailable() passes if *any* is enabled, so nothing is
+             * duplicated but the nav row.
+             */
+            ['label' => 'Stationery', 'icon' => 'pi pi-pencil', 'module' => 'stationery', 'children' => [
+                ['label' => 'Class Booklists', 'icon' => 'pi pi-list', 'to' => '/stationery/class-kits', 'permission' => 'stationery-kits.view'],
+                ['label' => 'Institutions', 'icon' => 'pi pi-building', 'to' => '/stationery/institutions', 'permission' => 'stationery-institutions.view'],
+                ['label' => 'School Orders', 'icon' => 'pi pi-file-edit', 'to' => '/stationery/school-orders', 'permission' => 'sales.view'],
+                ['label' => 'Season Demand', 'icon' => 'pi pi-chart-bar', 'to' => '/stationery/season-demand', 'permission' => 'stationery-kits.view'],
+                ['label' => 'Bulk Price Lists', 'icon' => 'pi pi-tags', 'to' => '/price-lists', 'permission' => 'price-lists.view'],
+            ]],
+
+            /**
+             * Garment & Apparel (Retail plugin). The style master leads: nothing
+             * else in the group means anything until the range exists, and it is
+             * the screen a merchandiser opens first.
+             *
+             * "Alterations" is a second door onto /tailor-alterations, the same
+             * screen the Tailoring section reaches. That is the supported way to
+             * say "two modules own this": permissionGroupMap() collects owners
+             * into a list and groupAvailable() passes if *any* is enabled, so a
+             * showroom that runs Garment without the workroom's Tailoring nav
+             * still gets its darji book — and nothing is duplicated but this row.
+             */
+            ['label' => 'Garment', 'icon' => 'pi pi-shopping-bag', 'module' => 'garment', 'children' => [
+                ['label' => 'Style Master', 'icon' => 'pi pi-tags', 'to' => '/garment/styles', 'permission' => 'garment-styles.view'],
+                // The grid sits right under the styles it builds from, and on
+                // products.view because that is what it reads and writes.
+                ['label' => 'Size & Colour Matrix', 'icon' => 'pi pi-table', 'to' => '/garment/matrix', 'permission' => 'products.view'],
+                ['label' => 'Fabrics', 'icon' => 'pi pi-book', 'to' => '/garment/fabrics', 'permission' => 'garment-fabrics.view'],
+                ['label' => 'Size Runs', 'icon' => 'pi pi-sort-alt', 'to' => '/garment/size-sets', 'permission' => 'garment-styles.view'],
+                ['label' => 'Colours', 'icon' => 'pi pi-palette', 'to' => '/garment/colours', 'permission' => 'garment-styles.view'],
+                ['label' => 'Trial Room', 'icon' => 'pi pi-inbox', 'to' => '/garment/trials', 'permission' => 'garment-trials.view'],
+                ['label' => 'Alterations', 'icon' => 'pi pi-pencil', 'to' => '/tailor-alterations', 'permission' => 'tailor-alterations.view'],
+            ]],
+
+            /**
+             * Grocery & Kirana. Two rows, because the vertical is two ideas: what
+             * the shop sells as one scan, and what the shop owes for it.
+             *
+             * Combo Packs sits on `products.view` rather than a permission of its
+             * own — a pack is a product with a statement of what it breaks into,
+             * and whoever prices the shelf prices the hamper. Supplier Credit has
+             * its own grant precisely because it does *not* belong to whoever
+             * prices the shelf: it is the owner's book of debts.
+             */
+            ['label' => 'Grocery', 'icon' => 'pi pi-shopping-cart', 'module' => 'grocery', 'children' => [
+                ['label' => 'Combo Packs', 'icon' => 'pi pi-box', 'to' => '/grocery/combo-packs', 'permission' => 'products.view'],
+                ['label' => 'Supplier Credit', 'icon' => 'pi pi-wallet', 'to' => '/grocery/supplier-credit', 'permission' => 'supplier-credit.view'],
+            ]],
+
+            /**
+             * Supermarket. Its own group rather than children of Grocery, even
+             * though both trades come out of the same vertical: a kirana has
+             * neither aisles nor unattended lanes, and hanging these under a
+             * "Grocery" heading would put a facing count in front of every corner
+             * shop that ticked the module for combo packs.
+             *
+             * Aisles & Shelves leads. It is the screen a store manager opens in
+             * the morning and the one the replenishment round is walked off; the
+             * planogram behind it is edited once a season.
+             *
+             * Deliberately not called "Shop Floor" — Manufacturing's group already
+             * uses that label for its machines, and two nav rows with one label
+             * meaning two different things is both a duplicate translation key and
+             * a genuinely confusing menu in a workspace that runs both.
+             */
+            ['label' => 'Supermarket', 'icon' => 'pi pi-shop', 'module' => 'supermarket', 'children' => [
+                ['label' => 'Aisles & Shelves', 'icon' => 'pi pi-th-large', 'to' => '/supermarket/shelves', 'permission' => 'stock.view'],
+                // The round. On stock.view like the floor it reads — the filler
+                // who walks it holds nothing heavier until they actually move
+                // something, which is stock.edit and happens on this screen.
+                ['label' => 'Replenishment', 'icon' => 'pi pi-arrow-up-right', 'to' => '/supermarket/replenishment', 'permission' => 'stock.view'],
+                ['label' => 'Shelf Planogram', 'icon' => 'pi pi-list', 'to' => '/supermarket/planogram', 'permission' => 'shelf-planogram.view'],
+                ['label' => 'Self-Checkout', 'icon' => 'pi pi-desktop', 'to' => '/supermarket/self-checkout', 'permission' => 'self-checkout.view'],
+            ]],
+
+            /**
+             * Counters and cash-up. Tagged `pos`, not `supermarket`, and sitting
+             * on its own rather than under a trade — a jeweller with a separate
+             * silver counter and a two-till kirana reconcile per desk exactly as a
+             * hypermarket does. See the PosCounter model.
+             *
+             * Tills leads Shift Cash-Up: the lanes are defined once, and the cash
+             * is counted twice a day.
+             */
+            ['label' => 'Counters', 'icon' => 'pi pi-calculator', 'module' => 'pos', 'children' => [
+                ['label' => 'Tills', 'icon' => 'pi pi-desktop', 'to' => '/pos-counters', 'permission' => 'pos-counters.view'],
+                ['label' => 'Shift Cash-Up', 'icon' => 'pi pi-wallet', 'to' => '/pos-counters/sessions', 'permission' => 'pos-counters.view'],
+            ]],
+
+            /**
+             * Gift & Novelty. The wrap desk leads, because in the fortnight that
+             * matters it is the shop's bottleneck and the only screen with a queue
+             * on it — nothing else here says what this evening looks like.
+             *
+             * "Gift Vouchers" is a second door onto the core register that Loyalty
+             * & Offers owns. That is the supported way to say "two modules reach
+             * this": permissionGroupMap() collects the owners into a list and
+             * groupAvailable() passes if *any* is enabled, so a gift shop finds
+             * vouchers where it expects them and nothing is duplicated but this row.
+             */
+            ['label' => 'Gift Shop', 'icon' => 'pi pi-gift', 'module' => 'gift', 'children' => [
+                ['label' => 'Wrap Desk', 'icon' => 'pi pi-inbox', 'to' => '/gift/wraps', 'permission' => 'gift-wraps.view'],
+                ['label' => 'Wrapping Options', 'icon' => 'pi pi-palette', 'to' => '/gift/wrap-options', 'permission' => 'gift-wraps.view'],
+                ['label' => 'Hamper Packs', 'icon' => 'pi pi-box', 'to' => '/gift/packs', 'permission' => 'gift-packs.view'],
+                /**
+                 * Labelled apart from CRM's "Occasions" (/crm/occasions) on
+                 * purpose. That row is the core same-day list of customers' own
+                 * birthdays; this one is the gift board — other people's dates,
+                 * with lead time, a budget and last year's gift. A shop running
+                 * both must be able to tell which is which from the nav.
+                 */
+                ['label' => 'Gift Occasions', 'icon' => 'pi pi-calendar-clock', 'to' => '/gift/occasions', 'permission' => 'gift-occasions.view'],
+                ['label' => 'Gift Vouchers', 'icon' => 'pi pi-ticket', 'to' => '/gift-vouchers', 'permission' => 'gift-vouchers.view'],
+            ]],
+
+            /**
+             * Toy Shop. Certificates lead, not the age bands: the bands are
+             * written once and read forever, while the certificate register is
+             * the one thing here with a clock in it — a licence lapses and the
+             * shelf looks no different, so the row that shows what is expiring
+             * belongs at the top of the group.
+             *
+             * "Wrap Desk" and "Hamper Packs" are second doors onto the Gift &
+             * Novelty screens, which is where this trade's wrapping and its combo
+             * packs actually live. That is the supported way to say "two modules
+             * reach this": permissionGroupMap() collects the owners and
+             * groupAvailable() passes if *any* is enabled, so a toy shop finds its
+             * wrap desk under Toys and nothing is duplicated but the nav row.
+             */
+            ['label' => 'Toy Shop', 'icon' => 'pi pi-star', 'module' => 'toys', 'children' => [
+                ['label' => 'Safety Certificates', 'icon' => 'pi pi-verified', 'to' => '/toys/certificates', 'permission' => 'toy-safety.view'],
+                ['label' => 'Safety Classes', 'icon' => 'pi pi-exclamation-triangle', 'to' => '/toys/safety-classes', 'permission' => 'toy-safety.view'],
+                ['label' => 'Age Bands', 'icon' => 'pi pi-users', 'to' => '/toys/age-grades', 'permission' => 'toy-safety.view'],
+                ['label' => 'Wrap Desk', 'icon' => 'pi pi-inbox', 'to' => '/gift/wraps', 'permission' => 'gift-wraps.view'],
+                ['label' => 'Hamper Packs', 'icon' => 'pi pi-box', 'to' => '/gift/packs', 'permission' => 'gift-packs.view'],
+            ]],
+
+            /**
+             * Book Store. Titles lead because that is the screen the shop lives
+             * on: it is the catalogue read the way a bookshop reads it, and it
+             * carries the ISBN lookup the counter uses when a customer phones.
+             * The three registers behind it are written far less often than they
+             * are read.
+             *
+             * There is deliberately **no** second door onto the Ecommerce
+             * module's channel inbox here, even though Online Orders is one of
+             * the seven things this trade asks for and the Toy Shop group above
+             * takes exactly that shortcut to the gift desk.
+             *
+             * The mechanism is not safe across a plan boundary. A second row
+             * makes this group's module an *owner* of that row's permission in
+             * permissionGroupMap(), and groupAvailable() passes if any owner is
+             * enabled — so a `books` workspace would be granted `channel-orders`
+             * whether or not it has `ecommerce`. That works for Toys because
+             * `toys` and `gift` are both Starter and its preset ticks both;
+             * `books` is Starter and `ecommerce` is Professional, so the same row
+             * would widen access for every Starter book shop and leave the ones
+             * that followed it looking at a 403.
+             *
+             * Online orders are therefore reached where they are actually gated —
+             * the Ecommerce group's own Marketplace Orders row, which a shop sees
+             * once its plan carries the module its preset asks for.
+             */
+            ['label' => 'Book Store', 'icon' => 'pi pi-book', 'module' => 'books', 'children' => [
+                ['label' => 'Titles', 'icon' => 'pi pi-book', 'to' => '/books/titles', 'permission' => 'book-catalogue.view'],
+                ['label' => 'Authors', 'icon' => 'pi pi-user-edit', 'to' => '/books/authors', 'permission' => 'book-catalogue.view'],
+                ['label' => 'Publishers', 'icon' => 'pi pi-building', 'to' => '/books/publishers', 'permission' => 'book-catalogue.view'],
+                ['label' => 'Book Languages', 'icon' => 'pi pi-language', 'to' => '/books/languages', 'permission' => 'book-catalogue.view'],
+            ]],
+
+            /**
+             * Beauty counter. Shelf Life leads, not the shade master: the shades
+             * are written once and read forever, while the dating board is the one
+             * screen here with a clock in it — a foundation goes off and the shelf
+             * looks no different, so the row that shows what is dying belongs at
+             * the top of the group.
+             *
+             * "Memberships" is a second door onto the core Loyalty & Offers screen,
+             * which is where this trade's club cards actually live. That is the
+             * supported way to say "two modules reach this": permissionGroupMap()
+             * collects the owners and groupAvailable() passes if *any* is enabled,
+             * so a beauty counter finds its membership book under its own heading
+             * and nothing is duplicated but the nav row.
+             */
+            ['label' => 'Beauty Counter', 'icon' => 'pi pi-heart-fill', 'module' => 'cosmetics', 'children' => [
+                ['label' => 'Shelf Life', 'icon' => 'pi pi-clock', 'to' => '/cosmetics/shelf-life', 'permission' => 'cosmetic-shelf-life.view'],
+                ['label' => 'Testers', 'icon' => 'pi pi-inbox', 'to' => '/cosmetics/testers', 'permission' => 'cosmetic-shelf-life.view'],
+                ['label' => 'Shade Master', 'icon' => 'pi pi-palette', 'to' => '/cosmetics/shades', 'permission' => 'cosmetic-shades.view'],
+                ['label' => 'Shade Card', 'icon' => 'pi pi-th-large', 'to' => '/cosmetics/shade-card', 'permission' => 'cosmetic-shades.view'],
+                ['label' => 'Memberships', 'icon' => 'pi pi-id-card', 'to' => '/memberships', 'permission' => 'memberships.view'],
+            ]],
+
+            /**
+             * Sports shop. The Hire Desk leads and the Fleet sits under it, which
+             * is the opposite of how a register-and-document pair is usually
+             * ordered — deliberately. The fleet is written a handful of times a
+             * season; the desk is worked every day, and it is the screen that shows
+             * what has not come back. Fleet Utilisation is last because it is read
+             * once a quarter by one person.
+             *
+             * "Repair Jobs" and "Warranty Cards" are second doors onto the core
+             * Service and Warranty screens, which is where this trade's bench work
+             * and its cover actually live. That is the supported way to say "two
+             * modules reach this": permissionGroupMap() collects the owners and
+             * groupAvailable() passes if *any* is enabled, so a sports shop finds
+             * its bench under its own heading and nothing is duplicated but the nav
+             * row. A subscriber whose plan does not carry `service` simply does not
+             * see it.
+             */
+            ['label' => 'Sports Shop', 'icon' => 'pi pi-flag', 'module' => 'sports', 'children' => [
+                ['label' => 'Hire Desk', 'icon' => 'pi pi-calendar-clock', 'to' => '/sports/rentals', 'permission' => 'rentals.view'],
+                ['label' => 'Hire Fleet', 'icon' => 'pi pi-box', 'to' => '/sports/fleet', 'permission' => 'rental-assets.view'],
+                ['label' => 'Fleet Utilisation', 'icon' => 'pi pi-chart-bar', 'to' => '/sports/utilisation', 'permission' => 'rental-assets.view'],
+                ['label' => 'Repair Jobs', 'icon' => 'pi pi-wrench', 'to' => '/service-jobs', 'permission' => 'service-jobs.view'],
+                ['label' => 'Warranty Cards', 'icon' => 'pi pi-verified', 'to' => '/warranties', 'permission' => 'warranties.view'],
             ]],
 
             // Restaurant. The floor leads — it is the screen the shift actually
@@ -245,11 +564,17 @@ class MenuSeeder extends Seeder
                 ['label' => 'Membership Plans', 'icon' => 'pi pi-tags', 'to' => '/membership-plans', 'permission' => 'memberships.view'],
             ]],
 
-            // Optical. Eye tests lead: a spectacle order cannot be raised until
-            // someone has recorded the powers to grind.
+            /**
+             * Optical, in the order the shop works: the diary is the first
+             * screen of the day (who is coming, who is waiting), the test is
+             * what the chair produces, the order is what is made from it, and
+             * the collection desk is what leaves.
+             */
             ['label' => 'Optical', 'icon' => 'pi pi-eye', 'module' => 'optical', 'children' => [
+                ['label' => 'Appointments', 'icon' => 'pi pi-calendar-clock', 'to' => '/optical-appointments', 'permission' => 'optical-appointments.view'],
                 ['label' => 'Eye Prescriptions', 'icon' => 'pi pi-eye', 'to' => '/eye-prescriptions', 'permission' => 'eye-prescriptions.view'],
                 ['label' => 'Spectacle Orders', 'icon' => 'pi pi-shopping-bag', 'to' => '/optical-orders', 'permission' => 'optical-orders.view'],
+                ['label' => 'Collection Desk', 'icon' => 'pi pi-inbox', 'to' => '/optical-delivery', 'permission' => 'optical-orders.view'],
             ]],
 
             // Jewellery. The rate card is the first screen of the day — nothing

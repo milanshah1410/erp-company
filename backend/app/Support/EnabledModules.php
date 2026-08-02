@@ -24,7 +24,13 @@ final class EnabledModules
     private const MAP_TTL = 600;
 
     /**
-     * What the tenant chose in onboarding, narrowed to what its plan sells.
+     * What the tenant chose in onboarding, narrowed to what its plan sells and
+     * widened by the Core ERP set every workspace gets.
+     *
+     * Core is unioned here rather than only at write time so it reaches tenants
+     * provisioned before it existed, and so no stored selection, downgrade or
+     * operator edit can leave a workspace without Sales, Purchase, Inventory,
+     * Accounts, CRM or the assistant.
      *
      * Returns null when the tenant never chose a module set, so gating is a
      * no-op (fail open) for tenants provisioned before module selection existed.
@@ -67,7 +73,11 @@ final class EnabledModules
             $modules = array_values(array_intersect($modules, $allowed));
         }
 
-        return $modules !== [] ? $modules : null;
+        // Core last, so it survives the narrowing above unconditionally. A
+        // selection that narrows to nothing now reads as core-only rather than as
+        // "no selection, show everything" — the tenant did choose, and what it
+        // chose no longer includes anything its plan sells.
+        return Modules::withCore($modules);
     }
 
     /**

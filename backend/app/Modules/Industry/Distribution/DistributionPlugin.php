@@ -65,11 +65,11 @@ class DistributionPlugin implements IndustryPlugin
     }
 
     /**
-     * Modules every distribution trade runs on: `distribution` itself (credit
-     * control and ageing — the vertical's own screens), it buys in bulk and sells
-     * in bulk (sales/purchase/inventory), it lives on party ledgers (accounts),
-     * it moves goods under an e-way bill (gst), and it gets the common core
-     * (crm, ai).
+     * What every distribution trade adds on top of the Core ERP set:
+     * `distribution` itself (credit control and ageing — the vertical's own
+     * screens) and `gst`, because goods move under an e-way bill. Buying and
+     * selling in bulk against party ledgers is core, merged in by
+     * ShopProfiles::all().
      *
      * Note what is *not* here: `pos`. A wholesale desk raises an order against
      * a party's credit, it does not tender cash at a counter — only the cash &
@@ -79,7 +79,7 @@ class DistributionPlugin implements IndustryPlugin
      */
     private function base(): array
     {
-        return ['distribution', 'sales', 'purchase', 'inventory', 'accounts', 'gst', 'crm', 'ai'];
+        return ['distribution', 'gst'];
     }
 
     /**

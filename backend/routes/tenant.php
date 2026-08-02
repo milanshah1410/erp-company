@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\B2bOrderController;
+use App\Http\Controllers\Api\GiftVoucherController;
 use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\GoogleMapsController;
 use App\Http\Controllers\Api\MenuController;
@@ -118,11 +119,14 @@ use App\Http\Controllers\Api\PaymentGatewayAccountController;
 use App\Http\Controllers\Api\PaymentTransactionController;
 use App\Http\Controllers\Api\PaymentVoucherController;
 use App\Http\Controllers\Api\PosController;
+use App\Http\Controllers\Api\PosCounterController;
 use App\Http\Controllers\Api\PriceListController;
 use App\Http\Controllers\Api\PrinterTestController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProductStoneController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ProductVariantController;
+use App\Http\Controllers\Api\ProductWarrantyController;
 use App\Http\Controllers\Api\EyePrescriptionController;
 use App\Http\Controllers\Api\KitchenOrderTicketController;
 use App\Http\Controllers\Api\RestaurantOrderController;
@@ -185,6 +189,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VendorRatingController;
 use App\Http\Controllers\Api\WarehouseController;
 use App\Http\Controllers\Api\WarehouseLocationController;
+use App\Http\Controllers\Api\WarrantyClaimController;
 use App\Http\Controllers\Api\LeaveTypeController;
 use App\Http\Controllers\Api\LeaveApplicationController;
 use App\Http\Controllers\Api\OvertimeRecordController;
@@ -310,6 +315,19 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('products/{product}/variants', [ProductVariantController::class, 'store'])->middleware('permission:products.edit');
         Route::match(['put', 'patch'], 'products/{product}/variants/{variant}', [ProductVariantController::class, 'update'])->middleware('permission:products.edit');
         Route::delete('products/{product}/variants/{variant}', [ProductVariantController::class, 'destroy'])->middleware('permission:products.edit');
+
+        /**
+         * Jewellery's stone register. Nested here beside variants rather than in
+         * the jewellery block below, and on the product permissions rather than
+         * its own pair: what is set into a ring is part of the ring's master
+         * record, and it is edited from the product screen. A shop that sells no
+         * studded jewellery simply never has a row.
+         */
+        Route::get('products/{product}/stones', [ProductStoneController::class, 'index'])->middleware('permission:products.view');
+        Route::post('products/{product}/stones', [ProductStoneController::class, 'store'])->middleware('permission:products.edit');
+        Route::match(['put', 'patch'], 'products/{product}/stones/{stone}', [ProductStoneController::class, 'update'])->middleware('permission:products.edit');
+        Route::delete('products/{product}/stones/{stone}', [ProductStoneController::class, 'destroy'])->middleware('permission:products.edit');
+
         Route::get('categories-tree', [CategoryController::class, 'tree'])->middleware('permission:categories.view');
         Route::get('categories/{category}/attributes', [CategoryController::class, 'attributes'])->middleware('permission:categories.view');
         $crud('categories', CategoryController::class, 'categories', 'category');
@@ -403,6 +421,30 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('coupons/validate', [CouponController::class, 'validateCoupon'])->middleware('permission:coupons.view');
         $crud('coupons', CouponController::class, 'coupons', 'coupon');
         Route::post('coupons/{coupon}/redeem', [CouponController::class, 'redeem'])->middleware('permission:coupons.edit');
+
+        /**
+         * Gift vouchers. Beside coupons rather than under a trade, because a gift
+         * shop, a supermarket and a garment showroom all sell the same
+         * instrument — and because PosController redeems them, which rules out
+         * putting them in an industry plugin that may not be installed.
+         *
+         * `check` before the {giftVoucher} routes so a literal segment is not
+         * swallowed by the model binding. There is deliberately no redeem
+         * endpoint here: a voucher is only ever drawn down against a bill, at
+         * the till. One on this screen would let someone spend a card with no
+         * sale behind it.
+         */
+        Route::middleware('module:loyalty')->group(function () {
+            Route::get('gift-vouchers/check', [GiftVoucherController::class, 'check'])->middleware('permission:gift-vouchers.view');
+            Route::get('gift-vouchers', [GiftVoucherController::class, 'index'])->middleware('permission:gift-vouchers.view');
+            Route::post('gift-vouchers', [GiftVoucherController::class, 'store'])->middleware('permission:gift-vouchers.create');
+            Route::get('gift-vouchers/{giftVoucher}', [GiftVoucherController::class, 'show'])->middleware('permission:gift-vouchers.view');
+            Route::match(['put', 'patch'], 'gift-vouchers/{giftVoucher}', [GiftVoucherController::class, 'update'])->middleware('permission:gift-vouchers.edit');
+            // Cancelling withdraws value a customer is holding, so it sits on
+            // delete authority next to the deletion it is the safe alternative to.
+            Route::post('gift-vouchers/{giftVoucher}/cancel', [GiftVoucherController::class, 'cancel'])->middleware('permission:gift-vouchers.delete');
+            Route::delete('gift-vouchers/{giftVoucher}', [GiftVoucherController::class, 'destroy'])->middleware('permission:gift-vouchers.delete');
+        });
 
         // Referrals: referrer → referred person, convert on join, reward via loyalty points.
         $crud('referrals', ReferralController::class, 'referrals', 'referral');
@@ -738,6 +780,40 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('pos/return', [PosController::class, 'processReturn'])->middleware('permission:sales-returns.create');
         Route::post('pos/exchange', [PosController::class, 'exchange'])->middleware('permission:sales.create');
 
+        /*
+        |--------------------------------------------------------------------------
+        | Till counters and shift cash-up
+        |--------------------------------------------------------------------------
+        |
+        | `module:pos`, not `module:supermarket`, although a supermarket is what
+        | asked for it. Reconciling a drawer per desk is what any shop with more
+        | than one till does — see the PosCounter model — and gating it on a
+        | grocery vertical would have hidden it from the jeweller with a separate
+        | silver counter.
+        |
+        | The split in permissions is between *defining* a lane and *working* one.
+        | Opening and closing sit on `pos-counters.create` / `.edit`, so a cashier
+        | can be handed the drawer without also being handed the power to invent
+        | new tills; deleting a counter stays where it belongs.
+        |
+        | `current` and `report` are on `.view`: a cashier who refreshed the POS
+        | screen has to be able to find out which shift they are on, and reading
+        | the X figures mid-shift is how a supervisor spots a drift before it
+        | becomes an end-of-day argument.
+        */
+        Route::middleware('module:pos')->group(function () {
+            Route::get('pos-counters', [PosCounterController::class, 'index'])->middleware('permission:pos-counters.view');
+            Route::post('pos-counters', [PosCounterController::class, 'store'])->middleware('permission:pos-counters.create');
+            Route::get('pos-counters/sessions', [PosCounterController::class, 'sessions'])->middleware('permission:pos-counters.view');
+            Route::get('pos-counters/current', [PosCounterController::class, 'current'])->middleware('permission:pos-counters.view');
+            Route::get('pos-counters/sessions/{posCounterSession}/report', [PosCounterController::class, 'report'])->middleware('permission:pos-counters.view');
+            Route::post('pos-counters/sessions/{posCounterSession}/close', [PosCounterController::class, 'close'])->middleware('permission:pos-counters.edit');
+            Route::get('pos-counters/{posCounter}', [PosCounterController::class, 'show'])->middleware('permission:pos-counters.view');
+            Route::match(['put', 'patch'], 'pos-counters/{posCounter}', [PosCounterController::class, 'update'])->middleware('permission:pos-counters.edit');
+            Route::delete('pos-counters/{posCounter}', [PosCounterController::class, 'destroy'])->middleware('permission:pos-counters.delete');
+            Route::post('pos-counters/{posCounter}/open', [PosCounterController::class, 'open'])->middleware('permission:pos-counters.create');
+        });
+
         // Sales returns / credit notes: tied to a specific invoice, restocks + credits the customer
         Route::get('sales-returns', [SalesReturnController::class, 'index'])->middleware('permission:sales-returns.view');
         Route::post('sales-returns', [SalesReturnController::class, 'store'])->middleware('permission:sales-returns.create');
@@ -861,6 +937,54 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('service-jobs/{serviceJob}/complete', [ServiceJobController::class, 'complete'])->middleware('permission:service-jobs.delete');
         Route::post('service-jobs/{serviceJob}/deliver', [ServiceJobController::class, 'deliver'])->middleware('permission:service-jobs.delete');
         Route::post('service-jobs/{serviceJob}/cancel', [ServiceJobController::class, 'cancel'])->middleware('permission:service-jobs.delete');
+
+        /*
+        |----------------------------------------------------------------------
+        | Warranty & Claims: the card a counter issues against a sale, and what
+        | comes back against it. A retail register, distinct from the Automobile
+        | plugin's vehicle warranties — see the note in Modules::CATALOGUE.
+        |
+        | `module:warranty` is stated on the group rather than left to be
+        | inferred from the menu rows, because two of these endpoints (issuable,
+        | issue) are reached from the invoice screen and own no nav row of their
+        | own — EnabledModules could not have gated them.
+        |----------------------------------------------------------------------
+        */
+        Route::middleware('module:warranty')->group(function () {
+            /**
+             * The counter question — "is this still covered?" — asked before any
+             * of the work that would follow from the answer, so it sits on view.
+             */
+            Route::get('warranties/check', [ProductWarrantyController::class, 'check'])->middleware('permission:warranties.view');
+            // What an invoice could register, and registering it. Both are the
+            // act of issuing cover, so both sit on create.
+            Route::get('warranties/issuable', [ProductWarrantyController::class, 'issuable'])->middleware('permission:warranties.create');
+            Route::post('warranties/issue', [ProductWarrantyController::class, 'issue'])->middleware('permission:warranties.create');
+
+            Route::get('warranties', [ProductWarrantyController::class, 'index'])->middleware('permission:warranties.view');
+            Route::post('warranties', [ProductWarrantyController::class, 'store'])->middleware('permission:warranties.create');
+            Route::get('warranties/{warranty}', [ProductWarrantyController::class, 'show'])->middleware('permission:warranties.view');
+            Route::match(['put', 'patch'], 'warranties/{warranty}', [ProductWarrantyController::class, 'update'])->middleware('permission:warranties.edit');
+            /**
+             * Voiding withdraws cover a customer is relying on, so it sits on
+             * delete authority rather than edit: it is the destructive act in
+             * this register, even though the row survives it.
+             */
+            Route::post('warranties/{warranty}/void', [ProductWarrantyController::class, 'void'])->middleware('permission:warranties.delete');
+            Route::delete('warranties/{warranty}', [ProductWarrantyController::class, 'destroy'])->middleware('permission:warranties.delete');
+
+            Route::get('warranty-claims', [WarrantyClaimController::class, 'index'])->middleware('permission:warranty-claims.view');
+            Route::post('warranty-claims', [WarrantyClaimController::class, 'store'])->middleware('permission:warranty-claims.create');
+            Route::get('warranty-claims/{claim}', [WarrantyClaimController::class, 'show'])->middleware('permission:warranty-claims.view');
+            Route::match(['put', 'patch'], 'warranty-claims/{claim}', [WarrantyClaimController::class, 'update'])->middleware('permission:warranty-claims.edit');
+            /**
+             * Settling is the step that costs money — a replacement pair, a
+             * refund, or a customer told no. That is a supervisor's call, not
+             * the counter's, so it sits above edit.
+             */
+            Route::post('warranty-claims/{claim}/resolve', [WarrantyClaimController::class, 'resolve'])->middleware('permission:warranty-claims.approve');
+            Route::delete('warranty-claims/{claim}', [WarrantyClaimController::class, 'destroy'])->middleware('permission:warranty-claims.delete');
+        });
 
         /*
         |----------------------------------------------------------------------

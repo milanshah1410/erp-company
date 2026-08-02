@@ -188,6 +188,20 @@ class RegistrationController extends Controller
                 : $preset;
         }
 
+        // The Core ERP set is every workspace's floor, whatever the wizard sent
+        // and whatever the package is — a signup that unticked half the grid still
+        // gets Sales, Purchase, Inventory, Accounts, CRM and the assistant. Added
+        // before the plan check below, which is a no-op for core because
+        // Plan::allowedModules() unions it too.
+        //
+        // Only when a selection was actually made: a payload with no module list
+        // and no trade stores nothing, and a tenant with no stored selection is
+        // ungated entirely (EnabledModules::forTenant returns null) — which is
+        // more than core, not less.
+        if (! empty($data['config']['modules'])) {
+            $data['config']['modules'] = Modules::withCore($data['config']['modules']);
+        }
+
         // Module set must fit the chosen package: only Enterprise ('*') unlocks
         // the whole catalogue, so a tampered payload can't smuggle in modules the
         // plan does not sell.

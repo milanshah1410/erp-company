@@ -19,23 +19,17 @@ use App\Modules\Industry\Support\IndustryRegistry;
  * that never alters a garment simply unticks Tailoring) because unticking is
  * cheaper for a new tenant than discovering a module they were never shown.
  *
- * Every preset carries `crm` and `ai`, which are common core rather than any one
- * trade's concern:
+ * **A preset declares only what its trade adds.** The Core ERP set — Sales,
+ * Purchase, Inventory, Accounts, CRM and the AI assistant (Modules::CORE) — is
+ * every workspace's floor, so all() merges it into every preset and no
+ * declaration below restates it. That is also why it no longer matters whether
+ * the chosen package sells them: Plan::allowedModules() unions core too, so a
+ * Starter workspace gets CRM even though the tier does not list it.
  *
- *  - `ai` — the assistant answers over whatever the workspace already has ("show
- *    this month's sales", low-stock and reorder hints), so it is as useful to a
- *    kirana counter as to a factory.
- *  - `crm` — every trade chases a customer: follow-ups, WhatsApp and SMS are the
- *    same job whether the thing being sold is grain or a shipment.
- *
- * Both stay switchable modules — a tenant may untick either and an operator may
- * revoke them — they just start on. Note `crm` is not in the Starter package, so
- * a Starter workspace still won't see it until it upgrades; forTenant() narrows
- * the stored selection to the plan ceiling on every read.
- *
- * Keys must exist in Modules::CATALOGUE; sanitize() drops anything stale, and
- * the plan ceiling is applied on top by the caller (RegistrationController and
- * EnabledModules both narrow to what the package sells).
+ * Keys must exist in Modules::CATALOGUE; withCore() drops anything stale, and
+ * the plan ceiling is applied on top by the caller for everything outside core
+ * (RegistrationController and EnabledModules both narrow to what the package
+ * sells).
  *
  * Two sources feed this list. PROFILES below are the hand-written presets that
  * predate the plugin layer; the rest come from registered industry plugins via
@@ -53,28 +47,32 @@ final class ShopProfiles
      * Hand-written presets, for trades no industry plugin covers yet. Prefer
      * declaring a new trade in a plugin over adding it here.
      *
+     * `modules` lists only what the trade adds on top of Modules::CORE — all()
+     * merges core in, so a preset that needs nothing beyond it declares nothing.
+     *
      * key => [label, icon, description, modules]
      *
      * @var array<string, array{label: string, icon: string, description: string, modules: list<string>}>
      */
     public const PROFILES = [
-        'grocery' => [
-            'label' => 'Grocery / Kirana',
-            'icon' => 'pi pi-shop',
-            'description' => 'Counter billing, barcode, stock, purchase and the daily cash book',
-            'modules' => [
-                'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'devices', 'crm', 'ai',
-            ],
-        ],
-        'garment' => [
-            'label' => 'Garment / Apparel',
-            'icon' => 'pi pi-shopping-bag',
-            'description' => 'Size/colour variants, label printing, loyalty, alterations',
-            'modules' => [
-                'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst',
-                'loyalty', 'tailoring', 'devices', 'crm', 'ai',
-            ],
-        ],
+        /**
+         * 'grocery', 'garment', 'footwear', 'optical' and 'jewellery' used to be
+         * defined here. All five are now trades of the Retail plugin, which owns
+         * their module sets.
+         *
+         * They had to move together. The `retail` industry template is
+         * plugin-backed the moment that vertical registers, and a plugin-backed
+         * template reports the *plugin's* trades instead of its curated list — so
+         * any of the five left behind here would have dropped out of the signup
+         * picker entirely, exactly as would have happened to Manufacturing.
+         *
+         * Module sets are carried over unchanged, so no workspace already sitting
+         * on one of these profiles shifts underneath it. The two deliberate
+         * exceptions are additions, not removals: 'garment' gains the `garment`
+         * module that its style master, matrix and trial room are gated on, and
+         * 'footwear' gains the same module for the size × colour grid it shares —
+         * which is what the note left on the footwear preset asked for.
+         */
         // 'dairy' and 'restaurant' used to be defined here. Both are now trades of
         // the Food & Beverage plugin, which owns their module sets — keeping copies
         // here would leave two definitions of one trade, drifting apart.
@@ -90,22 +88,6 @@ final class ShopProfiles
         // same modules it had here, so no workspace already on this profile
         // shifts underneath it. Keeping a copy would leave two definitions of one
         // trade, drifting apart.
-        'optical' => [
-            'label' => 'Optical Shop',
-            'icon' => 'pi pi-eye',
-            'description' => 'Eye tests, lens details, frame stock and spectacle orders',
-            'modules' => [
-                'optical', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'crm', 'ai',
-            ],
-        ],
-        'jewellery' => [
-            'label' => 'Jewellery',
-            'icon' => 'pi pi-star',
-            'description' => 'Rate card, purity & making charges, old-gold exchange, hallmarking',
-            'modules' => [
-                'jewellery', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'crm', 'ai',
-            ],
-        ],
         // 'medical' used to be defined here. It is now a trade of the Healthcare
         // plugin, which owns its module set alongside its five sibling trades —
         // same reason 'dairy' and 'restaurant' left.
@@ -113,26 +95,19 @@ final class ShopProfiles
             'label' => 'Service / Repair Centre',
             'icon' => 'pi pi-wrench',
             'description' => 'Job intake, technicians, spare parts, AMC contracts and billing',
-            'modules' => [
-                'service', 'projects', 'sales', 'purchase', 'inventory', 'accounts', 'gst', 'hrms', 'crm', 'ai',
-            ],
+            'modules' => ['service', 'projects', 'gst', 'hrms'],
         ],
         'projects' => [
             'label' => 'Projects / Consulting',
             'icon' => 'pi pi-briefcase',
             'description' => 'Project budgets, tasks, timesheets and billable hours',
-            'modules' => [
-                'projects', 'sales', 'accounts', 'gst', 'hrms', 'crm', 'purchase', 'ai',
-            ],
+            'modules' => ['projects', 'gst', 'hrms'],
         ],
         'construction' => [
             'label' => 'Construction / Infrastructure',
             'icon' => 'pi pi-building-columns',
             'description' => 'Site projects, material issue, labour, plant & machinery and running bills',
-            'modules' => [
-                'projects', 'purchase', 'inventory', 'sales', 'accounts', 'gst',
-                'assets', 'hrms', 'logistics', 'crm', 'ai',
-            ],
+            'modules' => ['projects', 'gst', 'assets', 'hrms', 'logistics'],
         ],
         // 'agriculture' used to be defined here. It is now a trade of the
         // Agriculture plugin, which owns its module set — and the key is
@@ -142,17 +117,15 @@ final class ShopProfiles
             'label' => 'Import / Export',
             'icon' => 'pi pi-globe',
             'description' => 'Shipments, customs, containers and landed-cost tracking',
-            'modules' => [
-                'sales', 'purchase', 'inventory', 'accounts', 'gst', 'logistics', 'broker', 'crm', 'ai',
-            ],
+            'modules' => ['gst', 'logistics', 'broker'],
         ],
+        // Core ERP and nothing else — the fallback preset is exactly the floor
+        // every workspace gets, which is what "start from the essentials" means.
         'custom' => [
             'label' => 'Something else',
             'icon' => 'pi pi-sliders-h',
             'description' => 'Start from the essentials and pick the rest yourself',
-            'modules' => [
-                'sales', 'purchase', 'inventory', 'accounts', 'crm', 'ai',
-            ],
+            'modules' => [],
         ],
     ];
 
@@ -160,11 +133,22 @@ final class ShopProfiles
      * Every preset — the hand-written ones plus every trade declared by a
      * registered industry plugin, which wins on a key collision.
      *
+     * This is where the Core ERP set is added: presets and plugins declare only
+     * their trade's own modules, and every consumer of a preset (the wizard grid,
+     * provisioning, the demo seeder, the platform panel) reads through here, so
+     * none of them can end up with a module list missing the floor.
+     *
      * @return array<string, array{label: string, icon: string, description: string, modules: list<string>}>
      */
     public static function all(): array
     {
-        return array_merge(self::PROFILES, IndustryRegistry::tradePresets());
+        $presets = array_merge(self::PROFILES, IndustryRegistry::tradePresets());
+
+        foreach ($presets as $key => $preset) {
+            $presets[$key]['modules'] = Modules::withCore($preset['modules'] ?? []);
+        }
+
+        return $presets;
     }
 
     /**
@@ -231,10 +215,11 @@ final class ShopProfiles
     }
 
     /**
-     * The module set a profile switches on, narrowed to keys the catalogue still
-     * knows. Unknown profiles fall back to `custom` so a stale wizard build (or a
-     * hand-written industry string from an older signup) can never produce an
-     * empty selection.
+     * The module set a profile switches on — the Core ERP floor plus that trade's
+     * own modules, narrowed to keys the catalogue still knows. Unknown profiles
+     * fall back to `custom` (core alone) so a stale wizard build, or a
+     * hand-written industry string from an older signup, still produces a
+     * workable workspace rather than an empty selection.
      *
      * @return list<string>
      */
@@ -243,6 +228,17 @@ final class ShopProfiles
         $all = self::all();
         $profile = $all[$key ?? ''] ?? $all['custom'];
 
-        return Modules::sanitize($profile['modules']);
+        return Modules::withCore($profile['modules']);
+    }
+
+    /**
+     * Only what this trade adds beyond core — for screens that describe a preset
+     * ("this trade also switches on…") rather than apply it.
+     *
+     * @return list<string>
+     */
+    public static function industryModulesFor(?string $key): array
+    {
+        return Modules::withoutCore(self::modulesFor($key));
     }
 }

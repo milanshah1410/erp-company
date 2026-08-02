@@ -18,6 +18,12 @@ import devices from './devices'
 import agriculture from './agriculture'
 import distribution from './distribution'
 import healthcare from './healthcare'
+import computerIt from './computer-it'
+import grocery from './grocery'
+import gift from './gift'
+import toys from './toys'
+import books from './books'
+import sports from './sports'
 import shared from './shared'
 
 const ALL: PhraseFile = {
@@ -36,6 +42,12 @@ const ALL: PhraseFile = {
   ...agriculture,
   ...distribution,
   ...healthcare,
+  ...computerIt,
+  ...grocery,
+  ...gift,
+  ...toys,
+  ...books,
+  ...sports,
   ...shared,
 }
 

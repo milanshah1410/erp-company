@@ -24,6 +24,13 @@ class SettingController extends Controller
             'costing_method' => ['sometimes', 'required', Rule::in(Setting::COSTING_METHODS)],
             'purchase_approval_threshold' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'sales_payment_term_days' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            /**
+             * The buying-side mirror: how long the shop's own suppliers give it,
+             * for bills that carry no due date of their own. Read by the Grocery
+             * vertical's Supplier Credit screen, which also edits it in place —
+             * "30 days" means little until you can see whose bills it dates.
+             */
+            'purchase_payment_term_days' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'financial_year_start_month' => ['sometimes', 'required', 'integer', 'min:1', 'max:12'],
             'currency_code' => ['sometimes', 'required', 'string', 'max:10'],
             'currency_symbol' => ['sometimes', 'required', 'string', 'max:5'],

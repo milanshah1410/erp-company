@@ -332,7 +332,9 @@ class TenantController extends Controller
         $plan = Plan::findBySlug($data['plan_slug'] ?? null);
 
         if (! empty($data['modules'])) {
-            $config['modules'] = Modules::sanitize($data['modules']);
+            // withCore, not sanitize: the operator picks the trade's modules, but
+            // the Core ERP floor is not theirs to leave off.
+            $config['modules'] = Modules::withCore($data['modules']);
             // Anything picked beyond the tier is recorded as an operator grant,
             // without which EnabledModules would narrow it straight back off on
             // the next read (see App\Support\EnabledModules::operatorGrants).

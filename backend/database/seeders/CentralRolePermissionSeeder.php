@@ -56,6 +56,13 @@ class CentralRolePermissionSeeder extends Seeder
         // prices is not the same person as one redefining what we sell.
         'industries' => ['view', 'create', 'edit', 'delete'],
 
+        // The shared menu catalogue — which screens the product ships at all
+        // (/platform/menus). No create/delete: the catalogue is seeded from code
+        // alongside the routes it points at, so the only verbs that make sense
+        // are "see it" and "switch a screen on or off". Deliberately not folded
+        // into `industries`: retiring a screen affects every vertical.
+        'menus' => ['view', 'edit'],
+
         // Marketplace — what the platform offers and to whom (Volume 11
         // §"Integration Marketplace" / §"Device Marketplace"). Split in two
         // because they are different jobs: deciding which payment gateways we
@@ -362,16 +369,16 @@ class CentralRolePermissionSeeder extends Seeder
     {
         // Super Admin — the primary owner login, env-overridable.
         $this->bootstrapOperator(
-            (string) env('CENTRAL_SUPER_ADMIN_EMAIL', 'owner@saas.test'),
+            (string) env('CENTRAL_SUPER_ADMIN_EMAIL', 'owner@kosha.com'),
             (string) env('CENTRAL_SUPER_ADMIN_NAME', 'SaaS Owner'),
             'super-admin',
             (string) env('CENTRAL_SUPER_ADMIN_PASSWORD', 'password'),
         );
 
         // Billing, Support and Developer — dev-only portal persona logins.
-        $this->bootstrapOperator('billing@saas.test', 'Billing Operator', 'billing-executive');
-        $this->bootstrapOperator('support@saas.test', 'Support Operator', 'support-executive');
-        $this->bootstrapOperator('developer@saas.test', 'Developer Operator', 'developer');
+        $this->bootstrapOperator('billing@kosha.com', 'Billing Operator', 'billing-executive');
+        $this->bootstrapOperator('support@kosha.com', 'Support Operator', 'support-executive');
+        $this->bootstrapOperator('developer@kosha.com', 'Developer Operator', 'developer');
     }
 
     /**

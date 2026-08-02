@@ -38,6 +38,19 @@ class OpticalOrder extends Model
         'tax_percent', 'tax_amount', 'round_off', 'total',
         'promised_on', 'ordered_at', 'received_at', 'delivered_at',
         'sales_order_id', 'invoice_id', 'lab_notes', 'notes', 'created_by',
+        /**
+         * Collection, added by the Optical & Eyewear plugin. `fitted_at` is the
+         * moment the pair became collectable — the clock the desk is judged on,
+         * which the three timestamps above never captured — and the rest is who
+         * was told, how it left the shop and who actually took it.
+         *
+         * Written by the collection desk and by OpticalOrderObserver, not by the
+         * order form, but fillable here so the columns are reachable through the
+         * ordinary model.
+         */
+        'fitted_at', 'notified_at', 'notify_count',
+        'delivery_mode', 'delivery_address', 'delivery_reference',
+        'collected_by_name', 'collected_by_phone', 'handover_notes', 'warranty_issued_at',
     ];
 
     protected $casts = [
@@ -63,6 +76,11 @@ class OpticalOrder extends Model
         'ordered_at' => 'datetime',
         'received_at' => 'datetime',
         'delivered_at' => 'datetime',
+        // Optical & Eyewear plugin: the collection clocks.
+        'fitted_at' => 'datetime',
+        'notified_at' => 'datetime',
+        'notify_count' => 'integer',
+        'warranty_issued_at' => 'datetime',
     ];
 
     public function customer(): BelongsTo

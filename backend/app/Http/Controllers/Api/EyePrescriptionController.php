@@ -149,6 +149,14 @@ class EyePrescriptionController extends Controller
 
             'prescribed_on' => $p->prescribed_on?->toDateString(),
             'valid_until' => $p->valid_until?->toDateString(),
+            /**
+             * Whether the paper the customer brought in is on file. The scan
+             * itself is served by the Optical & Eyewear plugin behind a signed
+             * URL — this is only the flag the list needs to show a paperclip,
+             * and it reads a column of this table rather than the plugin.
+             */
+            'has_attachment' => $p->hasAttachment(),
+            'attachment_name' => $p->attachment_name,
             'is_expired' => $p->isExpired(),
             'orders_count' => $p->orders_count ?? null,
             'notes' => $p->notes,

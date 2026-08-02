@@ -221,10 +221,30 @@ function openEdit(row: any) {
   editing.value = row
   form.value = {}
   for (const field of config.value.fields) {
-    form.value[field.key] = row[field.key]
+    // A `csv` field is an array on the wire and a comma-separated string in the
+    // box; converted at the edges so nothing between them has to know.
+    form.value[field.key] =
+      field.type === 'csv' && Array.isArray(row[field.key]) ? row[field.key].join(', ') : row[field.key]
   }
   errors.value = {}
   dialogVisible.value = true
+}
+
+/**
+ * The form as the API wants it. Only `csv` fields differ from the raw form —
+ * split on commas, trimmed, blanks dropped, order preserved (which for a size
+ * run is the whole reason the field is ordered text rather than a set).
+ */
+function payload(): Record<string, any> {
+  const out = { ...form.value }
+  for (const field of config.value.fields) {
+    if (field.type !== 'csv') continue
+    const raw = out[field.key]
+    out[field.key] = typeof raw === 'string'
+      ? raw.split(',').map((v) => v.trim()).filter(Boolean)
+      : Array.isArray(raw) ? raw : []
+  }
+  return out
 }
 
 function openView(row: any) {
@@ -237,10 +257,10 @@ async function save() {
   errors.value = {}
   try {
     if (editing.value) {
-      await crud.value.update(editing.value.id, form.value)
+      await crud.value.update(editing.value.id, payload())
       toast.add({ severity: 'success', summary: pt('Updated'), life: 2500 })
     } else {
-      await crud.value.create(form.value)
+      await crud.value.create(payload())
       toast.add({ severity: 'success', summary: pt('Created'), life: 2500 })
     }
     dialogVisible.value = false
@@ -295,6 +315,9 @@ function displayValue(field: FieldConfig, row: any): string {
   const raw = row[field.key]
   if (raw == null || raw === '') return '—'
   if (field.type === 'checkbox') return raw ? pt('Yes') : pt('No')
+  // Joined with a separator that survives being read aloud, and in the stored
+  // order — for a size run the order is the information.
+  if (field.type === 'csv') return Array.isArray(raw) ? raw.join(' · ') : String(raw)
   if (field.type === 'number') return String(raw)
   if (field.type === 'date' || field.type === 'month') return formatDate(raw)
   if (field.type === 'select') {
@@ -408,6 +431,12 @@ onMounted(reinit)
           <label>{{ pt(field.label) }} <span v-if="field.required" class="req">*</span></label>
 
           <InputText v-if="field.type === 'text'" v-model="form[field.key]" :class="{ invalid: fieldError(field.key) }" />
+          <InputText
+            v-else-if="field.type === 'csv'"
+            v-model="form[field.key]"
+            :placeholder="pt('Comma separated, in order')"
+            :class="{ invalid: fieldError(field.key) }"
+          />
           <InputText v-else-if="field.type === 'date' || field.type === 'month'" type="date" v-model="form[field.key]" :class="{ invalid: fieldError(field.key) }" />
           <InputText v-else-if="field.type === 'time'" type="time" v-model="form[field.key]" :class="{ invalid: fieldError(field.key) }" />
           <Textarea v-else-if="field.type === 'textarea'" v-model="form[field.key]" rows="3" :class="{ invalid: fieldError(field.key) }" />

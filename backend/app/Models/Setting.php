@@ -19,7 +19,9 @@ class Setting extends Model
     private const CACHE_TTL = 300;
 
     public const COSTING_FIFO = 'fifo';
+
     public const COSTING_LIFO = 'lifo';
+
     public const COSTING_WEIGHTED_AVERAGE = 'weighted_average';
 
     public const COSTING_METHODS = [
@@ -71,6 +73,35 @@ class Setting extends Model
         // is one — so only the two documents the plugin adds are here.
         'vehicle_booking_number_prefix' => 'BKG',
         'warranty_number_prefix' => 'WTY',
+        // Computer & IT. The asset tag is read back down a phone line and goes
+        // on a printed label, so it needs a short series of its own; the call
+        // number is what a customer quotes when chasing a visit. A job card
+        // still numbers as an ordinary service job (SVC) — it is one. The
+        // warranty series is separate from the Automobile one above because the
+        // two registers are separate tables, and one shared prefix would issue
+        // the same number twice.
+        'it_asset_tag_prefix' => 'AST',
+        'it_warranty_number_prefix' => 'ITW',
+        'it_service_call_number_prefix' => 'SC',
+        /**
+         * Retail warranty. Its own series rather than sharing 'WTY' with the
+         * motor register above: a shop running both would otherwise have two
+         * different documents interleaved in one numbering, and a customer
+         * quoting "WTY-000412" could be holding either.
+         */
+        'product_warranty_number_prefix' => 'WC',
+        'warranty_claim_number_prefix' => 'WCL',
+        /**
+         * Mobile. Three documents a customer is quoted by number and reads back
+         * over a phone: the insurance policy they ring the underwriter about, the
+         * finance file whose instalments they ask after for a year, and the
+         * part-exchange slip they are handed when they leave their old phone
+         * behind. A handset itself is numbered by its IMEI, which is stamped on it
+         * — it needs no series of ours.
+         */
+        'insurance_policy_number_prefix' => 'INS',
+        'emi_plan_number_prefix' => 'EMI',
+        'buyback_number_prefix' => 'BBK',
         'project_number_prefix' => 'PRJ',
         'prescription_number_prefix' => 'RX',
         // Healthcare. A lab order number is read out to a patient collecting a
@@ -82,6 +113,10 @@ class Setting extends Model
         'old_gold_receipt_number_prefix' => 'OG',
         'eye_prescription_number_prefix' => 'EYE',
         'optical_order_number_prefix' => 'OPT',
+        // The optician's diary. Its own series rather than the order's: most
+        // slots never become a pair, so numbering them together would leave the
+        // order series full of gaps that look like deleted bills.
+        'optical_appointment_number_prefix' => 'APT',
         'restaurant_order_number_prefix' => 'RO',
         'kot_number_prefix' => 'KOT',
         // Manufacturing shop floor. Both are documents a factory quotes back —
@@ -95,6 +130,31 @@ class Setting extends Model
         'cake_order_number_prefix' => 'CAKE',
         'milk_collection_number_prefix' => 'MC',
         'milk_subscription_number_prefix' => 'MS',
+        /**
+         * Stationery. Both are references quoted out loud rather than internal
+         * ids: a school code heads the booklist, the quotation and the delivery
+         * challan, and a kit number is what one member of staff says to another
+         * across a counter with a queue behind it. A school's own supply order
+         * still numbers as an ordinary sales order (SO) — it is one.
+         */
+        'stationery_institution_code_prefix' => 'SCH',
+        'stationery_kit_number_prefix' => 'KIT',
+        /**
+         * Gift & Novelty. A wrap number is called out across a busy counter when
+         * somebody comes back for their parcel, so it needs to be short and
+         * sayable; a build number is the reference an auditor follows from a
+         * hamper's stock movement back to the batch it was assembled in.
+         */
+        'gift_wrap_number_prefix' => 'GW',
+        'gift_pack_build_number_prefix' => 'HMP',
+        /**
+         * Sports & Fitness. A hire number is written on the paper slip that goes
+         * with the deposit and read back over a counter when the customer returns
+         * the kit — often days later and often by somebody else — so it needs a
+         * short, sayable series of its own. The fleet's asset codes are the shop's
+         * own, painted on the frame, and are not numbered by us.
+         */
+        'sports_rental_number_prefix' => 'HIRE',
         'dispatch_number_prefix' => 'DSP',
         'transport_charge_number_prefix' => 'TRC',
         // Import/export shipments number per leg, so each gets its own prefix
@@ -133,6 +193,19 @@ class Setting extends Model
         'sms_tpl_dispatch' => 'Dear {name}, your order (Dispatch {number}) has been dispatched on {date} and is on its way. - {business}',
         'sms_tpl_payment_reminder' => 'Dear {name}, an amount of {symbol}{amount} is outstanding on your account. Kindly arrange payment at the earliest. - {business}',
         'sms_tpl_festival' => 'Dear {name}, {business} wishes you and your family a very Happy {festival}!',
+        /**
+         * Gift & Novelty's occasion reminder. Deliberately says how many days are
+         * left rather than only the date — the whole point of the message is that
+         * there is still time to choose something.
+         */
+        'sms_tpl_gift_occasion' => 'Dear {name}, {person}\'s {occasion} is on {date} ({days} day(s) away). Come in and pick something special. - {business}',
+        /**
+         * Optical's "your spectacles are ready". Names the order because a
+         * customer ringing back has nothing else to quote, and says to bring the
+         * message because the person who collects is very often not the person
+         * whose eyes were tested.
+         */
+        'sms_tpl_optical_ready' => 'Your spectacles ({order}) are ready for collection at {shop}. Please bring this message with you.',
 
         // Email / SMTP gateway (SRS §19). Driver `log` writes mail to the Laravel
         // log without a mail server; `smtp` sends for real over the SMTP account
@@ -192,7 +265,8 @@ class Setting extends Model
     /** SMS keys that hold a template body (validated as free text, not codes). */
     public const SMS_TEMPLATE_KEYS = [
         'sms_tpl_otp', 'sms_tpl_invoice', 'sms_tpl_dispatch',
-        'sms_tpl_payment_reminder', 'sms_tpl_festival',
+        'sms_tpl_payment_reminder', 'sms_tpl_festival', 'sms_tpl_gift_occasion',
+        'sms_tpl_optical_ready',
     ];
 
     protected $fillable = ['key', 'value'];

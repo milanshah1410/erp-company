@@ -33,11 +33,15 @@ class ServiceJob extends Model
      * Relations an industry plugin has attached to this model, name => name.
      *
      * A vertical that extends the job with its own record — Automobile puts a
-     * vehicle on it — registers the relation at boot with resolveRelationUsing
-     * and lists it here, so the controller knows what is safe to eager-load. The
-     * indirection is the point: with that plugin unregistered the list is empty,
-     * the column is an unused nullable, and nothing here has to know a vehicle
-     * was ever a possibility.
+     * vehicle on it, Electronics a serial-numbered unit — registers the relation
+     * at boot with resolveRelationUsing and lists it here, so the controller
+     * knows what is safe to eager-load. The indirection is the point: with those
+     * plugins unregistered the list is empty, the columns are unused nullables,
+     * and nothing here has to know a vehicle was ever a possibility.
+     *
+     * Plugins prefix their relation names (`deviceWarranty`, not `warranty`)
+     * because two verticals can be registered in one workspace and the second to
+     * boot would otherwise silently replace the first's relation.
      *
      * @var array<string, string>
      */
@@ -52,6 +56,12 @@ class ServiceJob extends Model
         // vertical can open a job through the ordinary create path rather than
         // force-filling around the model.
         'vehicle_id', 'booking_id', 'warranty_id', 'odometer_in', 'odometer_out',
+        'device_unit_id', 'service_request_id', 'device_warranty_id',
+        'it_asset_id', 'it_service_call_id', 'it_warranty_id',
+        'handset_id', 'insurance_policy_id',
+        // Sports: a job card against the shop's own hire fleet rather than a
+        // customer's item — the bike that came back with a buckled wheel.
+        'sports_asset_id',
         'received_at', 'promised_at', 'started_at', 'completed_at', 'delivered_at',
         'labour_charge', 'labour_tax_percent', 'parts_total',
         'discount_type', 'discount_value', 'discount_amount',

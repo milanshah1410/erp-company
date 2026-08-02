@@ -11,6 +11,7 @@ use App\Models\SalesOrder;
 use App\Services\BrokerCommissionService;
 use App\Services\DocumentPricingService;
 use App\Services\InventoryTrackingService;
+use App\Services\JewelleryPricingService;
 use App\Services\SalesOrderFulfillmentService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
@@ -28,6 +29,7 @@ class SalesOrderController extends Controller
         private readonly BrokerCommissionService $brokerCommissions,
         private readonly DocumentPricingService $pricing,
         private readonly SalesOrderFulfillmentService $fulfillment,
+        private readonly JewelleryPricingService $jewellery,
     ) {}
 
     public function index(Request $request)
@@ -412,6 +414,17 @@ class SalesOrderController extends Controller
     {
         $priced = $this->pricing->price($items, $discountType, $discountValue);
 
+        /**
+         * Jewellery: the rate and weights each ornament was quoted at, taken as
+         * of the *order* date rather than today. Re-priced whenever the lines
+         * are replaced, which is right — editing an order re-quotes it — and
+         * empty for every workspace that sells no metal.
+         */
+        $ornaments = $this->jewellery->snapshotsForLines(
+            $priced['lines'],
+            $so->order_date?->toDateString(),
+        );
+
         foreach ($priced['lines'] as $line) {
             $so->items()->create([
                 'product_id' => $line['product_id'],
@@ -424,6 +437,7 @@ class SalesOrderController extends Controller
                 'tax_percent' => $line['tax_percent'],
                 'tax_amount' => $line['tax_amount'],
                 'line_total' => $line['line_total'],
+                ...($ornaments[$line['product_id']] ?? []),
             ]);
         }
 

@@ -77,6 +77,7 @@ use App\Models\PieceRate;
 use App\Models\Port;
 use App\Models\PriceList;
 use App\Models\Product;
+use App\Models\ProductWarranty;
 use App\Models\PurchaseIndent;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
@@ -119,12 +120,14 @@ use App\Models\VehicleExpense;
 use App\Models\VendorRating;
 use App\Models\Voucher;
 use App\Models\Warehouse;
+use App\Models\WarrantyClaim;
 use App\Models\WhatsappMessage;
 use App\Modules\Industry\Manufacturing\Models\Machine;
 use App\Modules\Industry\Manufacturing\Models\ProductionScrap;
 use App\Modules\Industry\Manufacturing\Models\QualityInspection;
 use App\Support\TenantContext;
 use App\Support\TradeCatalogue;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -181,6 +184,11 @@ class DemoDataGenerator
         'b2b_orders' => 'B2B Orders',
         'invoices' => 'Invoices',
         'sales_returns' => 'Sales Returns',
+        // Warranty. Cards are generated against invoices that already exist and
+        // claims against those cards, so the order here is load-bearing in the
+        // same way the shop-floor block below is.
+        'warranties' => 'Warranty Cards',
+        'warranty_claims' => 'Warranty Claims',
         // CRM
         'leads' => 'Leads',
         'follow_ups' => 'Follow-ups',
@@ -454,6 +462,8 @@ class DemoDataGenerator
                 'b2b_orders' => $this->makeSalesDocuments($count, SalesOrder::class, 'b2b'),
                 'invoices' => $this->makeInvoices($count, 'standard'),
                 'sales_returns' => $this->makeSalesReturns($count),
+                'warranties' => $this->makeWarranties($count),
+                'warranty_claims' => $this->makeWarrantyClaims($count),
                 'users' => $this->makeUsers($count),
                 'employees' => $this->makeEmployees($count),
                 'expenses' => $this->makeExpenses($count),
@@ -1200,6 +1210,139 @@ class DemoDataGenerator
                             'created_by' => $userId,
                         ]);
                     }
+                    $made++;
+                }
+            });
+        }
+
+        return $made;
+    }
+
+    /**
+     * Warranty cards against existing invoices; 0 if there are none yet.
+     *
+     * Terms are spread across 3/6/12/24 months and the start dates inherit the
+     * invoice's, which is what makes the register interesting to look at: some
+     * cards are live, some ran out months ago, and a handful expire inside the
+     * next thirty days — so the "expiring" filter and the summary strip have
+     * something to show instead of one uniform block of green.
+     */
+    private function makeWarranties(int $count): int
+    {
+        $invoices = Invoice::select('id', 'customer_id', 'invoice_date')->get();
+        $products = Product::select('id', 'warranty_terms')->where('is_service', false)->get();
+        if ($invoices->isEmpty() || $products->isEmpty()) {
+            return 0;
+        }
+
+        $months = [3, 6, 12, 24];
+        $sources = ['manufacturer', 'shop', 'extended'];
+        $userId = $this->createdBy;
+        $invoiceCount = $invoices->count();
+        $productCount = $products->count();
+
+        $made = 0;
+        for ($start = 0; $start < $count; $start += self::CHUNK) {
+            $batch = min(self::CHUNK, $count - $start);
+            DB::transaction(function () use (
+                $invoices, $invoiceCount, $products, $productCount, $months, $sources, $userId, $start, $batch, &$made
+            ) {
+                for ($k = 0; $k < $batch; $k++) {
+                    $i = $start + $k;
+                    $inv = $invoices[$i % $invoiceCount];
+                    $product = $products[$i % $productCount];
+                    $term = $months[$i % count($months)];
+                    $from = $inv->invoice_date ? Carbon::parse($inv->invoice_date) : now()->subDays($i);
+
+                    ProductWarranty::create([
+                        'warranty_number' => 'DWC-'.$this->suffix($i).'-'.$i,
+                        'customer_id' => $inv->customer_id,
+                        'product_id' => $product->id,
+                        'invoice_id' => $inv->id,
+                        'source' => $sources[$i % count($sources)],
+                        'start_date' => $from->toDateString(),
+                        'end_date' => $from->copy()->addMonths($term)->toDateString(),
+                        'coverage_months' => $term,
+                        'status' => 'active',
+                        'terms' => $product->warranty_terms ?: 'Manufacturing defects only. Wear and tear excluded.',
+                        'created_by' => $userId,
+                    ]);
+                    $made++;
+                }
+            });
+        }
+
+        return $made;
+    }
+
+    /**
+     * Claims against existing cards; 0 if the register is empty.
+     *
+     * A third settle as repairs, a third as replacements and the rest are still
+     * open or were rejected — the open ones matter most, because the claims desk
+     * is read as a worklist and an all-closed demo shows an empty one.
+     */
+    private function makeWarrantyClaims(int $count): int
+    {
+        $warranties = ProductWarranty::select('id', 'customer_id', 'start_date')->get();
+        if ($warranties->isEmpty()) {
+            return 0;
+        }
+
+        $faults = [
+            'Sole separated from the upper at the toe.',
+            'Stitching came apart on the left side panel.',
+            'Buckle snapped within a month of purchase.',
+            'Insole flattened and lost all cushioning.',
+            'Colour bled onto socks after the first wash.',
+        ];
+        // Kept to as many rows as there are cards: two claims per card would
+        // need the second one to respect whether the first consumed the cover,
+        // and a demo fixture is the wrong place to model that.
+        $count = min($count, $warranties->count());
+        $userId = $this->createdBy;
+
+        $made = 0;
+        for ($start = 0; $start < $count; $start += self::CHUNK) {
+            $batch = min(self::CHUNK, $count - $start);
+            DB::transaction(function () use ($warranties, $faults, $userId, $start, $batch, &$made) {
+                for ($k = 0; $k < $batch; $k++) {
+                    $i = $start + $k;
+                    $w = $warranties[$i];
+                    $reported = Carbon::parse($w->start_date)->addDays(20 + ($i % 90));
+                    if ($reported->isFuture()) {
+                        $reported = now();
+                    }
+
+                    // 0 repair · 1 replace · 2 rejected · 3 still open.
+                    $outcome = $i % 4;
+                    $resolution = [0 => 'repair', 1 => 'replace', 2 => 'rejected', 3 => null][$outcome];
+
+                    WarrantyClaim::create([
+                        'claim_number' => 'DWCL-'.$this->suffix($i).'-'.$i,
+                        'warranty_id' => $w->id,
+                        'customer_id' => $w->customer_id,
+                        'reported_on' => $reported->toDateString(),
+                        'fault' => $faults[$i % count($faults)],
+                        'status' => match ($outcome) {
+                            0, 1 => 'resolved',
+                            2 => 'rejected',
+                            default => 'open',
+                        },
+                        'resolution' => $resolution,
+                        'resolved_on' => $resolution ? $reported->copy()->addDays(3)->toDateString() : null,
+                        'cost' => $outcome === 0 ? 150 : ($outcome === 1 ? 1200 : 0),
+                        'handled_by' => $resolution ? $userId : null,
+                        'created_by' => $userId,
+                    ]);
+
+                    // Mirror what the controller does, so the demo register is
+                    // internally consistent: a replaced pair closes its card.
+                    $w->forceFill([
+                        'claims_count' => 1,
+                        'last_claim_at' => $reported,
+                    ] + ($resolution === 'replace' ? ['status' => 'claimed'] : []))->save();
+
                     $made++;
                 }
             });

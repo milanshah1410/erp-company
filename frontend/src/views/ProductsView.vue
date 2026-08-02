@@ -55,6 +55,35 @@ const MAKING_TYPES = [
   { label: 'Flat amount', value: 'flat' },
 ]
 
+// The stone register. Only a diamond is graded on all four Cs, so the grade
+// fields below appear for it alone — a ruby has a weight and an eye, not a
+// clarity letter.
+const STONE_TYPES = [
+  { label: 'Diamond', value: 'diamond' },
+  { label: 'Ruby', value: 'ruby' },
+  { label: 'Emerald', value: 'emerald' },
+  { label: 'Sapphire', value: 'sapphire' },
+  { label: 'Pearl', value: 'pearl' },
+  { label: 'Cubic Zirconia', value: 'cz' },
+  { label: 'Semi-precious', value: 'semi_precious' },
+  { label: 'Other', value: 'other' },
+]
+const STONE_RATE_TYPES = [
+  { label: 'Per carat', value: 'per_carat' },
+  { label: 'Per piece', value: 'per_piece' },
+  { label: 'Flat amount', value: 'flat' },
+]
+// Suggestions, not a closed list: the labs do not agree on a vocabulary and a
+// shop that writes 'SI-1' should not be corrected by its billing software.
+const DIAMOND_SHAPES = [
+  'Round Brilliant', 'Princess', 'Oval', 'Pear', 'Marquise',
+  'Emerald', 'Cushion', 'Radiant', 'Asscher', 'Heart', 'Baguette',
+]
+const DIAMOND_COLOURS = ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']
+const DIAMOND_CLARITIES = ['FL', 'IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3']
+const DIAMOND_CUTS = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor']
+const CERT_LABS = ['GIA', 'IGI', 'HRD', 'SGL', 'GII', 'AGS']
+
 // Optical lens specification.
 const LENS_TYPES = [
   { label: 'Single vision', value: 'single_vision' },
@@ -75,6 +104,41 @@ const LENS_COATINGS = [
   { label: 'Blue cut', value: 'blue_cut' },
   { label: 'Photochromic', value: 'photochromic' },
   { label: 'UV', value: 'uv' },
+]
+
+// Optical frames. The vocabulary a customer uses at the counter — "something
+// small and metal" — plus the boxed marking stamped inside the temple.
+const FRAME_SHAPES = [
+  { label: 'Rectangle', value: 'rectangle' },
+  { label: 'Square', value: 'square' },
+  { label: 'Round', value: 'round' },
+  { label: 'Oval', value: 'oval' },
+  { label: 'Cat eye', value: 'cat_eye' },
+  { label: 'Aviator', value: 'aviator' },
+  { label: 'Wayfarer', value: 'wayfarer' },
+  { label: 'Wrap', value: 'wrap' },
+  { label: 'Geometric', value: 'geometric' },
+]
+const FRAME_RIMS = [
+  { label: 'Full rim', value: 'full_rim' },
+  { label: 'Half rim (supra)', value: 'half_rim' },
+  { label: 'Rimless', value: 'rimless' },
+]
+const FRAME_MATERIALS = [
+  { label: 'Acetate', value: 'acetate' },
+  { label: 'Metal', value: 'metal' },
+  { label: 'Titanium', value: 'titanium' },
+  { label: 'TR90', value: 'tr90' },
+  { label: 'Stainless steel', value: 'stainless_steel' },
+  { label: 'Alloy', value: 'alloy' },
+  { label: 'Wood', value: 'wood' },
+  { label: 'Combination', value: 'combination' },
+]
+const FRAME_GENDERS = [
+  { label: 'Men', value: 'men' },
+  { label: 'Women', value: 'women' },
+  { label: 'Unisex', value: 'unisex' },
+  { label: 'Kids', value: 'kids' },
 ]
 
 // Restaurant: firing a round splits the KOTs by station.
@@ -113,6 +177,40 @@ const categories = ref<any[]>([])
 const brands = ref<any[]>([])
 const units = ref<any[]>([])
 const suppliers = ref<any[]>([])
+/**
+ * Toys & Games. Both lists come from the plugin's own module-gated endpoints, so
+ * a workspace without the vertical simply gets nothing back and the section
+ * below never renders — which is why they are loaded separately from the four
+ * core pickers above rather than beside them.
+ */
+const toyAgeGrades = ref<any[]>([])
+const toySafetyClasses = ref<any[]>([])
+const showToyFields = computed(() => toyAgeGrades.value.length > 0 || toySafetyClasses.value.length > 0)
+/**
+ * Books & Periodicals. Same module-gated loading as the toy lists above, with
+ * one deliberate difference: this section appears as soon as the *endpoint*
+ * answers, not once it returns rows.
+ *
+ * A shop cataloguing its very first title has no publishers and no languages
+ * yet, so a section that waited for rows would hide the ISBN box from precisely
+ * the shop trying to start its register. The endpoint 403s in a workspace
+ * without the vertical, which is the question actually being asked.
+ */
+const bookPublishers = ref<any[]>([])
+const bookLanguages = ref<any[]>([])
+const showBookFields = ref(false)
+/** Restated from the plugin's enum — see TitleController::BINDINGS. */
+const bookBindings = [
+  { label: 'Paperback', value: 'paperback' },
+  { label: 'Hardcover', value: 'hardcover' },
+  { label: 'Board book', value: 'board_book' },
+  { label: 'Spiral bound', value: 'spiral' },
+  { label: 'Leather bound', value: 'leather' },
+  { label: 'Magazine / periodical', value: 'magazine' },
+  { label: 'E-book', value: 'ebook' },
+  { label: 'Audiobook', value: 'audiobook' },
+  { label: 'Other', value: 'other' },
+]
 
 const canCreate = computed(() => auth.can('products.create'))
 const canEdit = computed(() => auth.can('products.edit'))
@@ -198,6 +296,15 @@ function blankForm(): Record<string, any> {
     track_batch: false,
     track_serial: false,
     track_expiry: false,
+    /**
+     * The warranty policy on the article — "six months on the sole". Null means
+     * nobody has said; 0 means explicitly sold without cover, and the two are
+     * kept apart because only the first is worth prompting about. Copied onto
+     * each warranty card at issue, so changing it here never touches cover a
+     * customer already holds.
+     */
+    warranty_months: null,
+    warranty_terms: null,
     // Pharmacy: 'none' for anything that is not a scheduled medicine.
     drug_schedule: 'none',
     composition: null,
@@ -213,7 +320,12 @@ function blankForm(): Record<string, any> {
     making_charge_type: 'percent',
     making_charge_value: 0,
     wastage_percent: 0,
+    // The BIS mark, where it was struck and what the centre charged for it.
+    // The charge is a real line on a jewellery bill, so it is priced, not noted.
     huid: null,
+    hallmark_centre: null,
+    hallmarked_on: null,
+    hallmark_charge: 0,
     // Optical: a null lens_type means "not a lens"; is_frame marks the other
     // half of a spectacle order.
     lens_type: null,
@@ -224,12 +336,43 @@ function blankForm(): Record<string, any> {
     max_sph: null,
     max_cyl: null,
     is_frame: false,
+    // The frame's own facts, shown only once `is_frame` is ticked. The three
+    // millimetre figures are the boxed marking — 52▫18-140.
+    frame_shape: null,
+    frame_rim: null,
+    frame_material: null,
+    frame_gender: null,
+    frame_colour: null,
+    frame_eye_size: null,
+    frame_bridge_size: null,
+    frame_temple_length: null,
+    frame_tray: null,
     // Restaurant: which station cooks it.
     kitchen_station: null,
     prep_minutes: null,
     // Agriculture: a null input type means "not a controlled agri input", and
     // the fields below stay hidden.
     agri_input_type: null,
+    // Toys: null on both means "not graded", which is exactly what the counter
+    // check reports — it never guesses an age band from a product name.
+    toy_age_grade_id: null,
+    toy_safety_category_id: null,
+    /**
+     * Books: the title's own facts. The ISBN is typed as it is printed, hyphens
+     * and all — the server strips them, check-sums the number and copies it onto
+     * the barcode, so nothing here has to be keyed twice or got right by hand.
+     */
+    book_isbn13: null,
+    book_isbn10: null,
+    book_publisher_id: null,
+    book_language_id: null,
+    book_binding: null,
+    book_edition: null,
+    book_pages: null,
+    book_published_on: null,
+    book_series: null,
+    book_volume: null,
+    book_printed_price: null,
     crop: null,
     variety: null,
     technical_name: null,
@@ -284,7 +427,7 @@ function openEdit(row: any) {
     f[key] = row[key] ?? f[key]
   }
   // Normalize numeric strings so InputNumber binds correctly.
-  for (const key of ['cost_price', 'selling_price', 'tax_percent', 'min_stock_level', 'max_stock_level', 'reorder_level', 'reorder_quantity']) {
+  for (const key of ['cost_price', 'selling_price', 'tax_percent', 'min_stock_level', 'max_stock_level', 'reorder_level', 'reorder_quantity', 'book_printed_price', 'book_pages']) {
     f[key] = f[key] === null || f[key] === undefined ? null : Number(f[key])
   }
   // Copy so edits don't mutate the row until saved.
@@ -478,6 +621,155 @@ function variantError(key: string): string | null {
   return variantErrors.value[key]?.[0] ?? null
 }
 
+/**
+ * --- Stone register dialog (jewellery) ---
+ *
+ * Its own screen rather than more fields on the product form: a studded piece
+ * has as many stones as it has, and they can only be attached once the product
+ * exists. Saving any line recomputes the product's stone value and weight on
+ * the server, so the list is reloaded from the product afterwards rather than
+ * patched locally.
+ */
+const stonesVisible = ref(false)
+const stonesProduct = ref<any>(null)
+const stones = ref<any[]>([])
+const stonesLoading = ref(false)
+const stoneTotals = ref<{ value: number; weight: number } | null>(null)
+
+const stoneFormVisible = ref(false)
+const stoneEditing = ref<any>(null)
+const stoneForm = ref<Record<string, any>>({})
+const stoneErrors = ref<Record<string, string[]>>({})
+const stoneSaving = ref(false)
+
+function blankStoneForm(): Record<string, any> {
+  return {
+    stone_type: 'diamond',
+    shape: null,
+    pieces: 1,
+    carat_weight: null,
+    cut_grade: null,
+    colour_grade: null,
+    clarity_grade: null,
+    rate_type: 'per_carat',
+    rate: 0,
+    // Null means "take the arithmetic". Only a job lot needs a typed total.
+    value: null,
+    certificate_number: null,
+    certifying_lab: null,
+    certificate_date: null,
+    setting_type: null,
+    notes: null,
+  }
+}
+
+// What the line comes to from its own rate, shown live so the shop can see what
+// it is overruling before it types a total. Mirrors ProductStone::computedValue().
+const stoneComputed = computed(() => {
+  const f = stoneForm.value
+  const rate = Number(f.rate ?? 0)
+  if (f.rate_type === 'per_carat') return Math.round(Number(f.carat_weight ?? 0) * rate * 100) / 100
+  if (f.rate_type === 'per_piece') return Math.round(Number(f.pieces ?? 0) * rate * 100) / 100
+  return Math.round(rate * 100) / 100
+})
+
+async function openStones(row: any) {
+  stonesProduct.value = row
+  stoneFormVisible.value = false
+  stonesVisible.value = true
+  await loadStones()
+}
+
+async function loadStones() {
+  if (!stonesProduct.value) return
+  stonesLoading.value = true
+  try {
+    const [list, product] = await Promise.all([
+      http.get(`/products/${stonesProduct.value.id}/stones`),
+      http.get(`/products/${stonesProduct.value.id}`),
+    ])
+    stones.value = list.data.data ?? list.data
+    const p = product.data.data ?? product.data
+    stoneTotals.value = { value: Number(p.stone_value ?? 0), weight: Number(p.stone_weight ?? 0) }
+    // Keep the row behind the dialog honest — the register has just rewritten
+    // the two numbers the product list shows.
+    Object.assign(stonesProduct.value, { stone_value: p.stone_value, stone_weight: p.stone_weight })
+  } catch (e: any) {
+    stones.value = []
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Could not load stones'), life: 4000 })
+  } finally {
+    stonesLoading.value = false
+  }
+}
+
+function openStoneCreate() {
+  stoneEditing.value = null
+  stoneForm.value = blankStoneForm()
+  stoneErrors.value = {}
+  stoneFormVisible.value = true
+}
+
+function openStoneEdit(s: any) {
+  stoneEditing.value = s
+  const f = blankStoneForm()
+  for (const key of Object.keys(f)) f[key] = s[key] ?? f[key]
+  for (const key of ['pieces', 'carat_weight', 'rate', 'value']) {
+    f[key] = s[key] === null || s[key] === undefined ? null : Number(s[key])
+  }
+  stoneForm.value = f
+  stoneErrors.value = {}
+  stoneFormVisible.value = true
+}
+
+async function saveStone() {
+  stoneSaving.value = true
+  stoneErrors.value = {}
+  try {
+    const url = `/products/${stonesProduct.value.id}/stones`
+    if (stoneEditing.value) {
+      await http.put(`${url}/${stoneEditing.value.id}`, stoneForm.value)
+      toast.add({ severity: 'success', summary: pt('Stone updated'), life: 2500 })
+    } else {
+      await http.post(url, stoneForm.value)
+      toast.add({ severity: 'success', summary: pt('Stone added'), life: 2500 })
+    }
+    stoneFormVisible.value = false
+    await loadStones()
+  } catch (e: any) {
+    if (e.response?.status === 422) {
+      stoneErrors.value = e.response.data.errors || {}
+    } else {
+      toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Request failed'), life: 4000 })
+    }
+  } finally {
+    stoneSaving.value = false
+  }
+}
+
+async function confirmDeleteStone(s: any) {
+  const res = await Swal.fire({
+    title: pt('Remove this stone?'),
+    text: pt('The item\'s stone value will be recalculated.'),
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#dc2626',
+    confirmButtonText: pt('Delete'),
+    cancelButtonText: pt('Cancel'),
+  })
+  if (!res.isConfirmed) return
+  try {
+    await http.delete(`/products/${stonesProduct.value.id}/stones/${s.id}`)
+    toast.add({ severity: 'success', summary: pt('Stone removed'), life: 2500 })
+    await loadStones()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: pt('Error'), detail: e.response?.data?.message || pt('Delete failed'), life: 4000 })
+  }
+}
+
+function stoneError(key: string): string | null {
+  return stoneErrors.value[key]?.[0] ?? null
+}
+
 // --- Barcode preview / quick print dialog ---
 const barcodeVisible = ref(false)
 const barcodeProduct = ref<any>(null)
@@ -546,6 +838,40 @@ onMounted(async () => {
     suppliers.value = (s.data.data ?? s.data).map((x: any) => ({ label: x.name, value: x.id }))
   } catch {
     // option lists stay empty; the dialog still works
+  }
+
+  /**
+   * Separately, and deliberately swallowed: these two 403 for every workspace
+   * that never bought Toys & Games, which is the normal case and not an error.
+   * An empty list hides the section.
+   */
+  try {
+    const [g, sc] = await Promise.all([
+      http.get('/toys/age-grades', { params: { is_active: 1 } }),
+      http.get('/toys/safety-categories', { params: { is_active: 1 } }),
+    ])
+    toyAgeGrades.value = (g.data.data ?? []).map((x: any) => ({ label: `${x.label} (${x.range})`, value: x.id }))
+    toySafetyClasses.value = (sc.data.data ?? []).map((x: any) => ({ label: x.label, value: x.id }))
+  } catch {
+    // Not a toy shop, or no bands defined yet — the section stays hidden.
+  }
+
+  /**
+   * Books, separately again and for the same reason: both endpoints 403 in a
+   * workspace that never bought the vertical. Note the flag is set on success
+   * rather than on there being rows — a shop with no publishers yet still needs
+   * somewhere to type its first ISBN.
+   */
+  try {
+    const [pub, lang] = await Promise.all([
+      http.get('/books/publishers', { params: { per_page: 100, is_active: 1 } }),
+      http.get('/books/languages', { params: { per_page: 100, is_active: 1 } }),
+    ])
+    bookPublishers.value = (pub.data.data ?? []).map((x: any) => ({ label: x.display_name, value: x.id }))
+    bookLanguages.value = (lang.data.data ?? []).map((x: any) => ({ label: x.display, value: x.id }))
+    showBookFields.value = true
+  } catch {
+    // Not a book shop — the section stays hidden.
   }
 })
 </script>
@@ -637,6 +963,8 @@ onMounted(async () => {
             <button class="icon-btn" :title="pt('View')" @click="openDetail(data)"><i class="pi pi-eye" /></button>
             <button v-if="canEdit" class="icon-btn edit" :title="pt('Edit')" @click="openEdit(data)"><i class="pi pi-pencil" /></button>
             <button v-if="canView" class="icon-btn" :title="pt('Variants')" @click="openVariants(data)"><i class="pi pi-sitemap" /></button>
+            <!-- Only on an ornament: every other trade would read "Stones" as noise. -->
+            <button v-if="canView && data.metal" class="icon-btn" :title="pt('Stones')" @click="openStones(data)"><i class="pi pi-star" /></button>
             <button v-if="canScanBarcodes" class="icon-btn" :title="pt('Barcode')" @click="openBarcode(data)"><i class="pi pi-qrcode" /></button>
             <button v-if="canDelete" class="icon-btn danger" :title="pt('Delete')" @click="confirmDelete(data)"><i class="pi pi-trash" /></button>
           </div>
@@ -821,6 +1149,11 @@ onMounted(async () => {
           <div class="form-field">
             <label>{{ pt('Stone value') }}</label>
             <InputNumber v-model="form.stone_value" :min="0" :maxFractionDigits="2" class="w-full" />
+            <!-- Two ways in, and the register wins when it is used: listing the
+                 stones recomputes both numbers above. -->
+            <small class="muted">
+              {{ pt('A lump sum. Save the item and use Stones to enter them one by one — that recalculates this.') }}
+            </small>
           </div>
           <div class="form-field">
             <label>{{ pt('Making charge type') }}</label>
@@ -840,9 +1173,25 @@ onMounted(async () => {
             <label>{{ pt('Wastage %') }}</label>
             <InputNumber v-model="form.wastage_percent" :min="0" :maxFractionDigits="3" suffix=" %" class="w-full" />
           </div>
+          <!-- The hallmark. The HUID identifies this one article, so the same
+               mark on two products is refused by the API as a mis-key. -->
           <div class="form-field">
             <label>{{ pt('HUID (hallmark)') }}</label>
-            <InputText v-model="form.huid" class="w-full" />
+            <InputText v-model="form.huid" :class="{ invalid: fieldError('huid') }" class="w-full" />
+            <small v-if="fieldError('huid')" class="error-text">{{ fieldError('huid') }}</small>
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Hallmarking centre') }}</label>
+            <InputText v-model="form.hallmark_centre" :placeholder="pt('BIS assaying centre')" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Hallmarked on') }}</label>
+            <input type="date" v-model="form.hallmarked_on" class="date-input w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Hallmarking charge') }}</label>
+            <InputNumber v-model="form.hallmark_charge" :min="0" :maxFractionDigits="2" class="w-full" />
+            <small class="muted">{{ pt('Per piece, added to the bill.') }}</small>
           </div>
         </template>
 
@@ -944,6 +1293,189 @@ onMounted(async () => {
             <label>{{ pt('Germination %') }}</label>
             <InputNumber v-model="form.germination_percent" :min="0" :max="100" :maxFractionDigits="2" class="w-full" />
             <small class="muted">{{ pt('As printed on the packet.') }}</small>
+          </div>
+        </template>
+
+        <!-- Toys & Games. Two fields, and they are only worth anything together:
+             the band says who the toy is for, the class says what is dangerous
+             about it, and the till compares them. Hidden entirely unless the
+             workspace has bands defined, because grading a spanner by age would
+             be a strange thing to ask a hardware shop to do. -->
+        <template v-if="showToyFields">
+          <div class="form-field">
+            <label>{{ pt('Age Band') }}</label>
+            <Select
+              v-model="form.toy_age_grade_id"
+              :options="toyAgeGrades"
+              optionLabel="label"
+              optionValue="value"
+              showClear
+              filter
+              :placeholder="pt('Not graded by age')"
+              class="w-full"
+            />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Safety Class') }}</label>
+            <Select
+              v-model="form.toy_safety_category_id"
+              :options="toySafetyClasses"
+              optionLabel="label"
+              optionValue="value"
+              showClear
+              filter
+              :placeholder="pt('No specific hazard')"
+              class="w-full"
+            />
+            <small class="muted">{{ pt('Decides the warning at the till — and, for a class that needs one, whether a lapsed certificate stops the sale.') }}</small>
+          </div>
+        </template>
+
+        <!-- Books & Periodicals. The ISBN leads because it is the only field on
+             this whole form the shop does not decide: it is assigned by the
+             publisher, is the same in every shop on earth, and is also the
+             barcode printed on the back cover — which is why typing it here is
+             all that is needed to make the title scannable at the till. -->
+        <template v-if="showBookFields">
+          <div class="form-field">
+            <label>{{ pt('ISBN-13') }}</label>
+            <InputText v-model="form.book_isbn13" class="w-full" placeholder="978-93-5136-557-0" />
+            <small class="muted">{{ pt('Type it as printed. Hyphens are stripped, the check digit is verified, and the number becomes the barcode.') }}</small>
+          </div>
+          <div class="form-field">
+            <label>{{ pt('ISBN-10') }}</label>
+            <InputText v-model="form.book_isbn10" class="w-full" placeholder="81-7992-122-7" />
+            <small class="muted">{{ pt('Only for older titles. Given one, the 13-digit form is worked out from it.') }}</small>
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Publisher') }}</label>
+            <Select
+              v-model="form.book_publisher_id"
+              :options="bookPublishers"
+              optionLabel="label"
+              optionValue="value"
+              showClear
+              filter
+              :placeholder="pt('No publisher')"
+              class="w-full"
+            />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Language') }}</label>
+            <Select
+              v-model="form.book_language_id"
+              :options="bookLanguages"
+              optionLabel="label"
+              optionValue="value"
+              showClear
+              :placeholder="pt('No language')"
+              class="w-full"
+            />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Binding') }}</label>
+            <Select
+              v-model="form.book_binding"
+              :options="bookBindings"
+              optionLabel="label"
+              optionValue="value"
+              showClear
+              :placeholder="pt('Not stated')"
+              class="w-full"
+            />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Printed price') }}</label>
+            <InputNumber v-model="form.book_printed_price" :min="0" :maxFractionDigits="2" class="w-full" />
+            <!-- The customer can read this one off the cover, so any gap between
+                 it and the selling price is a discount they can see. -->
+            <small class="muted">{{ pt('The price on the cover. The selling price above is what this shop charges.') }}</small>
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Edition') }}</label>
+            <InputText v-model="form.book_edition" class="w-full" :placeholder="pt('3rd edition, revised')" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Pages') }}</label>
+            <InputNumber v-model="form.book_pages" :min="1" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Published on') }}</label>
+            <input type="date" v-model="form.book_published_on" class="date-input w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Series') }}</label>
+            <InputText v-model="form.book_series" class="w-full" />
+            <small class="muted">{{ pt('A customer who finished volume three asks for volume four by the series name.') }}</small>
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Volume') }}</label>
+            <InputText v-model="form.book_volume" class="w-full" placeholder="4" />
+          </div>
+        </template>
+
+        <!-- Warranty policy. Set once on the article and copied onto every card
+             issued against a sale of it, so a shop keys "6 months on the sole"
+             here rather than on four hundred bills. -->
+        <div class="form-field">
+          <label>{{ pt('Warranty (months)') }}</label>
+          <InputNumber v-model="form.warranty_months" :min="0" :max="600" class="w-full" />
+          <small class="muted">{{ pt('Leave blank if the article carries no cover. 0 means sold without cover.') }}</small>
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Warranty terms') }}</label>
+          <InputText
+            v-model="form.warranty_terms"
+            class="w-full"
+            :placeholder="pt('Manufacturing defects only. Wear and tear excluded.')"
+          />
+        </div>
+
+        <!-- The frame itself. Shown only once the article is marked a frame:
+             shape, rim and material are what a customer asks for, and the three
+             millimetre figures are the boxed marking stamped inside the temple. -->
+        <template v-if="form.is_frame">
+          <div class="form-field">
+            <label>{{ pt('Frame Shape') }}</label>
+            <Select v-model="form.frame_shape" :options="FRAME_SHAPES" optionLabel="label" optionValue="value" showClear class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Rim') }}</label>
+            <Select v-model="form.frame_rim" :options="FRAME_RIMS" optionLabel="label" optionValue="value" showClear class="w-full" />
+            <small class="muted">{{ pt('A rimless frame cannot take every lens — the fitter needs this before glazing.') }}</small>
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Frame Material') }}</label>
+            <Select v-model="form.frame_material" :options="FRAME_MATERIALS" optionLabel="label" optionValue="value" showClear class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Worn by') }}</label>
+            <Select v-model="form.frame_gender" :options="FRAME_GENDERS" optionLabel="label" optionValue="value" showClear class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Colour') }}</label>
+            <InputText v-model="form.frame_colour" class="w-full" :placeholder="pt('Tortoise, matte black…')" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Tray') }}</label>
+            <InputText v-model="form.frame_tray" class="w-full" :placeholder="pt('A-1')" />
+            <small class="muted">{{ pt('Where it hangs. A shop with four hundred frames finds one by walking to it.') }}</small>
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Eye size (mm)') }}</label>
+            <InputNumber v-model="form.frame_eye_size" :min="30" :max="80" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Bridge (mm)') }}</label>
+            <InputNumber v-model="form.frame_bridge_size" :min="10" :max="30" class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Temple (mm)') }}</label>
+            <InputNumber v-model="form.frame_temple_length" :min="100" :max="180" class="w-full" />
+            <small class="muted">
+              {{ pt('The boxed marking') }}:
+              {{ (form.frame_eye_size ?? '—') + '▫' + (form.frame_bridge_size ?? '—') + (form.frame_temple_length ? '-' + form.frame_temple_length : '') }}
+            </small>
           </div>
         </template>
 
@@ -1073,6 +1605,147 @@ onMounted(async () => {
       <template #footer>
         <Button :label="pt('Cancel')" text @click="variantFormVisible = false" />
         <Button :label="variantEditing ? pt('Update') : pt('Create')" :loading="variantSaving" @click="saveVariant" />
+      </template>
+    </Dialog>
+
+    <!-- Stone register (jewellery). The totals strip is the point of the screen:
+         it is what the bill will actually charge for the stones. -->
+    <Dialog v-model:visible="stonesVisible" modal :header="pt('Stones — {name}', { name: stonesProduct?.name ?? '' })" :style="{ width: '860px' }">
+      <div class="variants-toolbar">
+        <Button v-if="canEdit" :label="pt('Add Stone')" icon="pi pi-plus" size="small" @click="openStoneCreate" />
+        <div v-if="stoneTotals" class="stone-totals">
+          <span>{{ pt('Stone value') }}: <strong>{{ money(stoneTotals.value) }}</strong></span>
+          <span>{{ pt('Stone weight') }}: <strong>{{ stoneTotals.weight }} g</strong></span>
+        </div>
+      </div>
+
+      <table class="variants-table">
+        <thead>
+          <tr>
+            <th>{{ pt('Stone') }}</th>
+            <th class="num">{{ pt('Pcs') }}</th>
+            <th class="num">{{ pt('Carats') }}</th>
+            <th>{{ pt('Certificate') }}</th>
+            <th class="num">{{ pt('Rate') }}</th>
+            <th class="num">{{ pt('Value') }}</th>
+            <th style="width: 6rem"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="s in stones" :key="s.id">
+            <td>
+              <div>{{ s.label }}</div>
+              <small v-if="s.setting_type" class="muted">{{ s.setting_type }}</small>
+            </td>
+            <td class="num">{{ s.pieces }}</td>
+            <td class="num">{{ s.carat_weight }}</td>
+            <td>
+              <template v-if="s.certificate_number">
+                <span class="code-chip">{{ s.certifying_lab || pt('Cert') }} {{ s.certificate_number }}</span>
+              </template>
+              <span v-else class="muted">—</span>
+            </td>
+            <td class="num">{{ money(s.rate) }}</td>
+            <td class="num">
+              {{ money(s.value) }}
+              <!-- The shop has overruled the arithmetic; say so rather than
+                   leaving two numbers quietly apart. -->
+              <small v-if="Math.abs(s.value - s.computed_value) > 0.01" class="muted calc-note">
+                {{ pt('override, calc {amount}', { amount: money(s.computed_value) }) }}
+              </small>
+            </td>
+            <td class="actions-cell">
+              <Button v-if="canEdit" icon="pi pi-pencil" text rounded size="small" @click="openStoneEdit(s)" />
+              <Button v-if="canEdit" icon="pi pi-trash" text rounded severity="danger" size="small" @click="confirmDeleteStone(s)" />
+            </td>
+          </tr>
+          <tr v-if="stonesLoading"><td colspan="7" class="empty-cell">{{ pt('Loading...') }}</td></tr>
+          <tr v-else-if="!stones.length"><td colspan="7" class="empty-cell">{{ pt('No stones listed. The item is billed on its typed stone value.') }}</td></tr>
+        </tbody>
+      </table>
+
+      <template #footer>
+        <Button :label="pt('Close')" text @click="stonesVisible = false" />
+      </template>
+    </Dialog>
+
+    <!-- Stone create / edit sub-dialog -->
+    <Dialog v-model:visible="stoneFormVisible" modal :header="stoneEditing ? pt('Edit Stone') : pt('Add Stone')" :style="{ width: '560px' }">
+      <div class="form-grid">
+        <div class="form-field">
+          <label>{{ pt('Stone') }} <span class="req">*</span></label>
+          <Select v-model="stoneForm.stone_type" :options="STONE_TYPES" optionLabel="label" optionValue="value" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Shape') }}</label>
+          <Select v-model="stoneForm.shape" :options="DIAMOND_SHAPES" editable showClear class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Pieces') }} <span class="req">*</span></label>
+          <InputNumber v-model="stoneForm.pieces" :min="1" :class="{ invalid: stoneError('pieces') }" class="w-full" />
+          <small v-if="stoneError('pieces')" class="error-text">{{ stoneError('pieces') }}</small>
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Carats (total)') }}</label>
+          <InputNumber v-model="stoneForm.carat_weight" :min="0" :maxFractionDigits="3" class="w-full" />
+          <small class="muted">{{ pt('For the whole line, not one stone.') }}</small>
+        </div>
+
+        <!-- The four Cs, for the one stone they mean anything for. -->
+        <template v-if="stoneForm.stone_type === 'diamond'">
+          <div class="form-field">
+            <label>{{ pt('Colour') }}</label>
+            <Select v-model="stoneForm.colour_grade" :options="DIAMOND_COLOURS" editable showClear class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Clarity') }}</label>
+            <Select v-model="stoneForm.clarity_grade" :options="DIAMOND_CLARITIES" editable showClear class="w-full" />
+          </div>
+          <div class="form-field">
+            <label>{{ pt('Cut') }}</label>
+            <Select v-model="stoneForm.cut_grade" :options="DIAMOND_CUTS" editable showClear class="w-full" />
+          </div>
+        </template>
+
+        <div class="form-field">
+          <label>{{ pt('Priced') }}</label>
+          <Select v-model="stoneForm.rate_type" :options="STONE_RATE_TYPES" optionLabel="label" optionValue="value" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Rate') }}</label>
+          <InputNumber v-model="stoneForm.rate" :min="0" :maxFractionDigits="2" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Value') }}</label>
+          <InputNumber v-model="stoneForm.value" :min="0" :maxFractionDigits="2" :placeholder="String(stoneComputed)" class="w-full" />
+          <small class="muted">{{ pt('Leave blank to use {amount} from the rate.', { amount: money(stoneComputed) }) }}</small>
+        </div>
+
+        <div class="form-field">
+          <label>{{ pt('Certificate no.') }}</label>
+          <InputText v-model="stoneForm.certificate_number" class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Certified by') }}</label>
+          <Select v-model="stoneForm.certifying_lab" :options="CERT_LABS" editable showClear class="w-full" />
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Certificate date') }}</label>
+          <input type="date" v-model="stoneForm.certificate_date" class="date-input w-full" />
+        </div>
+        <div class="form-field">
+          <label>{{ pt('Setting') }}</label>
+          <InputText v-model="stoneForm.setting_type" :placeholder="pt('Prong, bezel, pave…')" class="w-full" />
+        </div>
+        <div class="form-field full">
+          <label>{{ pt('Notes') }}</label>
+          <InputText v-model="stoneForm.notes" class="w-full" />
+        </div>
+      </div>
+
+      <template #footer>
+        <Button :label="pt('Cancel')" text @click="stoneFormVisible = false" />
+        <Button :label="stoneEditing ? pt('Update') : pt('Add')" :loading="stoneSaving" @click="saveStone" />
       </template>
     </Dialog>
 
@@ -1232,7 +1905,27 @@ onMounted(async () => {
 .variants-toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   margin-bottom: 0.75rem;
+}
+/* Stone register: what the bill will charge for the stones, kept in view while
+   the lines that produce it are edited. */
+.stone-totals {
+  margin-left: auto;
+  display: flex;
+  gap: 1.25rem;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+.calc-note {
+  display: block;
+  font-size: 0.75rem;
+}
+.date-input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font: inherit;
 }
 .variants-table {
   width: 100%;

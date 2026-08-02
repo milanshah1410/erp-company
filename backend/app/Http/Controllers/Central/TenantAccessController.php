@@ -80,7 +80,10 @@ class TenantAccessController extends Controller
                     'label' => $meta['label'],
                     'icon' => $meta['icon'],
                     'description' => $meta['description'],
-                    'enabled' => in_array($key, $enabled, true),
+                    'enabled' => in_array($key, $enabled, true) || Modules::isCore($key),
+                    // The Core ERP set. Shown on and locked: update() forces it
+                    // back on, so offering it as a switch would be a lie.
+                    'core' => Modules::isCore($key),
                     // Whether the plan sells it — advisory, not a lock: the
                     // operator may switch on anything and the workspace keeps it
                     // (the grant is recorded, see update()).
@@ -135,7 +138,12 @@ class TenantAccessController extends Controller
         // Pack-held modules are excluded from that record: the pack already
         // entitles them, and writing them here too would leave the module switched
         // on as an operator comp after the pack was revoked.
-        $modules = Modules::sanitize($data['modules']);
+        // withCore, not sanitize: the Core ERP set is not an operator lever. A
+        // payload that omits it (an older panel build, or a stale form) must not
+        // be able to leave a workspace without Sales, Purchase, Inventory,
+        // Accounts, CRM or the assistant — EnabledModules would put them back on
+        // the next read anyway, and the stored value should say the same thing.
+        $modules = Modules::withCore($data['modules']);
         $packModules = PackEntitlement::modulesFor($tenant->id);
         $grants = array_values(array_diff($modules, $allowedByPlan, $packModules));
 

@@ -20,6 +20,11 @@ class SalesQuotation extends Model
         'quote_date', 'valid_until', 'subtotal', 'item_discount_total', 'discount_type',
         'discount_value', 'discount_amount', 'tax_amount', 'round_off', 'total',
         'notes', 'created_by', 'sales_order_id',
+        // Industry-plugin columns — see SalesOrder for the convention. Stationery
+        // puts the school and the class list behind a tender here so the enquiry
+        // is findable by school, and so converting it can carry both onto the
+        // order (SchoolQuotationObserver).
+        'stn_institution_id', 'stn_class_kit_id',
     ];
 
     protected $casts = [

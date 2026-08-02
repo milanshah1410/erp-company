@@ -100,27 +100,30 @@ function isGroup(entry: MenuNode): boolean {
   return entry.to === null && Array.isArray(entry.children) && entry.children.length > 0
 }
 
-// Dashboard + the virtual Favorites/Recent groups are pinned to the left as
+// Dashboard + the virtual Favorites group are pinned to the left as
 // static, icon-only buttons (label hidden, hover tooltip); the rest of the menu
 // scrolls horizontally beside them.
-const PINNED_LABELS = new Set(['Favorites', 'Recent'])
+// 'Recent' was dropped from the nav — keep the label here if it is ever restored.
+const PINNED_LABELS = new Set(['Favorites' /*, 'Recent' */])
 function isPinned(entry: MenuNode): boolean {
   return entry.to === '/' || PINNED_LABELS.has(entry.label)
 }
 const pinnedNav = computed(() => nav.value.filter(isPinned))
 const scrollNav = computed(() => nav.value.filter((e) => !isPinned(e)))
 
-// Favorites and Recent are surfaced as virtual groups (project-stack.md §3),
-// inserted right after Dashboard when non-empty.
+// Favorites is surfaced as a virtual group (project-stack.md §3), inserted
+// right after Dashboard when non-empty. The Recent group is disabled.
 const nav = computed<MenuNode[]>(() => {
   const base = [...menuStore.menu]
   const extras: MenuNode[] = []
   if (menuStore.favorites.length) {
     extras.push({ label: 'Favorites', icon: 'pi pi-star-fill', to: null, children: menuStore.favorites })
   }
-  if (menuStore.recents.length) {
-    extras.push({ label: 'Recent', icon: 'pi pi-clock', to: null, children: menuStore.recents })
-  }
+  // Recent menu group disabled — the backend still returns recents, we just
+  // no longer render them.
+  // if (menuStore.recents.length) {
+  //   extras.push({ label: 'Recent', icon: 'pi pi-clock', to: null, children: menuStore.recents })
+  // }
   if (base.length && base[0].to === '/') {
     return [base[0], ...extras, ...base.slice(1)]
   }
@@ -201,14 +204,14 @@ function isGroupActive(entry: MenuNode): boolean {
   return (entry.children ?? []).some(hit)
 }
 
-// Close the dropdown whenever the route changes (e.g. after a click), and
-// record the visited screen so it shows up under Recent (project-stack.md §3).
+// Close the dropdown whenever the route changes (e.g. after a click).
+// Recent-screen tracking is disabled along with the Recent menu group.
 watch(
   () => route.path,
-  (path) => {
+  () => {
     closeMenu()
-    const leaf = menuStore.leavesByRoute[path]
-    if (leaf) menuStore.trackRecent(path, leaf.label, leaf.icon)
+    // const leaf = menuStore.leavesByRoute[path]
+    // if (leaf) menuStore.trackRecent(path, leaf.label, leaf.icon)
   },
 )
 
@@ -312,7 +315,7 @@ async function logout() {
 
     <!-- Horizontal top menu bar -->
     <nav class="topnav">
-      <!-- Pinned, static, icon-only cluster: Dashboard / Favorites / Recent. -->
+      <!-- Pinned, static, icon-only cluster: Dashboard / Favorites. -->
       <div class="topnav-pinned">
         <template v-for="entry in pinnedNav" :key="entry.label">
           <RouterLink
@@ -565,7 +568,7 @@ async function logout() {
   top: 0;
   z-index: 30;
 }
-/* Static, non-scrolling cluster (Dashboard / Favorites / Recent), always
+/* Static, non-scrolling cluster (Dashboard / Favorites), always
    visible on the left with a divider between it and the scrolling menu. */
 .topnav-pinned {
   display: flex;

@@ -279,7 +279,10 @@ class DistributionDemoSeeder
                 'unit_price' => $product->selling_price,
                 'tax_percent' => $product->tax_percent,
                 'tax_amount' => $tax,
-                'total' => round($subtotal + $tax, 2),
+                // Net taxable plus this line's tax, the same shape
+                // DocumentPricingService writes, so GST reporting can keep
+                // deriving taxable_value as line_total - tax_amount.
+                'line_total' => round($subtotal + $tax, 2),
             ]);
         }
 

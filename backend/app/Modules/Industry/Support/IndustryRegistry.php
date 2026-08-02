@@ -6,12 +6,24 @@ namespace App\Modules\Industry\Support;
 
 use App\Modules\Industry\Agriculture\AgriculturePlugin;
 use App\Modules\Industry\Automobile\AutomobilePlugin;
+use App\Modules\Industry\BookStore\BookStorePlugin;
+use App\Modules\Industry\ComputerIt\ComputerItPlugin;
 use App\Modules\Industry\Contracts\IndustryDemoSeeder;
 use App\Modules\Industry\Contracts\IndustryPlugin;
+use App\Modules\Industry\Cosmetics\CosmeticsPlugin;
 use App\Modules\Industry\Distribution\DistributionPlugin;
+use App\Modules\Industry\Electronics\ElectronicsPlugin;
 use App\Modules\Industry\FoodBeverage\FoodBeveragePlugin;
+use App\Modules\Industry\Gift\GiftPlugin;
+use App\Modules\Industry\Grocery\GroceryPlugin;
 use App\Modules\Industry\Healthcare\HealthcarePlugin;
 use App\Modules\Industry\Manufacturing\ManufacturingPlugin;
+use App\Modules\Industry\Mobile\MobilePlugin;
+use App\Modules\Industry\Optical\OpticalPlugin;
+use App\Modules\Industry\Retail\RetailPlugin;
+use App\Modules\Industry\Sports\SportsPlugin;
+use App\Modules\Industry\Stationery\StationeryPlugin;
+use App\Modules\Industry\Toys\ToysPlugin;
 use App\Support\Modules;
 use ReflectionClass;
 
@@ -44,12 +56,24 @@ final class IndustryRegistry
      * @var list<class-string<IndustryPlugin>>
      */
     public const PLUGINS = [
+        RetailPlugin::class,
+        GroceryPlugin::class,
         FoodBeveragePlugin::class,
         ManufacturingPlugin::class,
         DistributionPlugin::class,
         AgriculturePlugin::class,
         HealthcarePlugin::class,
         AutomobilePlugin::class,
+        ElectronicsPlugin::class,
+        MobilePlugin::class,
+        ComputerItPlugin::class,
+        StationeryPlugin::class,
+        GiftPlugin::class,
+        ToysPlugin::class,
+        BookStorePlugin::class,
+        OpticalPlugin::class,
+        CosmeticsPlugin::class,
+        SportsPlugin::class,
     ];
 
     /**
@@ -59,7 +83,7 @@ final class IndustryRegistry
      */
     public static function plugins(): array
     {
-        return array_map(static fn (string $class) => new $class(), self::PLUGINS);
+        return array_map(static fn (string $class) => new $class, self::PLUGINS);
     }
 
     /**

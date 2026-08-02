@@ -2,7 +2,14 @@
 // the table columns, and the form fields. A single generic CrudView renders
 // all of them, so adding a master screen is just adding an entry here.
 
-export type FieldType = 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | 'date' | 'time' | 'month'
+/**
+ * `csv` is a list-valued field typed as comma-separated text — "XS, S, M, L".
+ * It exists because a handful of resources store an ordered short list (a
+ * garment size run) where the *order* is the point, and a tag widget that lets
+ * the user drag chips around would be a lot of machinery for something a shop
+ * types once. CrudView splits and joins it; the API sees a real array.
+ */
+export type FieldType = 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | 'date' | 'time' | 'month' | 'csv'
 
 export interface FieldConfig {
   key: string
@@ -594,19 +601,42 @@ export const resources: Record<string, ResourceConfig> = {
     title: 'Alterations',
     endpoint: '/tailor-alterations',
     permission: 'tailor-alterations',
+    /**
+     * One screen, two trades. The workroom raises an alteration against a
+     * production work order; a garment showroom raises the identical document
+     * against a customer and the bill they bought the piece on. The customer and
+     * promise columns lead because that is what the retail case is worked by —
+     * "whose is it and when did we say?" — and they simply read blank for the
+     * workroom rows, which is the honest rendering of a nullable field.
+     */
     columns: [
       { key: 'alteration_number', label: 'Alteration #' },
-      { key: 'tailor_name', label: 'Tailor' },
+      { key: 'customer_name', label: 'Customer' },
       { key: 'product_name', label: 'Style / Product' },
+      { key: 'variant_name', label: 'Size / Colour' },
       { key: 'qty', label: 'Qty' },
       { key: 'reason', label: 'Reason' },
+      { key: 'tailor_name', label: 'Tailor' },
       { key: 'status', label: 'Status' },
       { key: 'charge', label: 'Charge', type: 'currency' },
+      { key: 'promised_date', label: 'Promised', type: 'date' },
       { key: 'reported_date', label: 'Reported', type: 'date' },
     ],
+    filters: [
+      {
+        key: 'status',
+        label: 'Status',
+        options: [
+          { label: 'Pending', value: 'pending' },
+          { label: 'In Progress', value: 'in_progress' },
+          { label: 'Done', value: 'done' },
+        ],
+      },
+    ],
     fields: [
-      { key: 'tailor_id', label: 'Tailor', type: 'select', optionsFrom: '/tailors', optionLabel: 'name' },
+      { key: 'customer_id', label: 'Customer', type: 'select', optionsFrom: '/customers', optionLabel: 'name' },
       { key: 'product_id', label: 'Style / Product', type: 'select', optionsFrom: '/products', optionLabel: 'name' },
+      { key: 'tailor_id', label: 'Tailor', type: 'select', optionsFrom: '/tailors', optionLabel: 'name' },
       { key: 'qty', label: 'Qty', type: 'number', step: '0.01', default: 1, required: true },
       { key: 'reason', label: 'Reason', type: 'text', required: true },
       {
@@ -619,7 +649,262 @@ export const resources: Record<string, ResourceConfig> = {
       },
       { key: 'charge', label: 'Alteration Charge', type: 'number', step: '0.01', default: 0 },
       { key: 'reported_date', label: 'Reported Date', type: 'date' },
+      // Kept next to the reported date and distinct from the completion date:
+      // the gap between promised and completed is the only measure of whether
+      // the shop keeps its word.
+      { key: 'promised_date', label: 'Promised Date', type: 'date' },
       { key: 'notes', label: 'Notes', type: 'textarea' },
+    ],
+  },
+  /*
+  |----------------------------------------------------------------------------
+  | Retail — garment & apparel (app/Modules/Industry/Retail)
+  |----------------------------------------------------------------------------
+  |
+  | Four masters, all plain CRUD, so they are config here rather than four
+  | near-identical views. The two screens that are not plain CRUD — the size ×
+  | colour matrix and the trial room — have views of their own, because neither
+  | is a list of records being edited one at a time.
+  */
+  'garment-fabrics': {
+    key: 'garment-fabrics',
+    title: 'Fabrics',
+    endpoint: '/garment/fabrics',
+    permission: 'garment-fabrics',
+    columns: [
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Fabric' },
+      { key: 'composition', label: 'Composition' },
+      { key: 'gsm', label: 'GSM' },
+      { key: 'width_inch', label: 'Width (in)' },
+      { key: 'rate', label: 'Rate', type: 'currency' },
+      { key: 'styles_count', label: 'Styles' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'code', label: 'Code', type: 'text', required: true },
+      { key: 'name', label: 'Fabric Name', type: 'text', required: true },
+      { key: 'composition', label: 'Composition', type: 'text' },
+      { key: 'weave', label: 'Weave', type: 'text' },
+      { key: 'gsm', label: 'GSM', type: 'number' },
+      { key: 'width_inch', label: 'Width (inches)', type: 'number', step: '0.01' },
+      { key: 'shrinkage_percent', label: 'Shrinkage %', type: 'number', step: '0.01' },
+      { key: 'care', label: 'Care Instructions', type: 'text' },
+      { key: 'rate', label: 'Rate per Metre', type: 'number', step: '0.01', default: 0 },
+      { key: 'supplier_id', label: 'Supplier', type: 'select', optionsFrom: '/suppliers', optionLabel: 'name' },
+      { key: 'notes', label: 'Notes', type: 'textarea' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  'garment-size-sets': {
+    key: 'garment-size-sets',
+    title: 'Size Runs',
+    endpoint: '/garment/size-sets',
+    permission: 'garment-styles',
+    columns: [
+      { key: 'name', label: 'Size Run' },
+      // The run itself, not a count: "XS · S · M · L" says more at a glance
+      // than "7 sizes", and the order is the information.
+      { key: 'summary', label: 'Sizes' },
+      { key: 'size_count', label: 'Count' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'name', label: 'Name', type: 'text', required: true },
+      { key: 'sizes', label: 'Sizes (in order)', type: 'csv', required: true },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  /**
+   * The beauty counter's shade master.
+   *
+   * Runs on the generic CrudView like the garment colour list next to it, and
+   * the extra fields are the whole difference between a colour and a shade: a
+   * customer choosing a shade is matching it to a face, so finish, undertone and
+   * depth are what they are really picking between. Depth sorts the card, which
+   * is why it is a number and not another word.
+   */
+  'cosmetic-shades': {
+    key: 'cosmetic-shades',
+    title: 'Shade Master',
+    endpoint: '/cosmetics/shades',
+    permission: 'cosmetic-shades',
+    columns: [
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Shade' },
+      { key: 'brand_name', label: 'Brand' },
+      { key: 'family', label: 'Family' },
+      { key: 'finish', label: 'Finish' },
+      { key: 'undertone', label: 'Undertone' },
+      { key: 'depth_level', label: 'Depth' },
+      { key: 'hex', label: 'Swatch' },
+      // A shade nothing is keyed to is a shade the shop does not actually carry
+      // — the gap between a supplier's card and what is on the shelf.
+      { key: 'variants_count', label: 'On cards' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    filters: [
+      { key: 'brand_id', label: 'Brand', optionsFrom: '/brands', optionLabel: 'name' },
+      {
+        key: 'finish',
+        label: 'Finish',
+        options: [
+          { label: 'Matte', value: 'matte' },
+          { label: 'Satin', value: 'satin' },
+          { label: 'Cream', value: 'cream' },
+          { label: 'Gloss', value: 'gloss' },
+          { label: 'Shimmer', value: 'shimmer' },
+          { label: 'Metallic', value: 'metallic' },
+          { label: 'Sheer', value: 'sheer' },
+          { label: 'Other', value: 'other' },
+        ],
+      },
+      {
+        key: 'undertone',
+        label: 'Undertone',
+        options: [
+          { label: 'Warm', value: 'warm' },
+          { label: 'Cool', value: 'cool' },
+          { label: 'Neutral', value: 'neutral' },
+          { label: 'Olive', value: 'olive' },
+          { label: 'Not recorded', value: 'unknown' },
+        ],
+      },
+    ],
+    fields: [
+      // Short and required: it is what the customer says out loud and what the
+      // shade card turns into the variant's SKU suffix.
+      { key: 'code', label: 'Shade Code', type: 'text', required: true },
+      { key: 'name', label: 'Shade Name', type: 'text', required: true },
+      // Scoped uniqueness lives here: two houses both number a foundation "015".
+      { key: 'brand_id', label: 'Brand', type: 'select', optionsFrom: '/brands', optionLabel: 'name' },
+      { key: 'family', label: 'Family (Nude, Berry, Coral…)', type: 'text' },
+      {
+        key: 'finish',
+        label: 'Finish',
+        type: 'select',
+        required: true,
+        default: 'matte',
+        options: [
+          { label: 'Matte', value: 'matte' },
+          { label: 'Satin', value: 'satin' },
+          { label: 'Cream', value: 'cream' },
+          { label: 'Gloss', value: 'gloss' },
+          { label: 'Shimmer', value: 'shimmer' },
+          { label: 'Metallic', value: 'metallic' },
+          { label: 'Sheer', value: 'sheer' },
+          { label: 'Other', value: 'other' },
+        ],
+      },
+      {
+        key: 'undertone',
+        label: 'Undertone',
+        type: 'select',
+        required: true,
+        default: 'unknown',
+        options: [
+          { label: 'Warm', value: 'warm' },
+          { label: 'Cool', value: 'cool' },
+          { label: 'Neutral', value: 'neutral' },
+          { label: 'Olive', value: 'olive' },
+          { label: 'Not recorded', value: 'unknown' },
+        ],
+      },
+      // Base make-up only — 1 is the fairest, 20 the deepest, and it is what the
+      // card is sorted on. Left blank on a lipstick wall, which has no ladder.
+      { key: 'depth_level', label: 'Depth (1 fair – 20 deep)', type: 'number' },
+      { key: 'hex', label: 'Swatch (#RRGGBB)', type: 'text' },
+      { key: 'description', label: 'Notes', type: 'textarea' },
+      { key: 'sort_order', label: 'Sort Order', type: 'number', default: 0 },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  'garment-colours': {
+    key: 'garment-colours',
+    title: 'Colours',
+    endpoint: '/garment/colours',
+    permission: 'garment-styles',
+    columns: [
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Colour' },
+      { key: 'hex', label: 'Swatch' },
+      { key: 'sort_order', label: 'Order' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'name', label: 'Colour Name', type: 'text', required: true },
+      // Becomes the SKU suffix the matrix generates, which is why it is short
+      // and required rather than derived from the name.
+      { key: 'code', label: 'Short Code', type: 'text', required: true },
+      { key: 'hex', label: 'Swatch (#RRGGBB)', type: 'text' },
+      { key: 'sort_order', label: 'Sort Order', type: 'number', default: 0 },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  'garment-styles': {
+    key: 'garment-styles',
+    title: 'Styles',
+    endpoint: '/garment/styles',
+    permission: 'garment-styles',
+    columns: [
+      { key: 'code', label: 'Style #' },
+      { key: 'name', label: 'Style' },
+      { key: 'brand_name', label: 'Brand' },
+      { key: 'fabric_name', label: 'Fabric' },
+      { key: 'gender', label: 'For' },
+      { key: 'season', label: 'Season' },
+      { key: 'mrp', label: 'MRP', type: 'currency' },
+      // A style with no product behind it cannot be sold — the gap between
+      // buying a range and having it on the floor.
+      { key: 'products_count', label: 'Products' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    filters: [
+      { key: 'brand_id', label: 'Brand', optionsFrom: '/brands', optionLabel: 'name' },
+      { key: 'fabric_id', label: 'Fabric', optionsFrom: '/garment/fabrics', optionLabel: 'name' },
+      {
+        key: 'gender',
+        label: 'For',
+        options: [
+          { label: "Men's", value: 'mens' },
+          { label: "Women's", value: 'womens' },
+          { label: 'Boys', value: 'boys' },
+          { label: 'Girls', value: 'girls' },
+          { label: 'Unisex', value: 'unisex' },
+          { label: 'Infant', value: 'infant' },
+        ],
+      },
+    ],
+    fields: [
+      { key: 'code', label: 'Style / Design No.', type: 'text', required: true },
+      { key: 'name', label: 'Style Name', type: 'text', required: true },
+      { key: 'category_id', label: 'Category', type: 'select', optionsFrom: '/categories', optionLabel: 'name' },
+      { key: 'brand_id', label: 'Brand', type: 'select', optionsFrom: '/brands', optionLabel: 'name' },
+      { key: 'fabric_id', label: 'Fabric', type: 'select', optionsFrom: '/garment/fabrics', optionLabel: 'name' },
+      // Only the default grid — the matrix screen can override it per style.
+      { key: 'size_set_id', label: 'Default Size Run', type: 'select', optionsFrom: '/garment/size-sets', optionLabel: 'name' },
+      {
+        key: 'gender', label: 'For', type: 'select',
+        options: [
+          { label: "Men's", value: 'mens' },
+          { label: "Women's", value: 'womens' },
+          { label: 'Boys', value: 'boys' },
+          { label: 'Girls', value: 'girls' },
+          { label: 'Unisex', value: 'unisex' },
+          { label: 'Infant', value: 'infant' },
+        ],
+      },
+      { key: 'season', label: 'Season', type: 'text' },
+      { key: 'fit', label: 'Fit', type: 'text' },
+      { key: 'sleeve', label: 'Sleeve', type: 'text' },
+      { key: 'neck', label: 'Neck', type: 'text' },
+      { key: 'pattern', label: 'Pattern', type: 'text' },
+      // Priced at the style: every piece cut from it sells at one price in this
+      // trade, and the matrix stamps these onto the variants it creates.
+      { key: 'mrp', label: 'MRP', type: 'number', step: '0.01', default: 0 },
+      { key: 'cost_price', label: 'Cost Price', type: 'number', step: '0.01', default: 0 },
+      { key: 'description', label: 'Description', type: 'textarea' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
     ],
   },
   'rate-cards': {
@@ -1058,6 +1343,167 @@ export const resources: Record<string, ResourceConfig> = {
       { key: 'location', label: 'Location', type: 'text' },
       { key: 'purchase_date', label: 'Purchase Date', type: 'date' },
       { key: 'purchase_value', label: 'Purchase Value', type: 'number', step: '0.01' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  /**
+   * The gift shop's wrapping master — what the shop offers to wrap things in.
+   *
+   * A generic CrudView resource rather than a hand-written screen, because it is
+   * genuinely a flat master: four to six rows that change twice a year. The two
+   * fields worth reading twice are the pair of products, and they mean opposite
+   * things — `product_id` is the *service* the charge is billed as (so wrapping
+   * reaches a bill through the ordinary sales spine), and `consumes_product_id`
+   * is the *stock* a parcel eats. Both point at /products, which is why the
+   * labels spell out which is which.
+   *
+   * The wrap desk itself is not here: a queue with promised times and a
+   * two-way stock movement behind one of its buttons is not a master.
+   */
+  'gift-wrap-options': {
+    key: 'gift-wrap-options',
+    title: 'Wrapping Options',
+    endpoint: '/gift/wrap-options',
+    permission: 'gift-wraps',
+    columns: [
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Wrapping' },
+      { key: 'kind', label: 'Kind' },
+      { key: 'charge', label: 'Charge', type: 'currency' },
+      { key: 'material', label: 'Material used' },
+      { key: 'consume_quantity', label: 'Per parcel' },
+      { key: 'turnaround_minutes', label: 'Ready in (min)' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'code', label: 'Code', type: 'text', required: true },
+      { key: 'name', label: 'Wrapping (as the counter says it)', type: 'text', required: true },
+      {
+        key: 'kind', label: 'Kind', type: 'select', default: 'paper',
+        options: [
+          { label: 'Paper', value: 'paper' },
+          { label: 'Rigid box', value: 'box' },
+          { label: 'Gift bag', value: 'bag' },
+          { label: 'Hamper basket', value: 'basket' },
+          { label: 'Ribbon / finishing', value: 'ribbon' },
+          { label: 'Greeting card', value: 'card' },
+          { label: 'Other', value: 'other' },
+        ],
+      },
+      { key: 'charge', label: 'Charge', type: 'number', step: '0.01', default: 0 },
+      {
+        key: 'product_id', label: 'Billed as (service product — leave blank if free)',
+        type: 'select', optionsFrom: '/products', optionLabel: 'name',
+      },
+      {
+        key: 'consumes_product_id', label: 'Material taken off stock (paper, box, ribbon)',
+        type: 'select', optionsFrom: '/products', optionLabel: 'name',
+      },
+      { key: 'consume_quantity', label: 'Material used per parcel', type: 'number', step: '0.001', default: 1 },
+      { key: 'turnaround_minutes', label: 'Ready in (minutes)', type: 'number', step: '1' },
+      { key: 'notes', label: 'Notes', type: 'textarea' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  /**
+   * Books & Periodicals (app/Modules/Industry/BookStore). Three flat registers
+   * on the generic CrudView — the fourth screen, Titles, has one of its own
+   * because a title is a product and needs the ISBN lookup and the credits
+   * editor beside it.
+   */
+  'book-publishers': {
+    key: 'book-publishers',
+    title: 'Publishers',
+    endpoint: '/books/publishers',
+    permission: 'book-catalogue',
+    columns: [
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Publisher' },
+      { key: 'imprint', label: 'Imprint' },
+      { key: 'trade_discount_percent', label: 'Trade discount %' },
+      // Said in words by the API, because "returnable: yes" and "within 180
+      // days" are different facts and a buyer needs both at a glance.
+      { key: 'returns_terms', label: 'Terms' },
+      { key: 'supplier', label: 'Bought from' },
+      { key: 'titles_count', label: 'Titles' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'code', label: 'Code', type: 'text', required: true },
+      { key: 'name', label: 'Publishing house', type: 'text', required: true },
+      { key: 'imprint', label: 'Imprint (e.g. Penguin Classics)', type: 'text' },
+      {
+        key: 'supplier_id', label: 'Bought from (distributor — leave blank if direct)',
+        type: 'select', optionsFrom: '/suppliers', optionLabel: 'name',
+      },
+      { key: 'trade_discount_percent', label: 'Trade discount off printed price (%)', type: 'number', step: '0.01' },
+      { key: 'is_returnable', label: 'Takes unsold copies back (sale or return)', type: 'checkbox', default: false },
+      { key: 'return_window_days', label: 'Return window (days from invoice — blank if open ended)', type: 'number', step: '1' },
+      { key: 'contact_person', label: 'Contact person', type: 'text' },
+      { key: 'phone', label: 'Phone', type: 'text' },
+      { key: 'email', label: 'Email', type: 'text' },
+      { key: 'website', label: 'Website', type: 'text' },
+      { key: 'notes', label: 'Notes', type: 'textarea' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+    filters: [
+      {
+        key: 'is_returnable',
+        label: 'Terms',
+        options: [
+          { label: 'Sale or return', value: 1 },
+          { label: 'Firm sale', value: 0 },
+        ],
+      },
+    ],
+  },
+  'book-authors': {
+    key: 'book-authors',
+    title: 'Authors',
+    endpoint: '/books/authors',
+    permission: 'book-catalogue',
+    columns: [
+      { key: 'name', label: 'Name' },
+      { key: 'shelf_name', label: 'Shelved as' },
+      { key: 'language', label: 'Writes in' },
+      { key: 'nationality', label: 'Nationality' },
+      { key: 'contributions_count', label: 'Credits' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'name', label: 'Name (as printed on the cover)', type: 'text', required: true },
+      // Cannot be derived — particles, single names, and scripts with no
+      // surname at all. Left blank the register falls back to the name.
+      { key: 'sort_name', label: 'Shelved as (e.g. Meghani, Jhaverchand)', type: 'text' },
+      { key: 'language', label: 'Writes mainly in', type: 'text' },
+      { key: 'nationality', label: 'Nationality', type: 'text' },
+      { key: 'website', label: 'Website', type: 'text' },
+      { key: 'biography', label: 'Notes', type: 'textarea' },
+      { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
+    ],
+  },
+  'book-languages': {
+    key: 'book-languages',
+    title: 'Book Languages',
+    endpoint: '/books/languages',
+    permission: 'book-catalogue',
+    columns: [
+      { key: 'code', label: 'Code' },
+      { key: 'label', label: 'Language' },
+      { key: 'native_name', label: 'On the shelf card' },
+      { key: 'script', label: 'Script' },
+      { key: 'sort_order', label: 'Order' },
+      { key: 'titles_count', label: 'Titles' },
+      { key: 'is_active', label: 'Active', type: 'boolean' },
+    ],
+    fields: [
+      { key: 'code', label: 'Code (gu, hi, en)', type: 'text', required: true },
+      { key: 'label', label: 'Language', type: 'text', required: true },
+      { key: 'native_name', label: 'In its own script (ગુજરાતી)', type: 'text' },
+      { key: 'script', label: 'Script', type: 'text' },
+      // The sections are laid out in the shop's own order, not alphabetically —
+      // a shop puts its own language first.
+      { key: 'sort_order', label: 'Shelf order', type: 'number', step: '1', default: 0 },
       { key: 'is_active', label: 'Active', type: 'checkbox', default: true },
     ],
   },

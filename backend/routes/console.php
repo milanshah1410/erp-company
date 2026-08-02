@@ -22,6 +22,12 @@ Schedule::command('crm:notify-customer-occasions')->dailyAt('08:00');
 // and a café's members list should not show yesterday's lapsed cards as active.
 Schedule::command('fnb:daily')->dailyAt('04:00');
 
+// Gift & Novelty. 07:30, before shops open: the point of a lead-time reminder is
+// to buy the shop a morning, and one that lands at eleven has already spent it.
+// Half an hour before crm:notify-customer-occasions, which is a different message
+// (same-day, the customer's own date) and stays where it is.
+Schedule::command('gift:reminders')->dailyAt('07:30');
+
 Schedule::command('backup:run')->daily()->at('02:00');
 Schedule::command('backup:clean')->daily()->at('01:30');
 

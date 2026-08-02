@@ -60,18 +60,21 @@ class AgriculturePlugin implements IndustryPlugin
     }
 
     /**
-     * What every agri trade runs on. Nothing exotic: it buys, it stocks, it
-     * sells, it keeps books under GST, and it gets the common core (crm, ai).
+     * What every agri trade adds on top of the Core ERP set. Nothing exotic: it
+     * buys, stocks, sells and keeps books — all of which is core now — so the
+     * only thing shared across the vertical is filing under GST.
      *
-     * `inventory` is not optional for any of them — batch and expiry are the
-     * whole difference between a legal sale and a prosecutable one for a dealer,
-     * and a farm's produce has a shelf life measured in hours.
+     * Core is merged in by ShopProfiles::all(); nothing here restates it. In
+     * particular `inventory` is no longer declared and no longer optional, which
+     * suits this vertical: batch and expiry are the whole difference between a
+     * legal sale and a prosecutable one for a dealer, and a farm's produce has a
+     * shelf life measured in hours.
      *
      * @return list<string>
      */
     private function base(): array
     {
-        return ['sales', 'purchase', 'inventory', 'accounts', 'gst', 'crm', 'ai'];
+        return ['gst'];
     }
 
     /**

@@ -59,7 +59,10 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        return new ProductResource($product->load(['category', 'brand', 'unit', 'variants', 'stocks']));
+        // `stones` only on the single-product read: it is the screen that shows
+        // a piece in full, and the list endpoint would pay for a join that most
+        // shops have no rows for.
+        return new ProductResource($product->load(['category', 'brand', 'unit', 'variants', 'stocks', 'stones']));
     }
 
     public function update(ProductRequest $request, Product $product)

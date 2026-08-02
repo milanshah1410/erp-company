@@ -19,15 +19,25 @@ class SalesOrder extends Model
 
     protected $fillable = [
         'so_number', 'customer_id', 'broker_id', 'salesman_id', 'warehouse_id', 'status', 'channel',
+        // Which till rang this up, and on whose shift. Null for everything that
+        // is not a counter sale.
+        'pos_counter_id', 'pos_session_id',
         'order_date', 'subtotal', 'item_discount_total', 'discount_type', 'discount_value',
         'discount_amount', 'tax_amount', 'tcs_section', 'tcs_rate', 'tcs_amount', 'round_off', 'total',
         'notes', 'created_by', 'delivered_at',
         'fulfillment_stage', 'picked_at', 'packed_at', 'shipped_at', 'picked_by', 'packed_by', 'shipped_by',
         'approved_by', 'approved_at', 'rejected_reason',
+        // Industry-plugin columns. Nullable and meaningless to most trades — a
+        // garage has no booklists — but fillable here so a vertical can raise an
+        // order through the ordinary create path rather than force-filling around
+        // the model. Stationery: which school, which class list, and the
+        // purchase-order number their accounts office will not pay without.
+        'stn_institution_id', 'stn_class_kit_id', 'stn_po_number', 'stn_po_date',
     ];
 
     protected $casts = [
         'order_date' => 'date',
+        'stn_po_date' => 'date',
         'delivered_at' => 'datetime',
         'picked_at' => 'datetime',
         'packed_at' => 'datetime',
@@ -74,6 +84,16 @@ class SalesOrder extends Model
     public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    public function posCounter(): BelongsTo
+    {
+        return $this->belongsTo(PosCounter::class, 'pos_counter_id');
+    }
+
+    public function posSession(): BelongsTo
+    {
+        return $this->belongsTo(PosCounterSession::class, 'pos_session_id');
     }
 
     public function items(): HasMany

@@ -15,6 +15,7 @@ import Swal from 'sweetalert2'
 import centralHttp from '../../api/centralHttp'
 import { useCentralAuthStore } from '../../stores/centralAuth'
 import TenantAccessDialog from './tenants/TenantAccessDialog.vue'
+import TenantMenuDialog from './tenants/TenantMenuDialog.vue'
 import TenantProfileDialog from './tenants/TenantProfileDialog.vue'
 import TenantLimitsDialog from './tenants/TenantLimitsDialog.vue'
 import TenantPlanDialog from './tenants/TenantPlanDialog.vue'
@@ -42,6 +43,9 @@ const canEditAccess = computed(() => auth.canManageTenantAccess)
 
 // The tenant whose access panel is open (null = closed).
 const accessTenant = ref<any | null>(null)
+// …and the menu builder, which shares the same can_manage_tenant_access gate:
+// re-parenting a screen is the same power over a workspace as revoking it.
+const menuTenant = ref<any | null>(null)
 // …and the same for the profile and limits dialogs. Read-only operators still
 // open them; the dialogs hide their Save button rather than the whole screen.
 const profileTenant = ref<any | null>(null)
@@ -444,6 +448,15 @@ onBeforeUnmount(() => {
           />
           <Button v-if="canEditAccess" icon="pi pi-sliders-h" text rounded size="small" title="Module & menu access" @click="accessTenant = data" />
           <Button
+            v-if="canEditAccess"
+            icon="pi pi-sitemap"
+            text
+            rounded
+            size="small"
+            title="Menu builder — drag & drop this workspace's navigation"
+            @click="menuTenant = data"
+          />
+          <Button
             v-if="canViewBranding"
             icon="pi pi-palette"
             text
@@ -467,6 +480,16 @@ onBeforeUnmount(() => {
       :key="accessTenant.id"
       :tenant="accessTenant"
       @close="accessTenant = null"
+    />
+
+    <!-- The same workspace's navigation, rearranged: order, nesting, labels and
+         icons by drag & drop. Sibling of the Access panel above — that one says
+         whether a screen is allowed, this one says where it lives. -->
+    <TenantMenuDialog
+      v-if="menuTenant"
+      :key="`menu-${menuTenant.id}`"
+      :tenant="menuTenant"
+      @close="menuTenant = null"
     />
 
     <!-- Company profile: contact details + industry/business type. Reloads the

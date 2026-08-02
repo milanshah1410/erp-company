@@ -212,6 +212,10 @@ final class IndustryTemplates
      * an industry but no trade. Falls back to the trade preset's own list when a
      * trade *is* known, since a trade is the more specific answer.
      *
+     * Whichever branch answers, the Core ERP set comes with it: an operator
+     * curating a template's module list is choosing what that industry *adds*,
+     * not whether it gets Sales and Accounts.
+     *
      * @return list<string>
      */
     public static function modulesFor(?string $industryKey, ?string $tradeKey = null): array
@@ -223,7 +227,7 @@ final class IndustryTemplates
         $template = self::find($industryKey);
 
         return $template && $template['modules'] !== []
-            ? $template['modules']
-            : ShopProfiles::modulesFor(null); // the 'custom' essentials
+            ? Modules::withCore($template['modules'])
+            : ShopProfiles::modulesFor(null); // core alone
     }
 }

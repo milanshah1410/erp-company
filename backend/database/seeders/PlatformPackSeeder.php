@@ -270,6 +270,110 @@ class PlatformPackSeeder extends Seeder
                 'included_in_plans' => ['business', 'professional', 'enterprise'],
                 'sort_order' => 18,
             ],
+            [
+                'slug' => 'electronics-pack',
+                'name' => 'Electronics & Appliances Pack',
+                'type' => 'industry',
+                'tagline' => 'Serial & IMEI register, installation and the service desk',
+                'description' => 'A serial- and IMEI-keyed register of every machine sold, the request desk that turns a phone call into a scheduled visit and then into a job card, and warranty cards that say what they actually pay for — parts, labour or both, onsite or carry-in.',
+                'icon' => 'pi pi-desktop',
+                'price' => 699,
+                'billing_cycle' => 'monthly',
+                /**
+                 * `service` rides along for the same reason it does with the
+                 * Automobile pack: a repair *is* a service job, and a shop that
+                 * bought the unit register without the job book could look a
+                 * machine up and then do nothing to it. An electrical counter
+                 * that wants only the registers unticks Service afterwards.
+                 *
+                 * `warranty` is not listed: it is core's retail register, sold
+                 * from Starter upward, so every workspace that can buy this pack
+                 * already has it. Adding it here would price something twice.
+                 */
+                'modules' => ['electronics', 'service'],
+                'industry_key' => 'electronics',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 19,
+            ],
+            [
+                'slug' => 'computer-it-pack',
+                'name' => 'Computer & IT Pack',
+                'type' => 'industry',
+                'tagline' => 'Install base, warranty & AMC, licence keys and the call book',
+                'description' => 'The machines you sold, by serial, with where each one sits and who uses it; warranty that records whether it pays for an engineer to travel; the software licence register that stops a key going out twice; and the call book that turns a phone call into a scheduled visit and then into a job card.',
+                'icon' => 'pi pi-desktop',
+                'price' => 699,
+                'billing_cycle' => 'monthly',
+                /**
+                 * `service` rides along for the same reason it does with the two
+                 * packs above, and rather more so: a computer shop without a
+                 * repair bench is a box mover. The pack is the aftersales half of
+                 * the trade, and the job book is where that half is worked.
+                 */
+                'modules' => ['computer_it', 'service'],
+                'industry_key' => 'computer_it',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 20,
+            ],
+            [
+                'slug' => 'mobile-pack',
+                'name' => 'Mobile & Handsets Pack',
+                'type' => 'industry',
+                'tagline' => 'IMEI register, screen insurance, EMI files and part-exchange',
+                'description' => 'Every handset you sold, by IMEI, with who bought it and what has been done to it since; screen and theft policies that know they are finished after one claim; EMI files whose instalments are receivables when you financed them and a courtesy when the bank did; and part-exchange valuations that settle against a bill as a tender, so the new phone still bills at the price on the shelf.',
+                'icon' => 'pi pi-mobile',
+                'price' => 699,
+                'billing_cycle' => 'monthly',
+                /**
+                 * `service` rides along for the same reason it does with the three
+                 * packs above: a repair *is* a service job, and a counter that
+                 * bought the IMEI register without the job book could look a
+                 * handset up and then do nothing to it.
+                 *
+                 * `warranty` is not listed, exactly as in the Electronics pack: it
+                 * is core's retail register, sold from Starter upward, so every
+                 * workspace that can buy this pack already has it. Adding it would
+                 * price the same thing twice.
+                 */
+                'modules' => ['mobile', 'service'],
+                'industry_key' => 'mobile',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 21,
+            ],
+            [
+                'slug' => 'stationery-pack',
+                'name' => 'Stationery & School Supplies Pack',
+                'type' => 'industry',
+                'tagline' => 'School accounts, class booklists and term-wise supply orders',
+                'description' => 'The schools you supply, with the session, the roll and the two discount rates you agreed — one for the school, one for its parents. Every class booklist as a document rather than a photocopy under the counter, so "Class 5, Sunrise" becomes twenty-two priced lines with the three that are short flagged before the parent is told. Tenders answered as quotations, the school\'s own order raised against its purchase-order number, and the whole season rolled up into one buying list netted against stock.',
+                'icon' => 'pi pi-pencil',
+                'price' => 699,
+                'billing_cycle' => 'monthly',
+                /**
+                 * `logistics` rides along rather than `service`: nothing here is
+                 * repaired, but a school's order of four hundred sets goes out on
+                 * the van in phases, and a shop that bought the booklists without
+                 * dispatch planning could raise the order and then not plan the
+                 * delivery.
+                 *
+                 * Bulk pricing is deliberately not a module in this list. Quantity
+                 * slabs are core `price_lists`, sold from Starter upward, so every
+                 * workspace that can buy this pack already has them — the pack
+                 * would be charging twice for the thing the tagline calls bulk.
+                 */
+                'modules' => ['stationery', 'logistics'],
+                'industry_key' => 'stationery',
+                'included_in_plans' => ['business', 'professional', 'enterprise'],
+                'sort_order' => 22,
+            ],
+
+            /**
+             * There is deliberately no Grocery & Kirana pack. Every other
+             * vertical is a Business module and needs a pack so a Starter
+             * subscriber can buy it; `grocery` is itself a Starter module (see
+             * PlanSeeder for why), so every tier already has it and a pack would
+             * charge for something the subscription includes.
+             */
 
             // --- Feature packs -------------------------------------------------
             // Cut across verticals. These are the two shapes a feature pack can

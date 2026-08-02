@@ -57,15 +57,17 @@ class HealthcarePlugin implements IndustryPlugin
     }
 
     /**
-     * What every healthcare trade runs on. `inventory` is not optional here even
-     * for a clinic: batch and expiry are the whole reason this vertical is
-     * different from ordinary retail, and they live in advanced inventory.
+     * What every healthcare trade adds on top of the Core ERP set — only GST
+     * filing is common to all six. `inventory` no longer needs declaring and is
+     * no longer optional, which is right for this vertical even for a clinic:
+     * batch and expiry are the whole reason it differs from ordinary retail, and
+     * they live in advanced inventory.
      *
      * @return list<string>
      */
     private function base(): array
     {
-        return ['sales', 'purchase', 'inventory', 'accounts', 'gst', 'crm', 'ai'];
+        return ['gst'];
     }
 
     public function trades(): array

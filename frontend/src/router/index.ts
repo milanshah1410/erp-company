@@ -23,6 +23,7 @@ const CentralOperatorsView = () => import('../views/central/CentralOperatorsView
 const CentralRolesView = () => import('../views/central/CentralRolesView.vue')
 const CentralTenantsView = () => import('../views/central/CentralTenantsView.vue')
 const CentralIndustriesView = () => import('../views/central/CentralIndustriesView.vue')
+const CentralMenusView = () => import('../views/central/CentralMenusView.vue')
 const CentralPlansView = () => import('../views/central/CentralPlansView.vue')
 const CentralBillingView = () => import('../views/central/CentralBillingView.vue')
 const CentralMarketplaceView = () => import('../views/central/CentralMarketplaceView.vue')
@@ -79,12 +80,119 @@ const ReferralsView = () => import('../views/ReferralsView.vue')
 const LoyaltyView = () => import('../views/LoyaltyView.vue')
 const ServiceJobsView = () => import('../views/ServiceJobsView.vue')
 const ServiceContractsView = () => import('../views/ServiceContractsView.vue')
+/**
+ * Retail industry plugin (app/Modules/Industry/Retail) — the garment trade.
+ *
+ * Only two screens are here. The masters behind them (styles, fabrics, size
+ * runs, colours) are plain CRUD and are driven from config/resources.ts through
+ * the shared CrudView, and "Alterations" is a second door onto the existing
+ * /tailor-alterations screen — a retail alteration is a tailor alteration with a
+ * customer on it, not a second register.
+ */
+const GarmentMatrixView = () => import('../views/GarmentMatrixView.vue')
+const GarmentTrialsView = () => import('../views/GarmentTrialsView.vue')
+// Gift vouchers are a Loyalty & Offers feature living in core, not a garment
+// one: a gift shop and a supermarket sell the same instrument, and the till
+// redeems it.
+const GiftVouchersView = () => import('../views/GiftVouchersView.vue')
+/**
+ * Gift & Novelty industry plugin (app/Modules/Industry/Gift). Three screens: the
+ * wrap desk (a queue), hamper packs (design + assemble) and the occasion board.
+ *
+ * The wrapping *master* has no component of its own — it is a flat master and
+ * runs on the generic CrudView, declared as the `gift-wrap-options` resource.
+ * Gift vouchers are core's, above.
+ */
+const GiftWrapDeskView = () => import('../views/GiftWrapDeskView.vue')
+const GiftPacksView = () => import('../views/GiftPacksView.vue')
+const GiftOccasionsView = () => import('../views/GiftOccasionsView.vue')
+/**
+ * Toys & Games industry plugin (app/Modules/Industry/Toys). Two screens for
+ * three menu rows: the age bands and the safety classes are one book to whoever
+ * keeps them, so they share a component and are told apart by the route.
+ *
+ * There is no combo-pack or gift-wrap screen here on purpose — a toy shop's
+ * packs and its wrap desk are the Gift & Novelty module's, which the toy-shop
+ * preset ticks, and the Toy Shop menu group links straight to them.
+ */
+const ToyCertificatesView = () => import('../views/ToyCertificatesView.vue')
+const ToyClassificationView = () => import('../views/ToyClassificationView.vue')
+/**
+ * Beauty & Personal Care industry plugin (app/Modules/Industry/Cosmetics). Two
+ * screens; the shade master itself is a flat master on the generic CrudView from
+ * config/resources.ts.
+ *
+ * There is no membership screen here on purpose — a beauty counter's club cards
+ * are core Loyalty & Offers, which the preset ticks, and the Beauty Counter menu
+ * group links straight to them.
+ */
+const ShadeCardView = () => import('../views/ShadeCardView.vue')
+const CosmeticShelfLifeView = () => import('../views/CosmeticShelfLifeView.vue')
+/**
+ * Sports & Fitness industry plugin (app/Modules/Industry/Sports). Two screens for
+ * three menu rows: the fleet register and the utilisation report are one book to
+ * whoever keeps them, so they share a component and are told apart by the route —
+ * the same shape the toy shop's classification screens use.
+ *
+ * There is no size-matrix, warranty or repair screen here on purpose. A sports
+ * shop's size runs are the Retail plugin's variant matrix, its cover is core's
+ * warranty card and its restringing is an ordinary service job — all three are
+ * modules the sports-shop preset ticks, and the Sports Shop menu group links
+ * straight to them.
+ */
+const SportsRentalDeskView = () => import('../views/SportsRentalDeskView.vue')
+const SportsFleetView = () => import('../views/SportsFleetView.vue')
+const CosmeticTestersView = () => import('../views/CosmeticTestersView.vue')
+/**
+ * Books & Periodicals industry plugin (app/Modules/Industry/BookStore). One
+ * screen only: the publishers, the authors and the languages are flat masters
+ * and run on the generic CrudView from config/resources.ts.
+ *
+ * Titles is not a master and cannot be one — a title *is* a product, so this
+ * screen is a bookshop's way of reading the product list (by ISBN, house,
+ * language and the people on the cover) plus the two things no CRUD form can
+ * do: the ISBN lookup the counter uses, and the credits editor.
+ */
+const BookTitlesView = () => import('../views/BookTitlesView.vue')
 // Automobile industry plugin (app/Modules/Industry/Automobile). There is no
 // job-card screen here on purpose: a job card is a service job with a vehicle
 // on it, so the Automobile menu's "Job Cards" row points at /service-jobs.
 const AutomobileVehiclesView = () => import('../views/AutomobileVehiclesView.vue')
 const AutomobileBookingsView = () => import('../views/AutomobileBookingsView.vue')
 const AutomobileWarrantiesView = () => import('../views/AutomobileWarrantiesView.vue')
+// Computer & IT industry plugin (app/Modules/Industry/ComputerIt). Same shape as
+// Automobile above: there is no job-card screen here either, because a job card
+// is a service job with a customer's machine on it — the Computer & IT menu's
+// "Job Cards" row points at /service-jobs, and its "AMC Contracts" row at
+// /service-contracts.
+const ItAssetsView = () => import('../views/ItAssetsView.vue')
+const ItWarrantiesView = () => import('../views/ItWarrantiesView.vue')
+const ItLicenceKeysView = () => import('../views/ItLicenceKeysView.vue')
+const ItServiceCallsView = () => import('../views/ItServiceCallsView.vue')
+/**
+ * Stationery industry plugin (app/Modules/Industry/Stationery). Same shape as the
+ * two above: there is no school-order *document* screen here, because a school's
+ * order is an ordinary sales order on the `institution` channel. The board below
+ * is a projection over those orders, and its "open" action lands on
+ * /sales-orders, which is where they are actually worked.
+ */
+const StationeryInstitutionsView = () => import('../views/StationeryInstitutionsView.vue')
+const StationeryClassKitsView = () => import('../views/StationeryClassKitsView.vue')
+const StationerySchoolOrdersView = () => import('../views/StationerySchoolOrdersView.vue')
+const StationerySeasonDemandView = () => import('../views/StationerySeasonDemandView.vue')
+const WarrantiesView = () => import('../views/WarrantiesView.vue')
+const ElectronicsUnitsView = () => import('../views/ElectronicsUnitsView.vue')
+const ElectronicsRequestsView = () => import('../views/ElectronicsRequestsView.vue')
+/**
+ * Mobile industry plugin (app/Modules/Industry/Mobile). Same shape as the two
+ * above: no job-card screen, because a repair is a service job with a handset on
+ * it, and no warranty screen, because cover is the core register at /warranties —
+ * the Mobile menu's "Repair Jobs" and "Warranty Cards" rows point at both.
+ */
+const MobileHandsetsView = () => import('../views/MobileHandsetsView.vue')
+const MobileInsuranceView = () => import('../views/MobileInsuranceView.vue')
+const MobileEmiFilesView = () => import('../views/MobileEmiFilesView.vue')
+const MobileBuybacksView = () => import('../views/MobileBuybacksView.vue')
 const RestaurantFloorView = () => import('../views/RestaurantFloorView.vue')
 const RestaurantOrdersView = () => import('../views/RestaurantOrdersView.vue')
 const KitchenDisplayView = () => import('../views/KitchenDisplayView.vue')
@@ -104,6 +212,21 @@ const MilkRoundView = () => import('../views/MilkRoundView.vue')
 const ParlourFreezersView = () => import('../views/ParlourFreezersView.vue')
 const WaiterPerformanceView = () => import('../views/WaiterPerformanceView.vue')
 const QrMenuView = () => import('../views/QrMenuView.vue')
+// Grocery & Kirana industry plugin (app/Modules/Industry/Grocery). Two screens
+// the retail spine never needed: the pack that is one scan and three items off
+// the shelf, and the shop's own khata with its distributors.
+const ComboPacksView = () => import('../views/ComboPacksView.vue')
+const SupplierCreditView = () => import('../views/SupplierCreditView.vue')
+// The supermarket trade of the same vertical. One component serves the floor,
+// the replenishment round and the planogram — three views of the same aisles,
+// told apart by `meta.mode` rather than by three files that would each carry a
+// copy of the aisle strip and the shelf picker.
+const SupermarketShelvesView = () => import('../views/SupermarketShelvesView.vue')
+const SelfCheckoutView = () => import('../views/SelfCheckoutView.vue')
+// Core POS, not the supermarket module: any shop with two tills cashes up per
+// desk. Same one-component-two-modes trick — the lanes and their shift history
+// are the same objects from two ends.
+const PosCountersView = () => import('../views/PosCountersView.vue')
 // Distribution & Wholesale industry plugin (app/Modules/Industry/Distribution).
 // Two screens the retail spine never needed: the party credit book, and
 // receivables aged by how late they are.
@@ -117,6 +240,8 @@ const LivestockAnimalsView = () => import('../views/LivestockAnimalsView.vue')
 const LivestockFlocksView = () => import('../views/LivestockFlocksView.vue')
 const EyePrescriptionsView = () => import('../views/EyePrescriptionsView.vue')
 const OpticalOrdersView = () => import('../views/OpticalOrdersView.vue')
+const OpticalAppointmentsView = () => import('../views/OpticalAppointmentsView.vue')
+const OpticalDeliveryView = () => import('../views/OpticalDeliveryView.vue')
 const MetalRatesView = () => import('../views/MetalRatesView.vue')
 const OldGoldView = () => import('../views/OldGoldView.vue')
 const PrescriptionsView = () => import('../views/PrescriptionsView.vue')
@@ -264,11 +389,110 @@ const routes: RouteRecordRaw[] = [
       { path: 'follow-ups', component: FollowUpsView, meta: { permission: 'follow-ups.view' } },
       { path: 'coupons', component: CrudView, meta: { resource: 'coupons', permission: 'coupons.view' } },
       { path: 'loyalty', component: LoyaltyView, meta: { permission: 'loyalty.view' } },
+      { path: 'gift-vouchers', component: GiftVouchersView, meta: { permission: 'gift-vouchers.view' } },
+
+      /**
+       * Gift & Novelty. The wrap desk, hamper packs and the occasion board; the
+       * wrapping master rides on the shared CrudView from config/resources.ts.
+       *
+       * Note the permissions differ from the menu's in one place on purpose:
+       * building a batch of hampers needs `stock.create`, which the pack screen
+       * checks itself — the *screen* is merchandising and only needs
+       * `gift-packs.view` to open.
+       */
+      { path: 'gift/wraps', component: GiftWrapDeskView, meta: { permission: 'gift-wraps.view' } },
+      { path: 'gift/wrap-options', component: CrudView, meta: { resource: 'gift-wrap-options', permission: 'gift-wraps.view' } },
+      { path: 'gift/packs', component: GiftPacksView, meta: { permission: 'gift-packs.view' } },
+      { path: 'gift/occasions', component: GiftOccasionsView, meta: { permission: 'gift-occasions.view' } },
+
+      /**
+       * Toys & Games. Two routes onto one component for the classification half,
+       * the same way the warranty register and its claims share a screen: both
+       * menu rows have to land on the right tab.
+       */
+      { path: 'toys/certificates', component: ToyCertificatesView, meta: { permission: 'toy-safety.view' } },
+      { path: 'toys/safety-classes', component: ToyClassificationView, meta: { permission: 'toy-safety.view' } },
+      { path: 'toys/age-grades', component: ToyClassificationView, meta: { permission: 'toy-safety.view' } },
+
+      /**
+       * Beauty & Personal Care. The shade card opens on `cosmetic-shades.view`
+       * even though generating one needs `products.create` as well — the screen
+       * is a stock question a buyer asks all day, and the button that creates
+       * variants hides itself when the seat cannot use it.
+       */
+      { path: 'cosmetics/shelf-life', component: CosmeticShelfLifeView, meta: { permission: 'cosmetic-shelf-life.view' } },
+      { path: 'cosmetics/testers', component: CosmeticTestersView, meta: { permission: 'cosmetic-shelf-life.view' } },
+      { path: 'cosmetics/shades', component: CrudView, meta: { resource: 'cosmetic-shades', permission: 'cosmetic-shades.view' } },
+      { path: 'cosmetics/shade-card', component: ShadeCardView, meta: { permission: 'cosmetic-shades.view' } },
+
+      /**
+       * Sports & Fitness. Two routes onto one component for the fleet half, told
+       * apart inside it by the path — the register and the utilisation report are
+       * the same book read two ways.
+       *
+       * The desk opens on `rentals.view` even though settling a hire needs
+       * `sales.create` as well: the board is what a counter watches all day, and
+       * the button that raises the bill hides itself when the seat cannot use it.
+       */
+      { path: 'sports/rentals', component: SportsRentalDeskView, meta: { permission: 'rentals.view' } },
+      { path: 'sports/fleet', component: SportsFleetView, meta: { permission: 'rental-assets.view' } },
+      { path: 'sports/utilisation', component: SportsFleetView, meta: { permission: 'rental-assets.view' } },
+
+      /**
+       * Books & Periodicals. One permission across all four, because the four
+       * screens are one book to whoever keeps it — see the note in the plugin's
+       * routes.php. There is no genre screen here on purpose: a genre is a core
+       * category, and the Book Store menu links straight to Categories.
+       */
+      { path: 'books/titles', component: BookTitlesView, meta: { permission: 'book-catalogue.view' } },
+      { path: 'books/authors', component: CrudView, meta: { resource: 'book-authors', permission: 'book-catalogue.view' } },
+      { path: 'books/publishers', component: CrudView, meta: { resource: 'book-publishers', permission: 'book-catalogue.view' } },
+      { path: 'books/languages', component: CrudView, meta: { resource: 'book-languages', permission: 'book-catalogue.view' } },
+
+      /**
+       * Retail — the garment trade. The four masters run on the shared CrudView
+       * from config/resources.ts; only the grid and the trial room need screens
+       * of their own, because neither is a list of records edited one at a time.
+       */
+      { path: 'garment/styles', component: CrudView, meta: { resource: 'garment-styles', permission: 'garment-styles.view' } },
+      { path: 'garment/fabrics', component: CrudView, meta: { resource: 'garment-fabrics', permission: 'garment-fabrics.view' } },
+      { path: 'garment/size-sets', component: CrudView, meta: { resource: 'garment-size-sets', permission: 'garment-styles.view' } },
+      { path: 'garment/colours', component: CrudView, meta: { resource: 'garment-colours', permission: 'garment-styles.view' } },
+      { path: 'garment/matrix', component: GarmentMatrixView, meta: { permission: 'products.view' } },
+      { path: 'garment/trials', component: GarmentTrialsView, meta: { permission: 'garment-trials.view' } },
       { path: 'service-jobs', component: ServiceJobsView, meta: { permission: 'service-jobs.view' } },
       { path: 'service-contracts', component: ServiceContractsView, meta: { permission: 'service-contracts.view' } },
+      // Retail warranty. Two routes, one component: the register and its claim
+      // book are one screen with two tabs, and both menu rows have to land on
+      // the right one.
+      { path: 'warranties/claims', component: WarrantiesView, meta: { permission: 'warranty-claims.view' } },
+      { path: 'warranties', component: WarrantiesView, meta: { permission: 'warranties.view' } },
       { path: 'automobile/vehicles', component: AutomobileVehiclesView, meta: { permission: 'automobile-vehicles.view' } },
       { path: 'automobile/bookings', component: AutomobileBookingsView, meta: { permission: 'automobile-bookings.view' } },
       { path: 'automobile/warranties', component: AutomobileWarrantiesView, meta: { permission: 'automobile-warranties.view' } },
+      // Electronics & Appliances. No warranty route of its own — cover is the
+      // core register at /warranties, which the Electronics nav group links to.
+      { path: 'electronics/requests', component: ElectronicsRequestsView, meta: { permission: 'electronics-requests.view' } },
+      { path: 'electronics/units', component: ElectronicsUnitsView, meta: { permission: 'electronics-units.view' } },
+      { path: 'computer-it/service-calls', component: ItServiceCallsView, meta: { permission: 'it-service-calls.view' } },
+      { path: 'computer-it/assets', component: ItAssetsView, meta: { permission: 'it-assets.view' } },
+      { path: 'computer-it/warranties', component: ItWarrantiesView, meta: { permission: 'it-warranties.view' } },
+      { path: 'computer-it/licence-keys', component: ItLicenceKeysView, meta: { permission: 'it-licences.view' } },
+      // Stationery. The school-orders board reads core sales orders, so it gates
+      // on sales.view rather than on a stationery permission — the rows *are*
+      // sales orders, and hiding them here but not on /sales-orders would be a
+      // difference without a meaning.
+      { path: 'stationery/class-kits', component: StationeryClassKitsView, meta: { permission: 'stationery-kits.view' } },
+      { path: 'stationery/institutions', component: StationeryInstitutionsView, meta: { permission: 'stationery-institutions.view' } },
+      { path: 'stationery/school-orders', component: StationerySchoolOrdersView, meta: { permission: 'sales.view' } },
+      { path: 'stationery/season-demand', component: StationerySeasonDemandView, meta: { permission: 'stationery-kits.view' } },
+      // Mobile. No warranty route of its own for the same reason as Electronics
+      // above, and no repair route either — both are second doors from the Mobile
+      // nav group onto /warranties and /service-jobs.
+      { path: 'mobile/handsets', component: MobileHandsetsView, meta: { permission: 'mobile-handsets.view' } },
+      { path: 'mobile/insurance', component: MobileInsuranceView, meta: { permission: 'mobile-insurance.view' } },
+      { path: 'mobile/emi', component: MobileEmiFilesView, meta: { permission: 'mobile-emi.view' } },
+      { path: 'mobile/buybacks', component: MobileBuybacksView, meta: { permission: 'mobile-buyback.view' } },
       { path: 'restaurant/floor', component: RestaurantFloorView, meta: { permission: 'restaurant-tables.view' } },
       { path: 'restaurant/orders', component: RestaurantOrdersView, meta: { permission: 'restaurant-orders.view' } },
       { path: 'restaurant/kitchen', component: KitchenDisplayView, meta: { permission: 'kitchen-orders.view' } },
@@ -290,6 +514,29 @@ const routes: RouteRecordRaw[] = [
       { path: 'milk-round', component: MilkRoundView, meta: { permission: 'milk-round.view' } },
       { path: 'parlour/freezers', component: ParlourFreezersView, meta: { permission: 'stock.view' } },
       { path: 'reports/waiter-performance', component: WaiterPerformanceView, meta: { permission: 'reports.view' } },
+      // Grocery & Kirana. Combo packs sit on `products.view` because a pack is a
+      // product with a statement of what it breaks into; the khata has its own
+      // grant because it is the owner's book of debts.
+      { path: 'grocery/combo-packs', component: ComboPacksView, meta: { permission: 'products.view' } },
+      { path: 'grocery/supplier-credit', component: SupplierCreditView, meta: { permission: 'supplier-credit.view' } },
+      /**
+       * Supermarket. The floor and the round read stock and so sit on
+       * `stock.view`; the planogram is merchandising and has its own grant,
+       * because the person who walks the round is not the person who decides
+       * that the biscuits move to aisle four.
+       */
+      { path: 'supermarket/shelves', component: SupermarketShelvesView, meta: { permission: 'stock.view', mode: 'floor' } },
+      { path: 'supermarket/replenishment', component: SupermarketShelvesView, meta: { permission: 'stock.view', mode: 'round' } },
+      { path: 'supermarket/planogram', component: SupermarketShelvesView, meta: { permission: 'shelf-planogram.view', mode: 'layout' } },
+      { path: 'supermarket/self-checkout', component: SelfCheckoutView, meta: { permission: 'self-checkout.view' } },
+      /**
+       * Tills and cash-up. Under `pos-counters`, not `supermarket` — a jeweller
+       * with a separate silver counter reconciles per desk exactly as a
+       * hypermarket does. Both routes are on `.view`: a cashier who refreshed
+       * the page has to be able to find out which shift they are on.
+       */
+      { path: 'pos-counters', component: PosCountersView, meta: { permission: 'pos-counters.view', mode: 'counters' } },
+      { path: 'pos-counters/sessions', component: PosCountersView, meta: { permission: 'pos-counters.view', mode: 'sessions' } },
       // Distribution & Wholesale. The ageing report keeps its own route rather
       // than becoming a ReportsView tab because it is a work list with its own
       // filters and a per-party drill-down, not a table with a date range. Both
@@ -302,6 +549,10 @@ const routes: RouteRecordRaw[] = [
       { path: 'livestock/flocks', component: LivestockFlocksView, meta: { permission: 'livestock-flocks.view' } },
       { path: 'eye-prescriptions', component: EyePrescriptionsView, meta: { permission: 'eye-prescriptions.view' } },
       { path: 'optical-orders', component: OpticalOrdersView, meta: { permission: 'optical-orders.view' } },
+      { path: 'optical-appointments', component: OpticalAppointmentsView, meta: { permission: 'optical-appointments.view' } },
+      // The collection desk works the same orders the workshop screen does, so
+      // it sits on their permission rather than one of its own.
+      { path: 'optical-delivery', component: OpticalDeliveryView, meta: { permission: 'optical-orders.view' } },
       { path: 'metal-rates', component: MetalRatesView, meta: { permission: 'metal-rates.view' } },
       { path: 'old-gold', component: OldGoldView, meta: { permission: 'old-gold.view' } },
       { path: 'prescriptions', component: PrescriptionsView, meta: { permission: 'prescriptions.view' } },
@@ -525,6 +776,7 @@ const routes: RouteRecordRaw[] = [
       { path: '', name: 'central-dashboard', component: CentralDashboardView },
       { path: 'tenants', name: 'central-tenants', component: CentralTenantsView, meta: { permission: 'tenants.view' } },
       { path: 'industries', name: 'central-industries', component: CentralIndustriesView, meta: { permission: 'industries.view' } },
+      { path: 'menus', name: 'central-menus', component: CentralMenusView, meta: { permission: 'menus.view' } },
       { path: 'plans', name: 'central-plans', component: CentralPlansView, meta: { permission: 'plans.view' } },
       { path: 'billing', name: 'central-billing', component: CentralBillingView, meta: { permission: 'subscriptions.view' } },
       // The marketplace shell renders whichever tab the operator is entitled to,

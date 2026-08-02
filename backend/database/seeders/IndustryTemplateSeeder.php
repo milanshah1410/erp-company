@@ -37,15 +37,52 @@ class IndustryTemplateSeeder extends Seeder
      * but never picks a trade; a picked trade always wins (see
      * IndustryTemplates::modulesFor).
      *
-     * @var array<string, array{label: string, icon: string, description: string, trades: list<string>, modules: list<string>}>
+     * @var array<string, array{label: string, icon: string, description: string, trades: list<string>, modules: list<string>, sort?: int}>
      */
     private const TEMPLATES = [
+        // Keyed the same as the Retail plugin, which owns this vertical's
+        // trades — see PLUGIN_BACKED and the note on food_beverage below for why
+        // the key has to match. Grocery, garment, footwear, optical and
+        // jewellery all moved out of the hand-written ShopProfiles list into
+        // RetailPlugin::trades() together, because a plugin-backed template
+        // reports the plugin's trades and ignores the curated column. Two of the
+        // five have since gone further and become verticals of their own
+        // (Grocery & Kirana, Optical & Eyewear) once they grew past what a
+        // shared retail preset could describe.
         'retail' => [
             'label' => 'Retail',
             'icon' => 'pi pi-shop',
             'description' => 'Counter billing, barcode, stock and the daily cash book',
-            'trades' => ['grocery', 'garment', 'optical', 'jewellery'],
+            // Trades come from the Retail plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            // Neither `warranty` nor `garment` is in the fallback set on purpose:
+            // a signup that names "Retail" without picking a trade is as likely
+            // to be a kirana as a shoe shop or a showroom, and a grocer has
+            // nothing to warrant and no style master to keep. The trade presets
+            // switch each on for the trades that do.
             'modules' => ['sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'devices', 'crm', 'ai'],
+        ],
+        /**
+         * Grocery & Kirana, keyed after the plugin that owns its trade — the same
+         * rule as every other plugin-backed row. It used to be one of Retail's
+         * five trades and is its own vertical now, which is why the Retail row
+         * above no longer mentions a kirana.
+         *
+         * `sort` is explicit rather than positional. The loop numbers templates
+         * by position, so inserting a row in the middle gives it a number an
+         * existing install has already handed to something else — a trap this
+         * seeder has fallen into once before. An explicit number places it
+         * between Retail and Restaurant on a fresh install and collides with
+         * nothing on an old one.
+         */
+        'grocery' => [
+            'label' => 'Grocery & Kirana',
+            'icon' => 'pi pi-shopping-cart',
+            'description' => 'Kirana counters and grocery stores: counter billing, batch & expiry, combo packs, loyalty and distributor credit',
+            'sort' => 15,
+            // Trades come from the Grocery plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            'modules' => ['grocery', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'devices', 'crm', 'ai'],
         ],
         // Keyed after the plugin that owns it, not after the requirement's
         // "Restaurant" wording: a trade declared by a plugin reports the plugin's
@@ -157,6 +194,218 @@ class IndustryTemplateSeeder extends Seeder
             'modules' => ['automobile', 'service', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'crm', 'ai'],
         ],
 
+        // Keyed after the Electronics plugin that owns its trades, for the same
+        // reason as automobile above. The fallback modules lean to the showroom
+        // rather than the electrical counter: a signup that names "Electronics"
+        // without picking a trade is far more often a shop that delivers and
+        // installs than one selling switches over a counter, and `service` plus
+        // `logistics` are what make that shape work at all.
+        'electronics' => [
+            'label' => 'Electronics & Appliances',
+            'icon' => 'pi pi-desktop',
+            // Mobile and computer shops used to be named here. Both are now their
+            // own templates, keyed after their own plugins, so naming them would
+            // send a phone counter into the vertical that no longer has its trade.
+            'description' => 'Electronics showrooms, appliance dealers, kitchenware and electrical goods stores',
+            'trades' => [],
+            'modules' => ['electronics', 'warranty', 'service', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'logistics', 'devices', 'crm', 'ai'],
+        ],
+
+        // Keyed after the Computer & IT plugin that owns its trade, for the same
+        // reason as food_beverage above. Kept apart from Electronics rather than
+        // folded into it because the two sell on different things: an appliance
+        // dealer's aftersales question is "will you come and install it?", and a
+        // computer shop's is "is this machine on our AMC, and where is its
+        // licence key?". One template would have to describe both and would end
+        // up selling neither.
+        'computer_it' => [
+            'label' => 'Computer & IT',
+            'icon' => 'pi pi-desktop',
+            'description' => 'Computer and laptop shops: machines sold by serial, warranty and AMC cover, repairs, licence keys and on-site service calls',
+            // Trades come from the Computer & IT plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            'modules' => ['computer_it', 'service', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'devices', 'crm', 'ai'],
+        ],
+
+        // Keyed after the Mobile plugin that owns its trade, for the same reason as
+        // the two above. Kept apart from Electronics because the aftersales question
+        // is a different one: an appliance dealer is asked "will you come and
+        // install it?", and a phone counter is asked "is my screen covered, and how
+        // many EMIs are left?". No `logistics` in the fallback — nothing here is
+        // delivered on a van — and `loyalty` instead, because this trade lives on
+        // the same customers coming back.
+        'mobile' => [
+            'label' => 'Mobile & Handsets',
+            'icon' => 'pi pi-mobile',
+            'description' => 'Mobile phone shops: handsets by IMEI, warranty and screen insurance, EMI files, part-exchange and repairs',
+            // Trades come from the Mobile plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            'modules' => ['mobile', 'warranty', 'service', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'devices', 'crm', 'ai'],
+        ],
+
+        /**
+         * Keyed after the Stationery plugin that owns its trade, for the same
+         * reason as the templates above. Kept out of `retail` — which is where a
+         * shop selling pens over a counter would otherwise land — because the
+         * buying decision is not a retail one: this trade is chosen by shops that
+         * supply schools, and the thing they are shopping for is the booklist, not
+         * the till. A stationery shop that only sells over a counter is well
+         * served by `retail`, and should pick it.
+         */
+        'stationery' => [
+            'label' => 'Stationery & School Supplies',
+            'icon' => 'pi pi-pencil',
+            'description' => 'Stationery, book and office-supply shops: school accounts, class booklists, bulk quantity pricing and term-wise supply orders',
+            // Trades come from the Stationery plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            // `logistics` because a school's order goes out on the van in phases,
+            // and `devices` because a June counter cannot search for products by
+            // name — it scans.
+            'modules' => ['stationery', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'logistics', 'devices', 'loyalty', 'crm', 'ai'],
+            /**
+             * Stated rather than positional, and chosen against the *installed*
+             * numbering rather than this file's order — the two have drifted.
+             * Existing rows keep whatever sort_order they were first seeded with,
+             * and on an install that has run this seeder before, `other` is
+             * already sitting at 110. A positional number here (135) would
+             * therefore file Stationery *after* "Other", which has to stay last
+             * in the picker. 105 lands before it on an existing install and still
+             * leaves `other` last on a fresh one.
+             */
+            'sort' => 105,
+        ],
+        /**
+         * Keyed after the Gift plugin that owns its trade. Kept out of `retail`
+         * for the same kind of reason stationery is: what a gift shop is shopping
+         * for is not a till — it is the wrap desk, the hamper book and the list of
+         * dates its customers buy for, none of which a garment showroom wants.
+         *
+         * A curated row rather than leaving the seeder's plugin fallback to invent
+         * one: that fallback saves a template with no modules, and a signup that
+         * names an industry without picking a trade then drops to the bare
+         * essentials — a gift shop landing on a workspace with no POS.
+         */
+        'gift' => [
+            'label' => 'Gift & Novelty',
+            'icon' => 'pi pi-gift',
+            'description' => 'Gift shops and novelty counters: the wrap desk, hamper packs, occasion reminders, loyalty and gift vouchers',
+            // Trades come from the Gift plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            // `loyalty` carries both points and gift vouchers; `devices` is
+            // barcode and label printing, without which pricing five hundred
+            // small items before Diwali is done by hand.
+            'modules' => ['gift', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'devices', 'crm', 'ai'],
+            // Explicit, for the reason stated on the row above: 137 slots it after
+            // Stationery (135) on a fresh seed and collides with nothing on an
+            // existing one, where every other row is already holding a multiple of
+            // ten — including `other`, which has to stay last.
+            'sort' => 137,
+        ],
+        /**
+         * Keyed after the Toys plugin that owns its trade. Kept apart from Gift
+         * & Novelty, whose wrap desk and hamper book it borrows, because the two
+         * are shopping for different things: a gift counter's question is "can
+         * you wrap it by six?", and a toy shop's is "is this legal to sell and
+         * who is it for?". One template would have to describe both and would
+         * end up selling neither.
+         *
+         * `gift` is in the fallback module set as well as in the trade preset, so
+         * a signup that names the industry without picking the trade still lands
+         * on a workspace with a wrap desk — which is half of what the trade was
+         * promised.
+         */
+        'toys' => [
+            'label' => 'Toys & Games',
+            'icon' => 'pi pi-star',
+            'description' => 'Toy shops: age bands, safety classes and BIS certificates, gift wrapping, combo packs and counter billing',
+            // Trades come from the Toys plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            'modules' => ['toys', 'gift', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'devices', 'crm', 'ai'],
+            // Explicit for the same reason as the row above: 138 slots it after
+            // Gift (137) and collides with nothing on an existing install, where
+            // every other row holds a multiple of ten — `other` included, which
+            // has to stay last.
+            'sort' => 138,
+        ],
+        /**
+         * Keyed after the Optical plugin that owns its trade. It used to be one
+         * of Retail's five and is its own vertical now — the same move Grocery
+         * made — which is why the Retail row above no longer mentions eye tests.
+         *
+         * `warranty` is in the fallback module set as well as in the trade
+         * preset: an optical workspace issues warranty cards when it hands a
+         * pair over, and a signup that named the industry without picking the
+         * trade would otherwise be granted cover it has no screen to read.
+         *
+         * `sort` explicit, like its two neighbours: 139 places it after Toys and
+         * collides with nothing on an existing install, where every other row
+         * holds a multiple of ten and `other` has to stay last.
+         */
+        'optical' => [
+            'label' => 'Optical & Eyewear',
+            'icon' => 'pi pi-eye',
+            'description' => 'Opticians and eyewear stores: eye tests and appointments, lens and frame specifications, spectacle orders through the lab, collection and warranty',
+            // Trades come from the Optical plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            'modules' => ['optical', 'warranty', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'devices', 'crm', 'ai'],
+            'sort' => 139,
+        ],
+
+        /**
+         * Keyed after the Book Store plugin that owns its two trades. Kept apart
+         * from Stationery, whose booklists the academic trade borrows, because
+         * the two shops are asked different questions: a stationer's is "how many
+         * sets for Class 5?", a bookseller's is "which edition, whose translation,
+         * and can you get it?". One template would have to describe both and
+         * would end up selling neither.
+         *
+         * `ecommerce` is in the fallback module set as well as in the trade
+         * presets, because a signup that names the industry without picking a
+         * trade should still land on a workspace that can take web orders — which
+         * is one of the seven things this trade was promised. Whether it actually
+         * gets it is the plan's decision, not this row's.
+         *
+         * `sort` explicit like its neighbours: 140 places it after Optical (139)
+         * and collides with nothing on an existing install, where every other row
+         * holds a multiple of ten and `other` has to stay last.
+         */
+        'books' => [
+            'label' => 'Books & Periodicals',
+            'icon' => 'pi pi-book',
+            'description' => 'Book shops: ISBN catalogue with authors and translators, publishers and their trade terms, language sections, counter billing and online orders',
+            // Trades come from the Book Store plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            'modules' => ['books', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'ecommerce', 'loyalty', 'devices', 'crm', 'ai'],
+            'sort' => 140,
+        ],
+        /**
+         * Keyed after the Sports plugin that owns its trade. Its own row rather
+         * than a note under Retail, because a sports shop is two businesses in one
+         * unit: it sells kit like a footwear shop, and it *hires* kit, which
+         * nothing else in this catalogue does. A buyer choosing "Retail" would get
+         * the first half and never find out the second existed.
+         *
+         * `service` and `warranty` are in the fallback module set as well as in
+         * the trade preset, because two of the seven things this trade was
+         * promised — Repair and Warranty — have no screen at all without them, and
+         * a signup that names the industry without picking the trade should still
+         * land on a workspace that can take a racquet in for restringing.
+         *
+         * `sort` explicit like its neighbours: 145 leaves room after Books (140)
+         * for the verticals still landing around it, and collides with nothing on
+         * an existing install where every other row holds a multiple of ten and
+         * `other` has to stay last.
+         */
+        'sports' => [
+            'label' => 'Sports & Fitness',
+            'icon' => 'pi pi-flag',
+            'description' => 'Sports shops: equipment hire with deposits and an overdue board, kit repair, size and colour runs, warranty and counter billing',
+            // Trades come from the Sports plugin — see PLUGIN_BACKED.
+            'trades' => [],
+            'modules' => ['sports', 'sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'service', 'warranty', 'loyalty', 'devices', 'crm', 'ai'],
+            'sort' => 145,
+        ],
+
         // Beyond the seven: the homes for trade presets that already ship.
         'services' => [
             'label' => 'Services & Projects',
@@ -176,12 +425,23 @@ class IndustryTemplateSeeder extends Seeder
 
     /** Template key => the industry plugin that owns its trades. */
     private const PLUGIN_BACKED = [
+        'retail' => 'retail',
+        'grocery' => 'grocery',
         'food_beverage' => 'food_beverage',
         'manufacturing' => 'manufacturing',
         'healthcare' => 'healthcare',
         'agriculture' => 'agriculture',
         'distribution' => 'distribution',
         'automobile' => 'automobile',
+        'electronics' => 'electronics',
+        'computer_it' => 'computer_it',
+        'mobile' => 'mobile',
+        'stationery' => 'stationery',
+        'gift' => 'gift',
+        'toys' => 'toys',
+        'books' => 'books',
+        'optical' => 'optical',
+        'sports' => 'sports',
     ];
 
     public function run(): void
@@ -212,7 +472,9 @@ class IndustryTemplateSeeder extends Seeder
             $row->trades ??= $template['trades'];
             $row->plugin_key ??= self::PLUGIN_BACKED[$key] ?? null;
             $row->is_system = true;
-            $row->sort_order = $row->exists ? $row->sort_order : $sort;
+            // Positional by default; a template may state its own number to slot
+            // between two existing rows without renumbering everything after it.
+            $row->sort_order = $row->exists ? $row->sort_order : ($template['sort'] ?? $sort);
             if (! $row->exists) {
                 $row->is_active = true;
             }

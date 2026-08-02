@@ -13,6 +13,11 @@ class Payment extends Model
 
     protected $fillable = [
         'invoice_id', 'amount', 'mode', 'payment_date', 'notes', 'created_by',
+        // The till shift this money passed through. Null for anything not taken
+        // at a counter — a bank receipt, a collection in the field, a payment
+        // link settled online. Cash-up sums off this column, so a refund handed
+        // over today lands on today's drawer even when the bill is months old.
+        'pos_session_id',
     ];
 
     protected $casts = [
@@ -28,5 +33,10 @@ class Payment extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function posSession(): BelongsTo
+    {
+        return $this->belongsTo(PosCounterSession::class, 'pos_session_id');
     }
 }

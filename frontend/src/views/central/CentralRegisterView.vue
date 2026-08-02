@@ -26,6 +26,9 @@ interface ModuleOption {
   description: string
   // Screen names this module unlocks, straight from the menu catalogue.
   menus?: string[]
+  // Part of the Core ERP set every workspace gets (App\Support\Modules::CORE).
+  // Rendered as on and not clickable — it is not a choice on any package.
+  core?: boolean
 }
 
 interface ShopProfile {
@@ -33,7 +36,9 @@ interface ShopProfile {
   label: string
   icon: string
   description: string
-  // The modules this trade normally runs on — a starting tick, not a lock.
+  // The modules this trade normally runs on — a starting tick, not a lock. The
+  // Core ERP set is already merged in server-side (App\Support\ShopProfiles),
+  // so this is core plus whatever the trade adds.
   modules: string[]
   // Industry-template key this trade sits under ('retail', 'restaurant', …).
   // Absent only in the offline fallback list below.
@@ -63,18 +68,27 @@ const step = ref(1)
 // Embroidery. The real list comes from GET /shop-profiles (App\Support\ShopProfiles);
 // this fallback only keeps the step usable if that call fails.
 const FALLBACK_PROFILES: ShopProfile[] = [
-  { key: 'grocery', label: 'Grocery / Kirana', icon: 'pi pi-shop', description: '', modules: ['sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'devices'] },
-  { key: 'garment', label: 'Garment / Apparel', icon: 'pi pi-shopping-bag', description: '', modules: ['sales', 'pos', 'purchase', 'inventory', 'accounts', 'gst', 'loyalty', 'tailoring', 'devices'] },
-  { key: 'custom', label: 'Something else', icon: 'pi pi-sliders-h', description: '', modules: ['sales', 'purchase', 'inventory', 'accounts'] },
+  { key: 'grocery', label: 'Grocery / Kirana', icon: 'pi pi-shop', description: '', modules: ['pos', 'gst', 'devices'] },
+  { key: 'garment', label: 'Garment / Apparel', icon: 'pi pi-shopping-bag', description: '', modules: ['pos', 'gst', 'loyalty', 'tailoring', 'devices'] },
+  { key: 'custom', label: 'Something else', icon: 'pi pi-sliders-h', description: '', modules: [] },
 ]
+/**
+ * The Core ERP set every workspace gets, whatever it sells and whatever it pays —
+ * mirrors App\Support\Modules::CORE. Used only until GET /modules answers (each
+ * module then carries its own `core` flag), and to keep the grid honest if that
+ * call fails: these are never unticked here, because the server puts them back.
+ */
+const CORE_MODULES = ['sales', 'crm', 'purchase', 'inventory', 'accounts', 'ai']
 // Fallback catalogue, used only if GET /modules fails — the real list comes from
 // the backend (App\Support\Modules), which is also what tags the menu rows.
 const FALLBACK_MODULES: ModuleOption[] = [
-  { key: 'sales', label: 'Sales', icon: 'pi pi-shopping-cart', description: '' },
+  { key: 'sales', label: 'Sales', icon: 'pi pi-shopping-cart', description: '', core: true },
+  { key: 'crm', label: 'CRM', icon: 'pi pi-heart', description: '', core: true },
   { key: 'pos', label: 'POS', icon: 'pi pi-calculator', description: '' },
-  { key: 'purchase', label: 'Purchase', icon: 'pi pi-shopping-bag', description: '' },
-  { key: 'inventory', label: 'Inventory', icon: 'pi pi-warehouse', description: '' },
-  { key: 'accounts', label: 'Accounts', icon: 'pi pi-wallet', description: '' },
+  { key: 'purchase', label: 'Purchase', icon: 'pi pi-shopping-bag', description: '', core: true },
+  { key: 'inventory', label: 'Inventory', icon: 'pi pi-warehouse', description: '', core: true },
+  { key: 'accounts', label: 'Accounts', icon: 'pi pi-wallet', description: '', core: true },
+  { key: 'ai', label: 'AI Assistant', icon: 'pi pi-sparkles', description: '', core: true },
 ]
 const CURRENCIES = [
   { code: 'INR', symbol: '₹', label: 'Indian Rupee (₹)' },
@@ -112,8 +126,8 @@ const form = ref({
   // here; the backend still resolves those, but new signups send a key.)
   shop_profile: 'garment',
   industry: 'retail',
-  // Step 3 — modules
-  modules: ['crm', 'sales', 'purchase', 'inventory', 'accounts'] as string[],
+  // Step 3 — modules. Starts at the Core ERP floor; the trade preset adds to it.
+  modules: [...CORE_MODULES] as string[],
   // Step 4 — users
   admin_name: '',
   email: '',
@@ -206,7 +220,28 @@ const includedModules = computed(() => moduleCatalogue.value.filter((m) => modul
 const lockedModules = computed(() => moduleCatalogue.value.filter((m) => !moduleAllowed(m.key)))
 
 function moduleAllowed(key: string) {
-  return allowedModules.value.includes(key)
+  return allowedModules.value.includes(key) || isCoreModule(key)
+}
+
+/**
+ * Core ERP, which every package includes and no step of this wizard can turn off.
+ * The catalogue's own flag is authoritative; CORE_MODULES only covers the window
+ * before /modules answers.
+ */
+function isCoreModule(key: string) {
+  const m = moduleCatalogue.value.find((o) => o.key === key)
+  return m ? !!m.core : CORE_MODULES.includes(key)
+}
+
+/** The Core ERP keys, always ticked and always sent. */
+function coreKeys(): string[] {
+  const flagged = moduleCatalogue.value.filter((m) => m.core).map((m) => m.key)
+  return flagged.length ? flagged : [...CORE_MODULES]
+}
+
+/** The given selection plus core, deduped — the shape every write here takes. */
+function withCore(keys: string[]): string[] {
+  return Array.from(new Set([...coreKeys(), ...keys]))
 }
 
 /** Module names for a package card / the review row, e.g. "Sales, POS, Purchase". */
@@ -228,21 +263,22 @@ function menuPreview(m: ModuleOption): string {
 /**
  * Only Enterprise (a package with no module restriction) lets the buyer pick and
  * choose — on the smaller packages the module set *is* the package, so step 3
- * just lists what comes with it.
+ * just lists what comes with it. Core ERP is never a choice on any package.
  */
 function toggleModule(key: string) {
-  if (!planAllowsAll.value || !moduleAllowed(key)) return
+  if (!planAllowsAll.value || !moduleAllowed(key) || isCoreModule(key)) return
   const i = form.value.modules.indexOf(key)
   if (i >= 0) form.value.modules.splice(i, 1)
   else form.value.modules.push(key)
 }
 
 function selectAllModules() {
-  form.value.modules = [...allowedModules.value]
+  form.value.modules = withCore([...allowedModules.value])
 }
 
+/** "Clear" means back to the Core ERP floor — there is nothing below it. */
 function clearModules() {
-  form.value.modules = []
+  form.value.modules = coreKeys()
 }
 
 const selectedProfile = computed(
@@ -363,7 +399,7 @@ const profileCapabilities = computed<{ label: string; planned: boolean }[]>(() =
  */
 function profileModules(): string[] {
   const scoped = (selectedProfile.value?.modules ?? []).filter((k) => moduleAllowed(k))
-  return scoped.length ? scoped : [...allowedModules.value]
+  return withCore(scoped.length ? scoped : [...allowedModules.value])
 }
 
 /** Pick a trade: re-ticks the module grid and names the industry in one move. */
@@ -383,9 +419,9 @@ function applyProfile(key: string) {
 
 /** Keep the selection inside the package; fall back to the trade's preset. */
 function pruneModules() {
-  form.value.modules = form.value.modules.filter((k) => moduleAllowed(k))
+  form.value.modules = withCore(form.value.modules.filter((k) => moduleAllowed(k)))
   if (!planAllowsAll.value) {
-    form.value.modules = [...allowedModules.value]
+    form.value.modules = withCore([...allowedModules.value])
     return
   }
   if (!form.value.modules.length) form.value.modules = profileModules()
@@ -723,14 +759,20 @@ async function submit() {
         <li
           v-for="m in includedModules"
           :key="m.key"
-          :class="{ picked: form.modules.includes(m.key), selectable: planAllowsAll }"
-          :title="menuPreview(m)"
+          :class="{
+            picked: form.modules.includes(m.key) || isCoreModule(m.key),
+            selectable: planAllowsAll && !isCoreModule(m.key),
+          }"
+          :title="isCoreModule(m.key) ? `Included with every workspace — ${menuPreview(m)}` : menuPreview(m)"
           @click="toggleModule(m.key)"
         >
           <i :class="m.icon" class="ml-icon" />
           <span class="ml-title">{{ m.label }}</span>
+          <!-- Core ERP: on for every workspace on every package, so it reads as
+               a statement rather than an unticked box the buyer might try. -->
+          <span v-if="isCoreModule(m.key)" class="ml-core">Core</span>
           <span v-if="menuCount(m)" class="ml-count">{{ menuCount(m) }}</span>
-          <i v-if="form.modules.includes(m.key)" class="pi pi-check-circle ml-state on" />
+          <i v-if="form.modules.includes(m.key) || isCoreModule(m.key)" class="pi pi-check-circle ml-state on" />
           <i v-else-if="planAllowsAll" class="pi pi-circle ml-state" />
           <i v-else class="pi pi-check ml-state included" />
         </li>
@@ -1683,6 +1725,19 @@ select {
   background: rgba(232, 163, 61, 0.16);
   border-radius: 999px;
   padding: 0.05rem 0.34rem;
+}
+/* Core ERP marker. Green rather than the amber count badge, so "you already have
+   this" never reads as "this costs extra". */
+.ml-core {
+  flex: none;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #3f7a5f;
+  background: rgba(76, 139, 108, 0.14);
+  border-radius: 999px;
+  padding: 0.05rem 0.36rem;
 }
 .ml-state {
   flex: none;

@@ -60,7 +60,7 @@ class DatabaseSeeder extends Seeder
         // 2. The dev tenant — seeded active (not on a trial) so it can never be
         //    swept up by the daily lapse/suspension processing.
         $tenant = Tenant::updateOrCreate(
-            ['email' => 'admin@sims.test'],
+            ['email' => 'admin@demo.test'],
             [
                 'company_name' => 'Demo Company',
                 'status' => 'active',
@@ -76,7 +76,7 @@ class DatabaseSeeder extends Seeder
             app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
 
             $admin = User::updateOrCreate(
-                ['email' => 'admin@sims.test'],
+                ['email' => 'admin@demo.test'],
                 [
                     'name' => 'System Administrator',
                     'password' => Hash::make('password'),
@@ -116,5 +116,17 @@ class DatabaseSeeder extends Seeder
             ],
         );
         OnboardingProgress::firstOrCreate(['tenant_id' => $tenant->id], ['steps' => []]);
+
+        // 5. One demo workspace per trade (grocery@demo.test, restaurant@demo.test,
+        //    …) — the surface that shows the same software as a different ERP per
+        //    shop type. Last on purpose: it manages its own tenant + permission
+        //    team context per workspace and leaves the registrar pointed at the
+        //    final demo tenant, so nothing above it may depend on that state.
+        //
+        //    Off-switch for a fast seed (DEMO_SHOPS=0); DEMO_SHOP_DATA=1 adds the
+        //    sample transactions on top, as documented on the seeder itself.
+        if (filter_var(env('DEMO_SHOPS', true), FILTER_VALIDATE_BOOL)) {
+            $this->call(DemoShopSeeder::class);
+        }
     }
 }

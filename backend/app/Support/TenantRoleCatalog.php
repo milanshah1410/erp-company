@@ -92,8 +92,10 @@ class TenantRoleCatalog
         // the rate governs every bill in the shop, buying old gold is one deal.
         'metal-rates', 'old-gold',
         // Optical. Testing eyes and dispensing spectacles are different jobs,
-        // often different people, so they carry separate permissions.
-        'eye-prescriptions', 'optical-orders',
+        // often different people, so they carry separate permissions. The diary
+        // is a third: whoever answers the phone books the chair, and that is not
+        // the same person as the one who may record what the test found.
+        'eye-prescriptions', 'optical-orders', 'optical-appointments',
         // Restaurant. The floor, the tickets and the kitchen display are three
         // different screens held by three different people.
         'restaurant-tables', 'restaurant-orders', 'kitchen-orders',
@@ -141,6 +143,63 @@ class TenantRoleCatalog
         // call. The job card itself is a service job and needs no permission of
         // its own.
         'automobile-vehicles', 'automobile-bookings', 'automobile-warranties',
+        // Electronics plugin. Two registers, two different desks: the phone desk
+        // logs requests all day, and the unit register is written when a machine
+        // is booked in or sold. There is no warranty permission here on purpose —
+        // cover is the core `warranty` module's card, held under 'warranties',
+        // and the job card itself is a service job.
+        'electronics-units', 'electronics-requests',
+        /**
+         * Computer & IT plugin. Four registers, and the licence one is the
+         * reason they are not three: a key is worth money the moment it is read
+         * off a screen, so the counter hand who logs a call and the person who
+         * can see a Windows key are deliberately different grants. Assets and
+         * calls split for the same reason as Automobile's — the desk logs calls
+         * all day, the install base is written when a machine is delivered — and
+         * the warranty register decides who pays, which is nobody's call to take
+         * on the phone. The job card itself is a service job and needs no
+         * permission of its own.
+         */
+        'it-assets', 'it-warranties', 'it-licences', 'it-service-calls',
+        /**
+         * Mobile plugin. Four registers, and they split by how much damage the desk
+         * can do:
+         *
+         *  - `mobile-handsets` is the IMEI register, written whenever a phone is
+         *    booked in or sold. Counter work.
+         *  - `mobile-insurance` decides whether a cracked screen is replaced free.
+         *    Writing a policy is a sale; voiding one takes cover away from a
+         *    customer relying on it, which is why that sits on `.delete`.
+         *  - `mobile-emi` is a debtor book. Collections ride on `payments.create`
+         *    because they move money, but *waiving* an instalment — forgiving a
+         *    receivable outright — needs `.delete` here.
+         *  - `mobile-buyback` commits the shop to a debt the moment a handset is
+         *    accepted, so quoting and accepting are one grant and reading the
+         *    register is another.
+         *
+         * There is no warranty permission here on purpose: cover is the core
+         * `warranty` module's card, held under 'warranties'. Nor a job-card one —
+         * a repair is a service job.
+         */
+        'mobile-handsets', 'mobile-insurance', 'mobile-emi', 'mobile-buyback',
+        /**
+         * Stationery plugin. Two registers, and they split by who is allowed to
+         * change what a parent pays.
+         *
+         *  - `stationery-institutions` is the account: the school's board, its
+         *    session, its roll, and the two discount rates. Editing it re-prices
+         *    every set sold against that school for the rest of the year, which
+         *    is an owner's decision and not a counter's.
+         *  - `stationery-kits` is the booklist. Typing one up is clerical work
+         *    and is handed out freely — but `.edit` also carries publishing, which
+         *    is what lets the counter start selling from a list, and `.delete`
+         *    carries archiving, which stops it mid-season.
+         *
+         * There is deliberately no school-order permission. A school's order *is*
+         * a sales order, so it is held under `sales`; a second grant would let a
+         * shop show someone institutional orders on one screen and not the other.
+         */
+        'stationery-institutions', 'stationery-kits',
         /**
          * Distribution & Wholesale plugin. Its own permission rather than riding
          * on 'customers': raising a party's credit limit or lifting a supply hold
@@ -153,6 +212,185 @@ class TenantRoleCatalog
          * record anyone creates or destroys, it is a state they are in.
          */
         'credit-control',
+        /**
+         * Retail warranty. Split from the claims made against it because they
+         * are two desks: issuing a card is part of finishing a sale and belongs
+         * to whoever is on the counter, while deciding that a six-week-old pair
+         * of shoes is a manufacturing fault — and giving away a new one — is
+         * not a counter decision. Settling a claim sits on `.approve` for the
+         * same reason.
+         */
+        'warranties', 'warranty-claims',
+        /**
+         * Retail plugin — the garment trade.
+         *
+         * Three permissions for four screens, and the grouping is the point:
+         *
+         *  - `garment-styles` also covers the size runs and the colour palette.
+         *    Those masters exist only to build styles and grids, and a shop that
+         *    lets someone define a style but not the sizes it comes in has drawn
+         *    a line nobody in the trade recognises.
+         *  - `garment-fabrics` is separate because it is bought, not merchandised:
+         *    it carries a supplier and a rate, and the person who names next
+         *    season's fits is not the person who negotiates cloth.
+         *  - `garment-trials` is emphatically its own. A trial is goods leaving
+         *    the shop unpaid for on somebody's judgement of the customer, which
+         *    is a credit decision in everything but name — and `.delete` (which
+         *    is what cancelling sits on) releases the reservation behind it.
+         *
+         * The size × colour matrix has no permission of its own: generating a
+         * grid creates product variants, so it rides on `products.edit`.
+         */
+        'garment-styles', 'garment-fabrics', 'garment-trials',
+        /**
+         * Gift vouchers. Under Loyalty & Offers rather than any trade — a gift
+         * shop and a supermarket sell the same instrument — but its own
+         * permission rather than riding on `coupons`, because a coupon is a
+         * discount the shop chose to give and a voucher is money it has already
+         * taken. Issuing one creates a liability; `.delete` is what cancelling a
+         * card a customer is holding sits on.
+         */
+        'gift-vouchers',
+        /**
+         * Grocery & Kirana. One permission, not two: combo packs deliberately
+         * ride on `products.*` — a pack is a product with a statement of what it
+         * breaks into, and a shop that granted its counter manager the product
+         * master and then found the hamper screen read-only would rightly call
+         * that a bug.
+         *
+         * Supplier credit is separate precisely because it is *not* that. It is
+         * the shop's own book of debts — what the owner owes each distributor,
+         * which bills are late and what has to be paid this morning — and the
+         * person who prices the shelf has no business reading it. `.edit` is the
+         * distributor's limit and credit period, which is a fact somebody records
+         * rather than a decision they take.
+         */
+        'supplier-credit',
+        /**
+         * The supermarket trade, and one of the three is not where a reader
+         * would guess:
+         *
+         *  - `pos-counters` is a *core POS* permission, not a supermarket one.
+         *    It covers defining tills and working the drawer — opening a shift,
+         *    counting it down, reading the X and Z figures — which any shop with
+         *    two counters does. Its create/edit levels are what a cashier is
+         *    given; delete is what stops them inventing new tills.
+         *  - `shelf-planogram` is merchandising: which product belongs on which
+         *    shelf and how many facings it gets. Deliberately *not* the same
+         *    grant as filling the shelf, which is `stock.edit` — the person who
+         *    walks the replenishment round is not the person who decides that
+         *    the biscuits move to aisle four, and in a big store they are not
+         *    even in the same department.
+         *  - `self-checkout` is the unattended lane. The `.approve` level is the
+         *    entire safety mechanism of the trade: the lane's own login may scan
+         *    but must not approve, so an age-restricted item parks the basket
+         *    until a supervisor has looked at the customer. A lane granted both
+         *    has had the check switched off without any switch being touched.
+         */
+        'pos-counters', 'shelf-planogram', 'self-checkout',
+        /**
+         * Gift & Novelty plugin. Three registers, split by what the desk holding
+         * each of them can do:
+         *
+         *  - `gift-wraps` is the wrap desk *and* the wrapping master. The person at
+         *    the bench takes parcels in, wraps them and hands them over; the master
+         *    behind it is four rows that change twice a year, and granting the desk
+         *    without them would grant a screen whose picker is empty. `.delete` is
+         *    cancelling a parcel — which writes off material already consumed.
+         *  - `gift-packs` is hamper *design*: what goes in one and what it is
+         *    called. Assembling a batch is deliberately not here — it empties
+         *    shelves, so it rides on `stock.create` and unwinding one on
+         *    `stock.edit`. Merchandising a hamper and emptying the store to build
+         *    forty of them are routinely different people.
+         *  - `gift-occasions` is a register of customers' private dates, and `.edit`
+         *    carries the ability to text them about one. Which is why it is not
+         *    folded into `customers`: a shop can let the counter maintain customer
+         *    records without letting it message them about their family.
+         *
+         * Note this is not the Grocery module's combo pack. That one is a multipack
+         * billed as a single scan and rightly rides on `products.*`; a hamper is an
+         * assembled article with its own stock and its own build documents, which is
+         * why it has a register of its own.
+         */
+        'gift-wraps', 'gift-packs', 'gift-occasions',
+        /**
+         * Toys & Games plugin. One permission, not three, and deliberately so:
+         * the age bands, the safety classes and the certificate register are one
+         * book to whoever keeps it. The person who decides an article has small
+         * parts is the person who decides it is not for under-3s and the person
+         * who files the BIS licence behind it — three grants that are always
+         * given together are one grant with extra steps.
+         *
+         * `.view` is what a counter needs (it is also what the till's own check
+         * reads through, so refusing it would only mean the sale happens without
+         * the warning); `.edit` is grading and classifying the range; `.delete`
+         * carries withdrawing a certificate, which stops a shop being able to
+         * sell everything behind it.
+         */
+        'toy-safety',
+
+        /**
+         * Books & Periodicals plugin. One permission across four screens, for
+         * the same reason Toys has one across three: the publishers, the authors,
+         * the languages and the credits on a title are one book to whoever keeps
+         * it. The person who decides which house a title belongs to is the person
+         * who spells the translator's name and shelves it under Gujarati.
+         *
+         * `.view` is what the counter needs — it is what the ISBN lookup runs
+         * through, and refusing it only means a customer is told "no" without
+         * anybody having checked. `.edit` is cataloguing. `.delete` is retiring a
+         * register row, which the controllers refuse anyway while titles still
+         * hang off it.
+         *
+         * There is deliberately no separate grant for editing a *title*: a title
+         * is a product, so its price, its stock and its existence are `products.*`
+         * like everything else in the shop. Only the credits belong to us.
+         */
+        'book-catalogue',
+
+        /**
+         * Beauty & Personal Care plugin. Two permissions, not one, and unlike
+         * the toy shop's single grant the split here is real: these are two jobs
+         * done by two people.
+         *
+         * `cosmetic-shades` is the buyer's book — which shades the shop carries
+         * and which of them are on a range's card. Generating a card creates
+         * sellable SKUs, so that route carries products.create as well.
+         *
+         * `cosmetic-shelf-life` is the floor's — what is going off, which testers
+         * are past their period after opening, and whether the till refuses short
+         * stock. `.view` is what a counter needs (it is also what the till's own
+         * check reads through), `.create` is opening a tester, and `.delete`
+         * carries changing the policy: whether an expired line stops a bill is a
+         * decision about the shop's licence to trade, not a preference.
+         */
+        'cosmetic-shades',
+        'cosmetic-shelf-life',
+
+        /**
+         * Sports & Fitness plugin. Two permissions, and the split is the oldest
+         * one in retail: what the shop owns, and what the counter does with it.
+         *
+         * `rental-assets` is the fleet — buying a bike, pricing it by the hour and
+         * the week, setting the deposit against it, sending it to the bench and
+         * writing it off. Every one of those is an ownership decision about the
+         * shop's capital, and none of them is the counter's. It also carries the
+         * utilisation report, because whether a bike has earned its keep is the
+         * same book as what the bike is.
+         *
+         * `rentals` is the desk — booking, handing over, extending, taking back.
+         * `.view` is what anybody working a counter needs; `.edit` is the whole of
+         * the day's work, including handover, which commits kit to a customer for
+         * a weekend; `.delete` carries cancelling a booking.
+         *
+         * Two things are deliberately *not* here. Settling a hire raises an
+         * invoice and decides what happens to a deposit, so it rides on
+         * `sales.create` — the same rule that puts assembling a hamper on
+         * `stock.create`. And a repair on a returned bike is an ordinary
+         * `service-jobs` grant, because it is an ordinary job card.
+         */
+        'rental-assets',
+        'rentals',
     ];
 
     /** Modules that are view-only (no create/edit/delete). */
@@ -186,6 +424,21 @@ class TenantRoleCatalog
          * shelf on a ward's say-so.
          */
         'lab-orders', 'hospital-indents',
+        /**
+         * Settling a warranty claim gives away a replacement, a repair or a
+         * refund. Registering the claim is the counter writing down what a
+         * customer said; deciding it is the shop spending money, and the two
+         * must be separable or every counter can approve its own goodwill.
+         */
+        'warranty-claims',
+        /**
+         * Self-checkout. Approving is not "a bigger version of scanning" — it is
+         * a different person doing a different thing, which is the whole design:
+         * the lane holds create and stops at a restricted item, the supervisor
+         * holds approve and clears it. Voiding a line sits here too, because
+         * anybody who can silently unscan an item can walk out with it.
+         */
+        'self-checkout',
     ];
 
     /**
@@ -198,7 +451,10 @@ class TenantRoleCatalog
     {
         return [
             'CATALOG' => ['products', 'categories', 'brands', 'units'],
-            'CRM_CORE' => ['customers', 'customer-categories', 'leads', 'follow-ups', 'loyalty', 'coupons', 'referrals'],
+            // Gift vouchers ride with the rest of the customer-rewards bundle:
+            // whoever may issue a coupon is who a shop expects to sell a gift
+            // card, and both are sold and honoured at the same counter.
+            'CRM_CORE' => ['customers', 'customer-categories', 'leads', 'follow-ups', 'loyalty', 'coupons', 'referrals', 'gift-vouchers'],
             'PRICE' => ['price-lists'],
             'COMMS' => ['whatsapp', 'sms', 'email', 'marketing-campaigns'],
             'FIELD_SALES' => ['salesmen', 'salesman-targets', 'beats', 'salesman-visits', 'salesman-locations', 'salesman-collections', 'salesman-expenses'],
@@ -230,7 +486,17 @@ class TenantRoleCatalog
             'PROJECTS' => ['projects', 'project-tasks', 'project-timesheets'],
             'PHARMACY' => ['prescriptions', 'drug-register'],
             'JEWELLERY' => ['metal-rates', 'old-gold'],
-            'OPTICAL' => ['eye-prescriptions', 'optical-orders'],
+            'OPTICAL' => ['eye-prescriptions', 'optical-orders', 'optical-appointments'],
+            /**
+             * Retail's garment trade. The merchandising side — what the shop
+             * sells and what it is made of — bundled together, because the
+             * person who plans a range does both.
+             *
+             * The trial room is *not* in it. A floor manager holds the styles;
+             * letting goods leave the shop unpaid for is the owner's call, so
+             * `garment-trials` is always an explicit extra on a role.
+             */
+            'GARMENT' => ['garment-styles', 'garment-fabrics'],
             'RESTAURANT' => [
                 'restaurant-tables', 'restaurant-orders', 'kitchen-orders',
                 'restaurant-menu', 'restaurant-recipes',
@@ -247,6 +513,16 @@ class TenantRoleCatalog
             'BAKERY' => ['cake-orders'],
             'DAIRY' => ['milk-collections', 'milk-subscriptions', 'milk-round'],
             'MEMBERSHIP' => ['memberships'],
+            /**
+             * The supermarket floor. Two grants that go together in practice —
+             * whoever lays the planogram out is whoever watches the lanes, in
+             * every store small enough to have one floor manager.
+             *
+             * `pos-counters` is *not* in it. Cash-up is a POS grant, it belongs
+             * to trades that never heard of a planogram, and bundling it here
+             * would mean a merchandiser who can open a drawer.
+             */
+            'SUPERMARKET' => ['shelf-planogram', 'self-checkout'],
             // Agriculture: the dealer's compliance desk …
             'AGRI' => ['agri-licences'],
             // … and the farm. Bundled because a farm manager holds the registers
@@ -262,6 +538,61 @@ class TenantRoleCatalog
             // folded in — a parts counter runs the vehicle and warranty
             // registers with no job book behind them at all.
             'AUTOMOBILE' => ['automobile-vehicles', 'automobile-bookings', 'automobile-warranties'],
+            // Electronics: the two registers an aftersales desk keeps. Neither
+            // SERVICE nor WARRANTY is folded in — an electrical goods counter
+            // runs the unit register with no job book at all, and warranty is a
+            // shared core register whose authority a shop grants separately.
+            'ELECTRONICS' => ['electronics-units', 'electronics-requests'],
+            /**
+             * Computer & IT: the install base, its cover and the call book.
+             * Licences are deliberately *not* in the group — granting someone
+             * the support desk should not hand them every product key the shop
+             * has ever sold, so `it-licences` is always an explicit extra.
+             */
+            'COMPUTER_IT' => ['it-assets', 'it-warranties', 'it-service-calls'],
+            /**
+             * Stationery: the school accounts and the booklists. Bundled because
+             * one desk keeps both — the person who takes a school's list down is
+             * the person who set the school up — and because a booklist without
+             * its institution is unreadable, so a group holding only one of the
+             * two would grant a screen that could not be used.
+             */
+            'STATIONERY' => ['stationery-institutions', 'stationery-kits'],
+            /**
+             * Mobile: the IMEI register, the insurance book and the part-exchange
+             * register. `mobile-emi` is deliberately *not* in the group — it is a
+             * debtor book, and putting a salesman on the shop floor should not
+             * hand them the ability to write off instalments. It is always an
+             * explicit extra, for the same reason `it-licences` is.
+             */
+            'MOBILE' => ['mobile-handsets', 'mobile-insurance', 'mobile-buyback'],
+            // Retail warranty. Bundled because the register and its claims are
+            // one book to whoever keeps it — but note that granting the group
+            // at `c` still leaves settling out, since resolve sits on approve.
+            'WARRANTY' => ['warranties', 'warranty-claims'],
+            /**
+             * Gift & Novelty: the wrap desk and the hamper book, which are the two
+             * things a gift counter works all day. `gift-occasions` is deliberately
+             * *not* in the group — it is a register of customers' private family
+             * dates and `.edit` sends them a message, so it is always an explicit
+             * grant, for the same reason `it-licences` and `mobile-emi` are.
+             */
+            'GIFT' => ['gift-wraps', 'gift-packs'],
+            /**
+             * Beauty & Personal Care: the shade book and the dating book. Bundled
+             * only for the seat that runs the counter as a whole — the two are
+             * separate grants precisely because a buyer setting up a forty-shade
+             * range and an assistant binning an out-of-date tester are different
+             * people, and the roles below give them separately.
+             */
+            'BEAUTY' => ['cosmetic-shades', 'cosmetic-shelf-life'],
+            /**
+             * Sports & Fitness: the hire fleet and the hire desk. Bundled only for
+             * the seat that answers for the shop as a whole — they are two grants
+             * precisely because pricing a bike and lending one out are different
+             * decisions, and the counter role below takes the fleet at view only.
+             */
+            'HIRE' => ['rental-assets', 'rentals'],
         ];
     }
 
@@ -305,6 +636,15 @@ class TenantRoleCatalog
             'Transport' => ['transport-manager', 'dispatch-executive', 'transport-coordinator', 'driver', 'delivery-boy'],
             'Import & Export' => ['logistics-manager', 'import-executive', 'export-executive', 'documentation-executive', 'cha-executive'],
             'Agriculture' => ['agri-manager', 'farm-manager', 'farm-worker'],
+            // The shop floor. Its own department rather than a corner of CRM
+            // because these three are the whole staff of a showroom, and a
+            // garment shop's org chart is not a sales pipeline.
+            'Retail' => ['showroom-manager', 'garment-merchandiser', 'floor-salesman'],
+            // Separate from Retail on purpose: a supermarket's staff are not a
+            // showroom's. The front end and the shop floor are two different
+            // shifts run by two different people, and the fourth entry is not a
+            // person at all — it is the login a self-checkout lane runs under.
+            'Store Floor' => ['store-manager', 'checkout-supervisor', 'shelf-stocker', 'self-checkout-lane'],
             'Administration' => ['office-admin', 'receptionist'],
             'System' => ['super-admin', 'admin', 'staff'],
         ];
@@ -358,6 +698,10 @@ class TenantRoleCatalog
                 'PURCHASE:c', 'INVENTORY:a', 'MFG:v', 'TRANSPORT:m', 'EXPENSES:c', 'BROKER:v', 'DEVICES:m',
                 'reports:v', 'notifications:v', 'ai:v',
                 'credit-control:c',
+                // The desk that settles warranty claims in a shop. Approve, not
+                // manage: giving away a replacement pair is exactly the call
+                // this role exists to make.
+                'WARRANTY:a',
             ]],
             'operations-manager' => ['label' => 'Operations Manager', 'spec' => [
                 'INVENTORY:a', 'MFG:a', 'TAILOR:a', 'EMBROIDERY:m', 'PURCHASE:c', 'TRANSPORT:m', 'EXIM:m', 'EXIM_SHIPMENTS:m',
@@ -390,6 +734,13 @@ class TenantRoleCatalog
             'customer-support' => ['label' => 'Customer Support', 'spec' => [
                 'customers:v', 'follow-ups:c', 'b2b-orders:v', 'sales:v', 'sales-returns:c',
                 'loyalty:v', 'whatsapp:c', 'sms:c', 'email:c', 'notifications:v',
+                /**
+                 * The desk a warranty complaint actually arrives at. Contribute,
+                 * not manage: writing down what the customer says is this job,
+                 * and deciding to give away a replacement is not — settling sits
+                 * on warranty-claims.approve, which this level does not carry.
+                 */
+                'WARRANTY:c',
             ]],
             'relationship-manager' => ['label' => 'Relationship Manager', 'spec' => [
                 'customers:m', 'customer-categories:v', 'follow-ups:m', 'loyalty:m', 'referrals:m',
@@ -482,8 +833,160 @@ class TenantRoleCatalog
                 'customers:v', 'notifications:v',
                 // A vehicle on the ramp is read, not edited, by the person
                 // working on it — but they do need to see what is still covered
-                // before they start replacing parts for free.
+                // before they start replacing parts for free. The same holds for
+                // a machine on the bench, which is why both registers are here:
+                // one technician often works whatever the shop takes in.
                 'automobile-vehicles:v', 'automobile-warranties:v',
+                // Electronics reads cover from the shared retail register rather
+                // than one of its own, so it is 'warranties' here, not an
+                // electronics-specific permission.
+                'electronics-units:v', 'warranties:v',
+                'it-assets:v', 'it-warranties:v',
+            ]],
+
+            // ---- Retail: garment & apparel ----
+            /**
+             * Runs the shop floor end to end. Holds the trial room outright,
+             * which is the distinguishing grant: letting stock walk out of the
+             * door on a customer's word is a credit decision, and `garment-trials:m`
+             * is also what carries the authority to cancel a slip and release the
+             * reservation behind it.
+             */
+            'showroom-manager' => ['label' => 'Showroom Manager', 'spec' => [
+                'GARMENT:m', 'garment-trials:m', 'CATALOG:m', 'SALES:a',
+                'stock:c', 'stock-ledger:v', 'advanced-inventory:v', 'barcodes:m',
+                'customers:m', 'loyalty:m', 'coupons:m', 'gift-vouchers:m',
+                'tailor-alterations:m', 'tailors:v',
+                'payments:c', 'EXPENSES:c', 'employees:v',
+                'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            /**
+             * Plans the range and builds it into sellable stock: styles, fabrics
+             * and the size × colour grid — which is why CATALOG is at manage
+             * level, since generating a matrix creates product variants.
+             *
+             * No trial room and no till. A merchandiser decides what the shop
+             * buys, not what leaves it unpaid for.
+             */
+            'garment-merchandiser' => ['label' => 'Garment Merchandiser', 'spec' => [
+                'GARMENT:m', 'CATALOG:m', 'barcodes:c',
+                'stock:v', 'stock-ledger:v', 'price-lists:c',
+                'purchases:c', 'purchase-indents:c', 'suppliers:v',
+                'sales:v', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            /**
+             * Sells on the floor. Reads the range and the grid — "have you got
+             * this in 40, in navy?" is the entire job — rings up sales and books
+             * alterations, which is the promise made at the moment of sale and
+             * has to be recorded then or it is not recorded at all.
+             *
+             * Trials are view-only: a salesman can see what is out and chase it,
+             * but issuing one is the manager's call.
+             */
+            'floor-salesman' => ['label' => 'Floor Salesman', 'spec' => [
+                'GARMENT:v', 'garment-trials:v', 'CATALOG:v', 'stock:v',
+                'sales:c', 'sales-returns:c', 'customers:c',
+                'loyalty:v', 'coupons:v', 'gift-vouchers:v',
+                'tailor-alterations:c', 'notifications:v',
+            ]],
+
+            // ---- Grocery & Kirana ----
+            /**
+             * The person who actually runs a kirana, which in most shops is the
+             * person who owns it. The distinguishing grant is `supplier-credit:m`:
+             * the whole trade turns on knowing what is owed to which distributor
+             * and paying it on the day, and it is the one thing on this list
+             * nobody else in the shop should see.
+             *
+             * CATALOG at manage level because combo packs ride on `products.*` —
+             * pricing a hamper is pricing, and splitting it out would have meant
+             * granting the product master and then finding the pack screen
+             * read-only.
+             */
+            'kirana-owner' => ['label' => 'Kirana / Grocery Manager', 'spec' => [
+                'supplier-credit:m', 'CATALOG:m', 'SALES:a', 'barcodes:m',
+                'stock:c', 'stock-ledger:v', 'advanced-inventory:m',
+                'purchases:m', 'purchase-invoices:m', 'suppliers:m',
+                'customers:m', 'loyalty:m', 'coupons:m', 'gift-vouchers:m',
+                'payments:m', 'EXPENSES:m', 'devices:v',
+                'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            /**
+             * The hand at the till. Bills, takes returns, scans a hamper and
+             * knows what the shelf has — and reads the khata not at all. A shop
+             * assistant who can see the owner's debts is a shop assistant who can
+             * discuss them with the distributor's man, which is exactly the
+             * conversation an owner does not want held.
+             *
+             * `advanced-inventory:v` is here for one reason: expiry. A grocery
+             * counter hand is the person who notices the date on a packet, and
+             * the batch screen is where that is checked.
+             */
+            'grocery-counter-staff' => ['label' => 'Grocery Counter Staff', 'spec' => [
+                'CATALOG:v', 'stock:v', 'advanced-inventory:v', 'barcodes:v',
+                'sales:c', 'sales-returns:c', 'payments:c',
+                'customers:c', 'loyalty:v', 'coupons:v', 'gift-vouchers:v',
+                'notifications:v',
+            ]],
+
+            // ---- Supermarket ----
+            /**
+             * Runs the floor and the front end. The distinguishing grants are
+             * `SUPERMARKET:m` — the planogram and the lane bank — and
+             * `pos-counters:m`, which is the authority to define tills and to
+             * settle the variance when a drawer comes up short.
+             *
+             * Not `supplier-credit`. In a store this size, buying and paying are
+             * a back office, and the person walking the aisles is not in it.
+             */
+            'store-manager' => ['label' => 'Store Manager', 'spec' => [
+                'SUPERMARKET:m', 'pos-counters:m', 'CATALOG:m', 'SALES:a',
+                'stock:m', 'stock-ledger:v', 'advanced-inventory:m', 'stock-transfers:a',
+                'barcodes:m', 'customers:m', 'loyalty:m', 'coupons:m',
+                'gift-vouchers:m', 'memberships:m',
+                'payments:m', 'EXPENSES:c', 'employees:v', 'devices:v',
+                'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            /**
+             * Watches the bank of self-checkout lanes. `self-checkout:a` is the
+             * whole job — clearing an age-restricted basket and voiding a line a
+             * customer changed their mind about — and it comes with `pos-counters:c`
+             * so they can open and close the lanes at the start and end of a
+             * shift.
+             *
+             * `sales:c` is needed and is not decoration: the supervisor is who
+             * takes over a lane that has stalled and rings the basket up.
+             */
+            'checkout-supervisor' => ['label' => 'Checkout Supervisor', 'spec' => [
+                'self-checkout:a', 'pos-counters:c', 'shelf-planogram:v',
+                'sales:c', 'sales-returns:c', 'payments:c',
+                'CATALOG:v', 'stock:v', 'customers:c',
+                'loyalty:v', 'coupons:v', 'gift-vouchers:v', 'memberships:v',
+                'notifications:v',
+            ]],
+            /**
+             * Walks the round: reads the gap list, picks from the backroom and
+             * fills the facings. `stock:c` is what actually lets them do it —
+             * replenishment moves stock, and it is gated on moving stock rather
+             * than on the planogram, because a filler follows the layout and does
+             * not set it. Hence `shelf-planogram:v`, not `:m`.
+             */
+            'shelf-stocker' => ['label' => 'Shelf Stocker', 'spec' => [
+                'shelf-planogram:v', 'stock:c', 'advanced-inventory:v',
+                'CATALOG:v', 'barcodes:v', 'stock-transfers:c',
+                'notifications:v',
+            ]],
+            /**
+             * The lane itself — a login for the machine, not for a person.
+             *
+             * Deliberately the thinnest role in the catalogue, and the omissions
+             * are the design: no `self-checkout:approve` (or the age check clears
+             * itself), no `sales-returns`, no customer editing, no reports. A
+             * device standing unattended in a shop doorway is the least trusted
+             * thing in the building and should hold the fewest grants.
+             */
+            'self-checkout-lane' => ['label' => 'Self-Checkout Lane', 'spec' => [
+                'self-checkout:c', 'products:v', 'stock:v', 'sales:c', 'payments:c',
             ]],
 
             // ---- Automobile ----
@@ -503,6 +1006,354 @@ class TenantRoleCatalog
             'workshop-manager' => ['label' => 'Workshop Manager', 'spec' => [
                 'AUTOMOBILE:m', 'SERVICE:m', 'CATALOG:v', 'stock:c', 'advanced-inventory:v',
                 'customers:c', 'employees:v', 'sales:a', 'payments:v',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Electronics & Appliances ----
+            /**
+             * The desk that answers the phone. It logs requests, schedules
+             * visits and books machines onto the register, and it reads the
+             * warranty rather than writing it: promising a customer that a repair
+             * is free is exactly the decision this seat should be relaying, not
+             * making.
+             */
+            'service-desk-coordinator' => ['label' => 'Service Desk Coordinator', 'spec' => [
+                'electronics-requests:c', 'electronics-units:c',
+                // Registering a card is part of booking a machine in; deciding a
+                // claim is not, so warranty is contribute and claims are read.
+                'warranties:c', 'warranty-claims:v',
+                'service-jobs:c', 'service-contracts:v',
+                'customers:c', 'products:v', 'employees:v',
+                'whatsapp:c', 'sms:c', 'reports:v', 'notifications:v',
+            ]],
+            // The fitter. They see the diary and the machine, mark an
+            // installation done from someone's kitchen floor, and work the job
+            // card — but they do not open the book or decide what is covered.
+            'installation-technician' => ['label' => 'Installation Technician', 'spec' => [
+                'electronics-requests:v', 'electronics-units:c', 'warranties:v',
+                'service-jobs:c', 'stock:v', 'products:v', 'customers:v', 'notifications:v',
+            ]],
+            /**
+             * Runs the shop end to end and holds the warranty register outright,
+             * because deciding who pays for a repair — and settling or voiding a
+             * claim — is precisely this desk's job.
+             */
+            'electronics-store-manager' => ['label' => 'Electronics Store Manager', 'spec' => [
+                'ELECTRONICS:m', 'WARRANTY:m', 'SERVICE:m', 'CATALOG:v', 'stock:c', 'advanced-inventory:v',
+                'customers:c', 'employees:v', 'sales:a', 'payments:v',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Computer & IT ----
+            /**
+             * The support desk. Logs calls, schedules engineers, keeps the
+             * install base straight — and reads cover rather than writing it,
+             * because telling a customer their repair is free is the decision
+             * this seat relays, not the one it takes.
+             *
+             * Licences are read-only here on purpose: a coordinator needs to see
+             * that a machine has a Windows key on it, and does not need to be
+             * able to issue one.
+             */
+            'it-support-coordinator' => ['label' => 'IT Support Coordinator', 'spec' => [
+                'it-service-calls:c', 'it-assets:c', 'it-warranties:v', 'it-licences:v',
+                'service-jobs:c', 'service-contracts:v',
+                'customers:c', 'products:v', 'employees:v',
+                'whatsapp:c', 'sms:c', 'reports:v', 'notifications:v',
+            ]],
+            /**
+             * The engineer who actually goes out. They work the calls assigned
+             * to them and the job cards on the bench, and they update the machine
+             * they are standing in front of — but they do not open the call book,
+             * decide what is covered, or touch a licence key.
+             */
+            'it-field-engineer' => ['label' => 'IT Field Engineer', 'spec' => [
+                'it-service-calls:v', 'it-assets:c', 'it-warranties:v',
+                'service-jobs:c', 'stock:v', 'products:v', 'customers:v', 'notifications:v',
+            ]],
+            /**
+             * Runs the shop. Holds the warranty register outright because
+             * deciding who pays for a repair is this desk's job, and holds the
+             * licence register outright because issuing and revoking keys is the
+             * part of the business that walks out of the door if nobody owns it.
+             */
+            'it-store-manager' => ['label' => 'Computer Shop Manager', 'spec' => [
+                'COMPUTER_IT:m', 'it-licences:m', 'SERVICE:m', 'CATALOG:v',
+                'stock:c', 'advanced-inventory:v',
+                'customers:c', 'employees:v', 'sales:a', 'payments:v',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Stationery & School Supplies ----
+            /**
+             * The desk that owns the season. Takes the schools' lists down as
+             * they arrive, keeps the accounts straight and answers tenders — so
+             * it holds both registers outright and can raise a quotation or an
+             * order against them.
+             *
+             * Sales is contribute rather than approve: this seat commits the shop
+             * to supplying four hundred sets, which is the job, but signing off a
+             * discounted institutional deal is the owner's.
+             */
+            'school-supply-coordinator' => ['label' => 'School Supply Coordinator', 'spec' => [
+                'STATIONERY:m', 'sales:c', 'price-lists:v',
+                'customers:c', 'products:v', 'stock:v', 'advanced-inventory:v',
+                'purchase-indents:c', 'whatsapp:c', 'sms:c', 'reports:v', 'notifications:v',
+            ]],
+            /**
+             * The counter in June. Serves parents against a published list all
+             * day and needs to read every one of them — but must not be able to
+             * change what a school's list contains or what its parents were
+             * promised, because both re-price sets that have already been sold.
+             *
+             * Read-only on the registers, contribute on the till. That is the
+             * whole of this seat.
+             */
+            'stationery-counter-staff' => ['label' => 'Stationery Counter Staff', 'spec' => [
+                'stationery-kits:v', 'stationery-institutions:v',
+                'sales:c', 'sales-returns:c', 'customers:c', 'products:v',
+                'stock:v', 'barcodes:v', 'loyalty:c', 'notifications:v',
+            ]],
+            /**
+             * Runs the shop. Holds the institution register outright because the
+             * two discount rates on it are the shop's margin for the year, and
+             * holds purchasing because the season's buying list is worked off the
+             * booklists — ordering short in May is the only mistake in this trade
+             * that cannot be corrected later.
+             */
+            'stationery-store-manager' => ['label' => 'Stationery Shop Manager', 'spec' => [
+                'STATIONERY:m', 'CATALOG:v', 'PRICE:m', 'SALES:a',
+                'PURCHASE:c', 'stock:c', 'stock-ledger:v', 'advanced-inventory:v', 'barcodes:m',
+                'customers:m', 'loyalty:m', 'employees:v', 'payments:v',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Gift & Novelty ----
+            /**
+             * The counter at Diwali. Sells, wraps, and takes the parcel in — which
+             * is one continuous conversation with a customer, so the till and the
+             * wrap desk are one grant.
+             *
+             * Two limits are deliberate. It cannot design or build hampers
+             * (`gift-packs:v`, and no stock authority): what goes in a basket is a
+             * merchandising decision, and building forty of them empties the store.
+             * And it cannot see or touch the occasion register — a shop's list of
+             * its customers' family birthdays is not counter reading, and `.edit`
+             * would let a temporary festival hire text them.
+             */
+            'gift-counter-staff' => ['label' => 'Gift Counter Staff', 'spec' => [
+                'gift-wraps:c', 'gift-packs:v',
+                'sales:c', 'sales-returns:c', 'CATALOG:v', 'stock:v', 'barcodes:v',
+                'customers:c', 'loyalty:c', 'gift-vouchers:c', 'notifications:v',
+            ]],
+            /**
+             * The wrap bench itself, for a shop that puts somebody on it for the
+             * season. Works the queue and nothing else — no till, no customers, no
+             * prices. `gift-wraps:m` rather than `:c` because cancelling a parcel
+             * (which sits on delete) is exactly this seat's call: the bench is where
+             * anyone finds out that a parcel was abandoned.
+             */
+            'gift-wrap-assistant' => ['label' => 'Gift Wrap Assistant', 'spec' => [
+                'gift-wraps:m', 'stock:v', 'products:v', 'notifications:v',
+            ]],
+            /**
+             * Runs the shop. Holds the occasion register outright because it *is*
+             * the shop's repeat business — the calls that get made in the nine days
+             * before an anniversary are the difference between a gift shop and a
+             * shelf of mugs — and holds stock because assembling hampers is this
+             * desk's decision and its liability.
+             */
+            'gift-store-manager' => ['label' => 'Gift Shop Manager', 'spec' => [
+                'GIFT:m', 'gift-occasions:m', 'CATALOG:m', 'PRICE:c', 'SALES:a',
+                'PURCHASE:c', 'stock:m', 'stock-ledger:v', 'advanced-inventory:v', 'barcodes:m',
+                'customers:m', 'loyalty:m', 'coupons:m', 'gift-vouchers:m',
+                'employees:v', 'payments:v', 'whatsapp:c', 'sms:c',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Toys & Games ----
+            /**
+             * The counter. Sells, wraps, and answers the only question a toy shop
+             * is really asked — "is this all right for a four-year-old?" — which
+             * is why safety is read-only here rather than absent: the answer is
+             * this seat's to *give* and not to *decide*.
+             *
+             * The wrap desk rides along at contribute for the same reason it does
+             * in the gift shop: taking a parcel in is the end of the same
+             * conversation that sold the toy.
+             */
+            'toy-counter-staff' => ['label' => 'Toy Counter Staff', 'spec' => [
+                'toy-safety:v',
+                'gift-wraps:c', 'gift-packs:v',
+                'sales:c', 'sales-returns:c', 'CATALOG:v', 'stock:v', 'barcodes:v',
+                'customers:c', 'loyalty:c', 'gift-vouchers:c', 'notifications:v',
+            ]],
+            /**
+             * Runs the shop, and owns the compliance book outright — `toy-safety:m`
+             * is the grant that carries withdrawing a certificate, which stops the
+             * counter selling everything behind it. That is a decision about the
+             * shop's licence to trade, and it belongs to whoever answers for it.
+             */
+            'toy-store-manager' => ['label' => 'Toy Shop Manager', 'spec' => [
+                'toy-safety:m', 'GIFT:m', 'CATALOG:m', 'PRICE:c', 'SALES:a',
+                'PURCHASE:c', 'stock:m', 'stock-ledger:v', 'barcodes:m',
+                'customers:m', 'loyalty:m', 'coupons:m', 'gift-vouchers:m',
+                'employees:v', 'payments:v', 'whatsapp:c', 'sms:c',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Books & Periodicals ----
+            /**
+             * The counter. Sells, and looks a title up by the number on the back
+             * cover — which is the whole of what a bookshop counter is asked to
+             * do, in front of the customer, several times an hour.
+             *
+             * The catalogue is read-only here rather than absent for the same
+             * reason toy safety is: the answer to "do you have this?" is this
+             * seat's to *give* and not to *decide*. Cataloguing a title, choosing
+             * its house and spelling its translator's name is the next role down.
+             */
+            'bookshop-counter-staff' => ['label' => 'Bookshop Counter Staff', 'spec' => [
+                'book-catalogue:v',
+                'sales:c', 'sales-returns:c', 'CATALOG:v', 'stock:v', 'barcodes:v',
+                'customers:c', 'loyalty:c', 'gift-vouchers:c', 'notifications:v',
+            ]],
+            /**
+             * The person who buys and catalogues. `book-catalogue:m` is the whole
+             * register — houses, people, languages and credits — and `CATALOG:m`
+             * beside it because in this trade they are the same act: a title is
+             * created as a product and catalogued in the same sitting, and a seat
+             * that can do one and not the other cannot finish a carton.
+             *
+             * `PURCHASE:m` rather than `:c`, unusually for a shop role, because
+             * the buying *is* the job here: what a bookshop stocks is the only
+             * thing that distinguishes it from the one down the road.
+             */
+            'bookshop-buyer' => ['label' => 'Bookshop Buyer / Cataloguer', 'spec' => [
+                'book-catalogue:m', 'CATALOG:m', 'PRICE:c',
+                'PURCHASE:m', 'stock:m', 'stock-ledger:v', 'barcodes:m',
+                'sales:v', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+            /**
+             * Runs the shop. Everything the buyer has, plus the money and the
+             * channel: a book shop's online orders are a real part of its trade
+             * and the person answering for the month's numbers is the one who
+             * should see them.
+             */
+            'bookshop-manager' => ['label' => 'Bookshop Manager', 'spec' => [
+                'book-catalogue:m', 'CATALOG:m', 'PRICE:c', 'SALES:a',
+                'PURCHASE:c', 'stock:m', 'stock-ledger:v', 'barcodes:m',
+                'customers:m', 'loyalty:m', 'coupons:m', 'gift-vouchers:m',
+                'employees:v', 'payments:v', 'whatsapp:c', 'sms:c',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Beauty & Personal Care ----
+            /**
+             * The counter. Sells, matches a shade, and opens testers — which is
+             * most of what happens at a beauty counter all day.
+             *
+             * Two limits are deliberate. Shades are read-only: the assistant
+             * *uses* the card in front of the customer and does not decide which
+             * shades the shop carries, which is a buying decision with forty SKUs
+             * behind it. Shelf life is contribute, not manage: opening a tester
+             * and marking one finished is the job, while changing whether the
+             * till refuses expired stock is not — that grant sits on `.delete`
+             * and belongs to the manager below.
+             */
+            'beauty-counter-staff' => ['label' => 'Beauty Counter Staff', 'spec' => [
+                'cosmetic-shades:v', 'cosmetic-shelf-life:c',
+                'sales:c', 'sales-returns:c', 'CATALOG:v', 'stock:v', 'barcodes:v',
+                'customers:c', 'loyalty:c', 'memberships:v', 'gift-vouchers:c', 'notifications:v',
+            ]],
+            /**
+             * Runs the counter and buys for it. `cosmetic-shelf-life:m` is the
+             * grant that carries the policy — whether an expired line stops a
+             * bill — which is a decision about the shop's licence to trade and
+             * belongs to whoever answers for it, exactly as certificate
+             * withdrawal does in the toy shop.
+             */
+            'beauty-store-manager' => ['label' => 'Beauty Store Manager', 'spec' => [
+                'BEAUTY:m', 'CATALOG:m', 'PRICE:c', 'SALES:a',
+                'PURCHASE:c', 'stock:m', 'stock-ledger:v', 'barcodes:m',
+                'customers:m', 'loyalty:m', 'coupons:m', 'memberships:m', 'gift-vouchers:m',
+                'employees:v', 'payments:v', 'whatsapp:c', 'sms:c',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Sports & Fitness ----
+            /**
+             * The hire counter. Books kit, hands it over, takes it back and settles
+             * it — the whole of a hire desk's day, all of it with a customer
+             * standing there.
+             *
+             * Three limits are deliberate. The fleet is read-only: this seat needs
+             * to see what a bike costs by the day and what deposit it carries, and
+             * has no business repricing it or writing it off. `sales:c` is here
+             * because settling a hire raises an invoice, and a desk that could take
+             * kit back but not bill for it would leave every contract half-finished
+             * for somebody else to close. And `service-jobs:c` because the bike that
+             * comes back with a bent wheel is booked onto the bench by the person
+             * who took it back and looked at it.
+             */
+            'sports-hire-desk' => ['label' => 'Hire Desk Staff', 'spec' => [
+                'rental-assets:v', 'rentals:c',
+                'service-jobs:c', 'warranties:c', 'warranty-claims:v',
+                'sales:c', 'sales-returns:c', 'CATALOG:v', 'stock:v', 'barcodes:v',
+                'customers:c', 'loyalty:c', 'gift-vouchers:c', 'notifications:v',
+            ]],
+            /**
+             * Runs the shop and owns the fleet. `rental-assets:m` is the grant that
+             * carries the rate card, the deposit against each piece of kit and
+             * writing one off — decisions about the shop's capital, which belong to
+             * whoever answers for it. `rentals:m` adds cancelling a booking.
+             */
+            'sports-store-manager' => ['label' => 'Sports Shop Manager', 'spec' => [
+                'HIRE:m', 'SERVICE:m', 'WARRANTY:c', 'CATALOG:m', 'PRICE:c', 'SALES:a',
+                'PURCHASE:c', 'stock:m', 'stock-ledger:v', 'barcodes:m',
+                'customers:m', 'loyalty:m', 'coupons:m', 'gift-vouchers:m',
+                'employees:v', 'payments:v', 'whatsapp:c', 'sms:c',
+                'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
+            ]],
+
+            // ---- Mobile ----
+            /**
+             * The counter. Sells handsets and accessories, books IMEIs in, writes
+             * cover and quotes a trade-in — which is the whole conversation at a
+             * phone shop counter, all of it in front of the customer.
+             *
+             * Two limits are deliberate. Warranty is contribute, not manage:
+             * issuing a card is part of finishing a sale, while deciding a claim is
+             * not. And the finance book is read-only — a salesman needs to answer
+             * "how many EMIs are left?" and has no business collecting against a
+             * file or waiving an instalment.
+             */
+            'mobile-counter-executive' => ['label' => 'Mobile Counter Executive', 'spec' => [
+                'mobile-handsets:c', 'mobile-insurance:c', 'mobile-buyback:c', 'mobile-emi:v',
+                'warranties:c', 'warranty-claims:v',
+                'service-jobs:c', 'sales:c', 'CATALOG:v', 'stock:v',
+                'customers:c', 'loyalty:c', 'whatsapp:c', 'sms:c',
+                'reports:v', 'notifications:v',
+            ]],
+            /**
+             * The bench. Works the repairs in front of them and updates the handset
+             * they are holding, reads what is covered rather than deciding it, and
+             * never sees the insurance book or the finance files.
+             */
+            'mobile-repair-technician' => ['label' => 'Mobile Repair Technician', 'spec' => [
+                'mobile-handsets:c', 'mobile-insurance:v', 'warranties:v',
+                'service-jobs:c', 'stock:v', 'products:v', 'customers:v', 'notifications:v',
+            ]],
+            /**
+             * Runs the shop. Holds the warranty and insurance registers outright
+             * because deciding who pays for a broken screen is this desk's job, and
+             * holds the finance book outright because writing off an instalment is
+             * the part of this business that leaks money if nobody owns it.
+             */
+            'mobile-store-manager' => ['label' => 'Mobile Shop Manager', 'spec' => [
+                'MOBILE:m', 'mobile-emi:m', 'WARRANTY:m', 'SERVICE:m', 'CATALOG:v',
+                'stock:c', 'advanced-inventory:v',
+                'customers:c', 'employees:v', 'sales:a', 'payments:c',
                 'EXPENSES:c', 'reports:v', 'notifications:v', 'ai:v',
             ]],
 
@@ -579,11 +1430,28 @@ class TenantRoleCatalog
             // optician turns a test into a pair of spectacles.
             'optometrist' => ['label' => 'Optometrist', 'spec' => [
                 'eye-prescriptions:m', 'optical-orders:v', 'customers:c',
-                'products:v', 'notifications:v',
+                // Works their own diary: marks patients in and closes the slot
+                // against the test it produced. Cannot delete a slot — a
+                // cancelled clinic is the practice's decision, not the chair's.
+                'optical-appointments:e', 'products:v', 'notifications:v',
             ]],
             'optician' => ['label' => 'Dispensing Optician', 'spec' => [
                 'OPTICAL:m', 'sales:c', 'CATALOG:c', 'stock:v',
                 'customers:c', 'payments:v', 'reports:v', 'notifications:v',
+                // Hands pairs over, which raises the invoice and grants the
+                // cover — so the register that cover lands in has to be readable
+                // by the person who granted it.
+                'warranties:v',
+            ]],
+            /**
+             * The front desk. Books the chair, rings the customer whose
+             * spectacles are ready, and hands them over — but may not record what
+             * a test found, which is the optometrist's clinical judgement and the
+             * one thing in this shop a receptionist must not be able to write.
+             */
+            'optical-receptionist' => ['label' => 'Optical Receptionist', 'spec' => [
+                'optical-appointments:m', 'eye-prescriptions:v', 'optical-orders:e',
+                'customers:c', 'products:v', 'notifications:v',
             ]],
 
             // ---- Jewellery ----
@@ -718,6 +1586,12 @@ class TenantRoleCatalog
                 // Read-only: the counter needs to know a party is stopped before
                 // billing them, and must not be the one who un-stops them.
                 'credit-control:v',
+                /**
+                 * Issuing the card is part of finishing the sale, so the counter
+                 * holds it. Claims are view-only from here — the till is not
+                 * where a customer's complaint gets adjudicated.
+                 */
+                'warranties:c', 'warranty-claims:v',
             ]],
 
             // ---- HR ----

@@ -18,6 +18,7 @@ use App\Http\Controllers\Central\IndustryTemplateController;
 use App\Http\Controllers\Central\InsightsController;
 use App\Http\Controllers\Central\MarketplaceAssignmentController;
 use App\Http\Controllers\Central\MarketplaceController;
+use App\Http\Controllers\Central\MenuCatalogueController;
 use App\Http\Controllers\Central\MarketplacePackController;
 use App\Http\Controllers\Central\OperatorController;
 use App\Http\Controllers\Central\Ops\BackupController as OpsBackupController;
@@ -27,18 +28,20 @@ use App\Http\Controllers\Central\Ops\QueueController as OpsQueueController;
 use App\Http\Controllers\Central\Ops\SystemHealthController;
 use App\Http\Controllers\Central\Ops\TenantToolController;
 use App\Http\Controllers\Central\PaymentWebhookController;
-use App\Http\Controllers\Central\Support\TenantHealthController as SupportTenantHealthController;
-use App\Http\Controllers\Central\Support\TicketController as SupportTicketController;
 use App\Http\Controllers\Central\PlanController;
 use App\Http\Controllers\Central\PublicPaymentController;
+use App\Http\Controllers\Central\RazorpayWebhookController;
+use App\Http\Controllers\Central\RegistrationController;
 use App\Http\Controllers\Central\RoleController as CentralRoleController;
+use App\Http\Controllers\Central\Support\TenantHealthController as SupportTenantHealthController;
+use App\Http\Controllers\Central\Support\TicketController as SupportTicketController;
 use App\Http\Controllers\Central\TenantAccessController;
 use App\Http\Controllers\Central\TenantBrandingController;
 use App\Http\Controllers\Central\TenantController as CentralTenantController;
 use App\Http\Controllers\Central\TenantFileController;
+use App\Http\Controllers\Central\TenantMenuBuilderController;
 use App\Http\Controllers\Central\TenantUsageController;
-use App\Http\Controllers\Central\RazorpayWebhookController;
-use App\Http\Controllers\Central\RegistrationController;
+use App\Modules\Industry\Support\IndustryRegistry;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -110,7 +113,7 @@ Route::post('/webhooks/payments/{gateway}', [PaymentWebhookController::class, 'h
 | Kept in the plugin's own routes-public.php, separate from its tenant routes, so
 | that what is exposed without auth is always one short file to review.
 */
-foreach (\App\Modules\Industry\Support\IndustryRegistry::publicRouteFiles() as $industryPublicRoutes) {
+foreach (IndustryRegistry::publicRouteFiles() as $industryPublicRoutes) {
     require $industryPublicRoutes;
 }
 
@@ -180,12 +183,30 @@ Route::prefix('central')->group(function () {
         Route::post('/industries/{industryTemplate}/toggle', [IndustryTemplateController::class, 'toggle'])->middleware('permission:industries.edit,central');
         Route::delete('/industries/{industryTemplate}', [IndustryTemplateController::class, 'destroy'])->middleware('permission:industries.delete,central');
 
+        // The shared menu catalogue — every screen the product ships, switched on
+        // or off at the source. The per-tenant twins of this live further down
+        // (/tenants/{tenant}/access and /tenants/{tenant}/menu); this one decides
+        // what a workspace is cloned from in the first place. /menus/bulk is
+        // declared before the {menuItem} path so "bulk" is never read as an id.
+        Route::get('/menus', [MenuCatalogueController::class, 'index'])->middleware('permission:menus.view,central');
+        Route::post('/menus/bulk', [MenuCatalogueController::class, 'bulk'])->middleware('permission:menus.edit,central');
+        Route::post('/menus/{menuItem}/toggle', [MenuCatalogueController::class, 'toggle'])->middleware('permission:menus.edit,central');
+
         // Per-tenant entitlement: module switches + which menu screens (and so
         // which permissions) the workspace may use at all. Gated by the operator's
         // own can_manage_tenant_access flag instead of a role permission — see
         // App\Http\Middleware\EnsureTenantAccessManager.
         Route::get('/tenants/{tenant}/access', [TenantAccessController::class, 'show'])->middleware('central.tenant-access');
         Route::match(['put', 'patch'], '/tenants/{tenant}/access', [TenantAccessController::class, 'update'])->middleware('central.tenant-access');
+
+        // Per-tenant menu builder: the same rows the Access panel switches off,
+        // but reordered, re-nested (drag & drop, any depth) and renamed. Same
+        // can_manage_tenant_access gate — re-parenting a screen is the same power
+        // as revoking it. /menu/reset is declared first so "reset" is never
+        // captured as part of the {tenant} segment above.
+        Route::post('/tenants/{tenant}/menu/reset', [TenantMenuBuilderController::class, 'reset'])->middleware('central.tenant-access');
+        Route::get('/tenants/{tenant}/menu', [TenantMenuBuilderController::class, 'show'])->middleware('central.tenant-access');
+        Route::match(['put', 'patch'], '/tenants/{tenant}/menu', [TenantMenuBuilderController::class, 'update'])->middleware('central.tenant-access');
 
         // White label (Volume 11): the tenant's logo, custom domains, theme and
         // the SMTP account its mail goes out through. Its own permission

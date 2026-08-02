@@ -86,6 +86,8 @@ class ServiceJobController extends Controller
                 // that put a vehicle on the ramp.
                 'vehicle_id' => $data['vehicle_id'] ?? null,
                 'odometer_in' => $data['odometer_in'] ?? null,
+                // …and for the ones that put a customer's machine on the bench.
+                'it_asset_id' => $data['it_asset_id'] ?? null,
                 'complaint' => $data['complaint'] ?? null,
                 'diagnosis' => $data['diagnosis'] ?? null,
                 'is_warranty' => $data['is_warranty'] ?? false,

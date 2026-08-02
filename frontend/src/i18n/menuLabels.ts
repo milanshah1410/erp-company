@@ -34,6 +34,20 @@ const hi: Record<string, string> = {
   'Sales Returns': 'बिक्री वापसी',
   'B2B Orders': 'B2B ऑर्डर',
   'Credit Control': 'क्रेडिट नियंत्रण',
+  // Grocery & Kirana plugin.
+  'Grocery': 'किराना',
+  'Combo Packs': 'कॉम्बो पैक',
+  'Supplier Credit': 'आपूर्तिकर्ता क्रेडिट',
+  // Supermarket — the same vertical's larger trade.
+  'Supermarket': 'सुपरमार्केट',
+  'Aisles & Shelves': 'गलियारे और शेल्फ़',
+  'Replenishment': 'शेल्फ़ भराई',
+  'Shelf Planogram': 'शेल्फ़ प्लानोग्राम',
+  'Self-Checkout': 'सेल्फ़ चेकआउट',
+  // Counters — core POS, shown to every trade that runs a till.
+  'Counters': 'काउंटर',
+  'Tills': 'काउंटर मशीन',
+  'Shift Cash-Up': 'शिफ़्ट नकद मिलान',
   'CRM': 'CRM',
   'Leads': 'लीड्स',
   'Follow-ups': 'फ़ॉलो-अप',
@@ -42,6 +56,15 @@ const hi: Record<string, string> = {
   'Coupons': 'कूपन',
   'Loyalty & Offers': 'लॉयल्टी और ऑफ़र',
   'Loyalty Points': 'लॉयल्टी पॉइंट',
+  'Gift Vouchers': 'गिफ़्ट वाउचर',
+  // Retail — the garment trade.
+  'Garment': 'गारमेंट',
+  'Style Master': 'स्टाइल मास्टर',
+  'Size & Colour Matrix': 'साइज़ और रंग मैट्रिक्स',
+  'Fabrics': 'कपड़े',
+  'Size Runs': 'साइज़ सेट',
+  'Colours': 'रंग',
+  'Trial Room': 'ट्रायल रूम',
   'Service': 'सर्विस',
   'Service Jobs': 'सर्विस जॉब',
   'AMC Contracts': 'AMC अनुबंध',
@@ -51,6 +74,85 @@ const hi: Record<string, string> = {
   // 'Vehicles' is translated once, in the Logistics block below — a second copy
   // here is a duplicate key and fails the type build.
   'Warranties': 'वारंटी',
+  // Retail warranty section. Distinct labels from Automobile's 'Warranties'
+  // above — a shop running both sees two sections and must be able to tell
+  // which one holds the shoe and which one holds the car.
+  'Warranty': 'वारंटी',
+  'Warranty Cards': 'वारंटी कार्ड',
+  'Warranty Claims': 'वारंटी क्लेम',
+  // Electronics & Appliances. 'Job Cards' and 'Warranty Cards' are shared with
+  // the Automobile and Warranty sections above and are not repeated — a second
+  // copy is a duplicate key and fails the type build.
+  'Electronics': 'इलेक्ट्रॉनिक्स',
+  'Service Requests': 'सर्विस रिक्वेस्ट',
+  'Units & Serials': 'यूनिट और सीरियल',
+  // Computer & IT. 'Job Cards' and 'AMC Contracts' are shared with the Service,
+  // Automobile and Electronics sections above and are not repeated — a second
+  // copy is a duplicate key and fails the type build.
+  'Computer & IT': 'कंप्यूटर और आईटी',
+  'Service Calls': 'सर्विस कॉल',
+  'Installed Machines': 'स्थापित मशीनें',
+  'IT Warranties': 'आईटी वारंटी',
+  'Licence Keys': 'लाइसेंस की',
+  // Stationery & School Supply. 'Bulk Price Lists' is this section's own label
+  // for the shared /price-lists screen — a stationery shop opens it to set slab
+  // rates for schools, not to maintain a general tariff.
+  'Stationery': 'स्टेशनरी',
+  'Class Booklists': 'क्लास बुकलिस्ट',
+  'Institutions': 'संस्थाएं',
+  'School Orders': 'स्कूल ऑर्डर',
+  'Season Demand': 'सीज़न डिमांड',
+  'Bulk Price Lists': 'थोक रेट लिस्ट',
+  // Mobile. 'Warranty Cards' is shared with the Warranty and Electronics sections
+  // above and is not repeated — a second copy is a duplicate key and fails the
+  // type build. 'Repair Jobs' is Mobile's own label for the shared /service-jobs
+  // screen: a phone counter says "repair", not "job card".
+  'Mobile': 'मोबाइल',
+  'Handsets & IMEI': 'हैंडसेट और IMEI',
+  'Repair Jobs': 'रिपेयर जॉब',
+  'Insurance': 'इंश्योरेंस',
+  'EMI Files': 'EMI फाइल',
+  'Part-Exchange': 'एक्सचेंज',
+  // Gift & Novelty. 'Gift Vouchers' is translated once, in the Loyalty & Offers
+  // block above — the Gift Shop group's row onto it is a second door, not a
+  // second label. 'Gift Occasions' is deliberately distinct from CRM's
+  // 'Occasions': one is the customer's own birthday today, the other is the gift
+  // board, and a shop running both must be able to tell them apart in the nav.
+  'Gift Shop': 'गिफ़्ट शॉप',
+  'Wrap Desk': 'रैपिंग डेस्क',
+  'Wrapping Options': 'रैपिंग विकल्प',
+  'Hamper Packs': 'हैम्पर पैक',
+  'Gift Occasions': 'गिफ़्ट अवसर',
+  // Toys & Games. 'Wrap Desk' and 'Hamper Packs' belong to the Gift & Novelty
+  // group and are not repeated here — a second copy is a duplicate key and fails
+  // the type build.
+  'Toy Shop': 'खिलौना दुकान',
+  'Safety Certificates': 'सुरक्षा प्रमाणपत्र',
+  'Safety Classes': 'सुरक्षा श्रेणी',
+  'Age Bands': 'आयु वर्ग',
+  // Beauty & Personal Care. 'Memberships' belongs to the Loyalty & Offers group
+  // and is not repeated here — a second copy is a duplicate key and fails the
+  // type build.
+  'Beauty Counter': 'ब्यूटी काउंटर',
+  'Shelf Life': 'शेल्फ लाइफ',
+  'Testers': 'टेस्टर',
+  'Shade Master': 'शेड मास्टर',
+  'Shade Card': 'शेड कार्ड',
+  // Books & Periodicals. No 'Online Orders' row here on purpose — a book shop's
+  // web orders are the Ecommerce group's 'Marketplace Orders', which is gated on
+  // a module this trade's plan may not carry (see MenuSeeder).
+  'Book Store': 'बुक स्टोर',
+  'Titles': 'शीर्षक',
+  'Authors': 'लेखक',
+  'Publishers': 'प्रकाशक',
+  'Book Languages': 'पुस्तक भाषाएँ',
+  // Sports & Fitness. No 'Repair Jobs' or 'Warranty Cards' row here on purpose —
+  // both belong to the Service and Warranty groups, and a second copy is a
+  // duplicate key that fails the type build.
+  'Sports Shop': 'स्पोर्ट्स शॉप',
+  'Hire Desk': 'किराया डेस्क',
+  'Hire Fleet': 'किराया सामान',
+  'Fleet Utilisation': 'सामान का उपयोग',
   'Projects': 'प्रोजेक्ट',
   'Timesheets': 'टाइमशीट',
   'Restaurant': 'रेस्टोरेंट',
@@ -77,8 +179,10 @@ const hi: Record<string, string> = {
   'Restaurant Reports': 'रेस्टोरेंट रिपोर्ट',
   'Waiter Performance': 'वेटर प्रदर्शन',
   'Optical': 'ऑप्टिकल',
+  'Appointments': 'अपॉइंटमेंट',
   'Eye Prescriptions': 'नेत्र पर्चा',
   'Spectacle Orders': 'चश्मा ऑर्डर',
+  'Collection Desk': 'डिलीवरी काउंटर',
   'Jewellery': 'ज्वेलरी',
   'Metal Rates': 'धातु भाव',
   'Old Gold': 'पुराना सोना',
@@ -332,6 +436,20 @@ const gu: Record<string, string> = {
   'Sales Returns': 'વેચાણ પરત',
   'B2B Orders': 'B2B ઓર્ડર',
   'Credit Control': 'ક્રેડિટ કંટ્રોલ',
+  // Grocery & Kirana plugin.
+  'Grocery': 'કરિયાણું',
+  'Combo Packs': 'કોમ્બો પેક',
+  'Supplier Credit': 'સપ્લાયર ક્રેડિટ',
+  // Supermarket — the same vertical's larger trade.
+  'Supermarket': 'સુપરમાર્કેટ',
+  'Aisles & Shelves': 'પાંખ અને શેલ્ફ',
+  'Replenishment': 'શેલ્ફ ભરણી',
+  'Shelf Planogram': 'શેલ્ફ પ્લાનોગ્રામ',
+  'Self-Checkout': 'સેલ્ફ ચેકઆઉટ',
+  // Counters — core POS, shown to every trade that runs a till.
+  'Counters': 'કાઉન્ટર',
+  'Tills': 'કાઉન્ટર મશીન',
+  'Shift Cash-Up': 'શિફ્ટ રોકડ મેળ',
   'CRM': 'CRM',
   'Leads': 'લીડ્સ',
   'Follow-ups': 'ફોલો-અપ',
@@ -340,6 +458,15 @@ const gu: Record<string, string> = {
   'Coupons': 'કૂપન',
   'Loyalty & Offers': 'લોયલ્ટી અને ઓફર',
   'Loyalty Points': 'લોયલ્ટી પોઈન્ટ',
+  'Gift Vouchers': 'ગિફ્ટ વાઉચર',
+  // Retail — the garment trade.
+  'Garment': 'ગારમેન્ટ',
+  'Style Master': 'સ્ટાઈલ માસ્ટર',
+  'Size & Colour Matrix': 'સાઈઝ અને કલર મેટ્રિક્સ',
+  'Fabrics': 'કાપડ',
+  'Size Runs': 'સાઈઝ સેટ',
+  'Colours': 'કલર',
+  'Trial Room': 'ટ્રાયલ રૂમ',
   'Service': 'સર્વિસ',
   'Service Jobs': 'સર્વિસ જોબ',
   'AMC Contracts': 'AMC કરાર',
@@ -348,6 +475,70 @@ const gu: Record<string, string> = {
   'Job Cards': 'જોબ કાર્ડ',
   // See the note in the Hindi block: 'Vehicles' lives in Logistics below.
   'Warranties': 'વોરંટી',
+  // See the Hindi block: the retail register's rows are labelled apart from
+  // Automobile's.
+  'Warranty': 'વોરંટી',
+  'Warranty Cards': 'વોરંટી કાર્ડ',
+  'Warranty Claims': 'વોરંટી ક્લેમ',
+  // See the Hindi block: 'Job Cards' and 'Warranty Cards' are shared rows and
+  // are not repeated here.
+  'Electronics': 'ઈલેક્ટ્રોનિક્સ',
+  'Service Requests': 'સર્વિસ રિક્વેસ્ટ',
+  'Units & Serials': 'યુનિટ અને સીરિયલ',
+  // See the note in the Hindi block: 'Job Cards' and 'AMC Contracts' are shared.
+  'Computer & IT': 'કમ્પ્યુટર અને આઈટી',
+  'Service Calls': 'સર્વિસ કૉલ',
+  'Installed Machines': 'સ્થાપિત મશીનો',
+  'IT Warranties': 'આઈટી વોરંટી',
+  'Licence Keys': 'લાઇસન્સ કી',
+  // See the Hindi block: 'Bulk Price Lists' is Stationery's own label for the
+  // shared /price-lists screen.
+  'Stationery': 'સ્ટેશનરી',
+  'Class Booklists': 'ક્લાસ બુકલિસ્ટ',
+  'Institutions': 'સંસ્થાઓ',
+  'School Orders': 'સ્કૂલ ઓર્ડર',
+  'Season Demand': 'સીઝન ડિમાન્ડ',
+  'Bulk Price Lists': 'જથ્થાબંધ ભાવ યાદી',
+  // See the note in the Hindi block: 'Warranty Cards' is a shared row.
+  'Mobile': 'મોબાઈલ',
+  'Handsets & IMEI': 'હેન્ડસેટ અને IMEI',
+  'Repair Jobs': 'રિપેર જોબ',
+  'Insurance': 'ઇન્શ્યોરન્સ',
+  'EMI Files': 'EMI ફાઇલ',
+  'Part-Exchange': 'એક્સચેન્જ',
+  // Gift & Novelty. See the note in the Hindi block: 'Gift Vouchers' lives in
+  // Loyalty & Offers above, and 'Gift Occasions' is labelled apart from CRM's
+  // 'Occasions' on purpose.
+  'Gift Shop': 'ગિફ્ટ શોપ',
+  'Wrap Desk': 'રેપિંગ ડેસ્ક',
+  'Wrapping Options': 'રેપિંગ વિકલ્પ',
+  'Hamper Packs': 'હેમ્પર પેક',
+  'Gift Occasions': 'ગિફ્ટ પ્રસંગો',
+  // Toys & Games. 'Wrap Desk' and 'Hamper Packs' belong to the Gift & Novelty
+  // group and are not repeated here — a second copy is a duplicate key and fails
+  // the type build.
+  'Toy Shop': 'રમકડાંની દુકાન',
+  'Safety Certificates': 'સલામતી પ્રમાણપત્રો',
+  'Safety Classes': 'સલામતી વર્ગ',
+  'Age Bands': 'ઉંમર જૂથ',
+  // Beauty & Personal Care — see the note in the Hindi block above; 'Memberships'
+  // lives in Loyalty & Offers.
+  'Beauty Counter': 'બ્યુટી કાઉન્ટર',
+  'Shelf Life': 'શેલ્ફ લાઇફ',
+  'Testers': 'ટેસ્ટર',
+  'Shade Master': 'શેડ માસ્ટર',
+  'Shade Card': 'શેડ કાર્ડ',
+  // Books & Periodicals — see the note in the Hindi block above.
+  'Book Store': 'બુક સ્ટોર',
+  'Titles': 'શીર્ષકો',
+  'Authors': 'લેખકો',
+  'Publishers': 'પ્રકાશકો',
+  'Book Languages': 'પુસ્તક ભાષાઓ',
+  // Sports & Fitness — see the note in the Hindi block above.
+  'Sports Shop': 'સ્પોર્ટ્સ શોપ',
+  'Hire Desk': 'ભાડા ડેસ્ક',
+  'Hire Fleet': 'ભાડા સામાન',
+  'Fleet Utilisation': 'સામાનનો ઉપયોગ',
   'Projects': 'પ્રોજેક્ટ',
   'Timesheets': 'ટાઈમશીટ',
   'Restaurant': 'રેસ્ટોરન્ટ',
@@ -374,8 +565,10 @@ const gu: Record<string, string> = {
   'Restaurant Reports': 'રેસ્ટોરન્ટ રિપોર્ટ',
   'Waiter Performance': 'વેઈટર પરફોર્મન્સ',
   'Optical': 'ઓપ્ટિકલ',
+  'Appointments': 'એપોઇન્ટમેન્ટ',
   'Eye Prescriptions': 'આંખનું પ્રિસ્ક્રિપ્શન',
   'Spectacle Orders': 'ચશ્માં ઓર્ડર',
+  'Collection Desk': 'ડિલિવરી કાઉન્ટર',
   'Jewellery': 'જ્વેલરી',
   'Metal Rates': 'ધાતુ ભાવ',
   'Old Gold': 'જૂનું સોનું',

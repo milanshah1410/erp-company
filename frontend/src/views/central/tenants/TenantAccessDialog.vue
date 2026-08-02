@@ -86,10 +86,19 @@ async function loadAccess(tenantId: number) {
 
 // The row owns the click; the switch/checkbox inside it is display-only (see the
 // `.passive` rule), so a click is counted exactly once.
+//
+// Core ERP is not a lever: the server forces it back on (App\Support\Modules::CORE),
+// so the row is inert here rather than a switch that silently springs back.
 function toggleModule(key: string) {
+  if (isCoreModule(key)) return
   enabledModules.value = enabledModules.value.includes(key)
     ? enabledModules.value.filter((k) => k !== key)
     : [...enabledModules.value, key]
+}
+
+/** Part of the Core ERP set every workspace gets, as the server reports it. */
+function isCoreModule(key: string): boolean {
+  return !!modules.value.find((m: any) => m.key === key)?.core
 }
 
 // --- menu tree ---
@@ -115,7 +124,26 @@ function descendants(id: number): number[] {
   return out
 }
 
-const roots = computed(() => children.value.get(null) ?? [])
+/**
+ * The tree flattened to rows carrying their own depth.
+ *
+ * Rendered from one loop rather than three nested template blocks: the Menu
+ * Builder next door lets an operator nest deeper than the stock catalogue's three
+ * levels, and a row this panel never drew would be a screen nobody could revoke.
+ */
+const flatRows = computed(() => {
+  const out: { row: MenuRow; depth: number }[] = []
+  const walk = (parentId: number | null, depth: number) => {
+    for (const row of children.value.get(parentId) ?? []) {
+      // Non-matching rows are skipped but still descended into, so a search hit
+      // deep in the tree is not hidden by its parent missing the query.
+      if (matches(row)) out.push({ row, depth })
+      walk(row.id, depth + 1)
+    }
+  }
+  walk(null, 0)
+  return out
+})
 
 // A row is unreachable if it or any ancestor is switched off — the same rule the
 // nav and the server-side revocation apply.
@@ -270,24 +298,40 @@ async function save() {
           v-for="mod in modules"
           :key="mod.key"
           class="module"
+          :class="{ locked: mod.core }"
           role="switch"
-          tabindex="0"
-          :aria-checked="enabledModules.includes(mod.key)"
-          :title="mod.description"
+          :tabindex="mod.core ? -1 : 0"
+          :aria-checked="enabledModules.includes(mod.key) || !!mod.core"
+          :aria-disabled="!!mod.core"
+          :title="mod.core ? `Core ERP — every workspace gets this. ${mod.description}` : mod.description"
           @click="toggleModule(mod.key)"
           @keydown.space.prevent="toggleModule(mod.key)"
           @keydown.enter.prevent="toggleModule(mod.key)"
         >
-          <ToggleSwitch :modelValue="enabledModules.includes(mod.key)" :tabindex="-1" class="passive" />
+          <ToggleSwitch
+            :modelValue="enabledModules.includes(mod.key) || !!mod.core"
+            :tabindex="-1"
+            class="passive"
+          />
           <span class="module-label">
             <i :class="mod.icon" />
             {{ mod.label }}
           </span>
+          <!-- Core ERP: not an entitlement this screen can withdraw. Tagged
+               rather than hidden, so the panel still shows the whole catalogue
+               and says plainly why six of them do not move. -->
+          <Tag
+            v-if="mod.core"
+            value="core"
+            severity="success"
+            class="plan-tag"
+            title="Core ERP — enabled for every workspace on every plan"
+          />
           <!-- Held through a marketplace pack. Switching it off here only hides
                the menu — the entitlement returns on the next sync until the pack
                itself is revoked, so the tag is a pointer to the right lever. -->
           <Tag
-            v-if="mod.granted_by_pack"
+            v-else-if="mod.granted_by_pack"
             value="pack"
             severity="info"
             class="plan-tag"
@@ -316,57 +360,24 @@ async function save() {
       <!-- Same rule as the module rows: the whole row is the click target, which
            also gives 244 rows a target bigger than a 14px box. -->
       <div class="tree">
-        <template v-for="root in roots" :key="root.id">
-          <div
-            v-if="matches(root)"
-            class="node depth-0"
-            :class="{ dimmed: moduleOff(root) }"
-            role="checkbox"
-            tabindex="0"
-            :aria-checked="isGranted(root)"
-            @click="toggleGrant(root)"
-            @keydown.space.prevent="toggleGrant(root)"
-          >
-            <Checkbox :modelValue="isGranted(root)" binary :tabindex="-1" class="passive" />
-            <i v-if="root.icon" :class="root.icon" />
-            <span class="node-label">{{ root.label }}</span>
-            <Tag v-if="moduleOff(root)" value="module off" severity="secondary" class="node-tag" />
-          </div>
-          <template v-for="child in children.get(root.id) ?? []" :key="child.id">
-            <div
-              v-if="matches(child)"
-              class="node depth-1"
-              :class="{ dimmed: moduleOff(child) || !isReachable(child) }"
-              role="checkbox"
-              tabindex="0"
-              :aria-checked="isGranted(child)"
-              @click="toggleGrant(child)"
-              @keydown.space.prevent="toggleGrant(child)"
-            >
-              <Checkbox :modelValue="isGranted(child)" binary :tabindex="-1" class="passive" />
-              <i v-if="child.icon" :class="child.icon" />
-              <span class="node-label">{{ child.label }}</span>
-              <Tag v-if="moduleOff(child)" value="module off" severity="secondary" class="node-tag" />
-              <code v-if="child.permission" class="perm">{{ child.permission }}</code>
-            </div>
-            <div
-              v-for="grand in (children.get(child.id) ?? []).filter(matches)"
-              :key="grand.id"
-              class="node depth-2"
-              :class="{ dimmed: moduleOff(grand) || !isReachable(grand) }"
-              role="checkbox"
-              tabindex="0"
-              :aria-checked="isGranted(grand)"
-              @click="toggleGrant(grand)"
-              @keydown.space.prevent="toggleGrant(grand)"
-            >
-              <Checkbox :modelValue="isGranted(grand)" binary :tabindex="-1" class="passive" />
-              <span class="node-label">{{ grand.label }}</span>
-              <Tag v-if="moduleOff(grand)" value="module off" severity="secondary" class="node-tag" />
-              <code v-if="grand.permission" class="perm">{{ grand.permission }}</code>
-            </div>
-          </template>
-        </template>
+        <div
+          v-for="{ row, depth } in flatRows"
+          :key="row.id"
+          class="node"
+          :class="{ dimmed: moduleOff(row) || !isReachable(row), root: depth === 0, deep: depth > 0 }"
+          :style="{ paddingLeft: `${0.4 + depth * 1.5}rem` }"
+          role="checkbox"
+          tabindex="0"
+          :aria-checked="isGranted(row)"
+          @click="toggleGrant(row)"
+          @keydown.space.prevent="toggleGrant(row)"
+        >
+          <Checkbox :modelValue="isGranted(row)" binary :tabindex="-1" class="passive" />
+          <i v-if="row.icon" :class="row.icon" />
+          <span class="node-label">{{ row.label }}</span>
+          <Tag v-if="moduleOff(row)" value="module off" severity="secondary" class="node-tag" />
+          <code v-if="row.permission" class="perm">{{ row.permission }}</code>
+        </div>
       </div>
 
       <p v-if="revokedGroups.length" class="note revoked">
@@ -469,6 +480,14 @@ async function save() {
 .module:hover {
   background: #f3f4f6;
 }
+/* Core ERP rows: on, and nothing here can change that. Default cursor and no
+   hover highlight, so the row does not invite a click that would do nothing. */
+.module.locked {
+  cursor: default;
+}
+.module.locked:hover {
+  background: transparent;
+}
 .module:focus-visible,
 .node:focus-visible {
   outline: 2px solid var(--safety-amber, #e8a33d);
@@ -513,15 +532,13 @@ async function save() {
 .node.dimmed {
   opacity: 0.5;
 }
-.depth-0 {
+/* Indentation is set inline from the row's depth — the tree has no fixed number
+   of levels since the Menu Builder can nest further than the stock catalogue. */
+.node.root {
   font-weight: 600;
   margin-top: 0.35rem;
 }
-.depth-1 {
-  padding-left: 1.6rem;
-}
-.depth-2 {
-  padding-left: 3rem;
+.node.deep {
   font-size: 0.8rem;
 }
 .node-label {
