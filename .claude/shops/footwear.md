@@ -1,33 +1,45 @@
 # 👟 Footwear Shop
 
-*ERP menu requirement. Retail ERP base + the modules below.*
+*ERP menu requirement. **[Retail ERP base](_base-retail.md) + footwear-specific modules.***
 
 | | |
 |---|---|
 | Trade key | `footwear` |
-| Vertical | Retail |
-| Base | [Retail ERP base](_base-retail.md) |
+| Vertical | Retail (`RetailPlugin`) |
+| Base | [Retail ERP base](_base-retail.md) — read that first |
 | Industry modules | `pos`, `garment`, `gst`, `loyalty`, `warranty`, `devices` |
-| Minimum plan | **Enterprise** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ✅ `ShopMenuSeeder::industrySections()` |
+| Minimum plan | **Enterprise** for the whole preset (see §6 — `garment` is the blocker) |
+| Shipped menu template | ✅ `ShopMenuSeeder::industrySections()['footwear']` |
 
-Retail ERP as the base, footwear-specific modules on top. The trade shares the garment size × colour grid — a shoe is a style in eleven sizes and four colours — and adds the two things a shoe shop lives on that a garment shop does not: a warranty the customer walks back in with, and exchange as a routine rather than an exception.
+The trade shares the garment size × colour grid — a shoe is a style in eleven sizes and four
+colours — and adds the two things a shoe shop lives on that a garment shop does not: a warranty
+the customer walks back in with, and exchange as a routine rather than an exception.
 
-## 1. 🏠 Dashboard
+> **This file lists only what is footwear.** CRM, Product Management, Inventory, Warehouse,
+> Purchase, Sales, Payments, Offers, Accounts, Expenses, Staff, Notifications, Settings,
+> Integrations and the shared reports are all in [the base](_base-retail.md) and are not repeated
+> here. §7 below is the audit trail: every line of the trade's own spec, and where it is answered.
 
-The base tiles ([Retail base §Dashboard](_base-retail.md#1--dashboard)) plus these, which are
-what this trade wants to see first:
+**Legend** — ✅ a screen exists · 🟡 exists, but not as its own menu row (a document, a POS
+action, a print, an attribute) · ⬜ nothing to point at; build or custom field.
 
-- Size-wise sales — the single most useful number in the trade; the reorder is made off it
-- Brand-wise sales (Nike / Adidas / Puma / Bata / Woodland / local)
-- Broken size runs by article
-- Exchanges today, and the net of them
-- Open warranty claims
+---
+
+## 1. 🏠 Dashboard — extra tiles
+
+The [base tiles](_base-retail.md) plus these four, which are what a shoe shop
+actually opens the day on:
+
+| Tile | Status | Note |
+|---|---|---|
+| **Size-wise sales** | ⬜ | *the* footwear number; the reorder is made off it |
+| **Broken size runs** | ⬜ | a style with the middle sizes gone is dead stock at full price |
+| **Exchanges today (net)** | ⬜ | visible as POS documents, not as a tile |
+| **Open warranty claims** | ✅ | count off `/warranties/claims` |
 
 ## 2. 👟 Industry menu group — **Footwear**
 
-One group, inserted **third** in the sidebar — after Dashboard and Sales — because this
-is the part of the menu the trade opens every day. Icon `pi pi-directions`.
+Icon `pi pi-directions`, inserted **third** in the sidebar — after Dashboard and Sales.
 
 | Screen | Route | Module gate (tier) | Permission |
 |---|---|---|---|
@@ -37,82 +49,131 @@ is the part of the menu the trade opens every day. Icon `pi pi-directions`.
 | Warranty Cards | `/warranties` | `warranty` (Starter) | `warranties.view` |
 | Warranty Claims | `/warranties/claims` | `warranty` (Starter) | `warranty-claims.view` |
 
-- The size × colour grid is `garment`'s and is reused verbatim — a second grid for shoes would be the same table with a different name.
-- Warranty leads the claims book: the register is what gets looked up ("is this covered?"); the claim is only opened once the answer is yes.
+- The size × colour grid is `garment`'s and is reused verbatim — a second grid for shoes would be
+  the same table under a different name.
+- Warranty leads the claims book: the register is what gets looked up ("is this covered?"); the
+  claim is only opened once the answer is yes.
 
-## 3. 👟 Footwear-specific detail
+## 3. 👞 Footwear-specific detail
 
-What the trade actually asks for, and where each piece lives today.
-✅ = a screen exists · ⬜ = nothing to point at yet (build or custom field).
+- **Size Management** — ✅ `/garment/size-sets`
+  - EU / UK / US / Kids scales — 🟡 one size run per scale today
+  - Cross-scale conversion (UK 8 = EU 42) — ⬜ **build**: no conversion table
+- **Colour Management** — ✅ `/garment/colours` (black, white, brown, blue, multi…)
+- **Size × Colour Matrix** — ✅ `/garment/matrix` — one grid, writes plain `product_variants`
+- **Pair Management** — ⬜ **build**
+  - Left / right pair, single-pair availability: stock is per article, not per foot
+  - The trade's one genuinely missing data structure
+- **Brand Collections** — ✅ `/brands` (Nike, Adidas, Puma, Bata, Woodland, local)
+  - A collection *within* a brand — ⬜ custom field
+- **Style** (casual, formal, sports, running, slippers, sandals, loafers, sneakers, boots) — ⬜ category tree or custom field
+- **Gender** (men / women / kids / unisex) — ⬜ custom field
+- **Material** (leather, PU, canvas, rubber, foam) — ⬜ custom field
+- **Warranty** — ✅
+  - Warranty period — on the card at `/warranties`; a card is issued against the sale
+  - Warranty claim — ✅ `/warranties/claims`
+  - Replacement — 🟡 a claim outcome, settled as a POS exchange
+- **Exchange Module** — 🟡 a POS action, not a screen
+  - Size exchange · colour exchange · product exchange — one flow, three reasons
+  - It reverses everything the sale granted (points, voucher redemption, the warranty card), and
+    both `processReturn` **and** `exchange` must undo it — which is why it stays inside POS
+- **Repair (optional)** — ⬜ sole change, stitching, polish would be `service` job cards, and
+  `service` is **not** in the footwear preset
 
-- Size management — ✅ `/garment/size-sets` · `garment` — one size run per scale
-  - UK / EU / US / kids scales — ⬜ one run each today; a cross-scale conversion chart is not built
-- Colour management — ✅ `/garment/colours` · `garment`
-- Size × colour matrix — ✅ `/garment/matrix` · `garment` — the article grid; writes `product_variants`
-- Brand — ✅ `/brands` — Nike, Adidas, Puma, Bata, Woodland, local
-- Style (casual / formal / sports / sandal / sneaker / boot) — ⬜ category tree or a custom field
-- Gender & age (men / women / kids / unisex) — ⬜ custom field or category
-- Material (leather / PU / canvas / rubber / foam) — ⬜ custom field
-- Warranty
-  - Warranty cards — ✅ `/warranties` · `warranty` — issued against the sale, by date
-  - Warranty claims — ✅ `/warranties/claims` · `warranty`
-  - Replacement — settled as a claim outcome, then a POS exchange
-- Exchange (size / colour / product) — POS action, not a screen — reverses points, vouchers and the warranty card
-- Pair management (left / right, single-pair availability) — ⬜ stock is per article, not per foot
-- Repair: sole change, stitching, polish — ⬜ needs `service` job cards; not in the footwear preset
-- Barcode & price tag — ✅ `/label-printing`
-- Loyalty & gift voucher — ✅ `/loyalty` · `loyalty`
+> Style, Gender, Age Group, Material and Collections are one decision, not five: define them as
+> [dynamic custom fields](../dynamic-custom-fields.md) on the product and they become filterable
+> and reportable with no schema change. Promote one to a real register only if the shop needs to
+> *transact* against it.
 
 ## 4. Changes to the base
 
-- Sales group: exchange is the busiest POS action here — keep POS first.
-- Warranty is promoted out of the base into the industry group, because the claims desk is a daily queue for this trade.
+- **Warranty is promoted** out of the base into the industry group — the claims desk is a daily
+  queue for this trade, not an occasional one.
+- **Sales**: keep POS first; exchange is the busiest action at this counter.
+- **Products**: the matrix becomes the way into stock; `/products` is the fallback, not the front door.
+- Nothing is removed from the base.
 
-## 5. 📈 Reports this trade needs
+## 5. Footwear-specific reports & AI
 
-Base reports plus:
+Everything else is in [the base](_base-retail.md).
 
-- Brand-wise sales — ✅ `/reports/sales` · `sales` — group by brand in the filter bar
-- Fast / slow moving — ✅ `/reports/fast-slow` · `inventory`
-- Dead stock — ✅ `/dead-stock` · `inventory`
-- Outstanding & ageing — ✅ `/reports/receivables-ageing` · `distribution`
-- Size-wise sales — ⬜ the trade's most-asked report
-- Colour-wise sales — ⬜
-- Exchange register — ⬜ exchanges are visible as POS documents, not as their own report
+| Wanted | Status | Note |
+|---|---|---|
+| Brand-wise sales | 🟡 | `/reports/sales` grouped by brand in the filter bar |
+| Category-wise sales | 🟡 | same, grouped by category |
+| **Size-wise sales** | ⬜ | **build** — the trade's most-asked report; the data is on `product_variants` and nothing reads it that way |
+| **Colour-wise sales** | ⬜ | **build** |
+| **Exchange register** | ⬜ | exchanges are POS documents with no report over them |
+| **Best Selling Size** (AI) | ⬜ | blocked on the size-wise cut above |
+| **Best Selling Brand** (AI) | 🟡 | readable from sales grouped by brand |
+| **Seasonal Demand Prediction** (AI) | ⬜ | the forecast engine is not season-aware |
 
-## 6. 🤖 AI features
+## 6. 💡 Plan levels
 
-- Low stock prediction — ✅ `/ai-insights` · `ai`
-- Suggested purchase order — ✅ `/ai-insights` · `ai`
-- Dead stock recommendation — ✅ `/ai-insights` · `ai`
-- Best-selling size / brand — ⬜ blocked on the size-wise cut
-- Seasonal demand prediction — ⬜
-- Customer buying pattern — ✅ `/ai-insights` · `ai` — generic, not shoe-aware
+Your four levels against what the tiers actually carry (`PlanSeeder`):
 
-## 7. 📱 On the counter & on the phone
+| Your level | You listed | Reality |
+|---|---|---|
+| **1 Starter** | Dashboard, POS, Products, Inventory, Sales, Purchase, Customers, Suppliers | ✅ all Starter — **and more**: Loyalty, Barcode, Warranty, Assets, Workflow and Devices are Starter too, though you had them at Level 2 |
+| **2 Business** | Multi Warehouse, Loyalty, Exchange, Barcode, Reports, Expenses, Accounts | 🟡 every one of these is **already Starter** (multi-warehouse is core inventory; exchange is a POS action). What Business actually adds for this trade is **GST**, **HR & Payroll** and **Service** (the repair bench) |
+| **3 Professional** | Staff Management, Commission, AI Reports, WhatsApp, Mobile App, Advanced Analytics | 🟡 Staff is Business (`hrms`); WhatsApp, AI and analytics are **Starter**. Professional's real content is **`ecommerce`**, `manufacturing` and `textile` |
+| **4 Enterprise** | Multi Branch, Franchise, E-commerce, Marketplace, API, White Label | 🟡 e-commerce and marketplace are **Professional**. Multi-branch is `/branches` (core), white-label is per-tenant branding, API and franchise are platform-level. What is genuinely Enterprise-only is **`garment`** — the size × colour matrix |
 
-- Barcode scanner + thermal printer + label printer (`devices`).
-- Payment: cash / card / UPI / wallet / split are POS tenders; EMI is not a footwear tender.
+**The decision this raises:** the module that makes the trade work — `garment` — sits in **no plan
+tier and no marketplace pack**, so it is Enterprise-only, while a single-counter footwear shop is a
+Starter/Business customer. Either move `garment` into Business, or ship a **Garment & Footwear
+Pack** in the marketplace.
 
-Mobile app menu for this trade: Dashboard · POS · Size-wise stock check · Purchase · Customers · Reports
+## 7. Audit — the rest of the trade spec
 
-## 8. 💡 Plan levels
+Everything else asked for is generic retail and is answered in the base. Listed once here so
+nothing in the spec goes unanswered; **not** repeated as menus.
 
-What a shop gets at each tier. Module tiers are `PlanSeeder`'s, not aspirational —
-the trade preset asks for `pos`, `garment`, `gst`, `loyalty`, `warranty`, `devices`, so the
-workspace needs **Enterprise** for the whole preset to switch on.
+| Asked for | Answer | Where |
+|---|---|---|
+| Dashboard (sales, purchase, cash, UPI, outstanding, low stock, fast moving, dead stock, profit, returns, activities) | ✅ | [base §1](_base-retail.md) |
+| CRM (leads, customers, groups, loyalty members, gift voucher, follow-ups) | ✅ | [base §6](_base-retail.md) · [§7](_base-retail.md) |
+| **Feedback** | ⬜ | no tenant-side feedback capture — CSAT exists only for platform support tickets |
+| Products, categories & sub-categories, brands, variants, SKU, barcode, QR, price list, discount rules | ✅ | [base §4](_base-retail.md) |
+| **Combo Products** | ⬜ | combos exist in `grocery` (explode at POS) and `gift` (assembled) — neither module is in this preset |
+| Inventory (overview, adjustment, transfer, count, opening, damaged, low stock, dead stock, batch) | ✅ | [base §5](_base-retail.md) — opening & damaged are adjustment reasons |
+| **Reserved Stock** | ⬜ | garment trials reserve stock; footwear has no reservation screen |
+| Warehouses & transfer | ✅ | [base §5](_base-retail.md) |
+| **Racks / Shelves / Bin** | 🟡 | `warehouse_locations` exists; the only UI over it is `supermarket`'s, not in this preset |
+| Purchase (PO, invoice, GRN, supplier return, broker) | ✅ | [base §3](_base-retail.md) — GRN posts from the purchase document |
+| **Purchase Debit Note** | ⬜ | a supplier return posts the debit; no separate note document |
+| Sales (POS, invoice, return, **credit note**, **delivery challan**, quotations) | ✅ | [base §2](_base-retail.md) — a `SalesReturn` *is* the credit note (`credit_note_number`); the challan prints off a sales order |
+| Payments (cash, card, UPI, wallet, split) | ✅ | POS tenders, the `payments.mode` enum — [base §2](_base-retail.md) |
+| **EMI** | ⬜ | EMI files exist only in the `mobile` vertical; card EMI is a card tender |
+| Offers (coupon, festival, brand, membership discount) | ✅ | [base §7](_base-retail.md) |
+| **Buy 1 Get 1 / Combo Discount** | ⬜ | no quantity-based free-goods rule |
+| Accounts (cash book, bank book, journal, ledger, GST, P&L) & Expenses | ✅ | [base §8](_base-retail.md) — expense heads are categories |
+| Staff (employees, attendance, salary) | ✅ | [base §8b](_base-retail.md) — `hrms` is not in this preset; tick it in the wizard |
+| **Incentives / Commission** (shop staff, per sale) | ⬜ | `/salesman-targets` is `field_sales` (beat-based). Per-staff commission needs a salesperson tag on the POS bill |
+| Notifications (low stock, birthday, offers) | ✅ | [base §8c](_base-retail.md) — the centre is `/notifications`, reached from the topbar bell, **not** a sidebar row |
+| **Daily sales digest** | ⬜ | no scheduled summary push |
+| Settings (company, GST, barcode, printer, payment methods, users, roles, permissions) | ✅ | [base §13](_base-retail.md) |
+| Integrations (scanner, thermal & label printer, WhatsApp, Razorpay / PhonePe / Cashfree, marketplaces) | ✅ | [base §10](_base-retail.md) |
+| **Tally / Busy export · Firebase push** | ⬜ | not built |
+| Flutter mobile menu | ✅ | [base §11](_base-retail.md) — plus **size-wise stock check** and **warranty lookup** for this trade |
+| AI (low stock, purchase suggestion, dead stock, buying pattern, sales summary) | ✅ | [base §12](_base-retail.md) |
 
-- **Starter** — POS, products, inventory, sales, purchase, customers, suppliers, loyalty, **warranty** (deliberately Starter — a single-counter shoe shop takes claims every week).
-- **Business** — multi-warehouse, GST, HR, expenses, accounts, service (for the repair bench).
-- **Professional** — e-commerce and marketplace channels (Amazon / Flipkart / Meesho / ONDC), advanced analytics.
-- **Enterprise** — the size × colour matrix itself — `garment` is Enterprise-only — plus multi-branch and white-label.
+## 8. ⬜ Build backlog
 
-## 9. ⬜ Not buildable into the menu yet
+Ranked by how often a shop will ask:
 
-- ⚠️ Same pricing gap as Garment: the matrix that makes this trade work is `garment`, which is Enterprise-only.
-- Pair-level (left/right) stock, cross-scale size conversion and the repair bench are the three genuine build items.
+1. **Size-wise & colour-wise sales report** — the reorder decision depends on it.
+2. **`garment` pricing** (§6) — a commercial decision, not a build.
+3. **Pair management** (left/right, single-pair availability) — the only missing data structure.
+4. **Repair bench** — add `service` to the preset; sole change / stitching / polish are job cards.
+5. **Cross-scale size conversion** (UK ↔ EU ↔ US).
+6. **Buy-1-Get-1** offer rule, and combo pricing.
+7. **Shop-staff sales commission** — needs a salesperson tag on the POS bill.
+8. Cross-trade: feedback capture, Tally / Busy export, Firebase push, daily-sales digest.
+
+The Retail plugin marks every footwear feature `available`, so none of the gaps above is a
+plugin-level `planned` flag — they are core build items.
 
 ---
 
 [← All shops](README.md) · [Retail ERP base](_base-retail.md)
-

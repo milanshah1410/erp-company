@@ -47,13 +47,17 @@ Trade-specific tiles are listed in each shop file §1.
 | B2B Orders (portal approval) | `/b2b-orders` | `sales` |
 | Credit Control | `/credit-control` | `distribution` |
 
+- **Credit Note** is not a separate document — a `SalesReturn` *is* the credit note and
+  carries `credit_note_number` (prefix configurable in Settings).
+- **Delivery Challan** prints off a sales order
+  (`/sales-orders/{id}/delivery-challan`); it is a document, not a menu row.
 - **Exchange** is not a separate screen — it is a POS action, and it reverses whatever
   the sale granted (points, vouchers, warranty cards, serials). See
   `pos-reversal-paths`.
-- **Delivery Challan / Credit Note** ⬜ — today a return posts the credit; there is no
-  separate challan document.
 - Split payment, cash / card / UPI / wallet are POS tenders (`payments.mode` enum).
-  A new tender means a migration, not a menu row.
+  A new tender means a migration, not a menu row. EMI as a *file* the shop is asked
+  about for a year exists only in the `mobile` vertical (`/mobile/emi`); card EMI is a
+  card tender.
 
 ## 3. 🛒 Purchase
 
@@ -83,6 +87,9 @@ Trade-specific tiles are listed in each shop file §1.
 | Barcode Scan | `/barcode-scan` |
 | Label Printing (barcode / QR / sticker / price tag) | `/label-printing` |
 | Custom Fields | `/custom-fields` |
+
+- **SKU** is a field on the product, generated per variant by whichever grid owns the
+  axis; **sub-categories** are the same `/categories` tree, which self-nests.
 
 - **Variants** are `product_variants`, written by whichever vertical owns the axis
   (garment matrix, cosmetics shades). There is no generic variant screen.
@@ -175,6 +182,17 @@ Advances, Loans — `/departments` … `/employee-loans`.
 - **Incentives / commission**: salesman targets & incentives (`/salesman-targets`,
   `field_sales`), tailor piece-rate and bonus (`tailoring`). A generic shop-staff sales
   commission is ⬜.
+
+## 8c. 🔔 Notifications
+
+| Item | Where |
+|---|---|
+| Notification centre | `/notifications` — reached from the **bell in the topbar**, deliberately not a sidebar row (it has no `MenuSeeder` entry) |
+| Low stock | `/inventory-alerts` |
+| Birthday wishes | `/crm/occasions` + WhatsApp / SMS templates |
+| Offer notifications | `/marketing-campaigns` |
+| Outstanding reminder | SMS template `sms_tpl_payment_reminder` — sending is manual |
+| Daily sales digest | ⬜ no scheduled summary push |
 
 ## 9. 📈 Reports
 
