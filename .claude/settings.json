@@ -225,12 +225,33 @@
       "Bash(awk -F: '$1>440 && $1<520')",
       "Bash(vendor/bin/pint --test app/Modules/Industry/Sports app/Models/ServiceJob.php app/Models/Setting.php app/Support/Modules.php app/Support/TenantRoleCatalog.php database/seeders/MenuSeeder.php database/seeders/PlanSeeder.php database/seeders/IndustryTemplateSeeder.php)",
       "Bash(vendor/bin/pint app/Modules/Industry/Sports/Services/RentalService.php)",
-      "Bash(php -l app/Modules/Industry/Sports/Services/RentalService.php)"
+      "Bash(php -l app/Modules/Industry/Sports/Services/RentalService.php)",
+      "Bash(php -r \"echo ini_get\\('memory_limit'\\), PHP_EOL; echo php_ini_loaded_file\\(\\), PHP_EOL;\")",
+      "Bash(DEMO_SHOP_DATA=1 php artisan db:seed --class=DemoShopSeeder --no-interaction)",
+      "Bash(grep -rn \"static\\\\s*\\\\$\\\\|static array\\\\|private static\" app/Support/TenantContext.php)",
+      "Bash(php -d memory_limit=1024M \"C:/Users/milan/AppData/Local/Temp/claude/d--wamp64-www-claude-ai-erp-company/42742d0b-95f9-48e7-b870-f8c300fdc7bb/scratchpad/memprobe.php\")",
+      "Bash(DB_DATABASE=erp_memtest php artisan migrate:fresh --no-interaction --force)",
+      "Bash(DB_DATABASE=erp_memtest php -d memory_limit=1024M \"C:/Users/milan/AppData/Local/Temp/claude/d--wamp64-www-claude-ai-erp-company/42742d0b-95f9-48e7-b870-f8c300fdc7bb/scratchpad/stageprobe.php\")",
+      "Bash(cat > *)",
+      "Bash(grep -n \"demo\" -i frontend/../frontend/src/views/central/CentralOpsView.vue | head -60; echo ---; wc -l ../frontend/src/views/central/CentralOpsView.vue)",
+      "Read(//d/wamp64/www/claude-ai/erp-company/backend/frontend/src/views/central/**)",
+      "Bash(grep -n 'Schema::create\\\\|$table->' database/migrations/2026_07_14_150000_create_salesman_module_tables.php database/migrations/2026_07_14_150002_create_loyalty_transactions_table.php)",
+      "Bash(grep -n 'Schema::create\\\\|$table->' database/migrations/2026_08_03_110100_create_gift_voucher_tables.php database/migrations/2026_07_31_150000_create_jewellery_tables.php)",
+      "Bash(grep -n 'Schema::create\\\\|$table->' database/migrations/2026_07_31_140000_create_pharmacy_tables.php)",
+      "Bash(grep -n \"use App\\\\\\\\\\\\\\\\Http\\\\\\\\\\\\\\\\Controllers\\\\\\\\\\\\\\\\Central\\\\\\\\\\\\\\\\MenuCatalogueController;\" routes/api.php)",
+      "Bash(grep -n \"use App\\\\\\\\\\\\\\\\Modules\\\\\\\\\\\\\\\\Industry\\\\\\\\\\\\\\\\Contracts\\\\\\\\\\\\\\\\IndustryDemoSeeder;\\\\|^class .*DemoSeeder\" app/Modules/Industry/*/Database/*DemoSeeder.php)",
+      "Bash(php \"C:/Users/milan/AppData/Local/Temp/claude/d--wamp64-www-claude-ai-erp-company/9bdfbed2-61f4-4b04-a011-adff3d898f8b/scratchpad/patch_fixtures.php\")",
+      "Bash(./vendor/bin/pint app/Models/ShopMenuItem.php app/Support/ShopMenus.php app/Support/TenantMenuAccess.php app/Http/Controllers/Central/ShopMenuTemplateController.php database/seeders/ShopMenuSeeder.php database/seeders/DatabaseSeeder.php database/migrations/2026_08_02_150000_create_shop_menu_items_table.php routes/api.php app/Jobs/ProvisionTenant.php)",
+      "Bash(vendor/bin/pint --test app/Services/DemoDataGenerator.php app/Support/DemoFixtures.php app/Support/DemoModuleMenu.php app/Http/Controllers/Central/Ops/TenantToolController.php app/Modules/Industry app/Modules/Industry/Contracts database/seeders/DemoShopSeeder.php)",
+      "Bash(./vendor/bin/pint database/seeders/DemoShopSeeder.php app/Http/Controllers/Central/ShopMenuTemplateController.php routes/api.php)",
+      "Bash(php -l app/Support/DemoFixtures.php)",
+      "Bash(php gen-shops.php)"
     ],
     "additionalDirectories": [
       "\\tmp",
       "D:\\wamp64\\www\\claude-ai\\erp-company\\backend\\database\\migrations",
-      "D:\\wamp64\\www\\claude-ai\\erp-company\\backend\\app\\Modules\\Industry\\Electronics\\Migrations"
+      "D:\\wamp64\\www\\claude-ai\\erp-company\\backend\\app\\Modules\\Industry\\Electronics\\Migrations",
+      "C:\\Users\\milan\\AppData\\Local\\Temp\\claude\\d--wamp64-www-claude-ai-erp-company\\9bdfbed2-61f4-4b04-a011-adff3d898f8b\\scratchpad"
     ]
   }
 }

@@ -36,6 +36,14 @@ class DatabaseSeeder extends Seeder
         // (tenant_id NULL), shared by every tenant like the permission set.
         $this->call(MenuSeeder::class);
 
+        // Shop-wise menu templates (.claude/shops-modules.md) — the trade layer
+        // between that catalogue and a workspace's own menu. Must run *after*
+        // MenuSeeder: a template names catalogue routes and copies their gates,
+        // so it has nothing to resolve against until the catalogue exists.
+        // Seeds only trades that have no template yet, so it never stomps a
+        // menu an operator has curated at /platform/shop-menus.
+        $this->call(ShopMenuSeeder::class);
+
         // Global roles/permissions live at tenant_id = NULL and are shared by
         // every tenant; seed them with no active team.
         app(PermissionRegistrar::class)->setPermissionsTeamId(null);

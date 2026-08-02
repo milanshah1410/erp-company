@@ -58,7 +58,7 @@ class TenantAccessController extends Controller
             // A legacy tenant (provisioned before per-tenant menus) has no rows of
             // its own and is served the global catalogue. Clone it now so the
             // operator has something tenant-owned to switch off.
-            TenantMenuAccess::cloneForTenant($tenant->id);
+            TenantMenuAccess::cloneForTenant($tenant->id, $tenant->business_type);
 
             $stored = $this->storedModules();
             // No stored selection means gating is off for this tenant — every
@@ -148,7 +148,7 @@ class TenantAccessController extends Controller
         $grants = array_values(array_diff($modules, $allowedByPlan, $packModules));
 
         return app(TenantContext::class)->runWith($tenant->id, function () use ($tenant, $modules, $grants, $data): JsonResponse {
-            TenantMenuAccess::cloneForTenant($tenant->id);
+            TenantMenuAccess::cloneForTenant($tenant->id, $tenant->business_type);
 
             $disabled = array_map('intval', $data['disabled_menu_ids']);
 

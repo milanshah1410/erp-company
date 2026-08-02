@@ -10,6 +10,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\DemoDataGenerator;
 use App\Services\PerformanceMetrics;
+use App\Support\DemoFixtures;
 use App\Support\DemoModuleMenu;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -75,12 +76,20 @@ class TenantToolController extends Controller
      * report what was created; the bulk volumes (1K/100K/1M) would blow the
      * request timeout, so they go to the queue and the response only
      * acknowledges the hand-off.
+     *
+     * A selection may mix generator modules with plugin fixture chips. The
+     * fixtures always run inline, whatever volume is on the dial: they are a
+     * fixed handful of curated rows, so there is nothing for the queue to do
+     * and nothing for a bulk count to multiply.
      */
     public function generateDemo(Request $request, Tenant $tenant): JsonResponse
     {
         $data = $request->validate([
             'modules' => ['required', 'array', 'min:1'],
-            'modules.*' => [Rule::in(array_keys(DemoDataGenerator::MODULES))],
+            'modules.*' => [Rule::in([
+                ...array_keys(DemoDataGenerator::MODULES),
+                ...array_keys(DemoFixtures::catalogue()),
+            ])],
             'count' => ['required', 'integer', Rule::in(DemoDataGenerator::allCounts())],
         ]);
 
@@ -97,30 +106,59 @@ class TenantToolController extends Controller
             ], 422);
         }
 
-        $modules = array_values($data['modules']);
+        $selected = array_values($data['modules']);
+        $fixtureKeys = array_values(array_filter($selected, DemoFixtures::owns(...)));
+        $modules = array_values(array_diff($selected, $fixtureKeys));
 
-        if (in_array($data['count'], DemoDataGenerator::BULK_COUNTS, true)) {
+        // Fixtures first and always inline, so a selection that mixes them with
+        // a queued bulk volume still leaves the vertical's screens filled by the
+        // time the operator clicks through to them.
+        $fixtures = $fixtureKeys
+            ? app(TenantContext::class)->runWith(
+                $tenant->id,
+                fn () => DemoFixtures::run($fixtureKeys, $userId),
+            )
+            : ['seeded' => [], 'failed' => []];
+
+        $notes = [];
+        if ($fixtures['seeded']) {
+            $notes[] = count($fixtures['seeded']).' fixture set(s) seeded';
+        }
+        if ($fixtures['failed']) {
+            $notes[] = count($fixtures['failed']).' fixture set(s) failed';
+        }
+        $suffix = $notes ? ' ('.implode(', ', $notes).').' : '';
+
+        if ($modules && in_array($data['count'], DemoDataGenerator::BULK_COUNTS, true)) {
             GenerateDemoData::dispatch($tenant->id, $userId, $modules, $data['count']);
 
             $volume = number_format($data['count']);
 
             return response()->json([
                 'message' => "Queued {$volume} record(s) per module for {$tenant->company_name} across "
-                    . count($modules) . ' module(s). Generation runs in the background.',
+                    . count($modules) . ' module(s). Generation runs in the background.' . $suffix,
                 'queued' => true,
                 'created' => [],
+                'fixtures' => $fixtures,
             ], 202);
         }
 
-        $created = app(TenantContext::class)->runWith(
-            $tenant->id,
-            fn () => (new DemoDataGenerator($userId))->generate($modules, $data['count']),
-        );
+        $created = $modules
+            ? app(TenantContext::class)->runWith(
+                $tenant->id,
+                fn () => (new DemoDataGenerator($userId))->generate($modules, $data['count']),
+            )
+            : [];
+
+        $message = $modules
+            ? 'Created ' . array_sum($created) . " record(s) in {$tenant->company_name} across "
+                . count($modules) . ' module(s).'
+            : "Seeded sample fixtures in {$tenant->company_name}.";
 
         return response()->json([
-            'message' => 'Created ' . array_sum($created) . " record(s) in {$tenant->company_name} across "
-                . count($modules) . ' module(s).',
+            'message' => $message . $suffix,
             'created' => $created,
+            'fixtures' => $fixtures,
         ]);
     }
 }

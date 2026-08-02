@@ -16,6 +16,7 @@ use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
+use App\Modules\Industry\Contracts\IndustryTradeDemoSeeder;
 use App\Modules\Industry\FoodBeverage\Models\CakeOrder;
 use App\Modules\Industry\FoodBeverage\Models\CustomerMembership;
 use App\Modules\Industry\FoodBeverage\Models\MembershipPlan;
@@ -50,12 +51,31 @@ use Throwable;
  *
  * Must be called inside a TenantContext.
  */
-class FoodBeverageDemoSeeder
+class FoodBeverageDemoSeeder implements IndustryTradeDemoSeeder
 {
     /** SKU/code prefix for everything this seeder owns, so a re-run is idempotent. */
     private const PREFIX = 'FNB';
 
     public function __construct(private readonly ?int $userId = null) {}
+
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per trade, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'restaurant' => ['label' => 'Restaurant Recipes & Happy Hour', 'route' => '/restaurant/recipes'],
+            'cafe' => ['label' => 'Cafe Memberships, Combo & Happy Hour', 'route' => '/membership-plans'],
+            'fast_food' => ['label' => 'QSR Combo & Token Queue', 'route' => '/restaurant/tokens'],
+            'juice' => ['label' => 'Juice Bar Recipes', 'route' => '/restaurant/recipes'],
+            'bakery' => ['label' => 'Cake Order Book', 'route' => '/cake-orders'],
+            'dairy' => ['label' => 'Milk Rates, Collections & Round', 'route' => '/milk-round'],
+            'ice_cream' => ['label' => 'Parlour Freezers & Flavours', 'route' => '/parlour/freezers'],
+        ];
+    }
 
     /**
      * Seed the fixtures one trade needs.

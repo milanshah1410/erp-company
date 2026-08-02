@@ -7,12 +7,12 @@ namespace App\Modules\Industry\Agriculture\Database;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Warehouse;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
 use App\Modules\Industry\Agriculture\Models\AgriLicence;
 use App\Modules\Industry\Agriculture\Models\FarmProductionLog;
 use App\Modules\Industry\Agriculture\Models\LivestockAnimal;
 use App\Modules\Industry\Agriculture\Models\LivestockFlock;
 use App\Modules\Industry\Agriculture\Services\FarmProductionService;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\DB;
  * their natural keys, and production entries only post stock the first time they
  * are created — posting them again on a re-seed would double a fortnight of milk.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
     /** Days of production history to write. */
     private const DAYS = 7;
@@ -46,6 +46,20 @@ class DemoSeeder implements IndustryDemoSeeder
     private const YIELDS = [7.5, 6.0, 9.25, 5.5];
 
     /** @param  list<string>  $modules */
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'agriculture' => ['label' => 'Agri Dealer Fixtures (licences, inputs)', 'route' => '/agri-licences'],
+            'livestock' => ['label' => 'Farm Fixtures (animals, flocks, daily production)', 'route' => '/livestock/animals'],
+        ];
+    }
+
     public function seed(array $modules, int $userId): void
     {
         if (in_array('agriculture', $modules, true)) {

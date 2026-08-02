@@ -383,7 +383,9 @@ const toolTenant = computed(() => toolTenants.value.find((t) => t.id === toolTen
 // The picker mirrors the ERP menu: sections (Masters, Sales …) hold the
 // functional sub-groups (Products, CRM …) that hold the module chips. The
 // grouping comes from the menu catalogue server-side, so it follows the nav.
-type DemoModule = { key: string; label: string; icon?: string | null }
+// `fixture` chips are an industry plugin's curated sample rows rather than a
+// generator module: they seed a fixed handful whatever volume is on the dial.
+type DemoModule = { key: string; label: string; icon?: string | null; fixture?: boolean }
 type DemoGroup = { label: string; icon?: string | null; modules: DemoModule[] }
 type DemoSection = { label: string; icon?: string | null; groups: DemoGroup[] }
 
@@ -427,6 +429,18 @@ const demoVisibleSections = computed<DemoSection[]>(() => {
 })
 
 const demoTotalCount = computed(() => demoSections.value.reduce((n, s) => n + moduleKeys(s).length, 0))
+
+/**
+ * How much of the current selection is plugin fixtures — the volume on the dial
+ * does not apply to those, so the count next to the button would otherwise
+ * promise rows the run will not produce.
+ */
+const demoPickedFixtures = computed(
+  () =>
+    demoSections.value
+      .flatMap((s) => s.groups.flatMap((g) => g.modules))
+      .filter((m) => m.fixture && demoPicked.value.has(m.key)).length,
+)
 
 function moduleKeys(scope: DemoSection | DemoGroup): string[] {
   const groups = 'groups' in scope ? scope.groups : [scope]
@@ -880,6 +894,9 @@ onMounted(() => {
         Generates sample records into
         <b>{{ toolTenant?.company_name ?? '—' }}</b>. The modules below are that tenant's own menu
         — its plan and enabled modules decide what is on offer. Pick a volume and the modules, then run.
+        Chips marked <span class="fx-tag">sample</span> are an industry plugin's curated fixtures: they
+        fill that vertical's own screens with a fixed handful of rows, whatever volume is selected, and
+        re-running one refreshes it instead of doubling it.
       </p>
 
       <div class="demo-bar">
@@ -920,6 +937,11 @@ onMounted(() => {
       <p v-if="demoIsBulk" class="bulk-warn">
         <i class="pi pi-exclamation-triangle" />
         {{ demoCount.toLocaleString() }} rows per module runs on the queue worker and can take hours.
+      </p>
+      <p v-if="demoPickedFixtures" class="muted">
+        <i class="pi pi-info-circle" />
+        {{ demoPickedFixtures }} of the selected chip(s) are plugin sample sets — they seed their fixed
+        rows straight away and ignore the volume above.
       </p>
       <p v-if="!canRunTools" class="muted">You need the “ops-tools.manage” permission to generate data.</p>
 
@@ -979,12 +1001,14 @@ onMounted(() => {
                   :key="m.key"
                   type="button"
                   class="demo-chip"
-                  :class="{ picked: demoPicked.has(m.key) }"
+                  :class="{ picked: demoPicked.has(m.key), fixture: m.fixture }"
                   :disabled="!canRunTools"
+                  :title="m.fixture ? 'Curated sample rows from the industry plugin — seeded once, the row count does not apply.' : undefined"
                   @click="toggleDemoModule(m.key)"
                 >
                   <i :class="demoPicked.has(m.key) ? 'pi pi-check-circle' : m.icon || 'pi pi-circle'" />
                   {{ m.label }}
+                  <span v-if="m.fixture" class="fx-tag">sample</span>
                 </button>
               </div>
             </div>
@@ -1148,6 +1172,12 @@ onMounted(() => {
 .demo-chip.picked { border-color: #e8a33d; background: rgba(232, 163, 61, 0.12); color: var(--graphite); }
 .demo-chip.picked i { color: #4c8b6c; }
 .demo-chip:disabled { opacity: 0.55; cursor: not-allowed; }
+.demo-chip.fixture { border-style: dashed; }
+.fx-tag {
+  margin-left: auto; padding: 0.05rem 0.35rem; border-radius: 999px; font-size: 0.63rem;
+  font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  background: rgba(76, 139, 108, 0.14); color: #3f7a5e;
+}
 
 @media (max-width: 640px) {
   .demo-search :deep(.p-inputtext) { width: 100%; }

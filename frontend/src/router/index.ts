@@ -24,6 +24,7 @@ const CentralRolesView = () => import('../views/central/CentralRolesView.vue')
 const CentralTenantsView = () => import('../views/central/CentralTenantsView.vue')
 const CentralIndustriesView = () => import('../views/central/CentralIndustriesView.vue')
 const CentralMenusView = () => import('../views/central/CentralMenusView.vue')
+const CentralShopMenusView = () => import('../views/central/CentralShopMenusView.vue')
 const CentralPlansView = () => import('../views/central/CentralPlansView.vue')
 const CentralBillingView = () => import('../views/central/CentralBillingView.vue')
 const CentralMarketplaceView = () => import('../views/central/CentralMarketplaceView.vue')
@@ -777,6 +778,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'tenants', name: 'central-tenants', component: CentralTenantsView, meta: { permission: 'tenants.view' } },
       { path: 'industries', name: 'central-industries', component: CentralIndustriesView, meta: { permission: 'industries.view' } },
       { path: 'menus', name: 'central-menus', component: CentralMenusView, meta: { permission: 'menus.view' } },
+      // Shop-wise menu templates — same permission as the catalogue above,
+      // because both decide what a workspace is created with.
+      { path: 'shop-menus', name: 'central-shop-menus', component: CentralShopMenusView, meta: { permission: 'menus.view' } },
       { path: 'plans', name: 'central-plans', component: CentralPlansView, meta: { permission: 'plans.view' } },
       { path: 'billing', name: 'central-billing', component: CentralBillingView, meta: { permission: 'subscriptions.view' } },
       // The marketplace shell renders whichever tab the operator is entitled to,

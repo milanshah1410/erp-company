@@ -11,7 +11,7 @@ use App\Modules\Industry\Automobile\Models\CustomerVehicle;
 use App\Modules\Industry\Automobile\Models\VehicleBooking;
 use App\Modules\Industry\Automobile\Models\VehicleWarranty;
 use App\Modules\Industry\Automobile\Services\BookingConversionService;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use Throwable;
 
 /**
@@ -38,8 +38,22 @@ use Throwable;
  * number, and the job card is only opened if the booking has not already
  * produced one — a re-seed refreshes the workshop rather than doubling it.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'automobile' => ['label' => 'Vehicles, Bookings & Warranties', 'route' => '/automobile/vehicles'],
+            'service' => ['label' => 'Workshop Job Card', 'route' => '/service-jobs', 'modules' => ['automobile', 'service']],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

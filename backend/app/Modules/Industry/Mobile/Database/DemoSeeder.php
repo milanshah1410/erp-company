@@ -8,7 +8,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductWarranty;
 use App\Models\ServiceJob;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Mobile\Models\Buyback;
 use App\Modules\Industry\Mobile\Models\EmiPlan;
 use App\Modules\Industry\Mobile\Models\Handset;
@@ -46,8 +46,23 @@ use Throwable;
  * the finance file's schedule is only built once — a re-seed refreshes the counter
  * rather than doubling it.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'mobile' => ['label' => 'Handsets, Insurance, EMI & Part-Exchange', 'route' => '/mobile/handsets'],
+            'warranty' => ['label' => 'Handset Warranty Cards', 'route' => '/warranties', 'modules' => ['mobile', 'warranty']],
+            'service' => ['label' => 'Handset Repair Job', 'route' => '/service-jobs', 'modules' => ['mobile', 'service']],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

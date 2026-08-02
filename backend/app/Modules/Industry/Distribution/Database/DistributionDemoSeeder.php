@@ -15,6 +15,7 @@ use App\Models\Salesman;
 use App\Models\SalesOrder;
 use App\Models\Unit;
 use App\Models\Warehouse;
+use App\Modules\Industry\Contracts\IndustryTradeDemoSeeder;
 
 /**
  * Demo fixtures for the Distribution & Wholesale trades.
@@ -42,12 +43,27 @@ use App\Models\Warehouse;
  *
  * Must be called inside a TenantContext.
  */
-class DistributionDemoSeeder
+class DistributionDemoSeeder implements IndustryTradeDemoSeeder
 {
     /** SKU/code prefix for everything this seeder owns, so a re-run is idempotent. */
     private const PREFIX = 'DIST';
 
     public function __construct(private readonly ?int $userId = null) {}
+
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per trade, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'wholesale' => ['label' => 'Credit Book & Market Beat', 'route' => '/credit-control', 'modules' => ['distribution']],
+            'super_stockist' => ['label' => 'C&F Godowns (credit book + transit)', 'route' => '/stock-transfers', 'modules' => ['distribution']],
+            'cash_carry' => ['label' => 'Cash & Carry Parties', 'route' => '/customers', 'modules' => ['distribution']],
+        ];
+    }
 
     /**
      * Seed the fixtures one trade needs.

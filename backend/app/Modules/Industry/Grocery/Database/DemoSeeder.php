@@ -9,7 +9,7 @@ use App\Models\Product;
 use App\Models\StockLocation;
 use App\Models\Warehouse;
 use App\Models\WarehouseLocation;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Grocery\Models\SelfCheckoutCart;
 use App\Modules\Industry\Grocery\Models\ShelfPlacement;
 use App\Services\PosCounterService;
@@ -38,8 +38,22 @@ use App\Services\PosCounterService;
  * Idempotent — every row is matched on a prefixed key, so a re-seed refreshes the
  * shop rather than doubling it.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'grocery' => ['label' => 'Combo Packs & Supplier Credit', 'route' => '/grocery/combo-packs'],
+            'supermarket' => ['label' => 'Aisles, Planogram & Self-Checkout', 'route' => '/supermarket/shelves'],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

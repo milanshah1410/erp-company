@@ -8,7 +8,7 @@ use App\Models\Customer;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\Warehouse;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Stationery\Models\ClassKit;
 use App\Modules\Industry\Stationery\Models\Institution;
 use App\Modules\Industry\Stationery\Services\ClassKitSupplyService;
@@ -44,12 +44,25 @@ use Throwable;
  * Idempotent: institutions match on their code, lists on their kit number, and
  * the school order is only raised if that list has not already produced one.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
     /** The session everything below belongs to. */
     private const YEAR = '2026-27';
 
     /** @param  list<string>  $modules */
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'stationery' => ['label' => 'Institutions, Booklists & School Order', 'route' => '/stationery/institutions'],
+        ];
+    }
+
     public function seed(array $modules, int $userId): void
     {
         if (! in_array('stationery', $modules, true)) {

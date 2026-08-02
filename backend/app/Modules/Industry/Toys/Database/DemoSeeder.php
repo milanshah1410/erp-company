@@ -6,7 +6,7 @@ namespace App\Modules\Industry\Toys\Database;
 
 use App\Models\Brand;
 use App\Models\Product;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Toys\Models\AgeGrade;
 use App\Modules\Industry\Toys\Models\SafetyCategory;
 use App\Modules\Industry\Toys\Models\SafetyCertificate;
@@ -38,8 +38,21 @@ use App\Modules\Industry\Toys\Models\SafetyCertificate;
  * their number, and the grading is re-applied on every run so that a demo
  * workspace seeded before this vertical existed picks it up.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'toys' => ['label' => 'Age Bands & Safety Certificates', 'route' => '/toys/certificates'],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

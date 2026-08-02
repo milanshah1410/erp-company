@@ -13,9 +13,6 @@ use App\Models\Setting;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Modules\Industry\Distribution\Database\DistributionDemoSeeder;
-use App\Modules\Industry\FoodBeverage\Database\FoodBeverageDemoSeeder;
-use App\Modules\Industry\Healthcare\Database\HealthcareDemoSeeder;
 use App\Modules\Industry\Support\IndustryRegistry;
 use App\Services\DemoDataGenerator;
 use App\Support\IndustryTemplates;
@@ -145,7 +142,7 @@ class DemoShopSeeder extends Seeder
                 Setting::set('industry', $profile['industry']);
             }
 
-            $this->refreshMenu($tenant->id);
+            $this->refreshMenu($tenant->id, $key);
 
             $admin = User::updateOrCreate(
                 ['email' => $email],
@@ -213,11 +210,15 @@ class DemoShopSeeder extends Seeder
      * would leave every demo workspace on the old tree. Dropping first means a
      * re-seed always reflects the current MenuSeeder. Safe because these
      * workspaces are fixtures — nobody has reordered their menu by hand.
+     *
+     * The trade is passed through, so a demo shop shows off the menu that trade
+     * actually ships with (ShopMenuSeeder) rather than the full catalogue — which
+     * is the whole point of a demo workspace per trade.
      */
-    private function refreshMenu(int $tenantId): void
+    private function refreshMenu(int $tenantId, string $trade): void
     {
         MenuItem::where('tenant_id', $tenantId)->delete();
-        TenantMenuAccess::cloneForTenant($tenantId);
+        TenantMenuAccess::cloneForTenant($tenantId, $trade);
     }
 
     /** Point the admin at the baseline company/branch so the app has a context. */
@@ -339,15 +340,11 @@ class DemoShopSeeder extends Seeder
      */
     private function seedTradeFixtures(string $trade, int $userId): void
     {
-        $seeders = [
-            // vertical key => demo seeder class
-            'food_beverage' => FoodBeverageDemoSeeder::class,
-            'healthcare' => HealthcareDemoSeeder::class,
-            'distribution' => DistributionDemoSeeder::class,
-        ];
-
+        // Discovered by convention, like the module-keyed half above: a vertical
+        // that drops in a `Database\<Vertical>DemoSeeder` is dispatched without
+        // an edit here.
         $vertical = IndustryRegistry::trades()[$trade]['industry'] ?? null;
-        $class = $seeders[$vertical] ?? null;
+        $class = IndustryRegistry::tradeDemoSeeders()[$vertical] ?? null;
 
         if (! $class) {
             return;

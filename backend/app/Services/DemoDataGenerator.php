@@ -59,6 +59,8 @@ use App\Models\FollowUp;
 use App\Models\FreightForwarder;
 use App\Models\FuelExpense;
 use App\Models\GateEntry;
+use App\Models\GiftVoucher;
+use App\Models\GiftVoucherRedemption;
 use App\Models\GstRegistration;
 use App\Models\HsnCode;
 use App\Models\Invoice;
@@ -67,17 +69,27 @@ use App\Models\Lead;
 use App\Models\LeaveApplication;
 use App\Models\LeaveType;
 use App\Models\LoanRepayment;
+use App\Models\LoyaltyTransaction;
 use App\Models\ManufacturingOrder;
 use App\Models\MarketingCampaign;
+use App\Models\MetalRate;
+use App\Models\OldGoldReceipt;
 use App\Models\OvertimeRecord;
 use App\Models\Payment;
 use App\Models\PaymentGatewayAccount;
 use App\Models\PaymentTransaction;
 use App\Models\PieceRate;
 use App\Models\Port;
+use App\Models\PosCounter;
+use App\Models\PosCounterSession;
+use App\Models\Prescription;
+use App\Models\PrescriptionDispense;
 use App\Models\PriceList;
 use App\Models\Product;
 use App\Models\ProductWarranty;
+use App\Models\Project;
+use App\Models\ProjectTask;
+use App\Models\ProjectTimesheet;
 use App\Models\PurchaseIndent;
 use App\Models\PurchaseInvoice;
 use App\Models\PurchaseOrder;
@@ -88,10 +100,18 @@ use App\Models\Salary;
 use App\Models\SalaryAdvance;
 use App\Models\SalaryStructure;
 use App\Models\Salesman;
+use App\Models\SalesmanCollection;
+use App\Models\SalesmanExpense;
+use App\Models\SalesmanLocation;
+use App\Models\SalesmanTarget;
+use App\Models\SalesmanVisit;
 use App\Models\SalesOrder;
 use App\Models\SalesQuotation;
 use App\Models\SalesReturn;
 use App\Models\SerialNumber;
+use App\Models\ServiceContract;
+use App\Models\ServiceJob;
+use App\Models\ServiceJobItem;
 use App\Models\Shipment;
 use App\Models\ShipmentContainer;
 use App\Models\ShipmentDocument;
@@ -128,6 +148,7 @@ use App\Modules\Industry\Manufacturing\Models\QualityInspection;
 use App\Support\TenantContext;
 use App\Support\TradeCatalogue;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -189,6 +210,20 @@ class DemoDataGenerator
         // same way the shop-floor block below is.
         'warranties' => 'Warranty Cards',
         'warranty_claims' => 'Warranty Claims',
+        // Service desk. Contracts first: a job booked against an AMC is the one
+        // that completes without ever being billed, and there is no contract to
+        // book against until the register exists.
+        'service_contracts' => 'AMC Contracts',
+        'service_jobs' => 'Service Jobs',
+        // Projects. Timesheets hang off the projects (and the tasks) above.
+        'projects' => 'Projects',
+        'project_timesheets' => 'Timesheets',
+        // POS counters. Sessions are shifts on a till, so the tills come first.
+        'pos_counters' => 'POS Tills',
+        'pos_counter_sessions' => 'Shift Cash-Up',
+        // Loyalty & Offers
+        'loyalty_transactions' => 'Loyalty Points',
+        'gift_vouchers' => 'Gift Vouchers',
         // CRM
         'leads' => 'Leads',
         'follow_ups' => 'Follow-ups',
@@ -198,9 +233,15 @@ class DemoDataGenerator
         'whatsapp_messages' => 'WhatsApp Messages',
         'sms_messages' => 'SMS Messages',
         'email_logs' => 'Email Log',
-        // Field Sales
+        // Field Sales. The whole van-sales day hangs off a salesman and his
+        // beat, so those two stay first and everything below references them.
         'salesmen' => 'Salesmen',
         'beats' => 'Beats',
+        'salesman_visits' => 'Daily Visit Plans',
+        'salesman_locations' => 'Live Tracking',
+        'salesman_collections' => 'Field Collections',
+        'salesman_expenses' => 'Field Expenses',
+        'salesman_targets' => 'Targets & Incentives',
         // Purchase
         'purchase_indents' => 'Purchase Indents',
         'rfqs' => 'RFQs',
@@ -298,6 +339,13 @@ class DemoDataGenerator
         // Payments
         'payment_gateway_accounts' => 'Payment Gateways',
         'payment_transactions' => 'Payment Transactions',
+        // Jewellery (core module, not a plugin): the day's rate board and the
+        // exchange counter that prices against it.
+        'metal_rates' => 'Metal Rates',
+        'old_gold' => 'Old Gold Receipts',
+        // Pharmacy. Dispense lines come with the prescriptions, which is what
+        // fills the statutory Drug Register — it has no rows of its own.
+        'prescriptions' => 'Prescriptions',
         // Other operational modules
         'users' => 'Users (Staff Logins)',
         'employees' => 'Employees',
@@ -464,6 +512,16 @@ class DemoDataGenerator
                 'sales_returns' => $this->makeSalesReturns($count),
                 'warranties' => $this->makeWarranties($count),
                 'warranty_claims' => $this->makeWarrantyClaims($count),
+                // Service, projects, counters
+                'service_contracts' => $this->makeServiceContracts($count),
+                'service_jobs' => $this->makeServiceJobs($count),
+                'projects' => $this->makeProjects($count),
+                'project_timesheets' => $this->makeProjectTimesheets($count),
+                'pos_counters' => $this->makePosCounters($count),
+                'pos_counter_sessions' => $this->makePosCounterSessions($count),
+                // Loyalty & offers
+                'loyalty_transactions' => $this->makeLoyaltyTransactions($count),
+                'gift_vouchers' => $this->makeGiftVouchers($count),
                 'users' => $this->makeUsers($count),
                 'employees' => $this->makeEmployees($count),
                 'expenses' => $this->makeExpenses($count),
@@ -478,6 +536,11 @@ class DemoDataGenerator
                 // Field sales
                 'salesmen' => $this->make($count, fn (int $i) => $this->salesmanRow($i), Salesman::class),
                 'beats' => $this->makeBeats($count),
+                'salesman_visits' => $this->makeSalesmanVisits($count),
+                'salesman_locations' => $this->makeSalesmanLocations($count),
+                'salesman_collections' => $this->makeSalesmanCollections($count),
+                'salesman_expenses' => $this->makeSalesmanExpenses($count),
+                'salesman_targets' => $this->makeSalesmanTargets($count),
                 // Purchase
                 'purchase_indents' => $this->makePurchaseIndents($count),
                 'rfqs' => $this->makeRfqs($count),
@@ -567,6 +630,10 @@ class DemoDataGenerator
                 // Payments
                 'payment_gateway_accounts' => $this->make($count, fn (int $i) => $this->paymentGatewayRow($i), PaymentGatewayAccount::class),
                 'payment_transactions' => $this->make($count, fn (int $i) => $this->paymentTransactionRow($i), PaymentTransaction::class),
+                // Jewellery & pharmacy
+                'metal_rates' => $this->makeMetalRates($count),
+                'old_gold' => $this->makeOldGoldReceipts($count),
+                'prescriptions' => $this->makePrescriptions($count),
                 default => 0,
             };
         }
@@ -640,6 +707,19 @@ class DemoDataGenerator
             'city' => $this->cities[$i % count($this->cities)],
             'state' => $this->states[$i % count($this->states)],
             'country' => 'India',
+            /**
+             * Birthdays and anniversaries, deliberately clustered around the
+             * next few weeks rather than spread over a whole year. CRM →
+             * Occasions is a projection of exactly these two columns over the
+             * coming 30 days — it has no table and no chip of its own — so a
+             * realistic year-wide spread would leave the screen empty on a
+             * freshly generated workspace, which reads as the feature not
+             * working.
+             */
+            'date_of_birth' => now()->subYears(20 + ($i % 40))->addDays(($i % 40) - 5)->toDateString(),
+            'anniversary_date' => $i % 3 === 0
+                ? now()->subYears(1 + ($i % 15))->addDays(($i % 50) - 10)->toDateString()
+                : null,
             'credit_limit' => ($i % 10) * 5000,
             /**
              * Credit terms vary per party, because that is the fact a distributor
@@ -4881,5 +4961,882 @@ class DemoDataGenerator
                 'approved_at' => now(),
             ];
         }, Expense::class);
+    }
+
+    /**
+     * Run $fn once per record inside chunked transactions.
+     *
+     * Same shape and same chunking as make(), for the generators that write
+     * more than one table per record (a job and its parts, a prescription and
+     * its dispense lines) and so have no single attribute array to hand a
+     * model. $fn returning false counts the record as skipped.
+     *
+     * @param  callable(int):mixed  $fn  receives the 0-based record index
+     */
+    private function eachChunk(int $count, callable $fn): int
+    {
+        $made = 0;
+        for ($start = 0; $start < $count; $start += self::CHUNK) {
+            $batch = min(self::CHUNK, $count - $start);
+            DB::transaction(function () use ($fn, $start, $batch, &$made) {
+                for ($k = 0; $k < $batch; $k++) {
+                    if ($fn($start + $k) !== false) {
+                        $made++;
+                    }
+                }
+            });
+        }
+
+        return $made;
+    }
+
+    // ---- Service desk (§ Service Management) ----
+
+    /**
+     * AMC contracts against existing customers.
+     *
+     * Start dates run back far enough that some terms have already lapsed, so
+     * the register opens with both an Active and an Expired bucket — a screen
+     * whose whole job is telling you which cover is still good shows nothing
+     * when every row is green.
+     */
+    private function makeServiceContracts(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        if (empty($customerIds)) {
+            return 0;
+        }
+
+        $titles = [
+            'Annual Maintenance — 4 visits',
+            'Comprehensive AMC with parts',
+            'Preventive service plan',
+            'On-site support contract',
+        ];
+        $userId = $this->createdBy;
+
+        return $this->make($count, function (int $i) use ($customerIds, $titles, $userId) {
+            $start = now()->subDays(($i % 500) + 30);
+            $end = $start->copy()->addYear();
+            $allowed = [0, 2, 4, 12][$i % 4];
+
+            return [
+                'contract_number' => 'DAMC-' . $this->suffix($i) . '-' . $i,
+                'customer_id' => $customerIds[$i % count($customerIds)],
+                'title' => $titles[$i % count($titles)],
+                'start_date' => $start->toDateString(),
+                'end_date' => $end->toDateString(),
+                'visits_allowed' => $allowed,
+                // Never more than the quota: a contract showing 5 of 4 visits
+                // used would read as a bug in the drawdown, not as demo data.
+                'visits_used' => $allowed > 0 ? $i % ($allowed + 1) : $i % 3,
+                'amount' => (($i % 12) + 1) * 2500,
+                'status' => $end->isPast() ? 'expired' : 'active',
+                'notes' => 'Demo maintenance contract.',
+                'created_by' => $userId,
+            ];
+        }, ServiceContract::class);
+    }
+
+    /**
+     * Repair jobs across the whole status ladder, priced through the same
+     * service the desk uses.
+     *
+     * Parts are attached but left un-issued: issuing them moves stock, and a
+     * demo generator that silently drains the warehouse behind the operator's
+     * back is not what "sample data" means. Totals come from
+     * ServiceJobBillingService::reprice so labour, parts and tax agree with
+     * what the screen would compute itself.
+     */
+    private function makeServiceJobs(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        if (empty($customerIds)) {
+            return 0;
+        }
+
+        $warehouseIds = Warehouse::pluck('id')->all() ?: [null];
+        $technicianIds = Employee::pluck('id')->all() ?: [null];
+        $contractIds = ServiceContract::where('status', 'active')->pluck('id')->all();
+        $parts = Product::query()
+            ->where('is_service', false)
+            ->select('id', 'selling_price', 'tax_percent')
+            ->limit(50)
+            ->get();
+
+        $items = [
+            'Washing Machine', 'Split AC 1.5T', 'Laptop', 'Mixer Grinder',
+            'LED TV 43"', 'Water Purifier', 'Ceiling Fan', 'Microwave Oven',
+        ];
+        $complaints = [
+            'Not powering on since yesterday.',
+            'Making a loud noise while running.',
+            'Cooling has dropped noticeably.',
+            'Display flickers after ten minutes.',
+            'Leaking water from the base.',
+        ];
+        // Deliberately front-loaded on the open states: the desk is read as a
+        // worklist, and a demo where everything is already delivered opens on
+        // an empty board.
+        $statuses = ['received', 'assigned', 'in_progress', 'on_hold', 'completed', 'delivered'];
+
+        $billing = app(ServiceJobBillingService::class);
+        $userId = $this->createdBy;
+
+        return $this->eachChunk($count, function (int $i) use (
+            $customerIds, $warehouseIds, $technicianIds, $contractIds, $parts,
+            $items, $complaints, $statuses, $billing, $userId
+        ) {
+            $status = $statuses[$i % count($statuses)];
+            $received = now()->subDays($i % 60)->setTime(10, 15);
+            $done = in_array($status, ['completed', 'delivered'], true);
+            // Contract work and warranty work are the two that complete without
+            // ever raising a bill, so both need to be in the sample.
+            $onContract = $contractIds && $i % 6 === 0;
+
+            $job = ServiceJob::create([
+                'job_number' => 'DSJ-' . $this->suffix($i) . '-' . $i,
+                'customer_id' => $customerIds[$i % count($customerIds)],
+                'service_contract_id' => $onContract ? $contractIds[$i % count($contractIds)] : null,
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'assigned_to' => $status === 'received' ? null : $technicianIds[$i % count($technicianIds)],
+                'status' => $status,
+                'priority' => ['low', 'normal', 'high', 'urgent'][$i % 4],
+                'item_name' => $items[$i % count($items)],
+                'item_serial' => 'SN-' . $this->suffix($i),
+                'complaint' => $complaints[$i % count($complaints)],
+                'diagnosis' => $status === 'received' ? null : 'Worn part replaced and unit re-tested.',
+                'resolution' => $done ? 'Repaired and handed back to the customer.' : null,
+                'is_warranty' => ! $onContract && $i % 7 === 0,
+                'received_at' => $received,
+                'promised_at' => $received->copy()->addDays(3),
+                'started_at' => $status === 'received' ? null : $received->copy()->addDay(),
+                'completed_at' => $done ? $received->copy()->addDays(2) : null,
+                'delivered_at' => $status === 'delivered' ? $received->copy()->addDays(3) : null,
+                // Contract and warranty jobs are done but never billed, so they
+                // carry no labour charge either.
+                'labour_charge' => $onContract || $i % 7 === 0 ? 0 : (($i % 8) + 1) * 150,
+                'labour_tax_percent' => 18,
+                'notes' => 'Demo service job.',
+                'created_by' => $userId,
+            ]);
+
+            if ($parts->isNotEmpty()) {
+                $lines = 1 + ($i % 2);
+                for ($n = 0; $n < $lines; $n++) {
+                    $part = $parts[($i + $n) % $parts->count()];
+                    ServiceJobItem::create([
+                        'service_job_id' => $job->id,
+                        'product_id' => $part->id,
+                        'quantity' => 1,
+                        'unit_price' => (float) $part->selling_price,
+                        'tax_percent' => (float) $part->tax_percent,
+                        'is_issued' => false,
+                    ]);
+                }
+            }
+
+            $billing->reprice($job);
+        });
+    }
+
+    // ---- Projects (§ Project Management) ----
+
+    /**
+     * Projects with a small task list under each.
+     *
+     * Tasks come along because a project board with no tasks is a list of
+     * headings — and the hours generated below need something to book against.
+     */
+    private function makeProjects(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        $managerIds = Employee::pluck('id')->all() ?: [null];
+        $userId = $this->createdBy;
+
+        $names = [
+            'Warehouse racking upgrade', 'ERP rollout — phase 2', 'Showroom refit',
+            'Annual ISO audit', 'Website replatform', 'Fleet telematics install',
+            'Seasonal catalogue shoot', 'Plant electrical overhaul',
+        ];
+        $taskTitles = ['Scope and estimate', 'Procurement', 'Execution', 'Handover & sign-off'];
+        $statuses = ['planning', 'active', 'active', 'on_hold', 'completed'];
+
+        return $this->eachChunk($count, function (int $i) use (
+            $customerIds, $managerIds, $names, $taskTitles, $statuses, $userId
+        ) {
+            $status = $statuses[$i % count($statuses)];
+            $start = now()->subDays(($i % 180) + 10);
+            // Internal work has no customer, which is also what makes it
+            // non-billable — the two have to move together or the board shows
+            // billable hours nobody can invoice.
+            $internal = empty($customerIds) || $i % 4 === 3;
+            $rate = [600, 850, 1200][$i % 3];
+
+            $project = Project::create([
+                'project_number' => 'DPRJ-' . $this->suffix($i) . '-' . $i,
+                'name' => $names[$i % count($names)] . ' #' . ($i + 1),
+                'customer_id' => $internal ? null : $customerIds[$i % count($customerIds)],
+                'manager_id' => $managerIds[$i % count($managerIds)],
+                'status' => $status,
+                'priority' => ['low', 'normal', 'high', 'urgent'][$i % 4],
+                'billing_type' => $internal ? 'non_billable' : ($i % 2 === 0 ? 'fixed' : 'time_and_material'),
+                'budget_amount' => $internal ? 0 : (($i % 20) + 2) * 25000,
+                'estimated_hours' => (($i % 15) + 2) * 8,
+                'hourly_rate' => $internal ? 0 : $rate,
+                'start_date' => $start->toDateString(),
+                'end_date' => $start->copy()->addDays(45)->toDateString(),
+                'actual_start_date' => $status === 'planning' ? null : $start->toDateString(),
+                'actual_end_date' => $status === 'completed' ? $start->copy()->addDays(40)->toDateString() : null,
+                'description' => 'Demo project generated for sample data.',
+                'created_by' => $userId,
+            ]);
+
+            foreach ($taskTitles as $n => $title) {
+                $taskStatus = match (true) {
+                    $status === 'completed' => 'done',
+                    $n === 0 => 'done',
+                    $n === 1 => 'in_progress',
+                    default => 'todo',
+                };
+
+                ProjectTask::create([
+                    'project_id' => $project->id,
+                    'assigned_to' => $managerIds[($i + $n) % count($managerIds)],
+                    'title' => $title,
+                    'status' => $taskStatus,
+                    'priority' => 'normal',
+                    'estimated_hours' => 8 * ($n + 1),
+                    'progress_percent' => $taskStatus === 'done' ? 100 : ($taskStatus === 'in_progress' ? 50 : 0),
+                    'start_date' => $start->copy()->addDays($n * 7)->toDateString(),
+                    'due_date' => $start->copy()->addDays(($n + 1) * 7)->toDateString(),
+                    'completed_at' => $taskStatus === 'done' ? $start->copy()->addDays(($n + 1) * 7) : null,
+                    'sort_order' => ($n + 1) * 10,
+                    'created_by' => $userId,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * Hours booked against the projects (and tasks) already on file.
+     *
+     * The rate is snapshotted from the project exactly as the timesheet screen
+     * does it, and only approved lines are billable — an all-approved demo
+     * would hide the gate that stands between logged hours and an invoice.
+     */
+    private function makeProjectTimesheets(int $count): int
+    {
+        $projects = Project::select('id', 'hourly_rate', 'billing_type')->get();
+        $employeeIds = Employee::pluck('id')->all();
+        if ($projects->isEmpty() || empty($employeeIds)) {
+            return 0;
+        }
+
+        $taskIdsByProject = ProjectTask::select('id', 'project_id')
+            ->get()
+            ->groupBy('project_id')
+            ->map(fn ($rows) => $rows->pluck('id')->all())
+            ->all();
+
+        $notes = [
+            'Site survey and measurements.',
+            'Vendor coordination.',
+            'Installation and commissioning.',
+            'Testing and defect list.',
+            'Client walkthrough.',
+        ];
+        $statuses = ['draft', 'submitted', 'approved', 'approved', 'rejected'];
+        $userId = $this->createdBy;
+
+        return $this->make($count, function (int $i) use (
+            $projects, $employeeIds, $taskIdsByProject, $notes, $statuses, $userId
+        ) {
+            $project = $projects[$i % $projects->count()];
+            $tasks = $taskIdsByProject[$project->id] ?? [];
+            $status = $statuses[$i % count($statuses)];
+            $hours = [2, 4, 6, 8][$i % 4];
+            $rate = (float) $project->hourly_rate;
+
+            return [
+                'project_id' => $project->id,
+                'project_task_id' => $tasks ? $tasks[$i % count($tasks)] : null,
+                'employee_id' => $employeeIds[$i % count($employeeIds)],
+                'work_date' => now()->subDays($i % 60)->toDateString(),
+                'hours' => $hours,
+                'description' => $notes[$i % count($notes)],
+                'is_billable' => $project->billing_type !== 'non_billable' && $i % 5 !== 4,
+                'hourly_rate' => $rate,
+                'amount' => round($hours * $rate, 2),
+                'status' => $status,
+                'approved_by' => $status === 'approved' ? $userId : null,
+                'approved_at' => $status === 'approved' ? now()->subDays($i % 30) : null,
+                'created_by' => $userId,
+            ];
+        }, ProjectTimesheet::class);
+    }
+
+    // ---- POS counters (§ Counters) ----
+
+    private function makePosCounters(int $count): int
+    {
+        $warehouseIds = Warehouse::pluck('id')->all();
+        if (empty($warehouseIds)) {
+            return 0;
+        }
+
+        return $this->make($count, function (int $i) use ($warehouseIds) {
+            // Roughly one till in five is a self-checkout lane, so the
+            // supermarket screens have both modes to show.
+            $self = $i % 5 === 4;
+
+            return [
+                'warehouse_id' => $warehouseIds[$i % count($warehouseIds)],
+                'code' => 'TILL-' . $this->suffix($i),
+                'name' => ($self ? 'Self Checkout ' : 'Counter ') . ($i + 1),
+                'mode' => $self ? 'self_checkout' : 'attended',
+                'location' => ['Front aisle', 'Near entrance', 'First floor', 'Billing desk'][$i % 4],
+                'default_float' => [1000, 2000, 5000][$i % 3],
+                'is_active' => true,
+            ];
+        }, PosCounter::class);
+    }
+
+    /**
+     * Closed shifts on the tills, plus one drawer left open.
+     *
+     * Everything generated here is closed on purpose: the table carries a
+     * partial-unique index that allows a single open session per counter, so a
+     * loop that opened them freely would collide on its second row. One live
+     * drawer is opened at the end — on a till that has none — because the
+     * cash-up screen is mostly about the shift currently running.
+     */
+    private function makePosCounterSessions(int $count): int
+    {
+        $counters = PosCounter::select('id', 'default_float')->get();
+        if ($counters->isEmpty()) {
+            return 0;
+        }
+
+        $userId = $this->createdBy;
+
+        $made = $this->eachChunk($count, function (int $i) use ($counters, $userId) {
+            $counter = $counters[$i % $counters->count()];
+            // Walk a day back for every full pass over the tills, so a counter
+            // never gets two shifts stamped at the same minute.
+            $opened = now()->subDays(intdiv($i, $counters->count()) + 1)->setTime(9, 30);
+            $float = (float) $counter->default_float;
+            $cash = 4000 + ($i % 25) * 350;
+            $card = 2500 + ($i % 17) * 275;
+            $upi = 1800 + ($i % 11) * 420;
+            // A till that balances to the paisa every single evening is the one
+            // thing a real cash-up never does.
+            $variance = [0, 0, 0, -50, 20][$i % 5];
+
+            PosCounterSession::create([
+                'counter_id' => $counter->id,
+                'status' => 'closed',
+                'opened_by' => $userId,
+                'opened_at' => $opened,
+                'opening_float' => $float,
+                'closed_by' => $userId,
+                'closed_at' => $opened->copy()->setTime(21, 45),
+                'expected_cash' => $float + $cash,
+                'declared_cash' => $float + $cash + $variance,
+                'variance' => $variance,
+                'tender_totals' => ['cash' => $cash, 'card' => $card, 'upi' => $upi],
+                'notes' => $variance === 0 ? 'Tallied.' : 'Short/over noted at cash-up.',
+            ]);
+        });
+
+        if (! PosCounterSession::where('status', 'open')->exists()) {
+            $counter = $counters->first();
+            PosCounterSession::create([
+                'counter_id' => $counter->id,
+                'status' => 'open',
+                'opened_by' => $userId,
+                'opened_at' => now()->setTime(9, 30),
+                'opening_float' => (float) $counter->default_float,
+                'notes' => 'Shift currently running.',
+            ]);
+            $made++;
+        }
+
+        return $made;
+    }
+
+    // ---- Field sales (§ Sales → Field Sales) ----
+
+    /**
+     * The day's beat plan: mostly visited, some still planned, a few skipped.
+     */
+    private function makeSalesmanVisits(int $count): int
+    {
+        $salesmanIds = Salesman::pluck('id')->all();
+        $customerIds = Customer::pluck('id')->all();
+        if (empty($salesmanIds) || empty($customerIds)) {
+            return 0;
+        }
+
+        $beatIdsBySalesman = Beat::select('id', 'salesman_id')
+            ->get()
+            ->groupBy('salesman_id')
+            ->map(fn ($rows) => $rows->pluck('id')->all())
+            ->all();
+
+        $purposes = ['Order collection', 'Payment follow-up', 'New listing', 'Merchandising check', 'Complaint visit'];
+        $statuses = ['visited', 'visited', 'visited', 'planned', 'skipped'];
+        $userId = $this->createdBy;
+
+        return $this->make($count, function (int $i) use (
+            $salesmanIds, $customerIds, $beatIdsBySalesman, $purposes, $statuses, $userId
+        ) {
+            $salesmanId = $salesmanIds[$i % count($salesmanIds)];
+            $beats = $beatIdsBySalesman[$salesmanId] ?? [];
+            $status = $statuses[$i % count($statuses)];
+            // Planned calls are ahead of today; anything already worked is behind it.
+            $date = $status === 'planned' ? now()->addDays($i % 7) : now()->subDays($i % 45);
+            $visited = $status === 'visited';
+
+            return [
+                'salesman_id' => $salesmanId,
+                'customer_id' => $customerIds[$i % count($customerIds)],
+                'beat_id' => $beats ? $beats[$i % count($beats)] : null,
+                'visit_date' => $date->toDateString(),
+                'sequence' => ($i % 12) + 1,
+                'status' => $status,
+                'purpose' => $purposes[$i % count($purposes)],
+                'check_in_at' => $visited ? $date->copy()->setTime(10, ($i % 6) * 10) : null,
+                'check_out_at' => $visited ? $date->copy()->setTime(10, ($i % 6) * 10 + 25) : null,
+                'check_in_lat' => $visited ? round(23.0225 + (($i % 40) - 20) / 500, 7) : null,
+                'check_in_lng' => $visited ? round(72.5714 + (($i % 30) - 15) / 500, 7) : null,
+                'outcome' => $visited ? ['order', 'collection', 'no-order'][$i % 3] : null,
+                'notes' => $status === 'skipped' ? 'Shop closed on arrival.' : 'Demo beat call.',
+                'created_by' => $userId,
+            ];
+        }, SalesmanVisit::class);
+    }
+
+    /**
+     * A GPS trail per salesman — the pings the Live Tracking map draws.
+     *
+     * Positions walk away from a base point instead of scattering randomly, so
+     * the map shows a route rather than a cloud of unrelated dots.
+     */
+    private function makeSalesmanLocations(int $count): int
+    {
+        $salesmanIds = Salesman::pluck('id')->all();
+        if (empty($salesmanIds)) {
+            return 0;
+        }
+
+        return $this->make($count, function (int $i) use ($salesmanIds) {
+            $n = count($salesmanIds);
+            $step = intdiv($i, $n);
+
+            return [
+                'salesman_id' => $salesmanIds[$i % $n],
+                'recorded_at' => now()->subMinutes($step * 15),
+                'latitude' => round(23.0225 + $step * 0.0035 + ($i % $n) * 0.01, 7),
+                'longitude' => round(72.5714 + $step * 0.0028 + ($i % $n) * 0.01, 7),
+                'accuracy' => [8, 12, 20, 35][$i % 4],
+                'speed' => [0, 14, 28, 41][$i % 4],
+                'battery' => 100 - ($step % 70),
+                'source' => 'demo',
+            ];
+        }, SalesmanLocation::class);
+    }
+
+    /** Cash and cheques picked up on the round, at every stage of banking. */
+    private function makeSalesmanCollections(int $count): int
+    {
+        $salesmanIds = Salesman::pluck('id')->all();
+        $customerIds = Customer::pluck('id')->all();
+        if (empty($salesmanIds) || empty($customerIds)) {
+            return 0;
+        }
+
+        $invoiceIds = Invoice::pluck('id')->all();
+        $modes = ['cash', 'cheque', 'upi', 'bank'];
+        // One bounced cheque in the sample, because chasing that row is the
+        // reason the screen tracks a status at all.
+        $statuses = ['collected', 'deposited', 'deposited', 'bounced'];
+        $userId = $this->createdBy;
+
+        return $this->make($count, function (int $i) use (
+            $salesmanIds, $customerIds, $invoiceIds, $modes, $statuses, $userId
+        ) {
+            $status = $statuses[$i % count($statuses)];
+            $mode = $modes[$i % count($modes)];
+            $date = now()->subDays($i % 60);
+
+            return [
+                'collection_number' => 'DFC-' . $this->suffix($i) . '-' . $i,
+                'salesman_id' => $salesmanIds[$i % count($salesmanIds)],
+                'customer_id' => $customerIds[$i % count($customerIds)],
+                'invoice_id' => $invoiceIds ? $invoiceIds[$i % count($invoiceIds)] : null,
+                'amount' => (($i % 40) + 1) * 500,
+                'mode' => $mode,
+                'reference_no' => $mode === 'cash' ? null : strtoupper($mode) . '-' . $this->suffix($i),
+                'collection_date' => $date->toDateString(),
+                'status' => $status,
+                'deposited_at' => $status === 'deposited' ? $date->copy()->addDay() : null,
+                'notes' => $status === 'bounced' ? 'Cheque returned — insufficient funds.' : null,
+                'created_by' => $userId,
+            ];
+        }, SalesmanCollection::class);
+    }
+
+    /** Travel and food claims off the road, waiting on approval. */
+    private function makeSalesmanExpenses(int $count): int
+    {
+        $salesmanIds = Salesman::pluck('id')->all();
+        if (empty($salesmanIds)) {
+            return 0;
+        }
+
+        $categories = ['travel', 'food', 'lodging', 'fuel', 'misc'];
+        $statuses = ['pending', 'pending', 'approved', 'rejected'];
+        $userId = $this->createdBy;
+
+        return $this->make($count, function (int $i) use ($salesmanIds, $categories, $statuses, $userId) {
+            $status = $statuses[$i % count($statuses)];
+            $category = $categories[$i % count($categories)];
+
+            return [
+                'salesman_id' => $salesmanIds[$i % count($salesmanIds)],
+                'expense_date' => now()->subDays($i % 45)->toDateString(),
+                'category' => $category,
+                'amount' => (($i % 20) + 1) * 75,
+                'description' => ucfirst($category) . ' on the ' . $this->cities[$i % count($this->cities)] . ' round.',
+                'status' => $status,
+                'rejection_reason' => $status === 'rejected' ? 'No bill attached.' : null,
+                'approved_by' => $status === 'pending' ? null : $userId,
+                'approved_at' => $status === 'pending' ? null : now()->subDays($i % 20),
+                'created_by' => $userId,
+            ];
+        }, SalesmanExpense::class);
+    }
+
+    /**
+     * Monthly targets, one row per salesman per month walking backwards.
+     *
+     * updateOrCreate on the period key rather than create: the table carries a
+     * unique index on (salesman, year, month), and a second generator run over
+     * the same months must refresh those rows instead of failing the batch.
+     */
+    private function makeSalesmanTargets(int $count): int
+    {
+        $salesmanIds = Salesman::pluck('id')->all();
+        if (empty($salesmanIds)) {
+            return 0;
+        }
+
+        $n = count($salesmanIds);
+        $offset = SalesmanTarget::count();
+
+        return $this->eachChunk($count, function (int $k) use ($salesmanIds, $n, $offset) {
+            $i = $offset + $k;
+            $period = now()->startOfMonth()->subMonths(intdiv($i, $n));
+
+            SalesmanTarget::updateOrCreate(
+                [
+                    'salesman_id' => $salesmanIds[$i % $n],
+                    'period_year' => (int) $period->year,
+                    'period_month' => (int) $period->month,
+                ],
+                [
+                    'target_amount' => (($i % 10) + 3) * 100000,
+                    'target_orders' => (($i % 8) + 4) * 5,
+                    'incentive_percent' => [1, 1.5, 2, 2.5][$i % 4],
+                    'notes' => 'Demo target.',
+                ],
+            );
+        });
+    }
+
+    // ---- Loyalty & offers ----
+
+    /**
+     * A points ledger that nets out positive.
+     *
+     * Three earns to a redemption, because the balance is what every loyalty
+     * screen reads and a customer sitting at minus 400 points is a state the
+     * counter can never actually produce.
+     */
+    private function makeLoyaltyTransactions(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        if (empty($customerIds)) {
+            return 0;
+        }
+
+        $invoiceIds = Invoice::pluck('id')->all();
+        $userId = $this->createdBy;
+
+        return $this->make($count, function (int $i) use ($customerIds, $invoiceIds, $userId) {
+            $redeem = $i % 4 === 3;
+            $adjust = $i % 11 === 10;
+            $points = (($i % 10) + 1) * 10;
+
+            return [
+                'customer_id' => $customerIds[$i % count($customerIds)],
+                'type' => $adjust ? 'adjust' : ($redeem ? 'redeem' : 'earn'),
+                'points' => $adjust ? 25 : ($redeem ? -min($points, 50) : $points),
+                'invoice_id' => ! $redeem && $invoiceIds ? $invoiceIds[$i % count($invoiceIds)] : null,
+                'description' => match (true) {
+                    $adjust => 'Goodwill adjustment at the counter.',
+                    $redeem => 'Points redeemed against a bill.',
+                    default => 'Points earned on a purchase.',
+                },
+                'created_by' => $userId,
+            ];
+        }, LoyaltyTransaction::class);
+    }
+
+    /**
+     * Gift cards in every state the balance can be in: untouched, part-spent,
+     * fully redeemed and lapsed. A wall of pristine cards would never exercise
+     * the running balance, which is the whole point of the register.
+     */
+    private function makeGiftVouchers(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        $userId = $this->createdBy;
+        $faces = [500, 1000, 2000, 5000];
+
+        return $this->eachChunk($count, function (int $i) use ($customerIds, $faces, $userId) {
+            $face = (float) $faces[$i % count($faces)];
+            $state = $i % 4; // 0 untouched · 1 part-spent · 2 fully redeemed · 3 expired
+            $issued = now()->subDays(($i % 200) + 5);
+            $expires = $state === 3 ? now()->subDays(($i % 20) + 1) : $issued->copy()->addYear();
+            $spent = match ($state) {
+                1 => round($face * 0.35, 2),
+                2 => $face,
+                default => 0.0,
+            };
+
+            $voucher = GiftVoucher::create([
+                'code' => 'DGV-' . $this->suffix($i) . '-' . $i,
+                'customer_id' => $customerIds ? $customerIds[$i % count($customerIds)] : null,
+                'recipient_name' => $i % 3 === 0 ? 'Bearer' : $this->person($i),
+                'recipient_phone' => $this->phone($i),
+                'face_value' => $face,
+                'balance' => $face - $spent,
+                'issued_on' => $issued->toDateString(),
+                'expires_on' => $expires->toDateString(),
+                'status' => match ($state) {
+                    2 => 'redeemed',
+                    3 => 'expired',
+                    default => 'active',
+                },
+                'notes' => 'Demo gift card.',
+                'created_by' => $userId,
+            ]);
+
+            if ($spent > 0) {
+                // No invoice on the redemption: the demo has no counter sale to
+                // point at, and the column is nullable exactly for this case.
+                GiftVoucherRedemption::create([
+                    'gift_voucher_id' => $voucher->id,
+                    'amount' => $spent,
+                    'redeemed_at' => $issued->copy()->addDays(10),
+                    'reference' => 'Demo redemption',
+                    'created_by' => $userId,
+                ]);
+            }
+        });
+    }
+
+    // ---- Jewellery ----
+
+    /**
+     * The daily rate board, one row per metal/purity per day walking backwards.
+     *
+     * updateOrCreate on the unique day key: the table allows a single rate per
+     * metal, purity and date, and a jewellery workspace usually already has
+     * today's rate posted before anyone opens the demo generator.
+     */
+    private function makeMetalRates(int $count): int
+    {
+        $combos = [
+            ['gold', '24K', 999, 7250.0],
+            ['gold', '22K', 916, 6640.0],
+            ['gold', '18K', 750, 5440.0],
+            ['silver', '999', 999, 92.0],
+            ['platinum', '950', 950, 3180.0],
+        ];
+        $userId = $this->createdBy;
+
+        return $this->eachChunk($count, function (int $i) use ($combos, $userId) {
+            [$metal, $purity, $fineness, $base] = $combos[$i % count($combos)];
+            $day = intdiv($i, count($combos));
+            // A gentle wave rather than a straight line, so the rate history
+            // chart has something to draw.
+            $rate = round($base * (1 + sin($day / 6) * 0.012), 2);
+
+            MetalRate::updateOrCreate(
+                [
+                    'metal' => $metal,
+                    'purity' => $purity,
+                    'effective_on' => now()->subDays($day)->toDateString(),
+                ],
+                [
+                    'fineness' => $fineness,
+                    'rate_per_gram' => $rate,
+                    // The counter always buys back below the selling rate.
+                    'buy_rate_per_gram' => round($rate * 0.97, 2),
+                    'created_by' => $userId,
+                ],
+            );
+        });
+    }
+
+    /** Exchange-counter receipts, priced off the buy rate of the day. */
+    private function makeOldGoldReceipts(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        $userId = $this->createdBy;
+
+        $combos = [
+            ['gold', '22K', 916, 6440.0, 'Two bangles, worn'],
+            ['gold', '18K', 750, 5280.0, 'Broken chain'],
+            ['silver', '999', 999, 89.0, 'Silver anklets'],
+        ];
+
+        return $this->make($count, function (int $i) use ($customerIds, $combos, $userId) {
+            [$metal, $purity, $fineness, $rate, $description] = $combos[$i % count($combos)];
+            $gross = round(4 + ($i % 30) * 0.75, 3);
+            // Stones and solder come off the gross before anything is weighed
+            // for money, then the deduction covers refining loss.
+            $net = round($gross - min(0.6, $gross * 0.05), 3);
+            $deduction = [2, 4, 6, 8][$i % 4];
+            $chargeable = round($net * (1 - $deduction / 100), 3);
+
+            return [
+                'receipt_number' => 'DOG-' . $this->suffix($i) . '-' . $i,
+                'customer_id' => $customerIds ? $customerIds[$i % count($customerIds)] : null,
+                'metal' => $metal,
+                'purity' => $purity,
+                'fineness' => $fineness,
+                'description' => $description,
+                'gross_weight' => $gross,
+                'net_weight' => $net,
+                'deduction_percent' => $deduction,
+                'chargeable_weight' => $chargeable,
+                'rate_per_gram' => $rate,
+                'amount' => round($chargeable * $rate, 2),
+                'received_on' => now()->subDays($i % 120)->toDateString(),
+                'notes' => 'Demo exchange receipt.',
+                'created_by' => $userId,
+            ];
+        }, OldGoldReceipt::class);
+    }
+
+    // ---- Pharmacy ----
+
+    /**
+     * Prescriptions plus the dispense lines behind them.
+     *
+     * The dispense rows are the point: the statutory Drug Register has no table
+     * of its own, it is a projection of scheduled-drug dispenses over a date
+     * range — so prescriptions alone would leave that screen empty. Dates stay
+     * inside the last few weeks for the same reason: the register opens on the
+     * current month.
+     */
+    private function makePrescriptions(int $count): int
+    {
+        $customerIds = Customer::pluck('id')->all();
+        $drugs = $this->scheduledDrugs();
+        $userId = $this->createdBy;
+
+        $doctors = [
+            ['Dr. R. Mehta', 'MH-2011-45231', 'Sanjivani Clinic'],
+            ['Dr. A. Nair', 'KA-2008-11902', 'City Care Hospital'],
+            ['Dr. S. Bhatt', 'GJ-2015-77410', 'Shreeji Polyclinic'],
+            ['Dr. P. Kulkarni', 'MH-2019-33128', 'Aarogya Hospital'],
+        ];
+
+        return $this->eachChunk($count, function (int $i) use ($customerIds, $drugs, $doctors, $userId) {
+            [$doctor, $registration, $hospital] = $doctors[$i % count($doctors)];
+            $prescribed = now()->subDays($i % 25);
+
+            $prescription = Prescription::create([
+                'prescription_number' => 'DRX-' . $this->suffix($i) . '-' . $i,
+                'customer_id' => $customerIds ? $customerIds[$i % count($customerIds)] : null,
+                'patient_name' => $this->person($i),
+                'patient_age' => 18 + ($i % 62),
+                'patient_gender' => ['male', 'female', 'other'][$i % 3],
+                'patient_phone' => $this->phone($i),
+                'doctor_name' => $doctor,
+                'doctor_registration_no' => $registration,
+                'hospital' => $hospital,
+                'prescribed_on' => $prescribed->toDateString(),
+                'valid_until' => $prescribed->copy()->addDays(30)->toDateString(),
+                'notes' => 'Demo prescription.',
+                'created_by' => $userId,
+            ]);
+
+            if ($drugs->isEmpty()) {
+                return;
+            }
+
+            $lines = 1 + ($i % 2);
+            for ($n = 0; $n < $lines; $n++) {
+                $drug = $drugs[($i + $n) % $drugs->count()];
+
+                PrescriptionDispense::create([
+                    'prescription_id' => $prescription->id,
+                    'product_id' => $drug->id,
+                    'product_name' => $drug->name,
+                    'drug_schedule' => $drug->drug_schedule,
+                    'quantity' => [1, 2, 5, 10][($i + $n) % 4],
+                    'dispensed_on' => $prescribed->toDateString(),
+                    'created_by' => $userId,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * Products the demo can dispense against a prescription.
+     *
+     * A workspace whose catalogue came from this generator holds shirts and
+     * towels, none of which is a scheduled drug — so rather than write dispense
+     * rows claiming a schedule the product does not carry, a handful of items
+     * are marked up first. They are marked H1 and X specifically: those are the
+     * only two schedules the statutory register records, and promoting them to
+     * plain Schedule H would fill the prescriptions screen while leaving the
+     * register exactly as empty as before.
+     *
+     * @return \Illuminate\Support\Collection<int, Product>
+     */
+    private function scheduledDrugs(): Collection
+    {
+        $scheduled = Product::query()
+            ->whereIn('drug_schedule', PrescriptionDispense::REGISTERED_SCHEDULES)
+            ->select('id', 'name', 'drug_schedule')
+            ->limit(25)
+            ->get();
+
+        if ($scheduled->isNotEmpty()) {
+            return $scheduled;
+        }
+
+        $candidates = Product::query()
+            ->where('is_service', false)
+            ->select('id', 'name', 'drug_schedule', 'composition', 'manufacturer')
+            ->limit(8)
+            ->get();
+
+        foreach ($candidates as $n => $product) {
+            $product->forceFill([
+                'drug_schedule' => $n % 4 === 3 ? 'x' : 'h1',
+                'composition' => $product->composition ?: 'Demo composition 500mg',
+                'manufacturer' => $product->manufacturer ?: 'Demo Pharma Ltd.',
+            ])->save();
+        }
+
+        return $candidates;
     }
 }

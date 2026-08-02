@@ -23,6 +23,7 @@ const adminNav: NavItem[] = [
   { label: 'Tenants', icon: 'pi pi-building', to: '/platform/tenants', permission: 'tenants.view' },
   { label: 'Industries', icon: 'pi pi-sitemap', to: '/platform/industries', permission: 'industries.view' },
   { label: 'Menu Catalogue', icon: 'pi pi-list', to: '/platform/menus', permission: 'menus.view' },
+  { label: 'Shop Menus', icon: 'pi pi-shop', to: '/platform/shop-menus', permission: 'menus.view' },
   { label: 'Subscription Plans', icon: 'pi pi-box', to: '/platform/plans', permission: 'plans.view' },
   { label: 'Billing', icon: 'pi pi-credit-card', to: '/platform/billing', permission: 'subscriptions.view' },
   { label: 'Marketplace', icon: 'pi pi-shopping-bag', to: '/platform/marketplace', permission: ['integrations.view', 'devices.view'] },

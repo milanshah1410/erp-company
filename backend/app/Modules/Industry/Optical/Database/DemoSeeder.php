@@ -8,7 +8,7 @@ use App\Models\Customer;
 use App\Models\EyePrescription;
 use App\Models\OpticalOrder;
 use App\Models\Product;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Optical\Models\OpticalAppointment;
 use Illuminate\Support\Carbon;
 
@@ -35,8 +35,21 @@ use Illuminate\Support\Carbon;
  * Idempotent: products match on SKU, and the diary and the order are only
  * written when this vertical has nothing yet.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'optical' => ['label' => 'Eye Test, Diary & Spectacle Order', 'route' => '/optical-orders'],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

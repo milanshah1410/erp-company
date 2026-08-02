@@ -71,7 +71,7 @@ class TenantMenuBuilderController extends Controller
             // A tenant provisioned before per-tenant menus is served the global
             // catalogue and owns no rows. Clone it now, so what the operator drags
             // is this workspace's menu and not everybody's.
-            TenantMenuAccess::cloneForTenant($tenant->id);
+            TenantMenuAccess::cloneForTenant($tenant->id, $tenant->business_type);
 
             $rows = $this->rows($tenant->id);
             $usedRoutes = $rows->pluck('route')->filter()->unique()->all();
@@ -110,7 +110,7 @@ class TenantMenuBuilderController extends Controller
         $request->validate(['tree' => ['present', 'array']]);
 
         return app(TenantContext::class)->runWith($tenant->id, function () use ($request, $tenant): JsonResponse {
-            TenantMenuAccess::cloneForTenant($tenant->id);
+            TenantMenuAccess::cloneForTenant($tenant->id, $tenant->business_type);
 
             $existing = $this->rows($tenant->id)->keyBy('id');
 
@@ -200,11 +200,16 @@ class TenantMenuBuilderController extends Controller
     }
 
     /**
-     * Throw the tenant's menu away and re-clone the global catalogue.
+     * Throw the tenant's menu away and re-clone its starting menu.
      *
      * The escape hatch for a tree that has been dragged into a mess: the tenant's
      * own rows go, and with them their favourites, and the stock navigation comes
      * back.
+     *
+     * "Stock" means this workspace's *trade* template where its trade has one
+     * (/platform/shop-menus), and the full catalogue otherwise — the same choice
+     * the workspace was provisioned on, so a reset restores what it started with
+     * rather than something it has never seen.
      */
     public function reset(Tenant $tenant): JsonResponse
     {
@@ -215,7 +220,7 @@ class TenantMenuBuilderController extends Controller
                 MenuItem::where('tenant_id', $tenant->id)->whereNotNull('parent_id')->delete();
                 MenuItem::where('tenant_id', $tenant->id)->delete();
 
-                TenantMenuAccess::cloneForTenant($tenant->id);
+                TenantMenuAccess::cloneForTenant($tenant->id, $tenant->business_type);
             });
 
             TenantCache::bump('menu_items');

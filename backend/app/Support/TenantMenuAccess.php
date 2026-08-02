@@ -26,6 +26,10 @@ use App\Models\MenuItem;
  * Revocation is expressed as *permission groups* ("stock-transfers"), not single
  * permissions: revoking the Stock Transfers screen has to take create/edit/delete
  * with it, or the tenant keeps everything except the ability to look.
+ *
+ * This class also owns the *first* menu a workspace ever has — see
+ * cloneForTenant(), which now prefers the workspace's trade template over the
+ * global catalogue.
  */
 final class TenantMenuAccess
 {
@@ -105,17 +109,38 @@ final class TenantMenuAccess
     }
 
     /**
-     * Clone the global menu catalogue (tenant_id NULL) into rows owned by this
-     * tenant, so its navigation can be tailored without touching anyone else's.
+     * Clone a starting menu into rows owned by this tenant, so its navigation can
+     * be tailored without touching anyone else's.
+     *
+     * Two possible sources, checked in that order:
+     *
+     *   1. the workspace's *trade* template, when its trade has one — a Grocery
+     *      signup should open on a grocery menu, not on the 240-row catalogue
+     *      that also lists Embroidery Vendors and Container Tracking
+     *      (App\Support\ShopMenus, edited at /platform/shop-menus);
+     *   2. the global catalogue (tenant_id NULL), which is what every workspace
+     *      got before templates existed and what a trade nobody has curated still
+     *      gets.
+     *
+     * `$shopProfile` is optional because two of the four callers reach this from a
+     * context that has no tenant row to read it off. Passing null is not "no
+     * trade" — it is "I do not know", and the honest answer to that is the
+     * catalogue, exactly as before.
      *
      * Parent links are remapped to the freshly-created rows. Idempotent: a tenant
      * that already owns rows is left alone. Called at provisioning time and again
      * the first time an operator edits a legacy tenant's access.
      */
-    public static function cloneForTenant(int $tenantId): void
+    public static function cloneForTenant(int $tenantId, ?string $shopProfile = null): void
     {
         if (MenuItem::where('tenant_id', $tenantId)->exists()) {
             return; // already cloned
+        }
+
+        // A trade template, when the trade has one. Returns false when it does
+        // not, and we fall through to the catalogue below.
+        if (ShopMenus::cloneForTenant($tenantId, $shopProfile)) {
+            return;
         }
 
         // Group the global rows by parent so we can walk the tree top-down and

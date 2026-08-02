@@ -18,8 +18,8 @@ use App\Http\Controllers\Central\IndustryTemplateController;
 use App\Http\Controllers\Central\InsightsController;
 use App\Http\Controllers\Central\MarketplaceAssignmentController;
 use App\Http\Controllers\Central\MarketplaceController;
-use App\Http\Controllers\Central\MenuCatalogueController;
 use App\Http\Controllers\Central\MarketplacePackController;
+use App\Http\Controllers\Central\MenuCatalogueController;
 use App\Http\Controllers\Central\OperatorController;
 use App\Http\Controllers\Central\Ops\BackupController as OpsBackupController;
 use App\Http\Controllers\Central\Ops\FeatureFlagController;
@@ -33,6 +33,7 @@ use App\Http\Controllers\Central\PublicPaymentController;
 use App\Http\Controllers\Central\RazorpayWebhookController;
 use App\Http\Controllers\Central\RegistrationController;
 use App\Http\Controllers\Central\RoleController as CentralRoleController;
+use App\Http\Controllers\Central\ShopMenuTemplateController;
 use App\Http\Controllers\Central\Support\TenantHealthController as SupportTenantHealthController;
 use App\Http\Controllers\Central\Support\TicketController as SupportTicketController;
 use App\Http\Controllers\Central\TenantAccessController;
@@ -191,6 +192,22 @@ Route::prefix('central')->group(function () {
         Route::get('/menus', [MenuCatalogueController::class, 'index'])->middleware('permission:menus.view,central');
         Route::post('/menus/bulk', [MenuCatalogueController::class, 'bulk'])->middleware('permission:menus.edit,central');
         Route::post('/menus/{menuItem}/toggle', [MenuCatalogueController::class, 'toggle'])->middleware('permission:menus.edit,central');
+
+        // Shop-wise menu templates — the trade layer between the catalogue above
+        // and a workspace's own menu below: what a *Grocery* signup opens on. The
+        // {shop} segment is a trade key ('garment', 'grocery'), not an id, so it
+        // is constrained to the key charset rather than left to swallow anything.
+        // /shop-menus/{shop}/apply is the only route here that touches a live
+        // workspace, and it is a separate call for exactly that reason.
+        Route::get('/shop-menus', [ShopMenuTemplateController::class, 'index'])->middleware('permission:menus.view,central');
+
+        Route::where(['shop' => '[a-z0-9_]+'])->group(function () {
+            Route::get('/shop-menus/{shop}', [ShopMenuTemplateController::class, 'show'])->middleware('permission:menus.view,central');
+            Route::match(['put', 'patch'], '/shop-menus/{shop}', [ShopMenuTemplateController::class, 'update'])->middleware('permission:menus.edit,central');
+            Route::post('/shop-menus/{shop}/reset', [ShopMenuTemplateController::class, 'reset'])->middleware('permission:menus.edit,central');
+            Route::post('/shop-menus/{shop}/apply', [ShopMenuTemplateController::class, 'apply'])->middleware('permission:menus.edit,central');
+            Route::delete('/shop-menus/{shop}', [ShopMenuTemplateController::class, 'destroy'])->middleware('permission:menus.edit,central');
+        });
 
         // Per-tenant entitlement: module switches + which menu screens (and so
         // which permissions) the workspace may use at all. Gated by the operator's

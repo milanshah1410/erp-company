@@ -7,7 +7,7 @@ namespace App\Modules\Industry\Gift\Database;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Warehouse;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Gift\Models\GiftOccasion;
 use App\Modules\Industry\Gift\Models\GiftPack;
 use App\Modules\Industry\Gift\Models\GiftPackBuild;
@@ -41,8 +41,21 @@ use App\Services\StockService;
  * Idempotent — every row is matched on a prefixed key, so a re-seed refreshes the
  * shop rather than doubling it.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'gift' => ['label' => 'Wrap Desk, Hampers & Occasions', 'route' => '/gift/packs'],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

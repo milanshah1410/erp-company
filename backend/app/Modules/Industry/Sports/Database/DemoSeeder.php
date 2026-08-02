@@ -7,7 +7,7 @@ namespace App\Modules\Industry\Sports\Database;
 use App\Models\Brand;
 use App\Models\Customer;
 use App\Models\Warehouse;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Sports\Models\Rental;
 use App\Modules\Industry\Sports\Models\RentalAsset;
 use App\Modules\Industry\Sports\Services\RentalPricingService;
@@ -41,8 +41,21 @@ use Illuminate\Support\Carbon;
  * whole run bails once the contracts exist so a re-seed cannot double the fleet's
  * history.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'sports' => ['label' => 'Hire Fleet & Rental Contracts', 'route' => '/sports/fleet'],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

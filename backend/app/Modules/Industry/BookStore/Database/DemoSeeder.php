@@ -9,7 +9,7 @@ use App\Modules\Industry\BookStore\Models\Author;
 use App\Modules\Industry\BookStore\Models\BookLanguage;
 use App\Modules\Industry\BookStore\Models\Publisher;
 use App\Modules\Industry\BookStore\Models\TitleContributor;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 
 /**
  * Demo fixtures for the Books & Periodicals vertical, found by convention from
@@ -46,8 +46,21 @@ use App\Modules\Industry\Contracts\IndustryDemoSeeder;
  * their SKU, and the cataloguing is re-applied on every run so that a demo
  * workspace seeded before this vertical existed picks it up.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'books' => ['label' => 'Titles, Authors & Publishers', 'route' => '/books/titles'],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

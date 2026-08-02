@@ -67,6 +67,7 @@ class ProvisionTenant implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 1;
+
     public int $timeout = 300;
 
     public function __construct(public int $registrationId) {}
@@ -205,7 +206,7 @@ class ProvisionTenant implements ShouldQueue
 
         // Everything below writes tenant-scoped rows, so it runs inside the
         // tenant context with Spatie's team scope pinned to the same tenant.
-        app(TenantContext::class)->runWith($tenant->id, function () use ($registration, $tenant, $steps, $config): void {
+        app(TenantContext::class)->runWith($tenant->id, function () use ($registration, $tenant, $steps, $config, $trade): void {
             app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
 
             // --- 5. Seeder -------------------------------------------------
@@ -219,8 +220,8 @@ class ProvisionTenant implements ShouldQueue
             // The tenant's own copy of the navigation catalogue plus the wizard
             // choices that decide what it can reach: module selection, industry,
             // tax, number series, company profile.
-            $steps->run('modules', function () use ($tenant, $config): string {
-                $this->cloneMenuForTenant($tenant->id);
+            $steps->run('modules', function () use ($tenant, $config, $trade): string {
+                $this->cloneMenuForTenant($tenant->id, $trade);
 
                 return $this->applyWizardConfig($config);
             });
@@ -390,7 +391,7 @@ class ProvisionTenant implements ShouldQueue
         $company = Company::where('code', 'MAIN')->first();
         $branch = Branch::where('code', 'HO')->first();
 
-        $admin = new User();
+        $admin = new User;
         $admin->name = $registration->admin_name;
         $admin->email = $registration->email;
         $admin->phone = $registration->phone;
@@ -410,7 +411,7 @@ class ProvisionTenant implements ShouldQueue
             if (empty($u['email']) || empty($u['name'])) {
                 continue;
             }
-            $user = new User();
+            $user = new User;
             $user->name = $u['name'];
             $user->email = strtolower(trim($u['email']));
             $user->password = Hash::make(Str::random(16));
@@ -521,14 +522,19 @@ class ProvisionTenant implements ShouldQueue
     }
 
     /**
-     * Clone the global menu catalogue into rows owned by this tenant, so the
-     * operator can later tailor its navigation. Idempotent — the shared helper
-     * leaves a tenant that already owns rows alone. Lives in TenantMenuAccess
-     * because the platform access screen clones legacy tenants the same way.
+     * Clone a starting menu into rows owned by this tenant, so the operator can
+     * later tailor its navigation. Idempotent — the shared helper leaves a tenant
+     * that already owns rows alone. Lives in TenantMenuAccess because the platform
+     * access screen clones legacy tenants the same way.
+     *
+     * The trade is passed through so the workspace opens on *its trade's* menu
+     * where one has been curated (/platform/shop-menus). It is already validated
+     * against ShopProfiles::all() at the top of handle(), so an unknown trade
+     * arrives here as null and the helper falls back to the full catalogue.
      */
-    private function cloneMenuForTenant(int $tenantId): void
+    private function cloneMenuForTenant(int $tenantId, ?string $trade): void
     {
-        TenantMenuAccess::cloneForTenant($tenantId);
+        TenantMenuAccess::cloneForTenant($tenantId, $trade);
     }
 
     public function failed(Throwable $e): void

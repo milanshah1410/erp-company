@@ -62,6 +62,30 @@ final class DemoModuleMenu
         'pos_sales' => '/pos',
         'b2b_orders' => '/b2b-orders',
         'sales_returns' => '/sales-returns',
+        // Sales → Warranty. Several verticals surface these same two screens
+        // under their own section (Electronics, Mobile, Sports); the chip lands
+        // in whichever of them the tenant actually has.
+        'warranties' => '/warranties',
+        'warranty_claims' => '/warranties/claims',
+        // Sales → Loyalty & Offers
+        'loyalty_transactions' => '/loyalty',
+        'gift_vouchers' => '/gift-vouchers',
+        // Service desk. /service-jobs is also the Job Cards screen for the
+        // Automobile, Electronics, Mobile and Computer & IT verticals.
+        'service_contracts' => '/service-contracts',
+        'service_jobs' => '/service-jobs',
+        // Projects
+        'projects' => '/projects',
+        'project_timesheets' => '/project-timesheets',
+        // Counters
+        'pos_counters' => '/pos-counters',
+        'pos_counter_sessions' => '/pos-counters/sessions',
+        // Jewellery
+        'metal_rates' => '/metal-rates',
+        'old_gold' => '/old-gold',
+        // Pharmacy. The Drug Register is a projection of the dispense lines
+        // these prescriptions bring with them, so it has no chip of its own.
+        'prescriptions' => '/prescriptions',
         // Sales → CRM
         'leads' => '/leads',
         'follow_ups' => '/follow-ups',
@@ -74,6 +98,11 @@ final class DemoModuleMenu
         // Sales → Field Sales
         'salesmen' => '/salesmen',
         'beats' => '/beats',
+        'salesman_visits' => '/salesman-visits',
+        'salesman_locations' => '/salesman-tracking',
+        'salesman_collections' => '/salesman-collections',
+        'salesman_expenses' => '/salesman-expenses',
+        'salesman_targets' => '/salesman-targets',
         // Sales → E-Commerce
         'channel_integrations' => '/ecommerce-integrations',
         'channel_orders' => '/channel-orders',
@@ -97,6 +126,10 @@ final class DemoModuleMenu
         // Manufacturing → Production
         'boms' => '/boms',
         'manufacturing_orders' => '/manufacturing-orders',
+        // Manufacturing → Shop Floor
+        'machines' => '/machines',
+        'quality_inspections' => '/quality-inspections',
+        'production_scraps' => '/production-scraps',
         'colour_printings' => '/colour-printings',
         'job_works' => '/job-works',
         // Manufacturing → Textile
@@ -182,15 +215,16 @@ final class DemoModuleMenu
      * Tailoring chips. Must run inside that tenant's TenantContext — the module
      * selection is a tenant-scoped setting.
      *
-     * @return list<array{label:string,icon:?string,groups:list<array{label:string,icon:?string,modules:list<array{key:string,label:string,icon:?string}>}>}>
+     * @return list<array{label:string,icon:?string,groups:list<array{label:string,icon:?string,modules:list<array{key:string,label:string,icon:?string,fixture:bool}>}>}>
      */
     public static function sections(?int $tenantId = null): array
     {
-        $byRoute = self::modulesByRoute();
         $items = self::catalogue($tenantId);
 
         // The catalogue has not been seeded (fresh install) — one flat section
         // keeps the picker usable instead of dumping everything into "Other".
+        // Fixture chips are left out: they are placed by menu route, and there
+        // is no menu to place them on.
         if ($items->isEmpty()) {
             return [self::flatSection('All Modules', 'pi pi-database', array_keys(DemoDataGenerator::MODULES))];
         }
@@ -204,12 +238,15 @@ final class DemoModuleMenu
         // picker shows the whole catalogue rather than dropping the plan-gated
         // sections for want of a plan to read.
         if ($tenantId === null) {
+            $enabled = null;
             $visible = fn () => true;
         } else {
             $enabled = EnabledModules::forTenant($tenantId);
             $features = self::planFeatures($tenantId);
             $visible = fn (MenuItem $i) => self::visible($i, $enabled, $features);
         }
+
+        $byRoute = self::modulesByRoute($enabled);
 
         /** @var Collection<int, Collection<int, MenuItem>> $children */
         $children = $items->groupBy(fn (MenuItem $i) => (int) $i->parent_id);
@@ -323,18 +360,34 @@ final class DemoModuleMenu
     }
 
     /**
-     * route => demo module keys, in MODULES order so chips read the same way
-     * they do in the generator.
+     * route => picker entries, generator modules first (in MODULES order, so
+     * the chips read the way the generator does) and the plugins' fixture chips
+     * after them on the same screen.
      *
-     * @return array<string, list<string>>
+     * Fixtures carry their own module gate on top of the menu's: the route can
+     * be visible for one reason and the fixture still be wrong for the tenant —
+     * a mobile shop has /service-jobs, but the automobile job-card fixture has
+     * no business writing vehicles into it.
+     *
+     * @param  list<string>|null  $enabled  the tenant's module set; null = no gating
+     * @return array<string, list<array{key:string,label:string,fixture:bool}>>
      */
-    private static function modulesByRoute(): array
+    private static function modulesByRoute(?array $enabled): array
     {
         $byRoute = [];
-        foreach (array_keys(DemoDataGenerator::MODULES) as $key) {
+
+        foreach (DemoDataGenerator::MODULES as $key => $label) {
             if (isset(self::ROUTES[$key])) {
-                $byRoute[self::ROUTES[$key]][] = $key;
+                $byRoute[self::ROUTES[$key]][] = ['key' => $key, 'label' => $label, 'fixture' => false];
             }
+        }
+
+        foreach (DemoFixtures::catalogue() as $key => $chip) {
+            if ($enabled !== null && array_diff($chip['modules'], $enabled)) {
+                continue;
+            }
+
+            $byRoute[$chip['route']][] = ['key' => $key, 'label' => $chip['label'], 'fixture' => true];
         }
 
         return $byRoute;
@@ -369,20 +422,20 @@ final class DemoModuleMenu
      * (a route can appear twice in the menu, e.g. the Broker Ledger).
      *
      * @param  Collection<int, MenuItem>  $leaves
-     * @param  array<string, list<string>>  $byRoute
+     * @param  array<string, list<array{key:string,label:string,fixture:bool}>>  $byRoute
      * @param  list<string>  $placed
-     * @return list<array{key:string,label:string,icon:?string}>
+     * @return list<array{key:string,label:string,icon:?string,fixture:bool}>
      */
     private static function collectModules(Collection $leaves, array $byRoute, array &$placed): array
     {
         $out = [];
         foreach ($leaves as $leaf) {
-            foreach ($byRoute[$leaf->route] ?? [] as $key) {
-                if (in_array($key, $placed, true)) {
+            foreach ($byRoute[$leaf->route] ?? [] as $entry) {
+                if (in_array($entry['key'], $placed, true)) {
                     continue;
                 }
-                $placed[] = $key;
-                $out[] = ['key' => $key, 'label' => DemoDataGenerator::MODULES[$key], 'icon' => $leaf->icon];
+                $placed[] = $entry['key'];
+                $out[] = $entry + ['icon' => $leaf->icon];
             }
         }
 
@@ -390,8 +443,8 @@ final class DemoModuleMenu
     }
 
     /**
-     * @param  list<string>  $keys
-     * @return array{label:string,icon:?string,groups:list<array{label:string,icon:?string,modules:list<array{key:string,label:string,icon:?string}>}>}
+     * @param  list<string>  $keys  generator module keys only
+     * @return array{label:string,icon:?string,groups:list<array{label:string,icon:?string,modules:list<array{key:string,label:string,icon:?string,fixture:bool}>}>}
      */
     private static function flatSection(string $label, string $icon, array $keys): array
     {
@@ -402,7 +455,12 @@ final class DemoModuleMenu
                 'label' => '',
                 'icon' => null,
                 'modules' => array_map(
-                    fn (string $key) => ['key' => $key, 'label' => DemoDataGenerator::MODULES[$key], 'icon' => null],
+                    fn (string $key) => [
+                        'key' => $key,
+                        'label' => DemoDataGenerator::MODULES[$key],
+                        'icon' => null,
+                        'fixture' => false,
+                    ],
                     $keys,
                 ),
             ]],

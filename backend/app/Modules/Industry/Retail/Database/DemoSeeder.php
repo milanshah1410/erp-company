@@ -9,7 +9,7 @@ use App\Models\GiftVoucher;
 use App\Models\Product;
 use App\Models\TailorAlteration;
 use App\Models\Warehouse;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Retail\Models\GarmentColour;
 use App\Modules\Industry\Retail\Models\GarmentFabric;
 use App\Modules\Industry\Retail\Models\GarmentSizeSet;
@@ -44,8 +44,23 @@ use App\Services\GiftVoucherService;
  * Idempotent — every row is matched on a prefixed key, so a re-seed refreshes
  * the shop rather than doubling it.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'garment' => ['label' => 'Style Master, Size Matrix & Trial Room', 'route' => '/garment/styles'],
+            'loyalty' => ['label' => 'Gift Card Register (issued & part-spent)', 'route' => '/gift-vouchers'],
+            'tailoring' => ['label' => 'Counter Alteration', 'route' => '/tailor-alterations', 'modules' => ['garment', 'tailoring']],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

@@ -10,7 +10,7 @@ use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Unit;
 use App\Models\Warehouse;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Manufacturing\Models\Machine;
 use App\Modules\Industry\Manufacturing\Models\ProductionScrap;
 use App\Modules\Industry\Manufacturing\Models\QualityInspection;
@@ -45,7 +45,7 @@ use App\Modules\Industry\Support\IndustryRegistry;
  *
  * Must be called inside a TenantContext.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
     /** Code/SKU prefix for everything this seeder owns, so a re-run is idempotent. */
     private const PREFIX = 'MF';
@@ -105,6 +105,19 @@ class DemoSeeder implements IndustryDemoSeeder
     private int $userId = 0;
 
     /** @param  list<string>  $modules */
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'manufacturing' => ['label' => 'Shop Floor Run (machines, QC, scrap)', 'route' => '/machines'],
+        ];
+    }
+
     public function seed(array $modules, int $userId): void
     {
         /**

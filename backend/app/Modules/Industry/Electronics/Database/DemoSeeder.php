@@ -8,7 +8,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductWarranty;
 use App\Models\ServiceJob;
-use App\Modules\Industry\Contracts\IndustryDemoSeeder;
+use App\Modules\Industry\Contracts\IndustryDemoFixtures;
 use App\Modules\Industry\Electronics\Models\DeviceUnit;
 use App\Modules\Industry\Electronics\Models\ServiceRequest;
 use App\Modules\Industry\Electronics\Services\RequestConversionService;
@@ -37,8 +37,23 @@ use Throwable;
  * and the job card is only opened if the request has not already produced one —
  * a re-seed refreshes the shop rather than doubling it.
  */
-class DemoSeeder implements IndustryDemoSeeder
+class DemoSeeder implements IndustryDemoFixtures
 {
+    /**
+     * What this vertical contributes to the operator's Demo Data picker, one
+     * chip per module it seeds, filed under the menu screen the chip fills.
+     *
+     * @return array<string, array{label: string, route: string, modules?: list<string>}>
+     */
+    public static function fixtures(): array
+    {
+        return [
+            'electronics' => ['label' => 'Units, Serials & Service Requests', 'route' => '/electronics/units'],
+            'warranty' => ['label' => 'Electronics Warranty Cards', 'route' => '/warranties', 'modules' => ['electronics', 'warranty']],
+            'service' => ['label' => 'Electronics Job Card', 'route' => '/service-jobs', 'modules' => ['electronics', 'service']],
+        ];
+    }
+
     /** @param  list<string>  $modules */
     public function seed(array $modules, int $userId): void
     {

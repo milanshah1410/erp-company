@@ -10,6 +10,7 @@ use App\Modules\Industry\BookStore\BookStorePlugin;
 use App\Modules\Industry\ComputerIt\ComputerItPlugin;
 use App\Modules\Industry\Contracts\IndustryDemoSeeder;
 use App\Modules\Industry\Contracts\IndustryPlugin;
+use App\Modules\Industry\Contracts\IndustryTradeDemoSeeder;
 use App\Modules\Industry\Cosmetics\CosmeticsPlugin;
 use App\Modules\Industry\Distribution\DistributionPlugin;
 use App\Modules\Industry\Electronics\ElectronicsPlugin;
@@ -296,6 +297,37 @@ final class IndustryRegistry
 
             if (class_exists($seeder) && is_subclass_of($seeder, IndustryDemoSeeder::class)) {
                 $out[] = new $seeder;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Trade-keyed demo fixtures, one per vertical that ships them.
+     *
+     * The other half of demoSeeders(), found the same way: a plugin whose
+     * folder holds `Database\<Vertical>DemoSeeder` implementing
+     * IndustryTradeDemoSeeder is dispatched by trade instead of by module set.
+     * Class strings rather than instances — these take the seeding user's id on
+     * construction, and the caller is the one who knows it.
+     *
+     * Keyed by the plugin's own key ('food_beverage'), which is what a trade
+     * resolves to through trades()[$trade]['industry'].
+     *
+     * @return array<string, class-string<IndustryTradeDemoSeeder>>
+     */
+    public static function tradeDemoSeeders(): array
+    {
+        $out = [];
+
+        foreach (self::plugins() as $plugin) {
+            $namespace = (new ReflectionClass($plugin))->getNamespaceName();
+            $vertical = class_basename($plugin);
+            $seeder = $namespace.'\\Database\\'.str_replace('Plugin', '', $vertical).'DemoSeeder';
+
+            if (class_exists($seeder) && is_subclass_of($seeder, IndustryTradeDemoSeeder::class)) {
+                $out[$plugin->key()] = $seeder;
             }
         }
 
