@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Notifications\Channels\PushChannel;
 use App\Observers\WorkflowObserver;
 use App\Services\WorkflowEngine;
 use App\Support\TenantContext;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -29,5 +31,13 @@ class AppServiceProvider extends ServiceProvider
         foreach (WorkflowEngine::TRIGGERS as $meta) {
             $meta['model']::observe(WorkflowObserver::class);
         }
+
+        /**
+         * The `push` notification channel (retail base §10). Registered here
+         * rather than in a channel-specific provider so there is one place to
+         * look for "what does via() accept". Any notification can now opt in by
+         * listing 'push' and providing toPush(); one without toPush() is skipped.
+         */
+        Notification::extend('push', fn ($app) => $app->make(PushChannel::class));
     }
 }

@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RendersDocumentPdf;
 use App\Http\Controllers\Controller;
 use App\Models\Batch;
 use App\Models\SerialNumber;
 use App\Models\StockReturn;
+use App\Models\StockReturnItem;
 use App\Services\InventoryTrackingService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
@@ -25,6 +27,8 @@ use RuntimeException;
  */
 class StockReturnController extends Controller
 {
+    use RendersDocumentPdf;
+
     public function __construct(
         private readonly StockService $stock,
         private readonly InventoryTrackingService $tracking,
@@ -32,10 +36,22 @@ class StockReturnController extends Controller
 
     public function index(Request $request)
     {
-        $query = StockReturn::query()->with(['warehouse:id,name', 'customer:id,name', 'supplier:id,name'])->withCount('items');
+        $query = StockReturn::query()
+            ->with(['warehouse:id,name', 'customer:id,name', 'supplier:id,name,email'])
+            ->withCount('items')
+            // Goods value of the lines, for the debit-note claim amount. A
+            // subquery rather than an eager load: the list needs one number per
+            // row, not every line of every return on the page.
+            ->addSelect(['line_value' => StockReturnItem::query()
+                ->selectRaw('SUM(quantity * unit_cost)')
+                ->whereColumn('stock_return_id', 'stock_returns.id'),
+            ]);
 
         if ($search = $request->query('search')) {
-            $query->where('return_number', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('return_number', 'like', "%{$search}%")
+                    ->orWhere('debit_note_number', 'like', "%{$search}%");
+            });
         }
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
@@ -45,6 +61,11 @@ class StockReturnController extends Controller
         }
         if ($request->filled('warehouse_id')) {
             $query->where('warehouse_id', $request->query('warehouse_id'));
+        }
+        // The debit-note book read as its own list: only the returns that became
+        // a claim on a supplier.
+        if ($request->boolean('debit_notes_only')) {
+            $query->whereNotNull('debit_note_issued_at');
         }
 
         $query->orderByDesc('id');
@@ -243,6 +264,82 @@ class StockReturnController extends Controller
         return response()->json(['data' => $this->payload($stockReturn->load('items.product', 'warehouse', 'customer', 'supplier'))]);
     }
 
+    /**
+     * Raise the purchase debit note for an approved vendor return (retail base
+     * §3). Mints the number, stamps who raised it, and records the rate the
+     * claim is made at — nothing else moves, because the stock already went out
+     * on approval and the money is settled against the supplier's account.
+     *
+     * Idempotent by refusal rather than by silence: a second attempt is an
+     * error, not a no-op, because the caller almost certainly means to correct
+     * something and hiding that would leave them believing they had.
+     */
+    public function issueDebitNote(Request $request, StockReturn $stockReturn)
+    {
+        if ($stockReturn->debit_note_issued_at !== null) {
+            return response()->json([
+                'message' => "Debit note {$stockReturn->debit_note_number} was already raised on this return.",
+            ], 422);
+        }
+        if ($stockReturn->return_type !== 'vendor_return') {
+            return response()->json(['message' => 'A debit note can only be raised on a return going back to a supplier.'], 422);
+        }
+        if ($stockReturn->status !== 'approved') {
+            return response()->json(['message' => 'Approve the return first — a debit note claims credit for goods that have actually gone back.'], 422);
+        }
+
+        $data = $request->validate([
+            'debit_note_date' => ['nullable', 'date'],
+            'debit_note_tax_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            // Lets a shop key the vendor's own reference when it has one, rather
+            // than minting a series number the supplier will not recognise.
+            'debit_note_number' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        /**
+         * Precedence: what this request says, then whatever was keyed on the
+         * return itself (some shops file under the vendor's own reference and
+         * type it in when the goods are booked out), then the shop's own series.
+         * Minting over a reference somebody had already entered would send the
+         * supplier a number neither party has on file.
+         */
+        $number = $data['debit_note_number']
+            ?: ($stockReturn->debit_note_number ?: StockReturn::nextDebitNoteNumber());
+
+        $stockReturn->update([
+            'debit_note_number' => $number,
+            'debit_note_date' => $data['debit_note_date'] ?? now()->toDateString(),
+            'debit_note_tax_percent' => $data['debit_note_tax_percent'] ?? 0,
+            'debit_note_issued_at' => now(),
+            'debit_note_issued_by' => $request->user()?->id,
+        ]);
+
+        return response()->json([
+            'message' => "Debit note {$number} raised.",
+            'data' => $this->payload($stockReturn->fresh()->load('items.product', 'warehouse', 'customer', 'supplier')),
+        ]);
+    }
+
+    /** The printable debit note — what actually goes to the supplier. */
+    public function debitNotePdf(Request $request, StockReturn $stockReturn)
+    {
+        if ($stockReturn->debit_note_issued_at === null) {
+            return response()->json(['message' => 'No debit note has been raised on this return yet.'], 422);
+        }
+
+        $stockReturn->load([
+            'supplier', 'warehouse:id,name', 'goodsReceipt:id,grn_number',
+            'items.product:id,name,sku,hsn_code', 'items.variant:id,name,sku',
+        ]);
+
+        return $this->renderDocument(
+            $request,
+            'documents.debit-note',
+            ['return' => $stockReturn],
+            "debit-note-{$stockReturn->debit_note_number}.pdf",
+        );
+    }
+
     private function validated(Request $request): array
     {
         return $request->validate([
@@ -297,9 +394,27 @@ class StockReturnController extends Controller
                 ? ['id' => $r->customer->id, 'name' => $r->customer->name] : null,
             'supplier_id' => $r->supplier_id,
             'supplier' => $r->relationLoaded('supplier') && $r->supplier
-                ? ['id' => $r->supplier->id, 'name' => $r->supplier->name] : null,
+                // The email is carried so the debit-note send dialog opens
+                // pre-filled; without it the counter retypes an address the
+                // record already holds.
+                ? ['id' => $r->supplier->id, 'name' => $r->supplier->name, 'email' => $r->supplier->email] : null,
             'goods_receipt_id' => $r->goods_receipt_id,
             'debit_note_number' => $r->debit_note_number,
+            'debit_note_date' => $r->debit_note_date?->toDateString(),
+            'debit_note_tax_percent' => $r->debit_note_tax_percent,
+            'debit_note_issued_at' => $r->debit_note_issued_at,
+            /**
+             * What the note is worth. The list gets it from the `line_value`
+             * subquery (index() below) so a Debit Notes table can show the claim
+             * without loading every line; the detail endpoints derive it from the
+             * lines they already hold.
+             */
+            'debit_note_total' => $r->relationLoaded('items')
+                ? $r->debitNoteTotal()
+                : ($r->line_value === null
+                    ? null
+                    : round((float) $r->line_value * (1 + (float) $r->debit_note_tax_percent / 100), 2)),
+            'can_issue_debit_note' => $r->canIssueDebitNote(),
             'status' => $r->status,
             'return_date' => $r->return_date?->toDateString(),
             'notes' => $r->notes,

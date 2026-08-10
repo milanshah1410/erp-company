@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `textile`, `logistics`, `gst`, `hrms`, `assets`, `devices` |
 | Minimum plan | **Professional** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 Every job is bespoke and most of the cost is incurred before the first good sheet: plates, make-ready and setup waste. A press that cannot see setup waste per job cannot price the next one.
 

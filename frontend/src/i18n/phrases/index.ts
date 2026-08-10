@@ -24,6 +24,9 @@ import gift from './gift'
 import toys from './toys'
 import books from './books'
 import sports from './sports'
+// Retail base (.claude/shops/_base-retail.md): feedback & CSAT, sales commission,
+// accounting export — the screens that closed the base spec's remaining gaps.
+import retailBase from './retail-base'
 import shared from './shared'
 
 const ALL: PhraseFile = {
@@ -48,6 +51,7 @@ const ALL: PhraseFile = {
   ...toys,
   ...books,
   ...sports,
+  ...retailBase,
   ...shared,
 }
 

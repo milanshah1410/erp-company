@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `logistics`, `gst`, `hrms`, `assets`, `devices` |
 | Minimum plan | **Professional** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 Everything is a batch and every batch is testable. The formulation is the product, the batch is the unit of traceability, and a failed QC is a recall risk rather than a rework.
 

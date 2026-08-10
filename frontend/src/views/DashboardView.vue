@@ -20,6 +20,27 @@ interface Kpis {
   profit_loss: { revenue: number; cogs: number; gross_profit: number; period: string }
   total_stock_value: number
   products_count: number
+  // Customer satisfaction, last 30 days (retail base §1, §6). `csat_percent` and
+  // `average_rating` are null until somebody has answered.
+  customer_csat: {
+    responses: number
+    satisfied: number
+    detractors: number
+    average_rating: number | null
+    csat_percent: number | null
+    unanswered_complaints: number
+  }
+  // Factory floor (_base-factory.md §1). `qc_rejection.percent` is null until
+  // something has been inspected — a works that ran no inspections has no rate.
+  production_wip: { orders: number; quantity: number; value: number }
+  production_today: { quantity: number; orders_completed: number }
+  machine_downtime: { minutes: number; hours: number; machines_down: number; machines_active: number; period: string }
+  qc_rejection: { percent: number | null; inspected: number; rejected: number; period: string }
+  scrap_value: { value: number; recoverable: number; net: number; period: string }
+  job_work_outstanding: { count: number; overdue: number }
+  orders_in_hand: { count: number; value: number }
+  receivables: { total: number; overdue: number }
+  payables: { total: number; overdue: number }
   top_products: TopProduct[]
   recent_activities: Activity[]
   sales_trend: TrendPoint[]
@@ -38,6 +59,18 @@ const WIDGET_META: Record<string, { titleKey: string; kind: 'stat' | 'panel' }> 
   out_of_stock: { titleKey: 'dashboard.outOfStock', kind: 'stat' },
   total_stock_value: { titleKey: 'dashboard.stockValue', kind: 'stat' },
   products_count: { titleKey: 'dashboard.products', kind: 'stat' },
+  customer_csat: { titleKey: 'dashboard.csat', kind: 'stat' },
+  // Factory floor (_base-factory.md §1). All stat tiles: a works wants nine
+  // numbers at a glance, not nine panels to scroll past.
+  production_wip: { titleKey: 'dashboard.wip', kind: 'stat' },
+  production_today: { titleKey: 'dashboard.producedToday', kind: 'stat' },
+  machine_downtime: { titleKey: 'dashboard.machineDowntime', kind: 'stat' },
+  qc_rejection: { titleKey: 'dashboard.qcRejection', kind: 'stat' },
+  scrap_value: { titleKey: 'dashboard.scrapValue', kind: 'stat' },
+  job_work_outstanding: { titleKey: 'dashboard.jobWorkOut', kind: 'stat' },
+  orders_in_hand: { titleKey: 'dashboard.ordersInHand', kind: 'stat' },
+  receivables: { titleKey: 'dashboard.receivables', kind: 'stat' },
+  payables: { titleKey: 'dashboard.payables', kind: 'stat' },
   top_products: { titleKey: 'dashboard.topProducts', kind: 'panel' },
   recent_activities: { titleKey: 'dashboard.recentActivities', kind: 'panel' },
 }
@@ -53,6 +86,16 @@ const kpis = ref<Kpis>({
   profit_loss: { revenue: 0, cogs: 0, gross_profit: 0, period: 'This month' },
   total_stock_value: 0,
   products_count: 0,
+  customer_csat: { responses: 0, satisfied: 0, detractors: 0, average_rating: null, csat_percent: null, unanswered_complaints: 0 },
+  production_wip: { orders: 0, quantity: 0, value: 0 },
+  production_today: { quantity: 0, orders_completed: 0 },
+  machine_downtime: { minutes: 0, hours: 0, machines_down: 0, machines_active: 0, period: '' },
+  qc_rejection: { percent: null, inspected: 0, rejected: 0, period: '' },
+  scrap_value: { value: 0, recoverable: 0, net: 0, period: '' },
+  job_work_outstanding: { count: 0, overdue: 0 },
+  orders_in_hand: { count: 0, value: 0 },
+  receivables: { total: 0, overdue: 0 },
+  payables: { total: 0, overdue: 0 },
   top_products: [],
   recent_activities: [],
   sales_trend: [],
@@ -307,6 +350,142 @@ async function saveLayout() {
               <div class="stat-value">{{ kpis.products_count }}</div>
               <div class="stat-label">{{ t('dashboard.products') }}</div>
               <div class="stat-sub">{{ t('dashboard.activeCatalogue') }}</div>
+            </div>
+          </template>
+          <!--
+            Customer satisfaction (retail base §1, §6). Shows a dash, not 0%,
+            until somebody has answered — a shop with no feedback yet is not a
+            shop scoring zero, and the tile must not say so.
+
+            The sub-line switches to the complaint count when there is one
+            outstanding, because that is the actionable half: a good score with
+            three unanswered complaints under it is still three people waiting.
+          -->
+          <template v-else-if="w.key === 'customer_csat'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #4c8b6c, #2f6d52)"><i class="pi pi-comments" /></div>
+            <div class="stat-body">
+              <div class="stat-value">
+                {{ kpis.customer_csat.csat_percent === null ? '—' : kpis.customer_csat.csat_percent + '%' }}
+              </div>
+              <div class="stat-label">{{ t('dashboard.csat') }}</div>
+              <div v-if="kpis.customer_csat.unanswered_complaints" class="stat-sub negative">
+                {{ t('dashboard.csatComplaints', { n: kpis.customer_csat.unanswered_complaints }) }}
+              </div>
+              <div v-else-if="kpis.customer_csat.responses" class="stat-sub">
+                {{ t('dashboard.csatResponses', { n: kpis.customer_csat.responses, avg: kpis.customer_csat.average_rating }) }}
+              </div>
+              <div v-else class="stat-sub">{{ t('dashboard.csatNone') }}</div>
+            </div>
+          </template>
+
+          <!--
+            ============ Factory floor (_base-factory.md §1) ============
+            Hidden by default on an existing layout, so a shop never grows nine
+            tiles it did not ask for; a works switches them on once.
+          -->
+
+          <!-- Work in progress -->
+          <template v-else-if="w.key === 'production_wip'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #4c6b8b, #2c4a5e)"><i class="pi pi-cog" /></div>
+            <div class="stat-body">
+              <div class="stat-value">{{ kpis.production_wip.orders }}</div>
+              <div class="stat-label">{{ t('dashboard.wip') }}</div>
+              <div class="stat-sub">{{ t('dashboard.wipSub', { qty: kpis.production_wip.quantity, value: money(kpis.production_wip.value) }) }}</div>
+            </div>
+          </template>
+
+          <!-- Today's production -->
+          <template v-else-if="w.key === 'production_today'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #4c8b6c, #2f6d52)"><i class="pi pi-check-circle" /></div>
+            <div class="stat-body">
+              <div class="stat-value">{{ kpis.production_today.quantity }}</div>
+              <div class="stat-label">{{ t('dashboard.producedToday') }}</div>
+              <div class="stat-sub">{{ t('dashboard.ordersCompleted', { n: kpis.production_today.orders_completed }) }}</div>
+            </div>
+          </template>
+
+          <!-- Machine downtime. Leads with machines down *now*, because that is
+               the number somebody can still do something about today. -->
+          <template v-else-if="w.key === 'machine_downtime'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #d66a45, #c1502e)"><i class="pi pi-ban" /></div>
+            <div class="stat-body">
+              <div class="stat-value" :class="{ negative: kpis.machine_downtime.machines_down > 0 }">
+                {{ kpis.machine_downtime.machines_down }}/{{ kpis.machine_downtime.machines_active }}
+              </div>
+              <div class="stat-label">{{ t('dashboard.machineDowntime') }}</div>
+              <div class="stat-sub">{{ t('dashboard.downtimeHours', { h: kpis.machine_downtime.hours }) }}</div>
+            </div>
+          </template>
+
+          <!-- QC rejection. A dash, not 0%, when nothing was inspected — no
+               inspections is not a perfect month. -->
+          <template v-else-if="w.key === 'qc_rejection'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #b3402b, #8f2f1f)"><i class="pi pi-verified" /></div>
+            <div class="stat-body">
+              <div class="stat-value" :class="{ negative: (kpis.qc_rejection.percent ?? 0) > 5 }">
+                {{ kpis.qc_rejection.percent === null ? '—' : kpis.qc_rejection.percent + '%' }}
+              </div>
+              <div class="stat-label">{{ t('dashboard.qcRejection') }}</div>
+              <div v-if="kpis.qc_rejection.inspected" class="stat-sub">
+                {{ t('dashboard.qcInspected', { n: kpis.qc_rejection.inspected }) }}
+              </div>
+              <div v-else class="stat-sub">{{ t('dashboard.qcNone') }}</div>
+            </div>
+          </template>
+
+          <!-- Scrap. Shows what it cost net of what can be sold back. -->
+          <template v-else-if="w.key === 'scrap_value'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #9a6b3f, #7a5230)"><i class="pi pi-trash" /></div>
+            <div class="stat-body">
+              <div class="stat-value">{{ money(kpis.scrap_value.net) }}</div>
+              <div class="stat-label">{{ t('dashboard.scrapValue') }} ({{ kpis.scrap_value.period }})</div>
+              <div class="stat-sub">{{ t('dashboard.scrapSub', { gross: money(kpis.scrap_value.value), rec: money(kpis.scrap_value.recoverable) }) }}</div>
+            </div>
+          </template>
+
+          <!-- Job work at vendors -->
+          <template v-else-if="w.key === 'job_work_outstanding'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #7a5ea8, #5b4483)"><i class="pi pi-send" /></div>
+            <div class="stat-body">
+              <div class="stat-value">{{ kpis.job_work_outstanding.count }}</div>
+              <div class="stat-label">{{ t('dashboard.jobWorkOut') }}</div>
+              <div class="stat-sub" :class="{ negative: kpis.job_work_outstanding.overdue > 0 }">
+                {{ t('dashboard.jobWorkOverdue', { n: kpis.job_work_outstanding.overdue }) }}
+              </div>
+            </div>
+          </template>
+
+          <!-- Orders in hand -->
+          <template v-else-if="w.key === 'orders_in_hand'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #2f6d52, #1f5240)"><i class="pi pi-inbox" /></div>
+            <div class="stat-body">
+              <div class="stat-value">{{ money(kpis.orders_in_hand.value) }}</div>
+              <div class="stat-label">{{ t('dashboard.ordersInHand') }}</div>
+              <div class="stat-sub">{{ t('dashboard.openOrders', { n: kpis.orders_in_hand.count }) }}</div>
+            </div>
+          </template>
+
+          <!-- Receivables -->
+          <template v-else-if="w.key === 'receivables'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #4c8b6c, #2f6d52)"><i class="pi pi-arrow-down-left" /></div>
+            <div class="stat-body">
+              <div class="stat-value">{{ money(kpis.receivables.total) }}</div>
+              <div class="stat-label">{{ t('dashboard.receivables') }}</div>
+              <div class="stat-sub" :class="{ negative: kpis.receivables.overdue > 0 }">
+                {{ t('dashboard.overdueAmount', { amt: money(kpis.receivables.overdue) }) }}
+              </div>
+            </div>
+          </template>
+
+          <!-- Payables -->
+          <template v-else-if="w.key === 'payables'">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #c1502e, #8f2f1f)"><i class="pi pi-arrow-up-right" /></div>
+            <div class="stat-body">
+              <div class="stat-value">{{ money(kpis.payables.total) }}</div>
+              <div class="stat-label">{{ t('dashboard.payables') }}</div>
+              <div class="stat-sub" :class="{ negative: kpis.payables.overdue > 0 }">
+                {{ t('dashboard.overdueAmount', { amt: money(kpis.payables.overdue) }) }}
+              </div>
             </div>
           </template>
         </div>

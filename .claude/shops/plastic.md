@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `logistics`, `gst`, `hrms`, `assets`, `devices` |
 | Minimum plan | **Professional** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 Machine-hour costing with a twist: the rejects are worth something. Regrind goes back into the hopper, so scrap is a recovery rather than only a loss.
 

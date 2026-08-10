@@ -10,6 +10,7 @@ use App\Services\Ai\AiReportService;
 use App\Services\Ai\ErpSearchService;
 use App\Services\Ai\ForecastService;
 use App\Services\Ai\InventoryIntelligenceService;
+use App\Services\Ai\ShopFloorIntelligenceService;
 use Illuminate\Http\Request;
 
 /**
@@ -26,6 +27,7 @@ class AiController extends Controller
         private readonly AiReportService $reports,
         private readonly ErpSearchService $search,
         private readonly AiProviderManager $providers,
+        private readonly ShopFloorIntelligenceService $shopFloor,
     ) {}
 
     /** Which narration provider is active + capability flags for the UI. */
@@ -41,6 +43,11 @@ class AiController extends Controller
                 'capabilities' => [
                     'sales_forecast', 'demand_prediction', 'purchase_suggestion',
                     'low_stock_prediction', 'ai_reports', 'chat_search', 'voice_assistant',
+                    // The factory's own questions (_base-factory.md §10). Advertised
+                    // unconditionally: the module gate on the routes decides who
+                    // can actually call them, and a capability list that changed
+                    // shape per tenant would be a second gate to keep in step.
+                    'material_shortfall', 'machine_downtime_patterns', 'scrap_outliers',
                 ],
             ],
         ]);
@@ -108,6 +115,60 @@ class AiController extends Controller
         return response()->json([
             'data' => $this->inventory->lowStockPrediction(
                 isset($validated['window_days']) ? (int) $validated['window_days'] : null,
+            ),
+        ]);
+    }
+
+    /**
+     * Raw-material shortfall against open manufacturing orders
+     * (`_base-factory.md` §10).
+     *
+     * The report the factory dashboard deliberately does not carry as a tile:
+     * it explodes every open MO's BOM and nets the requirement against stock
+     * *and* against what is already on a purchase order. Too slow to cache every
+     * five minutes; exactly right on demand.
+     */
+    public function materialShortfall()
+    {
+        return response()->json(['data' => $this->shopFloor->materialShortfall()]);
+    }
+
+    /**
+     * Machine downtime patterns — by machine, and by reason.
+     *
+     * Two cuts because they buy different things: the first buys a service
+     * contract, the second fixes a process.
+     */
+    public function machineDowntimePatterns(Request $request)
+    {
+        $validated = $request->validate([
+            'window_days' => ['sometimes', 'integer', 'min:7', 'max:365'],
+            // What counts as a working day, for the availability figure. A works
+            // running three shifts must be able to say so, or its presses look
+            // idle two-thirds of the time.
+            'shift_hours' => ['sometimes', 'integer', 'min:1', 'max:24'],
+        ]);
+
+        return response()->json([
+            'data' => $this->shopFloor->machineDowntimePatterns(
+                (int) ($validated['window_days'] ?? 90),
+                (int) ($validated['shift_hours'] ?? 8),
+            ),
+        ]);
+    }
+
+    /** Articles scrapping at a rate unlike the rest of the works. */
+    public function scrapOutliers(Request $request)
+    {
+        $validated = $request->validate([
+            'window_days' => ['sometimes', 'integer', 'min:7', 'max:365'],
+            'min_quantity' => ['sometimes', 'numeric', 'min:0'],
+        ]);
+
+        return response()->json([
+            'data' => $this->shopFloor->scrapOutliers(
+                (int) ($validated['window_days'] ?? 90),
+                (float) ($validated['min_quantity'] ?? 1.0),
             ),
         ]);
     }

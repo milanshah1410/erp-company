@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `textile`, `tailoring`, `embroidery`, `gst`, `hrms`, `assets` |
 | Minimum plan | **Enterprise** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 The general factory — the trade every other Manufacturing preset specialises. If a workshop does not recognise itself in one of the ten named trades, this is the one it signs up as.
 

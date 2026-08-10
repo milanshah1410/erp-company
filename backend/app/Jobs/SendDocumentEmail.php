@@ -9,6 +9,7 @@ use App\Models\EmailLog;
 use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\SalesQuotation;
+use App\Models\StockReturn;
 use App\Services\DocumentContext;
 use App\Services\MailService;
 use App\Support\TenantContext;
@@ -20,9 +21,10 @@ use Illuminate\Queue\SerializesModels;
 use Throwable;
 
 /**
- * Emails a business document (invoice / purchase order / quotation) with its PDF
- * attached. Runs in a queue worker, so it re-establishes the tenant context
- * before touching any tenant-scoped data or the tenant's SMTP settings.
+ * Emails a business document (invoice / purchase order / quotation / purchase
+ * debit note) with its PDF attached. Runs in a queue worker, so it re-establishes
+ * the tenant context before touching any tenant-scoped data or the tenant's SMTP
+ * settings.
  *
  * The EmailLog row is the source of truth for delivery — a send failure is
  * captured there (status=failed, error=...) rather than crashing the job.
@@ -114,6 +116,21 @@ class SendDocumentEmail implements ShouldQueue
                 ])->findOrFail($this->documentId);
 
                 return ['documents.quotation', ['quotation' => $quote], "quotation-{$quote->quote_number}.pdf"];
+            })(),
+
+            /**
+             * The purchase debit note (retail base §3). The one document here
+             * whose recipient is a supplier being *asked for money* rather than
+             * being sold to or bought from, which is exactly why emailing it
+             * matters: a claim that sits unsent is credit the shop never collects.
+             */
+            'debit_note' => (function () {
+                $return = StockReturn::with([
+                    'supplier', 'warehouse:id,name', 'goodsReceipt:id,grn_number',
+                    'items.product:id,name,sku,hsn_code', 'items.variant:id,name,sku',
+                ])->findOrFail($this->documentId);
+
+                return ['documents.debit-note', ['return' => $return], "debit-note-{$return->debit_note_number}.pdf"];
             })(),
 
             default => throw new \InvalidArgumentException("Unknown document type [{$this->documentType}]."),

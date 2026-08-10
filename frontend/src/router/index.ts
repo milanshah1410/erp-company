@@ -257,6 +257,9 @@ const OccasionsView = () => import('../views/OccasionsView.vue')
 const WhatsAppView = () => import('../views/WhatsAppView.vue')
 const SmsView = () => import('../views/SmsView.vue')
 const MarketingCampaignsView = () => import('../views/MarketingCampaignsView.vue')
+const CustomerFeedbackView = () => import('../views/CustomerFeedbackView.vue')
+const SalesCommissionsView = () => import('../views/SalesCommissionsView.vue')
+const AccountingExportsView = () => import('../views/AccountingExportsView.vue')
 const EmailLogsView = () => import('../views/EmailLogsView.vue')
 const SalesmanTargetsView = () => import('../views/SalesmanTargetsView.vue')
 const BeatsView = () => import('../views/BeatsView.vue')
@@ -348,6 +351,7 @@ const CustomerDisplayView = () => import('../views/CustomerDisplayView.vue')
 const PaymentGatewaysView = () => import('../views/PaymentGatewaysView.vue')
 const PaymentTransactionsView = () => import('../views/PaymentTransactionsView.vue')
 const PayView = () => import('../views/PayView.vue')
+const FeedbackView = () => import('../views/FeedbackView.vue')
 const AiInsightsView = () => import('../views/AiInsightsView.vue')
 const AiAssistantView = () => import('../views/AiAssistantView.vue')
 
@@ -388,6 +392,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'brokers', component: CrudView, meta: { resource: 'brokers', permission: 'brokers.view' } },
       { path: 'leads', component: LeadsView, meta: { permission: 'leads.view' } },
       { path: 'follow-ups', component: FollowUpsView, meta: { permission: 'follow-ups.view' } },
+      // Customer feedback & CSAT (retail base §6) — the shop's own score, not the
+      // platform's support-ticket CSAT. The customer-facing page is /feedback/:token.
+      { path: 'customer-feedback', component: CustomerFeedbackView, meta: { permission: 'customer-feedback.view' } },
       { path: 'coupons', component: CrudView, meta: { resource: 'coupons', permission: 'coupons.view' } },
       { path: 'loyalty', component: LoyaltyView, meta: { permission: 'loyalty.view' } },
       { path: 'gift-vouchers', component: GiftVouchersView, meta: { permission: 'gift-vouchers.view' } },
@@ -672,6 +679,10 @@ const routes: RouteRecordRaw[] = [
       { path: 'accounts/trial-balance', component: TrialBalanceView, meta: { permission: 'accounts.view', module: 'accounts' } },
       { path: 'accounts/profit-loss', component: ProfitLossView, meta: { permission: 'accounts.view', module: 'accounts' } },
       { path: 'accounts/balance-sheet', component: BalanceSheetView, meta: { permission: 'accounts.view', module: 'accounts' } },
+      // Tally / Busy / Zoho Books export (retail base §10). Its own permission,
+      // not `accounts.view`: the file carries every party and every ledger name
+      // the workspace holds, and it leaves the building.
+      { path: 'accounting-exports', component: AccountingExportsView, meta: { permission: 'accounting-exports.view', module: 'accounts' } },
       { path: 'tds-tcs-rates', component: CrudView, meta: { resource: 'tds-tcs-rates', permission: 'tds-tcs-rates.view' } },
       { path: 'accounts/customer-ledger', component: CustomerLedgerView, meta: { permission: 'customers.view' } },
       { path: 'accounts/supplier-ledger', component: SupplierLedgerView, meta: { permission: 'suppliers.view' } },
@@ -710,6 +721,9 @@ const routes: RouteRecordRaw[] = [
       { path: 'device-events', component: DeviceEventsView, meta: { permission: 'device-events.view' } },
       { path: 'punch-kiosk', component: PunchKioskView, meta: { permission: 'biometric-punches.create' } },
       { path: 'payroll', component: PayrollView, meta: { permission: 'payroll.view' } },
+      // Shop-staff sales commission (retail base §8b) — the counter hand's
+      // percentage, distinct from the field rep's targets at /salesman-targets.
+      { path: 'sales-commissions', component: SalesCommissionsView, meta: { permission: 'sales-commissions.view' } },
       { path: 'users', component: UsersView, meta: { permission: 'users.view' } },
       { path: 'roles', component: RolesView, meta: { permission: 'roles.view' } },
       // Own profile — no permission gate; every signed-in user has one.
@@ -750,6 +764,11 @@ const routes: RouteRecordRaw[] = [
   // table. No login, outside AppLayout, and read-only — the tenant and table are
   // derived server-side from the token. There is deliberately no ordering route.
   { path: '/menu/:token', name: 'qr-menu', component: QrMenuView, meta: { public: true } },
+
+  // Public customer feedback page (retail base §6): a shopper taps the link an
+  // SMS carried. No login, outside AppLayout, one answer per link — the tenant
+  // and the bill are derived server-side from the token.
+  { path: '/feedback/:token', name: 'feedback', component: FeedbackView, meta: { public: true } },
 
   // B2B customer portal (SRS §14): a separate authenticated surface for
   // dealers/distributors/retailers, gated by its own portal token.

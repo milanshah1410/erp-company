@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `logistics`, `gst`, `hrms`, `service`, `projects`, `assets` |
 | Minimum plan | **Professional** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 Made to order, delivered to a site and installed there — which is why this is the one manufacturing trade whose preset carries `projects` and `service` alongside the shop floor.
 

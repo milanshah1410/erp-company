@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `textile`, `tailoring`, `embroidery`, `gst`, `hrms`, `assets` |
 | Minimum plan | **Enterprise** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 A job-work business: the material belongs to someone else, the unit sells machine time, and the ledger that matters is the one with the customer who sent the lot.
 

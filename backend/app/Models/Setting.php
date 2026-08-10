@@ -42,6 +42,14 @@ class Setting extends Model
         'transfer_number_prefix' => 'TRF',
         'return_number_prefix' => 'RTN',
         'credit_note_number_prefix' => 'CN',
+        /**
+         * The buying side's mirror of the credit note (retail base §3). Its own
+         * series rather than sharing the stock return's: the return is an
+         * internal movement, the debit note is a document that leaves the
+         * building and is quoted back by a supplier's accounts clerk, and one
+         * shared series would interleave the two in the vendor's file.
+         */
+        'debit_note_number_prefix' => 'DN',
         'adjustment_number_prefix' => 'ADJ',
         'cycle_count_number_prefix' => 'CC',
         'gate_entry_number_prefix' => 'GTE',
@@ -206,6 +214,13 @@ class Setting extends Model
          * whose eyes were tested.
          */
         'sms_tpl_optical_ready' => 'Your spectacles ({order}) are ready for collection at {shop}. Please bring this message with you.',
+        /**
+         * The feedback ask (retail base §6). Names the bill because a customer
+         * who bought twice this week needs to know which visit is being asked
+         * about, and says "one minute" because the honest reason most links are
+         * never opened is that they look like work.
+         */
+        'sms_tpl_feedback_request' => 'Dear {name}, thank you for shopping with {business}. How did we do on bill {number}? It takes one minute: {link}',
 
         // Email / SMTP gateway (SRS §19). Driver `log` writes mail to the Laravel
         // log without a mail server; `smtp` sends for real over the SMTP account
@@ -242,6 +257,29 @@ class Setting extends Model
         'brand_dark_default' => '0',       // first visit opens in dark mode
         'brand_powered_by' => '1',         // show the "powered by" credit line
 
+        /**
+         * The daily sales digest (retail base §8c). Off by default: a workspace
+         * that never asked for an evening summary should not start receiving one.
+         * The send time is the scheduler's (21:30) rather than a setting — one
+         * shared schedule cannot fire per-tenant hours, and pretending otherwise
+         * with a field nobody honours is worse than not offering it.
+         */
+        'sales_digest_enabled' => '0',
+
+        /**
+         * Push notifications (retail base §10 "Firebase push"). Mirrors the SMS
+         * and mail modules' log-first philosophy: `log` records what would have
+         * been pushed so the whole flow works with no Firebase project, and `fcm`
+         * sends for real over FCM HTTP v1.
+         *
+         * `fcm_credentials_json` is the service-account JSON downloaded from the
+         * Firebase console. The legacy server key is not offered: Google shut that
+         * endpoint down in 2024, and a field that cannot work is a support ticket.
+         */
+        'push_driver' => 'log',            // log / fcm
+        'push_project_id' => '',           // Firebase project id
+        'push_credentials_json' => '',     // service-account JSON
+
         // Loyalty programme (SRS §21). Points are earned per unit of spend and
         // redeemed as a flat discount, which is how Indian retail counters run it
         // — "₹1 off per point" reads at the till in a way percentages do not.
@@ -266,7 +304,7 @@ class Setting extends Model
     public const SMS_TEMPLATE_KEYS = [
         'sms_tpl_otp', 'sms_tpl_invoice', 'sms_tpl_dispatch',
         'sms_tpl_payment_reminder', 'sms_tpl_festival', 'sms_tpl_gift_occasion',
-        'sms_tpl_optical_ready',
+        'sms_tpl_optical_ready', 'sms_tpl_feedback_request',
     ];
 
     protected $fillable = ['key', 'value'];

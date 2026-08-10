@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `logistics`, `gst`, `hrms`, `projects`, `assets`, `devices` |
 | Minimum plan | **Professional** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 Bought by weight, sold by drawing. The offcut is real money, the heat number is traceability, and most jobs are site projects rather than shelf products.
 

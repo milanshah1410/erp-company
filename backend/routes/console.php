@@ -28,6 +28,20 @@ Schedule::command('fnb:daily')->dailyAt('04:00');
 // (same-day, the customer's own date) and stays where it is.
 Schedule::command('gift:reminders')->dailyAt('07:30');
 
+/**
+ * The daily sales digest (retail base §8c). 21:30, covering *today* rather than
+ * yesterday: an Indian shop closes between eight and nine, and the message its
+ * owner wants is what today came to, read on the way home. Yesterday's figures
+ * arriving with tomorrow's breakfast are figures somebody has already been asked
+ * about over the phone.
+ *
+ * Deliberately after the day's other notifications and before the 02:00 backup,
+ * so the digest reflects a settled day and nothing runs against a locked table.
+ * Off unless a workspace opts in (`sales_digest_enabled`), and silent on a day
+ * with no trading — see SendDailySalesDigest.
+ */
+Schedule::command('sales:daily-digest')->dailyAt('21:30');
+
 Schedule::command('backup:run')->daily()->at('02:00');
 Schedule::command('backup:clean')->daily()->at('01:30');
 

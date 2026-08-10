@@ -24,17 +24,35 @@ const toast = useToast()
 const auth = useAuthStore()
 const canCreatePo = computed(() => auth.can('purchases.create'))
 
-type TabKey = 'forecast' | 'demand' | 'purchase' | 'lowstock' | 'report'
-const tabs: { key: TabKey; label: string; icon: string }[] = [
+type TabKey = 'forecast' | 'demand' | 'purchase' | 'lowstock' | 'report' | 'shortfall' | 'downtime' | 'scrap'
+
+/**
+ * The last three are the factory's questions (`_base-factory.md` §10) and are
+ * shown only where the `manufacturing` module is on: their endpoints are gated
+ * the same way, so a kirana would get a 403 rather than an empty panel. Sales
+ * forecasting stays first — a works forecasts sales too.
+ */
+const hasManufacturing = computed(() => auth.hasModule('manufacturing'))
+
+const allTabs: { key: TabKey; label: string; icon: string; factory?: boolean }[] = [
   { key: 'forecast', label: 'Sales Forecast', icon: 'pi pi-chart-line' },
   { key: 'demand', label: 'Demand Prediction', icon: 'pi pi-box' },
   { key: 'purchase', label: 'Auto Purchase', icon: 'pi pi-shopping-cart' },
   { key: 'lowstock', label: 'Low Stock', icon: 'pi pi-exclamation-triangle' },
+  { key: 'shortfall', label: 'Material Shortfall', icon: 'pi pi-inbox', factory: true },
+  { key: 'downtime', label: 'Machine Downtime', icon: 'pi pi-ban', factory: true },
+  { key: 'scrap', label: 'Scrap Outliers', icon: 'pi pi-trash', factory: true },
   { key: 'report', label: 'AI Report', icon: 'pi pi-sparkles' },
 ]
+const tabs = computed(() => allTabs.filter((t) => !t.factory || hasManufacturing.value))
+
 const activeTab = ref<TabKey>('forecast')
-const loaded = ref<Record<TabKey, boolean>>({ forecast: false, demand: false, purchase: false, lowstock: false, report: false })
-const loading = ref<Record<TabKey, boolean>>({ forecast: false, demand: false, purchase: false, lowstock: false, report: false })
+const blankFlags = (): Record<TabKey, boolean> => ({
+  forecast: false, demand: false, purchase: false, lowstock: false,
+  report: false, shortfall: false, downtime: false, scrap: false,
+})
+const loaded = ref<Record<TabKey, boolean>>(blankFlags())
+const loading = ref<Record<TabKey, boolean>>(blankFlags())
 
 function selectTab(key: TabKey) {
   activeTab.value = key
@@ -172,12 +190,71 @@ async function loadReport() {
   } catch (e) { toastError(e) } finally { loading.value.report = false }
 }
 
+// -- Factory floor (_base-factory.md §10) ------------------------------------
+
+interface ShortfallRow {
+  product: { id: number; sku: string; name: string }
+  required: number; on_hand: number; on_order: number; shortfall: number
+  estimated_cost: number; needed_by: string | null; for_orders: string[]
+  urgency: string; supplier: { id: number; name: string } | null
+}
+const shortfall = ref<{ items: ShortfallRow[]; open_orders: number; skipped_no_bom: number }>({
+  items: [], open_orders: 0, skipped_no_bom: 0,
+})
+async function loadShortfall() {
+  loading.value.shortfall = true
+  try {
+    const { data } = await http.get('/ai/material-shortfall')
+    shortfall.value = data.data
+    loaded.value.shortfall = true
+  } catch (e) { toastError(e) } finally { loading.value.shortfall = false }
+}
+
+interface DowntimeMachine {
+  machine: { id: number; code: string; name: string }
+  status: string; events: number; minutes: number; hours: number
+  days_between_stops: number | null; availability_percent: number | null; cost: number
+}
+interface DowntimeReason { reason: string; events: number; minutes: number; hours: number; share_percent: number }
+const downtime = ref<{ machines: DowntimeMachine[]; reasons: DowntimeReason[]; total_hours: number; window_days: number }>({
+  machines: [], reasons: [], total_hours: 0, window_days: 90,
+})
+const downtimeShiftHours = ref(8)
+async function loadDowntime() {
+  loading.value.downtime = true
+  try {
+    const { data } = await http.get('/ai/machine-downtime', { params: { shift_hours: downtimeShiftHours.value } })
+    downtime.value = data.data
+    loaded.value.downtime = true
+  } catch (e) { toastError(e) } finally { loading.value.downtime = false }
+}
+
+interface ScrapRow {
+  product: { id: number; sku: string; name: string }
+  scrap_quantity: number; scrap_value: number; events: number; produced: number
+  rejected_at_qc: number; scrap_rate_percent: number; times_median: number | null; severity: string
+}
+const scrap = ref<{ items: ScrapRow[]; median_rate: number | null; window_days: number; skipped_no_output: number }>({
+  items: [], median_rate: null, window_days: 90, skipped_no_output: 0,
+})
+async function loadScrap() {
+  loading.value.scrap = true
+  try {
+    const { data } = await http.get('/ai/scrap-outliers')
+    scrap.value = data.data
+    loaded.value.scrap = true
+  } catch (e) { toastError(e) } finally { loading.value.scrap = false }
+}
+
 // -- Dispatch ----------------------------------------------------------------
 function load(key: TabKey) {
   if (key === 'forecast') return loadForecast()
   if (key === 'demand') return loadDemand()
   if (key === 'purchase') return loadPurchase()
   if (key === 'lowstock') return loadLowStock()
+  if (key === 'shortfall') return loadShortfall()
+  if (key === 'downtime') return loadDowntime()
+  if (key === 'scrap') return loadScrap()
   if (key === 'report') return loadReport()
 }
 
@@ -317,6 +394,165 @@ onMounted(() => {
       </DataTable>
     </section>
 
+    <!-- ============ Factory floor (_base-factory.md §10) ============ -->
+
+    <!--
+      Material shortfall. The one the factory dashboard deliberately does not
+      carry as a tile: it explodes every open order's BOM and nets against stock
+      AND against what is already on a purchase order.
+    -->
+    <section v-show="activeTab === 'shortfall'" class="panel">
+      <div class="panel-head">
+        <h2>
+          Raw-Material Shortfall
+          <small>(against {{ shortfall.open_orders }} open manufacturing order(s))</small>
+        </h2>
+        <Button label="Recalculate" icon="pi pi-refresh" size="small" :loading="loading.shortfall" @click="loadShortfall" />
+      </div>
+
+      <!-- Never silent: an unexploded order is a hole in this answer. -->
+      <p v-if="shortfall.skipped_no_bom" class="warn-note">
+        <i class="pi pi-exclamation-triangle" />
+        {{ shortfall.skipped_no_bom }} open order(s) have no bill of materials, so their requirement is not counted here.
+      </p>
+
+      <DataTable :value="shortfall.items" :loading="loading.shortfall" paginator :rows="15" removableSort stripedRows>
+        <Column field="product.sku" header="SKU" sortable />
+        <Column field="product.name" header="Material" sortable />
+        <Column field="required" header="Required" sortable />
+        <Column field="on_hand" header="On hand" sortable />
+        <Column field="on_order" header="On order" sortable />
+        <Column field="shortfall" header="Short by" sortable>
+          <template #body="{ data }"><strong>{{ data.shortfall }}</strong></template>
+        </Column>
+        <Column field="estimated_cost" header="Est. cost" sortable>
+          <template #body="{ data }">{{ money(data.estimated_cost) }}</template>
+        </Column>
+        <Column field="needed_by" header="Needed by" sortable>
+          <template #body="{ data }">{{ data.needed_by ?? '—' }}</template>
+        </Column>
+        <Column header="For">
+          <template #body="{ data }">
+            <span class="mo-list">{{ data.for_orders.slice(0, 3).join(', ') }}</span>
+            <small v-if="data.for_orders.length > 3" class="muted"> +{{ data.for_orders.length - 3 }}</small>
+          </template>
+        </Column>
+        <Column field="supplier.name" header="Supplier">
+          <template #body="{ data }">{{ data.supplier?.name ?? '—' }}</template>
+        </Column>
+        <Column field="urgency" header="Urgency" sortable>
+          <template #body="{ data }"><Tag :severity="riskSeverity[data.urgency]" :value="data.urgency" /></template>
+        </Column>
+        <template #empty>
+          <p class="empty">Nothing short — stock and open purchase orders cover every open manufacturing order.</p>
+        </template>
+      </DataTable>
+    </section>
+
+    <!-- Machine downtime: by machine, then by reason. Two cuts, two decisions. -->
+    <section v-show="activeTab === 'downtime'" class="panel">
+      <div class="panel-head">
+        <h2>
+          Machine Downtime
+          <small>({{ downtime.total_hours }} h lost over {{ downtime.window_days }} days)</small>
+        </h2>
+        <div class="head-controls">
+          <label class="ctl">
+            Shift hours/day
+            <InputNumber v-model="downtimeShiftHours" :min="1" :max="24" showButtons buttonLayout="horizontal" :inputStyle="{ width: '3rem' }" @update:modelValue="loadDowntime" />
+          </label>
+          <Button label="Refresh" icon="pi pi-refresh" size="small" :loading="loading.downtime" @click="loadDowntime" />
+        </div>
+      </div>
+      <p class="hint">
+        Availability is measured against scheduled hours, not the clock — a press that is down overnight
+        when nobody is running it is not a broken press.
+      </p>
+
+      <DataTable :value="downtime.machines" :loading="loading.downtime" paginator :rows="10" removableSort stripedRows>
+        <Column field="machine.code" header="Code" sortable />
+        <Column field="machine.name" header="Machine" sortable />
+        <Column field="events" header="Stops" sortable />
+        <Column field="hours" header="Hours lost" sortable>
+          <template #body="{ data }"><strong>{{ data.hours }}</strong></template>
+        </Column>
+        <Column field="days_between_stops" header="Days between stops" sortable>
+          <template #body="{ data }">{{ data.days_between_stops ?? '—' }}</template>
+        </Column>
+        <Column field="availability_percent" header="Availability" sortable>
+          <template #body="{ data }">
+            <Tag
+              v-if="data.availability_percent !== null"
+              :severity="data.availability_percent >= 95 ? 'success' : data.availability_percent >= 85 ? 'warn' : 'danger'"
+              :value="data.availability_percent + '%'"
+            />
+            <span v-else>—</span>
+          </template>
+        </Column>
+        <Column field="cost" header="Machine-time cost" sortable>
+          <template #body="{ data }">{{ money(data.cost) }}</template>
+        </Column>
+        <template #empty><p class="empty">No downtime recorded in this window.</p></template>
+      </DataTable>
+
+      <h3 class="sub">Why they stopped</h3>
+      <DataTable :value="downtime.reasons" :loading="loading.downtime" removableSort stripedRows>
+        <Column field="reason" header="Reason" sortable />
+        <Column field="events" header="Stops" sortable />
+        <Column field="hours" header="Hours" sortable />
+        <Column field="share_percent" header="Share of downtime" sortable>
+          <template #body="{ data }">
+            <div class="bar-wrap">
+              <div class="bar"><div class="bar-fill" :style="{ width: Math.min(data.share_percent, 100) + '%' }" /></div>
+              <span>{{ data.share_percent }}%</span>
+            </div>
+          </template>
+        </Column>
+        <template #empty><p class="empty">Nothing to break down yet.</p></template>
+      </DataTable>
+    </section>
+
+    <!-- Scrap outliers: compared against the works' own median, not its mean. -->
+    <section v-show="activeTab === 'scrap'" class="panel">
+      <div class="panel-head">
+        <h2>
+          Scrap Outliers
+          <small v-if="scrap.median_rate !== null">(works median {{ scrap.median_rate }}%, {{ scrap.window_days }} days)</small>
+        </h2>
+        <Button label="Refresh" icon="pi pi-refresh" size="small" :loading="loading.scrap" @click="loadScrap" />
+      </div>
+      <p class="hint">
+        Rates are compared against the median, not the average — one catastrophic batch would drag an average
+        upward and hide every genuine outlier behind it.
+      </p>
+      <p v-if="scrap.skipped_no_output" class="warn-note">
+        <i class="pi pi-info-circle" />
+        {{ scrap.skipped_no_output }} article(s) have scrap but no finished output yet, so they have no meaningful
+        rate and are left out rather than shown at 100%.
+      </p>
+
+      <DataTable :value="scrap.items" :loading="loading.scrap" paginator :rows="15" removableSort stripedRows>
+        <Column field="product.sku" header="SKU" sortable />
+        <Column field="product.name" header="Article" sortable />
+        <Column field="produced" header="Produced" sortable />
+        <Column field="scrap_quantity" header="Scrapped" sortable />
+        <Column field="rejected_at_qc" header="Rejected at QC" sortable />
+        <Column field="scrap_rate_percent" header="Scrap rate" sortable>
+          <template #body="{ data }"><strong>{{ data.scrap_rate_percent }}%</strong></template>
+        </Column>
+        <Column field="times_median" header="vs median" sortable>
+          <template #body="{ data }">{{ data.times_median !== null ? data.times_median + '×' : '—' }}</template>
+        </Column>
+        <Column field="scrap_value" header="Value lost" sortable>
+          <template #body="{ data }">{{ money(data.scrap_value) }}</template>
+        </Column>
+        <Column field="severity" header="Severity" sortable>
+          <template #body="{ data }"><Tag :severity="riskSeverity[data.severity]" :value="data.severity" /></template>
+        </Column>
+        <template #empty><p class="empty">No scrap recorded in this window.</p></template>
+      </DataTable>
+    </section>
+
     <!-- AI Report -->
     <section v-show="activeTab === 'report'" class="panel">
       <div class="panel-head">
@@ -375,6 +611,22 @@ onMounted(() => {
 .total-pill { background: #f4efe6; border-radius: 8px; padding: 0.35rem 0.7rem; font-size: 0.85rem; font-weight: 600; color: #7a5b1e; }
 .muted { color: #b8b3a8; font-style: italic; }
 .empty { color: #6b7280; font-size: 0.9rem; }
+/* Factory floor panels (_base-factory.md §10) */
+.hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 0.75rem; }
+.warn-note {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  font-size: 0.82rem; color: #4a3410; margin: 0 0 0.85rem;
+  border: 1px solid #e8c07d; background: rgba(232, 192, 125, 0.14);
+  border-radius: 10px; padding: 0.6rem 0.8rem;
+}
+.head-controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.ctl { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #374151; }
+.sub { font-size: 0.95rem; margin: 1.5rem 0 0.6rem; color: #1e2328; }
+.mo-list { font-size: 0.82rem; }
+.bar-wrap { display: flex; align-items: center; gap: 0.5rem; }
+.bar { flex: 1; min-width: 60px; height: 8px; background: #f1efe9; border-radius: 999px; overflow: hidden; }
+.bar-fill { height: 100%; background: #d66a45; border-radius: 999px; }
+
 .narrative { white-space: pre-line; line-height: 1.6; color: #374151; background: #fbfaf8; border: 1px solid #f1ece1; border-radius: 10px; padding: 1rem 1.1rem; }
 .insights { list-style: none; margin: 0; padding: 0; }
 .insights li { display: flex; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; color: #374151; }

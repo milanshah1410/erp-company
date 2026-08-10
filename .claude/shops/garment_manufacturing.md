@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `textile`, `tailoring`, `embroidery`, `logistics`, `gst`, `hrms`, `assets`, `devices` |
 | Minimum plan | **Enterprise** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 Cutting, tailoring and embroidery are three separate chains that a garment order passes through, each with its own vendors, rate cards and pending books. The factory's real question is never "how much stock" but "where is this order right now".
 

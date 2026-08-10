@@ -56,6 +56,20 @@ class SettingController extends Controller
             'mail_from_address' => ['sometimes', 'nullable', 'email', 'max:180'],
             'mail_from_name' => ['sometimes', 'nullable', 'string', 'max:120'],
 
+            // The daily sales digest (retail base §8c). Opt-in per workspace; the
+            // send time belongs to the scheduler, not to a tenant setting.
+            'sales_digest_enabled' => ['sometimes', 'required', 'boolean'],
+
+            /**
+             * Push notifications (retail base §10). The credentials field holds a
+             * whole service-account JSON, so it is validated as JSON rather than
+             * as a key — a paste that lost its closing brace is the commonest way
+             * this is got wrong, and catching it here beats failing at 21:30.
+             */
+            'push_driver' => ['sometimes', 'required', Rule::in(['log', 'fcm'])],
+            'push_project_id' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'push_credentials_json' => ['sometimes', 'nullable', 'json'],
+
             // AI Features (SRS §22)
             'ai_provider' => ['sometimes', 'required', Rule::in(['local', 'openai', 'anthropic'])],
             'ai_api_key' => ['sometimes', 'nullable', 'string', 'max:200'],

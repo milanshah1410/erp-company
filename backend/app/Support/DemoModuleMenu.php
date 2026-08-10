@@ -95,6 +95,7 @@ final class DemoModuleMenu
         'whatsapp_messages' => '/whatsapp',
         'sms_messages' => '/sms',
         'email_logs' => '/email-logs',
+        'customer_feedback' => '/customer-feedback',
         // Sales → Field Sales
         'salesmen' => '/salesmen',
         'beats' => '/beats',
@@ -185,6 +186,10 @@ final class DemoModuleMenu
         'employee_bonuses' => '/employee-bonuses',
         'salary_advances' => '/salary-advances',
         'employee_loans' => '/employee-loans',
+        // Both commission chips land on the one screen that shows them — the
+        // rules and the payout sheet are two tabs of /sales-commissions.
+        'commission_rules' => '/sales-commissions',
+        'commission_earnings' => '/sales-commissions',
         // Logistics
         'vehicles' => '/vehicles',
         'drivers' => '/drivers',

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\AccountBookController;
+use App\Http\Controllers\Api\AccountingExportController;
 use App\Http\Controllers\Api\AiController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuditLogController;
@@ -54,6 +55,7 @@ use App\Http\Controllers\Api\CustomFieldDefinitionController;
 use App\Http\Controllers\Api\CustomerAddressController;
 use App\Http\Controllers\Api\CustomerCategoryController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\CustomerFeedbackController;
 use App\Http\Controllers\Api\CustomerPriceListController;
 use App\Http\Controllers\Api\CustomerVisitController;
 use App\Http\Controllers\Api\FollowUpController;
@@ -200,6 +202,9 @@ use App\Http\Controllers\Api\BiometricDeviceController;
 use App\Http\Controllers\Api\BiometricPunchController;
 use App\Http\Controllers\Api\SalaryStructureController;
 use App\Http\Controllers\Api\PayrollController;
+use App\Http\Controllers\Api\PushDeviceController;
+use App\Http\Controllers\Api\SalesCommissionController;
+use App\Http\Controllers\Api\SalesDigestController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\DeviceEventController;
 use Illuminate\Support\Facades\Route;
@@ -289,6 +294,47 @@ Route::middleware('api')->prefix('api')->group(function () {
         // tenant user filling an address form may use it.
         Route::get('/google/place-autocomplete', [GoogleMapsController::class, 'autocomplete']);
         Route::get('/google/place-details', [GoogleMapsController::class, 'placeDetails']);
+
+        /**
+         * Push notification handsets (retail base §10). No permission gate on the
+         * first four: this is the phone in the caller's own pocket, the same
+         * footing as the avatar on /profile, and every query is bound to
+         * $request->user(). The mobile app calls `store` on every start, because
+         * FCM rotates tokens.
+         *
+         * The workspace-wide list — who can be reached, whose phone has gone dead
+         * — is an operator concern and sits on `devices.view`.
+         */
+        Route::get('push-devices/all', [PushDeviceController::class, 'all'])->middleware('permission:devices.view');
+        Route::get('push-devices', [PushDeviceController::class, 'index']);
+        Route::post('push-devices', [PushDeviceController::class, 'store']);
+        Route::post('push-devices/test', [PushDeviceController::class, 'test']);
+        Route::delete('push-devices/{pushDevice}', [PushDeviceController::class, 'destroy']);
+
+        /**
+         * The day's trading summary (retail base §8c). Read behind `reports.view`
+         * — it is the same numbers the sales report shows. Sending goes only to the
+         * caller, so it needs nothing beyond that: the scheduled command is what
+         * legitimately mails the whole management team.
+         */
+        Route::get('sales-digest', [SalesDigestController::class, 'show'])->middleware('permission:reports.view');
+        Route::post('sales-digest/send', [SalesDigestController::class, 'send'])->middleware('permission:reports.view');
+
+        /**
+         * Tally / Busy / Zoho Books export (retail base §10). A one-way bridge:
+         * the shop's CA keeps Tally, and this is the file they import.
+         *
+         * `accounting-exports.view` rather than `reports.view`, and read-only
+         * throughout — the file carries every party, every bill and every ledger
+         * name the workspace holds, which is a wider read than any single report
+         * grants, and it leaves the building. `module:accounts` because it is the
+         * books being exported.
+         */
+        Route::middleware('module:accounts')->group(function () {
+            Route::get('accounting-exports/summary', [AccountingExportController::class, 'summary'])->middleware('permission:accounting-exports.view');
+            Route::get('accounting-exports/preview', [AccountingExportController::class, 'preview'])->middleware('permission:accounting-exports.view');
+            Route::get('accounting-exports/download', [AccountingExportController::class, 'download'])->middleware('permission:accounting-exports.view');
+        });
 
         /**
          * CRUD helper: each action guarded by a "<module>.<action>" permission.
@@ -478,6 +524,12 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('email/invoices/{invoice}', [EmailController::class, 'sendInvoice'])->middleware('permission:email.create');
         Route::post('email/purchase-orders/{purchaseOrder}', [EmailController::class, 'sendPurchaseOrder'])->middleware('permission:email.create');
         Route::post('email/quotations/{salesQuotation}', [EmailController::class, 'sendQuotation'])->middleware('permission:email.create');
+        /**
+         * The purchase debit note to its supplier (retail base §3). `email.create`
+         * like its siblings — the authority to *raise* the claim was already spent
+         * on stock-returns.approve; posting the document is clerical.
+         */
+        Route::post('email/debit-notes/{stockReturn}', [EmailController::class, 'sendDebitNote'])->middleware('permission:email.create');
 
         // Marketing campaigns: compose + blast to an audience, per-recipient log.
         Route::get('marketing-campaigns', [MarketingCampaignController::class, 'index'])->middleware('permission:marketing-campaigns.view');
@@ -487,6 +539,36 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::match(['put', 'patch'], 'marketing-campaigns/{marketingCampaign}', [MarketingCampaignController::class, 'update'])->middleware('permission:marketing-campaigns.edit');
         Route::delete('marketing-campaigns/{marketingCampaign}', [MarketingCampaignController::class, 'destroy'])->middleware('permission:marketing-campaigns.delete');
         Route::post('marketing-campaigns/{marketingCampaign}/send', [MarketingCampaignController::class, 'send'])->middleware('permission:marketing-campaigns.create');
+
+        /*
+        |----------------------------------------------------------------------
+        | Customer feedback & CSAT (retail base §6). The shop's own measure of
+        | itself, distinct from the platform's support-ticket CSAT.
+        |
+        | `askable` and `request-links` sit above the {feedback} routes so
+        | "request-links" is never read as an id. Asking is a create act; replying
+        | is an edit, because a reply changes the state of somebody else's row.
+        |
+        | The customer-facing page itself is public and lives in routes/api.php.
+        |----------------------------------------------------------------------
+        */
+        Route::get('customer-feedback/askable', [CustomerFeedbackController::class, 'askable'])->middleware('permission:customer-feedback.create');
+        Route::post('customer-feedback/request-links', [CustomerFeedbackController::class, 'requestLinks'])->middleware('permission:customer-feedback.create');
+        Route::get('customer-feedback', [CustomerFeedbackController::class, 'index'])->middleware('permission:customer-feedback.view');
+        Route::post('customer-feedback', [CustomerFeedbackController::class, 'store'])->middleware('permission:customer-feedback.create');
+        Route::get('customer-feedback/{feedback}', [CustomerFeedbackController::class, 'show'])->middleware('permission:customer-feedback.view');
+        Route::match(['put', 'patch'], 'customer-feedback/{feedback}', [CustomerFeedbackController::class, 'update'])->middleware('permission:customer-feedback.edit');
+        Route::post('customer-feedback/{feedback}/respond', [CustomerFeedbackController::class, 'respond'])->middleware('permission:customer-feedback.edit');
+        Route::post('customer-feedback/{feedback}/resend', [CustomerFeedbackController::class, 'resend'])->middleware('permission:customer-feedback.create');
+        /**
+         * The same ask over WhatsApp. Returns a wa.me link rather than sending —
+         * click-to-chat, like the rest of the WhatsApp module — and logs it to the
+         * outbound history. Carries `whatsapp.create` as well, because it writes a
+         * row to that log.
+         */
+        Route::post('customer-feedback/{feedback}/whatsapp', [CustomerFeedbackController::class, 'whatsapp'])
+            ->middleware(['permission:customer-feedback.create', 'permission:whatsapp.create']);
+        Route::delete('customer-feedback/{feedback}', [CustomerFeedbackController::class, 'destroy'])->middleware('permission:customer-feedback.delete');
 
         /*
         |----------------------------------------------------------------------
@@ -874,6 +956,14 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::delete('stock-returns/{stockReturn}', [StockReturnController::class, 'destroy'])->middleware('permission:stock-returns.delete');
         Route::post('stock-returns/{stockReturn}/approve', [StockReturnController::class, 'approve'])->middleware('permission:stock-returns.approve');
         Route::post('stock-returns/{stockReturn}/cancel', [StockReturnController::class, 'cancel'])->middleware('permission:stock-returns.edit');
+        /**
+         * Purchase Debit Note (retail base §3). Raising one asks another business
+         * for money, so it sits on approve authority rather than edit — the same
+         * level that let the goods leave in the first place. Printing it is a read
+         * of a document that already exists.
+         */
+        Route::post('stock-returns/{stockReturn}/debit-note', [StockReturnController::class, 'issueDebitNote'])->middleware('permission:stock-returns.approve');
+        Route::get('stock-returns/{stockReturn}/debit-note', [StockReturnController::class, 'debitNotePdf'])->middleware('permission:stock-returns.view');
 
         // Cycle counts: physical stock verification with variance reporting
         Route::get('cycle-counts', [CycleCountController::class, 'index'])->middleware('permission:cycle-counts.view');
@@ -1592,6 +1682,41 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         /*
         |----------------------------------------------------------------------
+        | Shop-staff sales commission (retail base §8b). Distinct from the field
+        | rep's targets & incentives (`salesman-targets`, `field_sales`) and from
+        | tailor piece rates: this is the counter hand's percentage.
+        |
+        | Two authorities, and the split is the point. `.edit` writes the rules and
+        | corrects an open figure. `.approve` signs the numbers off AND settles
+        | them — those are the two acts that turn a calculation into somebody's
+        | pay, and neither belongs to whoever typed the rates in.
+        |
+        | `module:hrms` is stated on the group rather than inferred from the menu
+        | row, because the generate/approve/pay endpoints are also reachable from
+        | the payroll screen and own no nav row of their own.
+        |----------------------------------------------------------------------
+        */
+        Route::middleware('module:hrms')->group(function () {
+            Route::get('commission-rules', [SalesCommissionController::class, 'rules'])->middleware('permission:sales-commissions.view');
+            Route::post('commission-rules', [SalesCommissionController::class, 'storeRule'])->middleware('permission:sales-commissions.create');
+            Route::match(['put', 'patch'], 'commission-rules/{rule}', [SalesCommissionController::class, 'updateRule'])->middleware('permission:sales-commissions.edit');
+            Route::delete('commission-rules/{rule}', [SalesCommissionController::class, 'destroyRule'])->middleware('permission:sales-commissions.delete');
+
+            Route::get('sales-commissions', [SalesCommissionController::class, 'earnings'])->middleware('permission:sales-commissions.view');
+            Route::post('sales-commissions/generate', [SalesCommissionController::class, 'generate'])->middleware('permission:sales-commissions.create');
+            Route::post('sales-commissions/approve', [SalesCommissionController::class, 'approve'])->middleware('permission:sales-commissions.approve');
+            Route::post('sales-commissions/mark-paid', [SalesCommissionController::class, 'markPaid'])->middleware('permission:sales-commissions.approve');
+            Route::match(['put', 'patch'], 'sales-commissions/{earning}', [SalesCommissionController::class, 'updateEarning'])->middleware('permission:sales-commissions.edit');
+            /**
+             * Reversing is the only way to change a figure somebody has already
+             * been paid, so it sits at approve level rather than edit — it is a
+             * decision about money that has left, not a correction to a draft.
+             */
+            Route::post('sales-commissions/{earning}/reverse', [SalesCommissionController::class, 'reverse'])->middleware('permission:sales-commissions.approve');
+        });
+
+        /*
+        |----------------------------------------------------------------------
         | System administration
         |----------------------------------------------------------------------
         */
@@ -1703,6 +1828,23 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('ai/demand-prediction', [AiController::class, 'demandPrediction'])->middleware('permission:ai.view');
         Route::get('ai/purchase-suggestions', [AiController::class, 'purchaseSuggestions'])->middleware('permission:ai.view');
         Route::get('ai/low-stock-prediction', [AiController::class, 'lowStockPrediction'])->middleware('permission:ai.view');
+        /**
+         * The factory's own AI questions (`_base-factory.md` §10). Same engines,
+         * different questions — what are we short of for the orders already on the
+         * floor, which machine keeps stopping and why, and what is scrapping
+         * unlike everything else.
+         *
+         * Gated on `module:manufacturing` as well as `ai.view`: every one of them
+         * reads shop-floor tables a workspace without the module does not populate,
+         * and a kirana asking for scrap outliers should get a clean 403 rather than
+         * an empty list that looks like an answer.
+         */
+        Route::middleware('module:manufacturing')->group(function () {
+            Route::get('ai/material-shortfall', [AiController::class, 'materialShortfall'])->middleware('permission:ai.view');
+            Route::get('ai/machine-downtime', [AiController::class, 'machineDowntimePatterns'])->middleware('permission:ai.view');
+            Route::get('ai/scrap-outliers', [AiController::class, 'scrapOutliers'])->middleware('permission:ai.view');
+        });
+
         Route::get('ai/report', [AiController::class, 'report'])->middleware('permission:ai.view');
         Route::post('ai/search', [AiController::class, 'search'])->middleware('permission:ai.view');
 

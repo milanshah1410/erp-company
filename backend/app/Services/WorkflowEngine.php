@@ -43,6 +43,29 @@ class WorkflowEngine
             'fields' => ['total', 'status'],
             'link' => '/purchase-orders',
         ],
+        /**
+         * Customer feedback (retail base §6). The one trigger a shop reaches for
+         * immediately: "if rating <= 2, notify the manager". A complaint that has
+         * to be found by opening a screen is a complaint answered on Thursday.
+         *
+         * `rating` is the field worth conditioning on — `status` is here because
+         * a shop may want to fire only on rows that arrived answered (a counter
+         * recording, `submitted`) and not on the empty pending row a link creates.
+         *
+         * Note this fires on *creation*, so it catches counter-recorded feedback
+         * and misses a link answered later — the row was created empty and
+         * `created` has already passed. That is a real limitation and it is the
+         * honest one: the engine's whole vocabulary is "*.created", and inventing
+         * an updated-trigger for this one model would be a second mechanism
+         * nobody would find. The digest and the register's "needs attention"
+         * filter cover the link case.
+         */
+        'customer_feedback.created' => [
+            'label' => 'Customer feedback received',
+            'model' => \App\Models\CustomerFeedback::class,
+            'fields' => ['rating', 'status', 'channel'],
+            'link' => '/customer-feedback',
+        ],
     ];
 
     public const OPERATORS = ['=', '!=', '>', '<', '>=', '<=', 'contains'];

@@ -142,6 +142,14 @@ class MenuSeeder extends Seeder
                     ['label' => 'SMS', 'icon' => 'pi pi-comment', 'to' => '/sms', 'permission' => 'sms.view'],
                     ['label' => 'Marketing Campaigns', 'icon' => 'pi pi-megaphone', 'to' => '/marketing-campaigns', 'permission' => 'marketing-campaigns.view'],
                     ['label' => 'Email Log', 'icon' => 'pi pi-envelope', 'to' => '/email-logs', 'permission' => 'email.view'],
+                    /**
+                     * Customer feedback & CSAT (retail base §6). Under CRM because
+                     * it is a conversation with a customer, not a report about
+                     * them — the screen's job is to get a complaint answered, and
+                     * burying it under Reports would make it something read once a
+                     * quarter instead of worked through weekly.
+                     */
+                    ['label' => 'Feedback & CSAT', 'icon' => 'pi pi-comments', 'to' => '/customer-feedback', 'permission' => 'customer-feedback.view'],
                 ]],
                 // Sibling of CRM, not a child of it: a garment counter often runs
                 // points + coupons with no CRM pipeline at all, and nesting this
@@ -758,6 +766,17 @@ class MenuSeeder extends Seeder
                     ['label' => 'Trial Balance', 'icon' => 'pi pi-list', 'to' => '/accounts/trial-balance', 'permission' => 'accounts.view'],
                     ['label' => 'Profit & Loss', 'icon' => 'pi pi-chart-line', 'to' => '/accounts/profit-loss', 'permission' => 'accounts.view'],
                     ['label' => 'Balance Sheet', 'icon' => 'pi pi-book', 'to' => '/accounts/balance-sheet', 'permission' => 'accounts.view'],
+                    /**
+                     * Tally / Busy / Zoho Books export (retail base §10). Beside
+                     * the statements rather than under Administration: it is the
+                     * month-end act that follows closing the books, done by the
+                     * same person on the same afternoon.
+                     *
+                     * Its own permission, not `accounts.view` — the file carries
+                     * every party and every ledger name the workspace holds, and it
+                     * leaves the building.
+                     */
+                    ['label' => 'Tally / Busy Export', 'icon' => 'pi pi-upload', 'to' => '/accounting-exports', 'permission' => 'accounting-exports.view'],
                 ]],
                 ['label' => 'Payments', 'icon' => 'pi pi-credit-card', 'module' => 'accounts', 'children' => [
                     ['label' => 'Payment Links', 'icon' => 'pi pi-link', 'to' => '/payment-transactions', 'permission' => 'payments.view'],
@@ -792,6 +811,15 @@ class MenuSeeder extends Seeder
                     ['label' => 'Bonuses', 'icon' => 'pi pi-star', 'to' => '/employee-bonuses', 'permission' => 'employee-bonuses.view'],
                     ['label' => 'Salary Advances', 'icon' => 'pi pi-arrow-up-right', 'to' => '/salary-advances', 'permission' => 'salary-advances.view'],
                     ['label' => 'Loans', 'icon' => 'pi pi-credit-card', 'to' => '/employee-loans', 'permission' => 'employee-loans.view'],
+                    /**
+                     * Shop-staff sales commission (retail base §8b). Under Payroll
+                     * because that is where it is settled, and deliberately not
+                     * beside Field Sales → Targets & Incentives: that one pays a
+                     * rep for hitting a monthly number, this one pays whoever was
+                     * on the counter a percentage of what they rang up. Two
+                     * schemes, two jobs, two screens.
+                     */
+                    ['label' => 'Sales Commission', 'icon' => 'pi pi-percentage', 'to' => '/sales-commissions', 'permission' => 'sales-commissions.view'],
                 ]],
             ]],
 

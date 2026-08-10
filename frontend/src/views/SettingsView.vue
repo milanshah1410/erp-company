@@ -6,6 +6,7 @@ import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
+import Checkbox from 'primevue/checkbox'
 import { useToast } from 'primevue/usetoast'
 import http from '../api/http'
 import { useAuthStore } from '../stores/auth'
@@ -35,6 +36,7 @@ const NUMBER_PREFIX_KEYS = [
   { key: 'transfer_number_prefix', label: 'Stock Transfer' },
   { key: 'return_number_prefix', label: 'Stock Return' },
   { key: 'credit_note_number_prefix', label: 'Sales Credit Note' },
+  { key: 'debit_note_number_prefix', label: 'Purchase Debit Note' },
   { key: 'adjustment_number_prefix', label: 'Stock Adjustment' },
   { key: 'cycle_count_number_prefix', label: 'Cycle Count' },
   { key: 'gate_entry_number_prefix', label: 'Gate Entry' },
@@ -45,7 +47,12 @@ const numberPrefixes = ref<Record<string, string>>({})
 const SMS_KEYS = [
   'sms_driver', 'sms_provider', 'sms_sender_id', 'sms_route', 'sms_country_code',
   'sms_auth_key', 'sms_otp_length', 'sms_otp_ttl',
+  // Every key in Setting::SMS_TEMPLATE_KEYS belongs here. A template the backend
+  // sends but this screen does not list is a message a tenant cannot reword —
+  // which for the trade-specific ones below means a shop texting its customers
+  // in wording somebody else chose.
   'sms_tpl_otp', 'sms_tpl_invoice', 'sms_tpl_dispatch', 'sms_tpl_payment_reminder', 'sms_tpl_festival',
+  'sms_tpl_gift_occasion', 'sms_tpl_optical_ready', 'sms_tpl_feedback_request',
 ]
 const sms = ref<Record<string, any>>({})
 const savingSms = ref(false)
@@ -59,6 +66,13 @@ const SMS_TEMPLATE_FIELDS = [
   { key: 'sms_tpl_dispatch', label: 'Dispatch', hint: 'Placeholders: {name} {number} {date} {business}' },
   { key: 'sms_tpl_payment_reminder', label: 'Payment Reminder', hint: 'Placeholders: {name} {symbol} {amount} {business}' },
   { key: 'sms_tpl_festival', label: 'Festival Greeting', hint: 'Placeholders: {name} {festival} {business}' },
+  {
+    key: 'sms_tpl_feedback_request',
+    label: 'Feedback Request',
+    hint: 'Placeholders: {name} {number} {link} {business} — {link} is the customer’s feedback page and must be kept',
+  },
+  { key: 'sms_tpl_gift_occasion', label: 'Occasion Reminder (Gift)', hint: 'Placeholders: {name} {person} {occasion} {date} {days} {business}' },
+  { key: 'sms_tpl_optical_ready', label: 'Spectacles Ready (Optical)', hint: 'Placeholders: {order} {shop}' },
 ]
 
 // --- Email / SMTP gateway (SRS §19) ---
@@ -78,6 +92,24 @@ const mailEncryptionOptions = [
   { label: 'TLS', value: 'tls' },
   { label: 'SSL', value: 'ssl' },
   { label: 'None', value: 'none' },
+]
+
+/**
+ * Notifications: the evening digest and Firebase push (retail base §8c, §10).
+ *
+ * One card, because they are one decision to whoever opens it — "how does this
+ * app reach me when I am not looking at it?" The digest is the message; push is
+ * one of the ways it arrives.
+ */
+const NOTIFY_KEYS = ['sales_digest_enabled', 'push_driver', 'push_project_id', 'push_credentials_json']
+const notify = ref<Record<string, any>>({})
+const savingNotify = ref(false)
+const testingPush = ref(false)
+const sendingDigest = ref(false)
+const pushDevices = ref<any[]>([])
+const pushDriverOptions = [
+  { label: 'Log only (no Firebase project needed)', value: 'log' },
+  { label: 'Firebase Cloud Messaging (send for real)', value: 'fcm' },
 ]
 
 const monthOptions = [
@@ -127,6 +159,82 @@ function applySettings(data: Record<string, any>) {
   if (!mailData.mail_encryption) mailData.mail_encryption = 'tls'
   if (!mailData.mail_port) mailData.mail_port = 587
   mail.value = mailData
+  const notifyData: Record<string, any> = {}
+  for (const key of NOTIFY_KEYS) notifyData[key] = data[key] ?? ''
+  // Stored as text "0"/"1"; the checkbox wants a boolean.
+  notifyData.sales_digest_enabled = String(data.sales_digest_enabled ?? '0') === '1'
+  if (!notifyData.push_driver) notifyData.push_driver = 'log'
+  notify.value = notifyData
+}
+
+async function saveNotify() {
+  savingNotify.value = true
+  try {
+    const { data } = await http.put('/settings', {
+      sales_digest_enabled: !!notify.value.sales_digest_enabled,
+      push_driver: notify.value.push_driver,
+      push_project_id: notify.value.push_project_id || null,
+      // Send null rather than "" so the `json` rule is not handed an empty string.
+      push_credentials_json: notify.value.push_credentials_json || null,
+    })
+    applySettings(data.data ?? {})
+    toast.add({ severity: 'success', summary: 'Notification settings saved', life: 3000 })
+  } catch (e: any) {
+    toast.add({
+      severity: 'error',
+      summary: 'Save failed',
+      detail: e.response?.data?.errors?.push_credentials_json?.[0]
+        ?? e.response?.data?.message
+        ?? 'Unexpected error',
+      life: 5000,
+    })
+  } finally {
+    savingNotify.value = false
+  }
+}
+
+async function loadPushDevices() {
+  try {
+    const { data } = await http.get('/push-devices')
+    pushDevices.value = data.data ?? []
+  } catch {
+    // Not fatal: the rest of the card still configures.
+  }
+}
+
+async function sendTestPush() {
+  testingPush.value = true
+  try {
+    const { data } = await http.post('/push-devices/test')
+    toast.add({ severity: 'success', summary: 'Test push', detail: data.message, life: 6000 })
+    await loadPushDevices()
+  } catch (e: any) {
+    toast.add({ severity: 'warn', summary: 'Not sent', detail: e.response?.data?.message ?? 'Unexpected error', life: 6000 })
+  } finally {
+    testingPush.value = false
+  }
+}
+
+async function sendDigestNow() {
+  sendingDigest.value = true
+  try {
+    const { data } = await http.post('/sales-digest/send')
+    toast.add({ severity: 'success', summary: data.message, detail: data.summary_line, life: 8000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not send', detail: e.response?.data?.message ?? 'Unexpected error', life: 5000 })
+  } finally {
+    sendingDigest.value = false
+  }
+}
+
+async function forgetDevice(device: any) {
+  try {
+    await http.delete(`/push-devices/${device.id}`)
+    toast.add({ severity: 'success', summary: 'Device removed', life: 2500 })
+    await loadPushDevices()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not remove it', detail: e.response?.data?.message ?? '', life: 4000 })
+  }
 }
 
 async function saveMail() {
@@ -214,7 +322,10 @@ async function save() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  await loadPushDevices()
+})
 </script>
 
 <template>
@@ -458,6 +569,88 @@ onMounted(load)
         <Button label="Save" icon="pi pi-check" :loading="savingMail" :disabled="loading" @click="saveMail" />
       </div>
     </div>
+
+    <div class="card">
+      <h2>Notifications &amp; Daily Digest</h2>
+      <p class="card-note">
+        The <b>daily digest</b> is a summary of the day's trading — bills, collections by tender, returns,
+        what moved, and anything needing attention tomorrow. It goes out at <b>21:30</b> to admins,
+        accountants and sales managers, and is skipped on a day with no trading. Off unless you switch it on.
+      </p>
+
+      <div v-if="loading" class="loading">Loading…</div>
+      <template v-else>
+        <label class="switch-row">
+          <Checkbox v-model="notify.sales_digest_enabled" binary :disabled="!canEdit" />
+          <span>Send the daily sales digest</span>
+        </label>
+        <div class="test-row">
+          <Button
+            label="Send me today's summary now"
+            icon="pi pi-send"
+            outlined
+            size="small"
+            :loading="sendingDigest"
+            @click="sendDigestNow"
+          />
+        </div>
+
+        <h3 class="subhead">Push to Phones (Firebase)</h3>
+        <p class="card-note">
+          Push reaches the mobile app when nobody is looking at this screen — which is the point of the
+          digest. The <b>Log only</b> driver records what would have been pushed, so everything works with
+          no Firebase project. For real delivery, create a Firebase project, download its
+          <b>service-account JSON</b> and paste it below.
+        </p>
+        <div class="form-grid">
+          <div class="fld">
+            <label>Driver</label>
+            <Select v-model="notify.push_driver" :options="pushDriverOptions" optionLabel="label" optionValue="value" :disabled="!canEdit" />
+          </div>
+          <div class="fld">
+            <label>Firebase Project ID</label>
+            <InputText v-model="notify.push_project_id" :disabled="!canEdit" placeholder="Read from the JSON if left blank" />
+          </div>
+        </div>
+        <div class="fld json-fld">
+          <label>Service-account JSON</label>
+          <Textarea
+            v-model="notify.push_credentials_json"
+            rows="4"
+            :disabled="!canEdit"
+            placeholder='{"type":"service_account","project_id":"…","private_key":"…"}'
+          />
+          <small class="tpl-hint">
+            Firebase console → Project settings → Service accounts → Generate new private key. Paste the whole file.
+          </small>
+        </div>
+
+        <h3 class="subhead">Your Registered Phones</h3>
+        <p v-if="!pushDevices.length" class="card-note">
+          No handset registered to your account yet. Sign in once on the mobile app and it will register itself.
+        </p>
+        <ul v-else class="device-list">
+          <li v-for="d in pushDevices" :key="d.id">
+            <span class="dev-name">
+              {{ d.label }}
+              <small class="muted">{{ d.platform }}<template v-if="d.app_version"> · v{{ d.app_version }}</template></small>
+            </span>
+            <!-- A dead token is shown rather than hidden: "why do I get nothing on
+                 my phone" is otherwise unanswerable from this screen. -->
+            <small v-if="!d.is_active" class="dev-dead">Stopped working — {{ d.last_error || 'token rejected' }}</small>
+            <small v-else-if="d.last_used_at" class="muted">Last reached {{ new Date(d.last_used_at).toLocaleString() }}</small>
+            <Button icon="pi pi-times" text rounded size="small" severity="danger" title="Forget this device" @click="forgetDevice(d)" />
+          </li>
+        </ul>
+        <div class="test-row">
+          <Button label="Send a Test Push" icon="pi pi-mobile" outlined size="small" :loading="testingPush" @click="sendTestPush" />
+        </div>
+      </template>
+
+      <div v-if="canEdit" class="actions">
+        <Button label="Save" icon="pi pi-check" :loading="savingNotify" :disabled="loading" @click="saveNotify" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -564,5 +757,58 @@ onMounted(load)
 }
 .test-row :deep(.p-inputtext) {
   min-width: 260px;
+}
+
+/* Notifications & digest */
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+  color: #374151;
+  margin-bottom: 0.9rem;
+}
+.json-fld {
+  max-width: none;
+  margin-top: 1rem;
+}
+.json-fld :deep(textarea) {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+.tpl-hint {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+.device-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.device-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--border, #e8e4da);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.85rem;
+}
+.dev-name {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.dev-dead {
+  color: #b45309;
+  font-size: 0.72rem;
+}
+.muted {
+  color: #6b7280;
+  font-size: 0.72rem;
 }
 </style>

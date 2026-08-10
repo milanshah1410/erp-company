@@ -29,6 +29,7 @@ use App\Http\Controllers\Central\Ops\SystemHealthController;
 use App\Http\Controllers\Central\Ops\TenantToolController;
 use App\Http\Controllers\Central\PaymentWebhookController;
 use App\Http\Controllers\Central\PlanController;
+use App\Http\Controllers\Central\PublicFeedbackController;
 use App\Http\Controllers\Central\PublicPaymentController;
 use App\Http\Controllers\Central\RazorpayWebhookController;
 use App\Http\Controllers\Central\RegistrationController;
@@ -106,6 +107,15 @@ Route::get('/pay/{token}', [PublicPaymentController::class, 'show']);
 Route::post('/pay/{token}/start', [PublicPaymentController::class, 'start']);
 Route::match(['get', 'post'], '/pay/{token}/callback', [PublicPaymentController::class, 'callback']);
 Route::post('/webhooks/payments/{gateway}', [PaymentWebhookController::class, 'handle']);
+
+/*
+| Customer feedback / CSAT (retail base §6). Public for the same reason the pay
+| page is: the person answering is a shopper holding a link, not a user of the
+| workspace. The tenant comes from the token, the token reaches exactly one row,
+| and an answered row refuses a second answer — see PublicFeedbackController.
+*/
+Route::get('/feedback/{token}', [PublicFeedbackController::class, 'show']);
+Route::post('/feedback/{token}', [PublicFeedbackController::class, 'submit']);
 
 /*
 | Public routes contributed by industry plugins (app/Modules/Industry) — e.g. the

@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Models\PurchaseOrder;
 use App\Models\SalesQuotation;
 use App\Models\Setting;
+use App\Models\StockReturn;
 use App\Models\Supplier;
 use App\Services\MailService;
 use App\Support\TenantContext;
@@ -18,7 +19,8 @@ use Throwable;
 
 /**
  * Email Integration (SRS §19). Sends business documents (invoice / purchase
- * order / quotation) to their party with the PDF attached, exposes the outbound
+ * order / quotation / purchase debit note) to their party with the PDF attached,
+ * exposes the outbound
  * email log, and provides an SMTP connection test. Actual delivery is handled by
  * the tenant-aware SendDocumentEmail queue job; this controller only validates,
  * logs the intent, and dispatches.
@@ -116,6 +118,34 @@ class EmailController extends Controller
             party: $salesQuotation->customer,
             defaultSubject: 'Quotation '.$salesQuotation->quote_number,
             defaultBody: "Please find attached our quotation {$salesQuotation->quote_number}. We look forward to your order.",
+        );
+    }
+
+    /**
+     * Email a raised purchase debit note to the supplier (retail base §3).
+     *
+     * Refuses a return with no note raised on it, rather than attaching a PDF
+     * with a blank number: what lands in the vendor's inbox has to be a document
+     * their accounts clerk can file against a reference.
+     */
+    public function sendDebitNote(Request $request, StockReturn $stockReturn)
+    {
+        if ($stockReturn->debit_note_issued_at === null) {
+            return response()->json([
+                'message' => 'Raise the debit note first — there is nothing to send yet.',
+            ], 422);
+        }
+
+        $stockReturn->loadMissing('supplier:id,name,email');
+
+        return $this->queueDocument(
+            $request,
+            type: 'debit_note',
+            model: $stockReturn,
+            number: (string) $stockReturn->debit_note_number,
+            party: $stockReturn->supplier,
+            defaultSubject: 'Debit Note '.$stockReturn->debit_note_number,
+            defaultBody: "Please find attached our debit note {$stockReturn->debit_note_number} for goods returned to you. Kindly issue your credit note against this reference.",
         );
     }
 

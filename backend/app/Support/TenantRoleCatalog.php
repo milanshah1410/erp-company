@@ -391,11 +391,52 @@ class TenantRoleCatalog
          */
         'rental-assets',
         'rentals',
+
+        /**
+         * Customer feedback & CSAT (retail base §6). Its own permission rather
+         * than riding on `customers`: what a customer thinks of the shop is not
+         * the same record as their phone number, and the split matters in both
+         * directions. A counter hand should be able to write down a complaint
+         * without also being able to edit the customer master — and `.edit`, which
+         * carries *replying* on the shop's behalf, is not a counter decision at
+         * all. `.delete` stops a row counting towards the score, which is why it
+         * is held separately again.
+         *
+         * Distinct from the platform's support-ticket CSAT, which measures the
+         * SaaS owner's own helpdesk and lives on the central guard.
+         */
+        'customer-feedback',
+
+        /**
+         * Shop-staff sales commission (retail base §8b). Separate from `payroll`
+         * on purpose: an owner sets the rates and a floor manager agrees the
+         * month's figures, but the person who runs payroll should not be able to
+         * rewrite what the shop promised. And separate from `salesman-targets`,
+         * which is the field rep's monthly incentive — a different scheme for a
+         * different job.
+         *
+         * `.view` is reading the payout sheet. `.create` covers adding a rule and
+         * working the month out. `.edit` corrects an open figure. `.approve` is
+         * the one that matters: it signs the numbers off, settles them, and is the
+         * only way to reverse a figure somebody has already been paid.
+         */
+        'sales-commissions',
     ];
 
     /** Modules that are view-only (no create/edit/delete). */
     public const VIEW_ONLY_MODULES = [
         'audit-logs', 'notifications', 'accounts', 'channel-sync-logs', 'ai',
+        /**
+         * Tally / Busy / Zoho Books export (retail base §10). Read-only because
+         * the bridge is one-way — nothing is ever written back — so create/edit/
+         * delete would be permissions over an act that does not exist.
+         *
+         * Its own grant rather than `reports.view`, though, because the file is a
+         * wider read than any single report: every party, every bill and every
+         * ledger name the workspace holds, in one download that leaves the
+         * building.
+         */
+        'accounting-exports',
         // The device event log is telemetry: readable by anyone who can watch a
         // counter, cleared under 'devices.delete'.
         'device-events',
@@ -439,6 +480,13 @@ class TenantRoleCatalog
          * anybody who can silently unscan an item can walk out with it.
          */
         'self-checkout',
+        /**
+         * Sales commission. Approval is where a calculation becomes somebody's
+         * pay: it signs the month's figures off, settles them, and is the only way
+         * to reverse a figure already paid. Whoever typed the rates in should not
+         * hold it.
+         */
+        'sales-commissions',
     ];
 
     /**
@@ -454,7 +502,11 @@ class TenantRoleCatalog
             // Gift vouchers ride with the rest of the customer-rewards bundle:
             // whoever may issue a coupon is who a shop expects to sell a gift
             // card, and both are sold and honoured at the same counter.
-            'CRM_CORE' => ['customers', 'customer-categories', 'leads', 'follow-ups', 'loyalty', 'coupons', 'referrals', 'gift-vouchers'],
+            // Customer feedback rides with the rest of the customer bundle: the
+            // desk that keeps a customer's record is the desk that hears what
+            // they thought, and a CRM role without the complaints book would be
+            // holding half a conversation.
+            'CRM_CORE' => ['customers', 'customer-categories', 'leads', 'follow-ups', 'loyalty', 'coupons', 'referrals', 'gift-vouchers', 'customer-feedback'],
             'PRICE' => ['price-lists'],
             'COMMS' => ['whatsapp', 'sms', 'email', 'marketing-campaigns'],
             'FIELD_SALES' => ['salesmen', 'salesman-targets', 'beats', 'salesman-visits', 'salesman-locations', 'salesman-collections', 'salesman-expenses'],
@@ -859,6 +911,14 @@ class TenantRoleCatalog
                 'tailor-alterations:m', 'tailors:v',
                 'payments:c', 'EXPENSES:c', 'employees:v',
                 'reports:v', 'notifications:v', 'ai:v',
+                /**
+                 * The floor's two books about its own people and its own
+                 * customers. Feedback at manage level because replying to a
+                 * complaint about the showroom is this job; commission at approve
+                 * level because agreeing what the floor earned this month is also
+                 * this job — the person who watched them sell it.
+                 */
+                'customer-feedback:m', 'sales-commissions:a',
             ]],
             /**
              * Plans the range and builds it into sellable stock: styles, fabrics
@@ -946,6 +1006,8 @@ class TenantRoleCatalog
                 'gift-vouchers:m', 'memberships:m',
                 'payments:m', 'EXPENSES:c', 'employees:v', 'devices:v',
                 'reports:v', 'notifications:v', 'ai:v',
+                // Same pair as the showroom manager above, for the same reasons.
+                'customer-feedback:m', 'sales-commissions:a',
             ]],
             /**
              * Watches the bank of self-checkout lanes. `self-checkout:a` is the
@@ -1574,11 +1636,19 @@ class TenantRoleCatalog
                 // Distribution: whose limit gets raised and whose supply stops is
                 // this desk's call, so it holds the lever, not just the view.
                 'credit-control:c',
+                // The file that goes to the shop's chartered accountant. This is
+                // the desk that hands it over, so it is the desk that holds it.
+                'accounting-exports:v',
+                // The commission book, read-only: it is a cost this desk must see
+                // in the month's numbers, and a scheme it does not set or settle.
+                'sales-commissions:v',
             ]],
             'senior-accountant' => ['label' => 'Senior Accountant', 'spec' => [
                 'EXPENSES:a', 'TREASURY:m', 'GST:m', 'accounts:v', 'reports:v',
                 'purchase-invoices:a', 'purchases:v', 'sales:v', 'suppliers:v', 'customers:v', 'notifications:v',
                 'credit-control:c',
+                // Whoever closes the books is who the CA asks for the Tally file.
+                'accounting-exports:v',
             ]],
             'cashier' => ['label' => 'Cashier', 'spec' => [
                 'payments:c', 'vouchers:c', 'bank-accounts:v', 'expenses:c', 'accounts:v',
@@ -1597,6 +1667,14 @@ class TenantRoleCatalog
             // ---- HR ----
             'hr-manager' => ['label' => 'HR Manager', 'spec' => [
                 'HR:a', 'DEVICES:m', 'reports:v', 'notifications:v', 'ai:v',
+                /**
+                 * Sales commission at approve level: this is the desk that agrees
+                 * the month's figures and settles them with the payroll run. The
+                 * *rates* are the owner's — `:a` includes edit, which is correcting
+                 * an open earning, and that is a real part of this job when a sale
+                 * was credited to the wrong person.
+                 */
+                'sales-commissions:a',
             ]],
             'hr-executive' => ['label' => 'HR Executive', 'spec' => [
                 'employees:c', 'attendance:c', 'leave-applications:c', 'overtime:c', 'leave-types:v',
@@ -1605,6 +1683,13 @@ class TenantRoleCatalog
             'payroll-executive' => ['label' => 'Payroll Executive', 'spec' => [
                 'payroll:c', 'salaries:c', 'salary-structures:c', 'salary-advances:c', 'employee-loans:c',
                 'employee-bonuses:c', 'attendance:v', 'employees:v', 'bank-accounts:v', 'notifications:v',
+                /**
+                 * Read-only on commission, deliberately. This desk needs the
+                 * month's figures in order to pay them, and must not be able to
+                 * change what the shop promised or to sign its own numbers off.
+                 * Settling is the HR manager's grant above.
+                 */
+                'sales-commissions:v',
             ]],
 
             // ---- Transport ----

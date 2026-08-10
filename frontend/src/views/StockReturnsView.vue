@@ -11,11 +11,14 @@ import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import Swal from 'sweetalert2'
+import Checkbox from 'primevue/checkbox'
 import http from '../api/http'
+import { openPdfBlob } from '../utils/blob'
 import { useAuthStore } from '../stores/auth'
 import { useCrud } from '../composables/useCrud'
 import TableExportButtons from '../components/TableExportButtons.vue'
 import DetailDialog from '../components/DetailDialog.vue'
+import SendEmailDialog from '../components/SendEmailDialog.vue'
 import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
@@ -31,6 +34,7 @@ const canCreate = computed(() => auth.can('stock-returns.create'))
 const canApprove = computed(() => auth.can('stock-returns.approve'))
 const canEdit = computed(() => auth.can('stock-returns.edit'))
 const canDelete = computed(() => auth.can('stock-returns.delete'))
+const canEmail = computed(() => auth.can('email.create'))
 
 const statusColors: Record<string, string> = {
   draft: 'secondary',
@@ -54,6 +58,86 @@ const statusOptions = [
 ]
 
 const search = ref('')
+
+/**
+ * Read the same book as the purchase debit-note register (retail base §3). A
+ * filter rather than a second screen: the debit note *is* the vendor return, and
+ * two screens over one table would let a shop reconcile one and not the other.
+ */
+const debitNotesOnly = ref(false)
+
+// --- Purchase debit note -----------------------------------------------------
+
+const dnDialog = ref(false)
+const dnSaving = ref(false)
+const dnRow = ref<any>(null)
+const dnForm = ref({ debit_note_date: today(), debit_note_tax_percent: 0, debit_note_number: '' })
+
+function openDebitNote(row: any) {
+  dnRow.value = row
+  dnForm.value = {
+    debit_note_date: today(),
+    debit_note_tax_percent: 0,
+    // Pre-filled when the clerk already keyed the vendor's own reference at
+    // booking-out; left blank means "use our own series".
+    debit_note_number: row.debit_note_number || '',
+  }
+  dnDialog.value = true
+}
+
+/** Goods value of the return, so the claim total is visible before it is raised. */
+const dnGoodsValue = computed(() => Number(dnRow.value?.debit_note_total ?? 0))
+const dnClaimTotal = computed(() =>
+  Math.round(dnGoodsValue.value * (1 + Number(dnForm.value.debit_note_tax_percent || 0) / 100) * 100) / 100,
+)
+
+async function issueDebitNote() {
+  if (!dnRow.value) return
+  dnSaving.value = true
+  try {
+    const { data } = await http.post(`/stock-returns/${dnRow.value.id}/debit-note`, {
+      debit_note_date: dnForm.value.debit_note_date,
+      debit_note_tax_percent: dnForm.value.debit_note_tax_percent || 0,
+      debit_note_number: dnForm.value.debit_note_number || undefined,
+    })
+    toast.add({ severity: 'success', summary: data.message, life: 3500 })
+    dnDialog.value = false
+    reload()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e.response?.data?.message || 'Failed', life: 5000 })
+  } finally {
+    dnSaving.value = false
+  }
+}
+
+/**
+ * Email the note to the supplier. The other half of "posts it to its supplier" —
+ * a claim that only ever gets printed is credit the shop forgets to collect.
+ */
+const emailVisible = ref(false)
+const emailCtx = ref<{ endpoint: string; title: string; defaultTo: string; defaultSubject: string }>({
+  endpoint: '', title: '', defaultTo: '', defaultSubject: '',
+})
+
+function openEmail(row: any) {
+  emailCtx.value = {
+    endpoint: `/email/debit-notes/${row.id}`,
+    title: `Email Debit Note ${row.debit_note_number}`,
+    defaultTo: row.supplier?.email ?? '',
+    defaultSubject: `Debit Note ${row.debit_note_number}`,
+  }
+  emailVisible.value = true
+}
+
+/** The printable note — this is the copy that goes to the supplier. */
+async function printDebitNote(row: any) {
+  try {
+    const res = await http.get(`/stock-returns/${row.id}/debit-note`, { responseType: 'blob' })
+    openPdfBlob(res.data)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Could not open the debit note', life: 3000 })
+  }
+}
 
 // --- Read-only detail dialog ---
 const detailVisible = ref(false)
@@ -194,6 +278,7 @@ function reload() {
     status: statusFilter.value || undefined,
     search: search.value || undefined,
     warehouse_id: warehouseFilter.value || undefined,
+    debit_notes_only: debitNotesOnly.value ? 1 : undefined,
   })
 }
 function onPage(e: any) {
@@ -231,8 +316,12 @@ onMounted(async () => {
         placeholder="All statuses" @change="reload" class="status-filter" />
         <Select v-model="warehouseFilter" :options="warehouses" optionLabel="label" optionValue="value" showClear
         placeholder="All warehouses" @change="reload" class="status-filter" />
+        <label class="chk" title="Only returns that became a claim on a supplier">
+          <Checkbox v-model="debitNotesOnly" binary @change="reload" />
+          Debit notes only
+        </label>
         <TableExportButtons title="Stock Returns" endpoint="/stock-returns"
-        :params="() => ({ status: statusFilter || undefined, search: search || undefined, warehouse_id: warehouseFilter || undefined })"
+        :params="() => ({ status: statusFilter || undefined, search: search || undefined, warehouse_id: warehouseFilter || undefined, debit_notes_only: debitNotesOnly ? 1 : undefined })"
         :columns="[
         { key: 'return_number', label: 'Return #' },
         { key: 'warehouse.name', label: 'Warehouse' },
@@ -241,6 +330,9 @@ onMounted(async () => {
         { key: 'supplier.name', label: 'Supplier' },
         { key: 'return_date', label: 'Date' },
         { key: 'items_count', label: 'Lines' },
+        { key: 'debit_note_number', label: 'Debit Note #' },
+        { key: 'debit_note_date', label: 'DN Date' },
+        { key: 'debit_note_total', label: 'Claimed' },
         { key: 'status', label: 'Status' },
         ]" />
         <Button v-if="canCreate" label="New Return" icon="pi pi-plus" @click="openCreate" />
@@ -258,12 +350,30 @@ onMounted(async () => {
       <Column header="Customer / Supplier"><template #body="{ data }">{{ data.customer?.name || data.supplier?.name || '—' }}</template></Column>
       <Column field="return_date" header="Date" />
       <Column field="items_count" header="Lines" style="width: 5rem" />
+      <!--
+        The claim, where one was made. Empty on customer returns and on vendor
+        returns nobody has billed back yet — which is itself the number a buyer
+        wants to see, because goods sent back and never claimed for are money
+        left with the supplier.
+      -->
+      <Column header="Debit Note">
+        <template #body="{ data }">
+          <template v-if="data.debit_note_issued_at">
+            <div class="dn-no">{{ data.debit_note_number }}</div>
+            <small class="muted">
+              {{ data.debit_note_date }} · ₹{{ Number(data.debit_note_total ?? 0).toLocaleString('en-IN') }}
+            </small>
+          </template>
+          <small v-else-if="data.can_issue_debit_note" class="warn-text">Not claimed</small>
+          <span v-else class="muted">—</span>
+        </template>
+      </Column>
       <Column header="Status">
         <template #body="{ data }">
           <Tag :severity="statusColors[data.status]" :value="data.status" />
         </template>
       </Column>
-      <Column header="Actions" style="width: 16rem">
+      <Column header="Actions" style="width: 20rem">
         <template #body="{ data }">
           <Button icon="pi pi-eye" text rounded size="small" severity="secondary" title="View" @click="openDetail(data)" />
           <template v-if="data.status === 'draft'">
@@ -272,6 +382,14 @@ onMounted(async () => {
             <Button v-if="canEdit" icon="pi pi-ban" size="small" text severity="warn" title="Cancel" @click="cancelReturn(data)" />
             <Button v-if="canDelete" icon="pi pi-trash" size="small" text severity="danger" @click="removeReturn(data)" />
           </template>
+          <!-- Raising the claim sits on the same authority that let the goods
+               leave: it asks another business for money. -->
+          <Button v-if="canApprove && data.can_issue_debit_note" label="Debit Note" icon="pi pi-file-export"
+            size="small" outlined @click="openDebitNote(data)" />
+          <Button v-if="data.debit_note_issued_at" icon="pi pi-print" text rounded size="small"
+            title="Print debit note" @click="printDebitNote(data)" />
+          <Button v-if="data.debit_note_issued_at && canEmail" icon="pi pi-envelope" text rounded size="small"
+            title="Email the debit note to the supplier" @click="openEmail(data)" />
         </template>
       </Column>
       <template #empty>No stock returns yet.</template>
@@ -312,8 +430,11 @@ onMounted(async () => {
           <small v-if="errors.supplier_id" class="err">{{ errors.supplier_id[0] }}</small>
         </div>
         <div class="fld">
-          <label>Debit Note Number</label>
-          <InputText v-model="form.debit_note_number" placeholder="e.g. DN-000123" />
+          <label>Supplier's Reference</label>
+          <InputText v-model="form.debit_note_number" placeholder="Their RMA / DN reference, if any" />
+          <small class="hint">
+            Leave blank — raising the debit note after approval numbers it from your own series.
+          </small>
           <small v-if="errors.debit_note_number" class="err">{{ errors.debit_note_number[0] }}</small>
         </div>
       </div>
@@ -353,6 +474,56 @@ onMounted(async () => {
       </template>
     </Dialog>
 
+    <!--
+      Raise the purchase debit note (retail base §3). Short on purpose: the
+      return already holds the lines, the rates and the supplier, so all this
+      asks for is the date the claim is made, the rate it is claimed at, and
+      whether the shop is filing under its own number or the vendor's.
+    -->
+    <Dialog v-model:visible="dnDialog" modal header="Raise Purchase Debit Note" :style="{ width: '460px' }">
+      <div v-if="dnRow" class="dn-head">
+        <strong>{{ dnRow.supplier?.name || '—' }}</strong>
+        <small class="muted">
+          Against {{ dnRow.return_number }} · {{ dnRow.items_count }} line(s) returned {{ dnRow.return_date }}
+        </small>
+      </div>
+
+      <div class="dn-grid">
+        <div class="fld">
+          <label>Debit Note Date *</label>
+          <input type="date" v-model="dnForm.debit_note_date" class="date-input" />
+          <small class="hint">Dates the claim, not the day the goods left.</small>
+        </div>
+        <div class="fld">
+          <label>Tax %</label>
+          <InputNumber v-model="dnForm.debit_note_tax_percent" :min="0" :max="100" :maxFractionDigits="2" />
+          <small class="hint">The rate the original purchase bill charged.</small>
+        </div>
+        <div class="fld full">
+          <label>Number</label>
+          <InputText v-model="dnForm.debit_note_number" placeholder="Blank = next in your DN series" />
+        </div>
+      </div>
+
+      <table class="dn-total">
+        <tr><td>Goods value</td><td class="right">₹{{ dnGoodsValue.toLocaleString('en-IN') }}</td></tr>
+        <tr class="grand"><td>Amount to debit</td><td class="right">₹{{ dnClaimTotal.toLocaleString('en-IN') }}</td></tr>
+      </table>
+
+      <template #footer>
+        <Button label="Cancel" text @click="dnDialog = false" />
+        <Button label="Raise Debit Note" icon="pi pi-check" :loading="dnSaving" @click="issueDebitNote" />
+      </template>
+    </Dialog>
+
+    <SendEmailDialog
+      v-model:visible="emailVisible"
+      :endpoint="emailCtx.endpoint"
+      :title="emailCtx.title"
+      :defaultTo="emailCtx.defaultTo"
+      :defaultSubject="emailCtx.defaultSubject"
+    />
+
     <DetailDialog v-model:visible="detailVisible" title="Stock Return" :record="detailRecord" :fields="[
       { key: 'return_number', label: 'Return #' },
       { key: 'warehouse.name', label: 'Warehouse' },
@@ -360,6 +531,8 @@ onMounted(async () => {
       { key: 'customer.name', label: 'Customer' },
       { key: 'supplier.name', label: 'Supplier' },
       { key: 'debit_note_number', label: 'Debit Note #' },
+      { key: 'debit_note_date', label: 'Debit Note Date' },
+      { key: 'debit_note_total', label: 'Amount Claimed' },
       { key: 'return_date', label: 'Date' },
       { key: 'items_count', label: 'Lines' },
       { key: 'status', label: 'Status' },
@@ -391,4 +564,17 @@ onMounted(async () => {
 .num :deep(input) { width: 100px; }
 .err { color: #dc2626; font-size: 0.78rem; }
 .err.block { display: block; margin-top: 0.5rem; }
+.muted { color: #6b7280; }
+.warn-text { color: #92400e; font-size: 0.75rem; }
+.chk { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #374151; white-space: nowrap; }
+
+/* Purchase debit note */
+.dn-no { font-weight: 600; font-size: 0.85rem; }
+.dn-head { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.9rem; }
+.dn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+.dn-grid .fld.full { grid-column: 1 / -1; }
+.dn-total { width: 100%; margin-top: 1.1rem; border-collapse: collapse; font-size: 0.88rem; }
+.dn-total td { padding: 0.3rem 0; color: #4b5563; }
+.dn-total .right { text-align: right; }
+.dn-total tr.grand td { border-top: 1px solid var(--border, #e8e4da); padding-top: 0.5rem; font-weight: 700; color: #111827; }
 </style>

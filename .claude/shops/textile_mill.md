@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `textile`, `tailoring`, `logistics`, `gst`, `hrms`, `assets`, `devices` |
 | Minimum plan | **Enterprise** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 Stock here is a roll, not a quantity: it has a length, a width, a shade lot and a shrinkage figure, and two rolls of the same quality are not interchangeable.
 

@@ -9,7 +9,7 @@
 | Base | [Factory / back-office base](_base-factory.md) |
 | Industry modules | `manufacturing`, `logistics`, `gst`, `hrms`, `restaurant`, `assets`, `devices` |
 | Minimum plan | **Professional** (or a lower tier + the right marketplace pack) |
-| Shipped menu template | ⬜ **not written yet** — this file is the spec for it |
+| Shipped menu template | ✅ `ShopMenuSeeder::factorySections()` — on the [factory floor](_base-factory.md) |
 
 A chemical plant that people eat from. Recipes rather than BOMs, batches with expiry, and QC that is a legal record — the one manufacturing trade whose preset carries `restaurant` for the recipe book.
 

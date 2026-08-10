@@ -130,6 +130,19 @@ class RolePermissionSeeder extends Seeder
                 'sms.view', 'sms.create', 'sms.edit', 'sms.delete',
                 'email.view', 'email.create', 'email.edit', 'email.delete',
                 'marketing-campaigns.view', 'marketing-campaigns.create', 'marketing-campaigns.edit', 'marketing-campaigns.delete',
+                /**
+                 * Customer feedback & CSAT (retail base §6). Full set: this desk
+                 * asks customers how it went and replies when the answer is poor,
+                 * which is what `.edit` carries.
+                 */
+                'customer-feedback.view', 'customer-feedback.create', 'customer-feedback.edit', 'customer-feedback.delete',
+                /**
+                 * Shop-staff commission at approve level: a sales manager is who
+                 * agrees what their own floor earned this month. The *rates* stay
+                 * the owner's — those are created here too, which is the same
+                 * authority a sales manager already has over targets.
+                 */
+                'sales-commissions.view', 'sales-commissions.create', 'sales-commissions.edit', 'sales-commissions.approve',
                 'sales.view', 'sales.create', 'sales.edit', 'sales.approve',
                 'b2b-orders.view', 'b2b-orders.create', 'b2b-orders.edit', 'b2b-orders.delete', 'b2b-orders.approve',
                 'payments.view', 'payments.create',
@@ -185,6 +198,9 @@ class RolePermissionSeeder extends Seeder
                 'shipments.view', 'shipment-customs.view',
                 'shipment-expenses.view', 'shipment-expenses.create', 'shipment-expenses.edit', 'shipment-expenses.delete',
                 'shipment-payments.view', 'shipment-payments.create', 'shipment-payments.edit', 'shipment-payments.delete',
+                // The Tally / Busy / Zoho file the shop's chartered accountant
+                // imports (retail base §10). This is the desk that hands it over.
+                'accounting-exports.view',
                 'reports.view', 'stock.view', 'stock-ledger.view', 'notifications.view', 'ai.view',
             ],
             'staff' => [

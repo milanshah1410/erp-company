@@ -28,12 +28,15 @@ use App\Models\ChannelListing;
 use App\Models\ChannelOrder;
 use App\Models\ChannelSyncLog;
 use App\Models\ColourPrinting;
+use App\Models\CommissionEarning;
+use App\Models\CommissionRule;
 use App\Models\Company;
 use App\Models\Contractor;
 use App\Models\Country;
 use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\CustomerCategory;
+use App\Models\CustomerFeedback;
 use App\Models\CycleCount;
 use App\Models\DeliveryRoute;
 use App\Models\Department;
@@ -233,6 +236,13 @@ class DemoDataGenerator
         'whatsapp_messages' => 'WhatsApp Messages',
         'sms_messages' => 'SMS Messages',
         'email_logs' => 'Email Log',
+        /**
+         * Customer feedback & CSAT (retail base §6). Deliberately generates a
+         * *spread* of ratings including complaints, not a wall of five stars: a
+         * demo whose CSAT reads 100% shows nothing about the screen, whose whole
+         * point is the complaints worklist.
+         */
+        'customer_feedback' => 'Customer Feedback',
         // Field Sales. The whole van-sales day hangs off a salesman and his
         // beat, so those two stay first and everything below references them.
         'salesmen' => 'Salesmen',
@@ -349,6 +359,26 @@ class DemoDataGenerator
         // Other operational modules
         'users' => 'Users (Staff Logins)',
         'employees' => 'Employees',
+        /**
+         * Shop-staff sales commission (retail base §8b). Placed here, *after*
+         * `employees`, and not up in the HR block where the menu puts it —
+         * generate() walks this list in order, and earnings are computed by the
+         * real engine from the rules and from employees whose `user_id` is
+         * whoever rang the bills up. Listed before `employees`, a single
+         * "select everything" run would always produce zero earnings and look
+         * like a broken module.
+         *
+         * Rules before earnings for the same reason the warranty pair is ordered:
+         * the second is derived from the first. Deriving rather than inventing is
+         * deliberate — demo commission that did not add up to the rules on screen
+         * beside it would teach a shop the wrong thing about how this works.
+         *
+         * The demo *menu* placement is unaffected: DemoModuleMenu maps both chips
+         * onto /sales-commissions, so they still appear under Payroll in the
+         * picker regardless of where they sit in this list.
+         */
+        'commission_rules' => 'Commission Rules',
+        'commission_earnings' => 'Commission Earnings',
         'expenses' => 'Expenses',
     ];
 
@@ -528,6 +558,9 @@ class DemoDataGenerator
                 'leads' => $this->make($count, fn (int $i) => $this->leadRow($i), Lead::class),
                 'follow_ups' => $this->makeFollowUps($count),
                 'referrals' => $this->makeReferrals($count),
+                'customer_feedback' => $this->makeCustomerFeedback($count),
+                'commission_rules' => $this->makeCommissionRules($count),
+                'commission_earnings' => $this->makeCommissionEarnings($count),
                 'coupons' => $this->make($count, fn (int $i) => $this->couponRow($i), Coupon::class),
                 'marketing_campaigns' => $this->make($count, fn (int $i) => $this->campaignRow($i), MarketingCampaign::class),
                 'whatsapp_messages' => $this->makeWhatsapp($count),
@@ -1351,6 +1384,239 @@ class DemoDataGenerator
                 }
             });
         }
+
+        return $made;
+    }
+
+    /**
+     * Customer feedback (retail base §6).
+     *
+     * The distribution is the whole point of this maker. Real retail feedback is
+     * lopsided towards the top but not unanimous, so this walks a fixed pattern —
+     * roughly two-thirds 4s and 5s, a fifth neutral, the rest complaints — which
+     * puts a believable CSAT in the seventies on screen *and* leaves rows in the
+     * "needs attention" worklist. A generator that produced only five stars would
+     * demo a screen with its most important feature empty.
+     *
+     * One in six is left `pending` (asked, unanswered) so the resend / WhatsApp /
+     * copy-link buttons have something to act on, and one in five of the answered
+     * complaints already carries a reply so the acknowledged/resolved states show.
+     */
+    private function makeCustomerFeedback(int $count): int
+    {
+        $invoices = Invoice::select('id', 'customer_id', 'invoice_date')->get();
+        $customers = Customer::select('id', 'name', 'phone')->get();
+        if ($customers->isEmpty()) {
+            return 0;
+        }
+
+        // 4,5,5,4,3,5,2,4,5,1 — 60% satisfied, 20% neutral, 20% detractors.
+        $ratings = [4, 5, 5, 4, 3, 5, 2, 4, 5, 1];
+        $channels = ['counter', 'link', 'sms', 'whatsapp'];
+        $goodComments = [
+            'Very helpful staff, found exactly what I wanted.',
+            'Quick billing, no queue.',
+            'Good range and fair prices.',
+            null,
+        ];
+        $badComments = [
+            'Waited nearly twenty minutes at the counter.',
+            'Was charged more than the shelf price.',
+            'Item was dusty and the packaging was torn.',
+        ];
+        $goodTags = [['Staff'], ['Price'], ['Product quality'], ['Staff', 'Cleanliness']];
+        $badTags = [['Waiting time'], ['Price'], ['Staff'], ['Product quality']];
+
+        $userId = $this->createdBy;
+        $invoiceCount = $invoices->count();
+        $customerCount = $customers->count();
+        $made = 0;
+
+        for ($start = 0; $start < $count; $start += self::CHUNK) {
+            $batch = min(self::CHUNK, $count - $start);
+            DB::transaction(function () use (
+                $invoices, $invoiceCount, $customers, $customerCount, $ratings, $channels,
+                $goodComments, $badComments, $goodTags, $badTags, $userId, $start, $batch, &$made
+            ) {
+                for ($k = 0; $k < $batch; $k++) {
+                    $i = $start + $k;
+                    $customer = $customers[$i % $customerCount];
+                    $invoice = $invoiceCount > 0 ? $invoices[$i % $invoiceCount] : null;
+                    $channel = $channels[$i % count($channels)];
+                    $on = now()->subDays($i % 28);
+
+                    // One in six is still waiting for an answer.
+                    $pending = $i % 6 === 5;
+                    $rating = $pending ? null : $ratings[$i % count($ratings)];
+                    $isBad = $rating !== null && $rating <= CustomerFeedback::DETRACTOR_UPTO;
+
+                    // Replied on one in five of the complaints, alternating
+                    // between "we have read it" and "we have dealt with it".
+                    $replied = $isBad && $i % 5 === 0;
+
+                    CustomerFeedback::create([
+                        'customer_id' => $customer->id,
+                        'customer_name' => $customer->name,
+                        'customer_phone' => $customer->phone,
+                        'invoice_id' => $invoice?->id,
+                        'channel' => $channel,
+                        'rating' => $rating,
+                        'comment' => $pending ? null : ($isBad
+                            ? $badComments[$i % count($badComments)]
+                            : $goodComments[$i % count($goodComments)]),
+                        'tags' => $pending ? null : ($isBad
+                            ? $badTags[$i % count($badTags)]
+                            : $goodTags[$i % count($goodTags)]),
+                        'status' => $pending ? 'pending' : ($replied ? ($i % 10 === 0 ? 'resolved' : 'acknowledged') : 'submitted'),
+                        // Only the asked-by-link rows carry a token; counter rows
+                        // never had one, exactly as in real use.
+                        'token' => $channel === 'counter' ? null : CustomerFeedback::newToken(),
+                        'requested_at' => $channel === 'counter' ? null : $on->copy()->subHours(4),
+                        'submitted_at' => $pending ? null : $on,
+                        'response' => $replied ? 'Thank you for telling us — we have spoken to the counter staff and added a second till at peak hours.' : null,
+                        'responded_by' => $replied ? $userId : null,
+                        'responded_at' => $replied ? $on->copy()->addHours(6) : null,
+                        'created_by' => $userId,
+                    ]);
+                    $made++;
+                }
+            });
+        }
+
+        return $made;
+    }
+
+    /**
+     * Commission rules (retail base §8b).
+     *
+     * A small, *shaped* set rather than `$count` random rows: commission rules are
+     * a handful of business decisions, not a volume table, so the dial is capped
+     * here. What matters for a demo is that the set shows the engine's behaviour —
+     * a shop-wide default at a high priority number, narrower rules beneath it at
+     * low ones, and one rule with a floor — because that is what teaches "lowest
+     * priority wins, and only one pays".
+     */
+    private function makeCommissionRules(int $count): int
+    {
+        $categories = Category::select('id')->get();
+        $brands = Brand::select('id')->get();
+
+        $specs = [
+            ['name' => 'Standard 1% on everything', 'basis' => 'percent_of_sale', 'rate' => 1, 'priority' => 900],
+            ['name' => 'Big bills — 1.5% over ₹10,000', 'basis' => 'percent_of_sale', 'rate' => 1.5, 'priority' => 500, 'min_invoice_amount' => 10000],
+            ['name' => 'Ignore small lines (2% over ₹500)', 'basis' => 'percent_of_sale', 'rate' => 2, 'priority' => 400, 'min_line_amount' => 500],
+            ['name' => 'Push the slow brand — 3%', 'basis' => 'percent_of_sale', 'rate' => 3, 'priority' => 200, 'brand' => true],
+            ['name' => 'Margin share — 8% of gross margin', 'basis' => 'percent_of_margin', 'rate' => 8, 'priority' => 300, 'category' => true],
+            ['name' => 'Flat ₹50 a unit on the hero line', 'basis' => 'flat_per_unit', 'rate' => 50, 'priority' => 100, 'category' => true],
+        ];
+
+        // Never more rules than the shaped set, however high the volume dial is.
+        $wanted = min($count, count($specs));
+        $userId = $this->createdBy;
+        $made = 0;
+
+        DB::transaction(function () use ($specs, $wanted, $categories, $brands, $userId, &$made) {
+            for ($i = 0; $i < $wanted; $i++) {
+                $spec = $specs[$i];
+
+                CommissionRule::create([
+                    'name' => $spec['name'],
+                    'applies_to' => 'all',
+                    // Narrowed only where the shop actually has the master to
+                    // narrow by; otherwise the rule stays shop-wide rather than
+                    // pointing at nothing.
+                    'category_id' => ! empty($spec['category']) && $categories->isNotEmpty() ? $categories[$i % $categories->count()]->id : null,
+                    'brand_id' => ! empty($spec['brand']) && $brands->isNotEmpty() ? $brands[$i % $brands->count()]->id : null,
+                    'basis' => $spec['basis'],
+                    'rate' => $spec['rate'],
+                    'min_line_amount' => $spec['min_line_amount'] ?? 0,
+                    'min_invoice_amount' => $spec['min_invoice_amount'] ?? 0,
+                    'priority' => $spec['priority'],
+                    'is_active' => true,
+                    'notes' => 'Demo rule.',
+                    'created_by' => $userId,
+                ]);
+                $made++;
+            }
+        });
+
+        return $made;
+    }
+
+    /**
+     * Commission earnings (retail base §8b).
+     *
+     * Runs the **real engine** over the last three months rather than inventing
+     * rows. That is the important decision: fabricated earnings would not agree
+     * with the rules sitting next to them on screen, and a shop reading a demo
+     * would learn a rate the engine does not actually apply.
+     *
+     * Because it is the real engine, it needs what the engine needs — active
+     * rules, and employees whose `user_id` is whoever rang the bills up. The
+     * demo employee maker does not guarantee the second, so a slice of employees
+     * is pointed at the actual order creators first. Returns 0 honestly when
+     * there is nothing to compute from.
+     *
+     * `$count` is ignored: the number of earnings is however many sale lines the
+     * rules cover, which is not a dial anybody should be turning.
+     */
+    private function makeCommissionEarnings(int $count): int
+    {
+        if (CommissionRule::query()->where('is_active', true)->doesntExist()) {
+            return 0;
+        }
+
+        // Who actually rang bills up in this workspace.
+        $creators = SalesOrder::query()
+            ->whereNotNull('created_by')
+            ->distinct()
+            ->pluck('created_by');
+        if ($creators->isEmpty()) {
+            return 0;
+        }
+
+        // Point some employees at them, so those bills have a seller to credit.
+        $employees = Employee::query()->orderBy('id')->limit($creators->count())->get();
+        if ($employees->isEmpty()) {
+            return 0;
+        }
+        foreach ($employees as $idx => $employee) {
+            $employee->update(['user_id' => $creators[$idx % $creators->count()], 'is_active' => true]);
+        }
+
+        $engine = app(SalesCommissionService::class);
+        $made = 0;
+        // Three months, so the period picker on the screen has something in it
+        // either side of today.
+        for ($back = 0; $back < 3; $back++) {
+            $month = now()->subMonthsNoOverflow($back);
+            $result = $engine->generate((int) $month->year, (int) $month->month);
+            $made += $result['generated'];
+        }
+
+        /**
+         * Push most of it through the lifecycle so every state is visible: the
+         * oldest month settled, the middle one approved and awaiting payment,
+         * the current one left pending. A demo where everything is `pending`
+         * hides the two buttons that matter.
+         */
+        DB::transaction(function () {
+            $lastMonth = now()->subMonthNoOverflow();
+            $twoBack = now()->subMonthsNoOverflow(2);
+
+            CommissionEarning::query()
+                ->forPeriod((int) $twoBack->year, (int) $twoBack->month)
+                ->update([
+                    'status' => 'paid',
+                    'approved_at' => $twoBack->copy()->endOfMonth(),
+                    'paid_on' => $twoBack->copy()->endOfMonth()->toDateString(),
+                    'payment_reference' => $twoBack->format('M Y').' payroll',
+                ]);
+
+            CommissionEarning::query()
+                ->forPeriod((int) $lastMonth->year, (int) $lastMonth->month)
+                ->update(['status' => 'approved', 'approved_at' => $lastMonth->copy()->endOfMonth()]);
+        });
 
         return $made;
     }
