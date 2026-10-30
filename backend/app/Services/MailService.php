@@ -38,6 +38,26 @@ class MailService
     }
 
     /**
+     * The name of the mailer this tenant sends through, having configured it.
+     *
+     * Notifications route by mailer *name* rather than by instance — Laravel's
+     * MailChannel resolves `MailMessage::$mailer` out of the factory — so a
+     * notification that must go out on the tenant's own SMTP account needs this
+     * rather than mailer() below. Calling it has the same configuring
+     * side-effect, so the name it returns is always a mailer that exists.
+     */
+    public function mailerName(): string
+    {
+        $this->mailer();
+
+        $c = Setting::mailConfig();
+
+        return (($c['mail_driver'] ?? 'log') === 'smtp' && ! empty($c['mail_host']))
+            ? 'tenant_smtp'
+            : (string) config('mail.default');
+    }
+
+    /**
      * A Mailer configured from the tenant's settings. When SMTP is not configured
      * the app default mailer (the `log` driver out of the box) is returned so the
      * flow still succeeds and is captured in the log for inspection.

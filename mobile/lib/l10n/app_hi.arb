@@ -1,0 +1,73 @@
+{
+  "@@locale": "hi",
+
+  "appTitle": "कोषा",
+
+  "actionRetry": "फिर कोशिश करें",
+  "actionCancel": "रद्द करें",
+  "actionSave": "सहेजें",
+  "actionSignIn": "साइन इन करें",
+  "actionSignOut": "साइन आउट करें",
+  "actionSearch": "खोजें",
+  "actionOpenInBrowser": "ब्राउज़र में खोलें",
+  "actionSendCode": "रीसेट कोड भेजें",
+  "actionResetPassword": "पासवर्ड रीसेट करें",
+
+  "fieldEmail": "ईमेल",
+  "fieldPassword": "पासवर्ड",
+  "fieldNewPassword": "नया पासवर्ड",
+  "fieldConfirmPassword": "पासवर्ड की पुष्टि करें",
+  "fieldResetCode": "रीसेट कोड",
+
+  "authSignInTitle": "साइन इन करें",
+  "authSignInSubtitle": "अपने व्यवस्थापक द्वारा दिए गए खाते का उपयोग करें।",
+  "authForgotPassword": "पासवर्ड भूल गए?",
+  "authForgotTitle": "अपना पासवर्ड रीसेट करें",
+  "authForgotSubtitle": "अपना ईमेल दर्ज करें, हम आपको रीसेट कोड भेजेंगे।",
+  "authForgotSent": "यदि यह ईमेल किसी खाते का है, तो रीसेट लिंक भेज दिया गया है।",
+  "authResetTitle": "नया पासवर्ड चुनें",
+  "authResetDone": "आपका पासवर्ड रीसेट हो गया है। कृपया फिर से साइन इन करें।",
+  "authSessionExpired": "आपका सत्र समाप्त हो गया है। कृपया फिर से साइन इन करें।",
+  "authSignOutConfirm": "इस डिवाइस से साइन आउट करें? वापस साइन इन करने के लिए पासवर्ड चाहिए होगा।",
+
+  "validationRequired": "{field} आवश्यक है।",
+
+  "navDashboard": "डैशबोर्ड",
+  "navFavorites": "पसंदीदा",
+  "navRecents": "हाल के",
+  "navSearchMenu": "मेन्यू खोजें",
+  "navProfile": "प्रोफ़ाइल",
+  "navSettings": "सेटिंग्स",
+
+  "stateLoading": "लोड हो रहा है…",
+  "stateEmptyTitle": "यहाँ अभी कुछ नहीं है",
+  "stateEmptyBody": "जब दिखाने के लिए कुछ होगा, वह यहाँ दिखाई देगा।",
+  "stateErrorTitle": "कुछ गड़बड़ हो गई",
+  "stateOffline": "आप ऑफ़लाइन हैं",
+  "stateOfflineBody": "पिछली डाउनलोड की गई जानकारी दिखाई जा रही है। दोबारा कनेक्ट होने पर बदलाव भेज दिए जाएंगे।",
+
+  "errorNetwork": "इंटरनेट कनेक्शन नहीं है।",
+  "errorTimeout": "सर्वर से उत्तर आने में बहुत समय लगा।",
+  "errorServer": "सर्वर में समस्या आई। कृपया थोड़ी देर बाद कोशिश करें।",
+  "errorForbidden": "आपके पास यह करने की अनुमति नहीं है।",
+  "errorRateLimited": "बहुत अधिक प्रयास। कृपया थोड़ा प्रतीक्षा करें।",
+
+  "tenantSuspendedTitle": "वर्कस्पेस निलंबित",
+  "tenantSuspendedBody": "यह वर्कस्पेस निलंबित कर दिया गया है। कृपया सहायता से संपर्क करें।",
+  "moduleDisabledTitle": "इस प्लान में उपलब्ध नहीं",
+  "moduleDisabledBody": "{module} मॉड्यूल इस वर्कस्पेस के लिए चालू नहीं है।",
+  "screenUnavailableTitle": "ऐप में अभी उपलब्ध नहीं",
+  "screenUnavailableBody": "“{screen}” आपके वर्कस्पेस के वेब संस्करण पर उपलब्ध है।",
+  "screenDeniedTitle": "उपलब्ध नहीं",
+  "screenDeniedBody": "आपके वर्कस्पेस में इस स्क्रीन की पहुँच नहीं है। ज़रूरत हो तो अपने व्यवस्थापक से पूछें।",
+
+  "settingsLanguage": "भाषा",
+  "settingsTheme": "रूप",
+  "settingsThemeSystem": "डिवाइस के अनुसार",
+  "settingsThemeLight": "हल्का",
+  "settingsThemeDark": "गहरा",
+
+  "languageEnglish": "English",
+  "languageHindi": "हिन्दी",
+  "languageGujarati": "ગુજરાતી"
+}

@@ -25,3 +25,7 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Generated OpenAPI contract (php artisan scramble:export) — a ~10MB build
+# artifact regenerated on demand, not a reviewable source file.
+/docs/openapi.json

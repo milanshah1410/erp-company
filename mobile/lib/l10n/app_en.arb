@@ -1,0 +1,86 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Kosha",
+  "@appTitle": { "description": "App name shown in the task switcher and on the sign-in screen" },
+
+  "actionRetry": "Try again",
+  "actionCancel": "Cancel",
+  "actionSave": "Save",
+  "actionSignIn": "Sign in",
+  "actionSignOut": "Sign out",
+  "actionSearch": "Search",
+  "actionOpenInBrowser": "Open in browser",
+  "actionSendCode": "Send reset code",
+  "actionResetPassword": "Reset password",
+
+  "fieldEmail": "Email",
+  "fieldPassword": "Password",
+  "fieldNewPassword": "New password",
+  "fieldConfirmPassword": "Confirm password",
+  "fieldResetCode": "Reset code",
+
+  "authSignInTitle": "Sign in",
+  "authSignInSubtitle": "Use the account your workspace administrator gave you.",
+  "authForgotPassword": "Forgot password?",
+  "authForgotTitle": "Reset your password",
+  "authForgotSubtitle": "Enter your email and we will send you a reset code.",
+  "authForgotSent": "If that email address belongs to an account, a reset link is on its way.",
+  "authResetTitle": "Choose a new password",
+  "authResetDone": "Your password has been reset. Please sign in again.",
+  "authSessionExpired": "Your session has ended. Please sign in again.",
+  "authSignOutConfirm": "Sign out of this device? You will need your password to sign back in.",
+
+  "validationRequired": "{field} is required.",
+  "@validationRequired": {
+    "placeholders": { "field": { "type": "String" } }
+  },
+
+  "navDashboard": "Dashboard",
+  "navFavorites": "Favourites",
+  "navRecents": "Recent",
+  "navSearchMenu": "Search menu",
+  "navProfile": "Profile",
+  "navSettings": "Settings",
+
+  "stateLoading": "Loading…",
+  "stateEmptyTitle": "Nothing here yet",
+  "stateEmptyBody": "When there is something to show, it will appear here.",
+  "stateErrorTitle": "Something went wrong",
+  "stateOffline": "You are offline",
+  "stateOfflineBody": "Showing the last information we downloaded. Changes will be sent when you reconnect.",
+
+  "errorNetwork": "No internet connection.",
+  "errorTimeout": "The server took too long to respond.",
+  "errorServer": "The server ran into a problem. Please try again shortly.",
+  "errorForbidden": "You do not have permission to do that.",
+  "errorRateLimited": "Too many attempts. Please wait a moment.",
+
+  "tenantSuspendedTitle": "Workspace suspended",
+  "tenantSuspendedBody": "This workspace has been suspended. Please contact support.",
+  "moduleDisabledTitle": "Not available on this plan",
+  "moduleDisabledBody": "The {module} module is not enabled for this workspace.",
+  "@moduleDisabledBody": {
+    "placeholders": { "module": { "type": "String" } }
+  },
+
+  "screenUnavailableTitle": "Not available in the app yet",
+  "screenUnavailableBody": "“{screen}” is available on the web version of your workspace.",
+  "@screenUnavailableBody": {
+    "description": "Shown when the server grants a menu route the app has no screen registered for",
+    "placeholders": { "screen": { "type": "String" } }
+  },
+
+  "screenDeniedTitle": "Not available",
+  "screenDeniedBody": "Your workspace does not give you access to this screen. Ask your administrator if you need it.",
+
+  "settingsLanguage": "Language",
+  "settingsTheme": "Appearance",
+  "settingsThemeSystem": "Match device",
+  "settingsThemeLight": "Light",
+  "settingsThemeDark": "Dark",
+
+  "languageEnglish": "English",
+  "languageHindi": "हिन्दी",
+  "languageGujarati": "ગુજરાતી"
+}

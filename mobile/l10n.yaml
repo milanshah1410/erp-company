@@ -1,0 +1,11 @@
+# gen-l10n configuration (§28). Run `flutter gen-l10n` — or just build; the
+# generate: true flag in pubspec.yaml runs it as part of `flutter pub get`.
+#
+# English is the template *and* the fallback: a Gujarati string that has not been
+# translated yet falls back to English rather than rendering a blank label.
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppStrings
+output-dir: lib/l10n/generated
+nullable-getter: false

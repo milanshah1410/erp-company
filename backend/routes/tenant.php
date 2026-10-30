@@ -117,6 +117,7 @@ use App\Http\Controllers\Api\ManufacturingOrderController;
 use App\Http\Controllers\Api\ManufacturingReportController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\PaymentGatewayAccountController;
 use App\Http\Controllers\Api\PaymentTransactionController;
 use App\Http\Controllers\Api\PaymentVoucherController;
@@ -228,6 +229,15 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('api')->prefix('api')->group(function () {
     // Public: login (runs before any tenant context exists).
     Route::post('/login', [AuthController::class, 'login']);
+
+    /*
+    | Forgot / reset password (mobile app §4). Public for the same reason login
+    | is — there is no session yet — and rate-limited per IP on top of the
+    | broker's own per-user throttle, because the per-user guard does nothing
+    | against a caller walking a list of addresses.
+    */
+    Route::post('/forgot-password', [PasswordResetController::class, 'request'])->middleware('throttle:6,1');
+    Route::post('/reset-password', [PasswordResetController::class, 'reset'])->middleware('throttle:6,1');
 
     /*
     |----------------------------------------------------------------------
@@ -676,7 +686,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         |----------------------------------------------------------------------
         */
         Route::get('payment-vouchers', [PaymentVoucherController::class, 'index'])->middleware('permission:payments.view');
-        Route::post('payment-vouchers', [PaymentVoucherController::class, 'store'])->middleware('permission:payments.create');
+        Route::post('payment-vouchers', [PaymentVoucherController::class, 'store'])->middleware(['permission:payments.create', 'idempotent']);
         Route::get('payment-vouchers/{paymentVoucher}', [PaymentVoucherController::class, 'show'])->middleware('permission:payments.view');
         Route::post('payment-vouchers/{paymentVoucher}/allocations', [PaymentVoucherController::class, 'allocate'])->middleware('permission:payments.edit');
         Route::delete('payment-vouchers/{paymentVoucher}', [PaymentVoucherController::class, 'destroy'])->middleware('permission:payments.delete');
@@ -771,7 +781,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         |----------------------------------------------------------------------
         */
         Route::get('sales-orders', [SalesOrderController::class, 'index'])->middleware('permission:sales.view');
-        Route::post('sales-orders', [SalesOrderController::class, 'store'])->middleware('permission:sales.create');
+        Route::post('sales-orders', [SalesOrderController::class, 'store'])->middleware(['permission:sales.create', 'idempotent']);
         Route::get('sales-orders/{salesOrder}', [SalesOrderController::class, 'show'])->middleware('permission:sales.view');
         Route::get('sales-orders/{salesOrder}/delivery-challan', [SalesOrderController::class, 'pdf'])->middleware('permission:sales.view');
         Route::match(['put', 'patch'], 'sales-orders/{salesOrder}', [SalesOrderController::class, 'update'])->middleware('permission:sales.edit');
@@ -828,7 +838,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('invoices', [InvoiceController::class, 'index'])->middleware('permission:sales.view');
         Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->middleware('permission:sales.view');
         Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf'])->middleware('permission:sales.view');
-        Route::post('invoices/{invoice}/payments', [InvoiceController::class, 'recordPayment'])->middleware('permission:sales.create');
+        Route::post('invoices/{invoice}/payments', [InvoiceController::class, 'recordPayment'])->middleware(['permission:sales.create', 'idempotent']);
 
         // Sales quotations: pre-order stage, converts into a Sales Order once accepted
         Route::get('sales-quotations', [SalesQuotationController::class, 'index'])->middleware('permission:sales.view');
@@ -842,10 +852,19 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::post('sales-quotations/{salesQuotation}/reject', [SalesQuotationController::class, 'reject'])->middleware('permission:sales.edit');
         Route::post('sales-quotations/{salesQuotation}/convert', [SalesQuotationController::class, 'convert'])->middleware('permission:sales.create');
 
-        // POS: one-shot retail counter checkout (creates SO + Invoice + Payments atomically)
+        /*
+         * POS: one-shot retail counter checkout (creates SO + Invoice + Payments
+         * atomically).
+         *
+         * `idempotent` on the three writes below: these are the calls a counter
+         * makes over a flaky connection, and the mobile app retries them from an
+         * offline queue. A client that sends an Idempotency-Key gets replay
+         * protection; the SPA, which sends none, is unaffected. See
+         * App\Http\Middleware\EnsureIdempotency.
+         */
         Route::get('pos/products', [PosController::class, 'products'])->middleware('permission:sales.view');
         Route::get('pos/lookup', [PosController::class, 'lookup'])->middleware('permission:sales.view');
-        Route::post('pos/checkout', [PosController::class, 'checkout'])->middleware('permission:sales.create');
+        Route::post('pos/checkout', [PosController::class, 'checkout'])->middleware(['permission:sales.create', 'idempotent']);
         // What the till may offer this customer in points. On sales.view, not
         // loyalty.view: a cashier reads it as part of ringing up a bill.
         Route::get('pos/loyalty-quote', [PosController::class, 'loyaltyQuote'])->middleware('permission:sales.view');
@@ -859,8 +878,8 @@ Route::middleware('api')->prefix('api')->group(function () {
         // POS invoice lookup + counter return / exchange flows
         Route::get('pos/invoices', [PosController::class, 'invoices'])->middleware('permission:sales.view');
         Route::get('pos/invoices/{invoice}', [PosController::class, 'invoice'])->middleware('permission:sales.view');
-        Route::post('pos/return', [PosController::class, 'processReturn'])->middleware('permission:sales-returns.create');
-        Route::post('pos/exchange', [PosController::class, 'exchange'])->middleware('permission:sales.create');
+        Route::post('pos/return', [PosController::class, 'processReturn'])->middleware(['permission:sales-returns.create', 'idempotent']);
+        Route::post('pos/exchange', [PosController::class, 'exchange'])->middleware(['permission:sales.create', 'idempotent']);
 
         /*
         |--------------------------------------------------------------------------
@@ -941,7 +960,7 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         // Stock adjustments: reason-coded corrections with approval workflow
         Route::get('stock-adjustments', [StockAdjustmentController::class, 'index'])->middleware('permission:stock-adjustments.view');
-        Route::post('stock-adjustments', [StockAdjustmentController::class, 'store'])->middleware('permission:stock-adjustments.create');
+        Route::post('stock-adjustments', [StockAdjustmentController::class, 'store'])->middleware(['permission:stock-adjustments.create', 'idempotent']);
         Route::get('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'show'])->middleware('permission:stock-adjustments.view');
         Route::match(['put', 'patch'], 'stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'update'])->middleware('permission:stock-adjustments.edit');
         Route::delete('stock-adjustments/{stockAdjustment}', [StockAdjustmentController::class, 'destroy'])->middleware('permission:stock-adjustments.delete');
@@ -976,7 +995,7 @@ Route::middleware('api')->prefix('api')->group(function () {
 
         // Stock transfers: warehouse A -> B with in-transit tracking
         Route::get('stock-transfers', [StockTransferController::class, 'index'])->middleware('permission:stock-transfers.view');
-        Route::post('stock-transfers', [StockTransferController::class, 'store'])->middleware('permission:stock-transfers.create');
+        Route::post('stock-transfers', [StockTransferController::class, 'store'])->middleware(['permission:stock-transfers.create', 'idempotent']);
         Route::get('stock-transfers/{stockTransfer}', [StockTransferController::class, 'show'])->middleware('permission:stock-transfers.view');
         Route::match(['put', 'patch'], 'stock-transfers/{stockTransfer}', [StockTransferController::class, 'update'])->middleware('permission:stock-transfers.edit');
         Route::delete('stock-transfers/{stockTransfer}', [StockTransferController::class, 'destroy'])->middleware('permission:stock-transfers.delete');
@@ -1228,7 +1247,7 @@ Route::middleware('api')->prefix('api')->group(function () {
         Route::get('expenses/report/category', [ExpenseController::class, 'categoryReport'])->middleware('permission:expenses.view');
         Route::get('expenses/ledger', [ExpenseController::class, 'ledger'])->middleware('permission:expenses.view');
         Route::get('expenses', [ExpenseController::class, 'index'])->middleware('permission:expenses.view');
-        Route::post('expenses', [ExpenseController::class, 'store'])->middleware('permission:expenses.create');
+        Route::post('expenses', [ExpenseController::class, 'store'])->middleware(['permission:expenses.create', 'idempotent']);
         Route::get('expenses/{expense}', [ExpenseController::class, 'show'])->middleware('permission:expenses.view');
         Route::match(['put', 'patch'], 'expenses/{expense}', [ExpenseController::class, 'update'])->middleware('permission:expenses.edit');
         Route::delete('expenses/{expense}', [ExpenseController::class, 'destroy'])->middleware('permission:expenses.delete');

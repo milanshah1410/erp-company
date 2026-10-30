@@ -1,0 +1,25 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # A missing await on a repository call is a race that shows up as an empty
+    # list in production and nowhere in review.
+    unawaited_futures: error
+    # §32 "strong typing" — an implicit dynamic is how a renamed API field
+    # becomes a runtime crash instead of a compile error.
+    argument_type_not_assignable: error
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "lib/l10n/generated/**"
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_print # §25: no logging in production builds. Use AppLogger.
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_final_locals
+    - require_trailing_commas
+    - unawaited_futures
+    - use_super_parameters

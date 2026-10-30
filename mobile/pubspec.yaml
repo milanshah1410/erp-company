@@ -1,0 +1,81 @@
+name: kosha_mobile
+description: One mobile client for the multi-tenant ERP. Screens are decided by the server, not by the build.
+publish_to: "none"
+version: 1.0.0+1
+
+# Verified against Flutter 3.44.9 / Dart 3.12.2. The flutter floor is not
+# cosmetic: core/theme/app_theme.dart uses CardThemeData, InputDecorationThemeData
+# and Color.withValues, none of which exist below 3.27.
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+# Every dependency here earns its place (mobile app §32 "no random packages").
+# The one-line reason is the justification; anything that cannot be given one
+# does not belong in this file.
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State — mandated by §2.
+  flutter_riverpod: ^2.5.1
+
+  # HTTP — mandated by §3.
+  dio: ^5.4.0
+
+  # Token storage — mandated by §4. Keychain / EncryptedSharedPreferences.
+  flutter_secure_storage: ^9.0.0
+
+  # Non-sensitive preferences only (locale, theme). Never tokens — see §4.
+  shared_preferences: ^2.2.2
+
+  # Declarative routing. The dynamic menu maps server route strings onto screens
+  # at runtime, which needs name-addressable routes and deep links (for
+  # notification taps in Phase 8) rather than a hand-rolled Navigator stack.
+  go_router: ^14.0.0
+
+  # §18 network detection. Reports the interface, not reachability — the client
+  # still has to try the call.
+  connectivity_plus: ^6.0.0
+
+  # §26 image caching.
+  cached_network_image: ^3.3.1
+
+  # §14 call / WhatsApp, platform-safe.
+  url_launcher: ^6.2.5
+
+  # Sent as part of the push device registration (§19) and shown on the about
+  # screen, so a support call can establish which build is in someone's hand.
+  package_info_plus: ^8.0.0
+
+  # Date/number formatting per locale (§27, §28). Version is left to
+  # flutter_localizations, which pins it.
+  intl: any
+
+  # Idempotency keys for retryable writes (§18) — see IdempotencyKey in
+  # core/network. A UUID generator is not worth hand-rolling.
+  uuid: ^4.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+  # §32 "strong typing". Hand-writing models and copyWith across this many
+  # endpoints is how field drift gets shipped.
+  freezed: ^2.5.2
+  freezed_annotation: ^2.4.1
+  json_serializable: ^6.8.0
+  json_annotation: ^4.9.0
+  build_runner: ^2.4.9
+
+  # Repository tests (§31) run against a scripted Dio, not a live workspace.
+  http_mock_adapter: ^0.6.1
+
+flutter:
+  uses-material-design: true
+  generate: true # turns on gen-l10n from lib/l10n/*.arb
+  assets:
+    - assets/images/

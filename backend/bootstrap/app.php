@@ -53,6 +53,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.active' => \App\Http\Middleware\EnsureTenantActive::class,
             // B2B customer portal (SRS §14): the tokenable must be a Customer.
             'portal' => \App\Http\Middleware\EnsurePortalCustomer::class,
+            // Replay protection for the write endpoints the mobile app queues
+            // offline. Opt-in per caller (fails open without the header), so the
+            // SPA is unaffected — see App\Http\Middleware\EnsureIdempotency.
+            'idempotent' => \App\Http\Middleware\EnsureIdempotency::class,
         ]);
 
         // Tenant context must be established BEFORE SubstituteBindings resolves

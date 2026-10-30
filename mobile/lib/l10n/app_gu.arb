@@ -1,0 +1,73 @@
+{
+  "@@locale": "gu",
+
+  "appTitle": "કોષા",
+
+  "actionRetry": "ફરી પ્રયાસ કરો",
+  "actionCancel": "રદ કરો",
+  "actionSave": "સાચવો",
+  "actionSignIn": "સાઇન ઇન કરો",
+  "actionSignOut": "સાઇન આઉટ કરો",
+  "actionSearch": "શોધો",
+  "actionOpenInBrowser": "બ્રાઉઝરમાં ખોલો",
+  "actionSendCode": "રીસેટ કોડ મોકલો",
+  "actionResetPassword": "પાસવર્ડ રીસેટ કરો",
+
+  "fieldEmail": "ઇમેઇલ",
+  "fieldPassword": "પાસવર્ડ",
+  "fieldNewPassword": "નવો પાસવર્ડ",
+  "fieldConfirmPassword": "પાસવર્ડની ખાતરી કરો",
+  "fieldResetCode": "રીસેટ કોડ",
+
+  "authSignInTitle": "સાઇન ઇન કરો",
+  "authSignInSubtitle": "તમારા વ્યવસ્થાપકે આપેલા ખાતાનો ઉપયોગ કરો.",
+  "authForgotPassword": "પાસવર્ડ ભૂલી ગયા?",
+  "authForgotTitle": "તમારો પાસવર્ડ રીસેટ કરો",
+  "authForgotSubtitle": "તમારું ઇમેઇલ દાખલ કરો, અમે તમને રીસેટ કોડ મોકલીશું.",
+  "authForgotSent": "જો તે ઇમેઇલ કોઈ ખાતાનું હોય, તો રીસેટ લિંક મોકલી દેવામાં આવી છે.",
+  "authResetTitle": "નવો પાસવર્ડ પસંદ કરો",
+  "authResetDone": "તમારો પાસવર્ડ રીસેટ થઈ ગયો છે. કૃપા કરીને ફરી સાઇન ઇન કરો.",
+  "authSessionExpired": "તમારું સત્ર સમાપ્ત થયું છે. કૃપા કરીને ફરી સાઇન ઇન કરો.",
+  "authSignOutConfirm": "આ ડિવાઇસમાંથી સાઇન આઉટ કરવું છે? ફરી સાઇન ઇન કરવા પાસવર્ડ જોઈશે.",
+
+  "validationRequired": "{field} જરૂરી છે.",
+
+  "navDashboard": "ડેશબોર્ડ",
+  "navFavorites": "પસંદીદા",
+  "navRecents": "તાજેતરના",
+  "navSearchMenu": "મેનૂ શોધો",
+  "navProfile": "પ્રોફાઇલ",
+  "navSettings": "સેટિંગ્સ",
+
+  "stateLoading": "લોડ થઈ રહ્યું છે…",
+  "stateEmptyTitle": "અહીં હજી કંઈ નથી",
+  "stateEmptyBody": "બતાવવા જેવું કંઈ હશે ત્યારે તે અહીં દેખાશે.",
+  "stateErrorTitle": "કંઈક ખોટું થયું",
+  "stateOffline": "તમે ઑફલાઇન છો",
+  "stateOfflineBody": "છેલ્લી ડાઉનલોડ કરેલી માહિતી બતાવાઈ રહી છે. ફરી કનેક્ટ થતાં ફેરફારો મોકલવામાં આવશે.",
+
+  "errorNetwork": "ઇન્ટરનેટ કનેક્શન નથી.",
+  "errorTimeout": "સર્વરે જવાબ આપવામાં ઘણો સમય લીધો.",
+  "errorServer": "સર્વરમાં સમસ્યા આવી. કૃપા કરીને થોડી વારે પ્રયાસ કરો.",
+  "errorForbidden": "તમને આ કરવાની પરવાનગી નથી.",
+  "errorRateLimited": "ઘણા બધા પ્રયાસો. કૃપા કરીને થોડી રાહ જુઓ.",
+
+  "tenantSuspendedTitle": "વર્કસ્પેસ સ્થગિત",
+  "tenantSuspendedBody": "આ વર્કસ્પેસ સ્થગિત કરવામાં આવ્યું છે. કૃપા કરીને સપોર્ટનો સંપર્ક કરો.",
+  "moduleDisabledTitle": "આ પ્લાનમાં ઉપલબ્ધ નથી",
+  "moduleDisabledBody": "{module} મોડ્યુલ આ વર્કસ્પેસ માટે ચાલુ નથી.",
+  "screenUnavailableTitle": "ઍપમાં હજી ઉપલબ્ધ નથી",
+  "screenUnavailableBody": "“{screen}” તમારા વર્કસ્પેસના વેબ સંસ્કરણ પર ઉપલબ્ધ છે.",
+  "screenDeniedTitle": "ઉપલબ્ધ નથી",
+  "screenDeniedBody": "તમારા વર્કસ્પેસમાં આ સ્ક્રીનની ઍક્સેસ નથી. જરૂર હોય તો તમારા વ્યવસ્થાપકને પૂછો.",
+
+  "settingsLanguage": "ભાષા",
+  "settingsTheme": "દેખાવ",
+  "settingsThemeSystem": "ડિવાઇસ પ્રમાણે",
+  "settingsThemeLight": "હળવું",
+  "settingsThemeDark": "ઘેરું",
+
+  "languageEnglish": "English",
+  "languageHindi": "हिन्दी",
+  "languageGujarati": "ગુજરાતી"
+}

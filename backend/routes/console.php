@@ -42,6 +42,11 @@ Schedule::command('gift:reminders')->dailyAt('07:30');
  */
 Schedule::command('sales:daily-digest')->dailyAt('21:30');
 
+// Replay receipts for the mobile app's offline queue (§18). Hourly rather than
+// daily: the rows live 24h, and sweeping once a day would mean the table always
+// holds a full day's writes plus however long since the last sweep.
+Schedule::command('idempotency:prune')->hourly()->withoutOverlapping();
+
 Schedule::command('backup:run')->daily()->at('02:00');
 Schedule::command('backup:clean')->daily()->at('01:30');
 
